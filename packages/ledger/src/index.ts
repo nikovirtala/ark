@@ -127,6 +127,16 @@ export {
   resolveQualifiedId,
   sourceLogRef,
 } from "./sources/resolve.js";
+export { findTemplateVersion, loadTemplates } from "./templates/history.js";
+export { lintDocument, lintTemplate } from "./templates/lint.js";
+export {
+  MAX_TEMPLATE_BYTES,
+  parseTemplate,
+  type SectionSpec,
+  type Template,
+  type TemplateParse,
+} from "./templates/parse.js";
+export { extractSections, normalizeSection, renderTemplate } from "./templates/render.js";
 export {
   appendOnly,
   bodyPolicy,
