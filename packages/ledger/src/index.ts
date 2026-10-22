@@ -109,6 +109,25 @@ export {
 } from "./log/snapshot.js";
 export { writeEvent } from "./log/write.js";
 export {
+  MAX_CONFIG_BYTES,
+  parseToolConfig,
+  readToolConfig,
+  type SourceConfig,
+  type ToolConfig,
+} from "./sources/config.js";
+export { type FetchedSource, fetchSource } from "./sources/fetch.js";
+export {
+  formatQualifiedId,
+  parseQualifiedId,
+  type QualifiedId,
+} from "./sources/qualified-id.js";
+export {
+  type LogRef,
+  type Resolution,
+  resolveQualifiedId,
+  sourceLogRef,
+} from "./sources/resolve.js";
+export {
   appendOnly,
   bodyPolicy,
   type Check,
