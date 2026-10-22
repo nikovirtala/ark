@@ -1,0 +1,42 @@
+{
+  "name": "@nikovirtala/ledger",
+  "version": "0.0.0",
+  "description": "Shared core for ark's git-backed, event-sourced records. Internal: the API is unstable until 1.0.",
+  "license": "MIT",
+  "homepage": "https://github.com/nikovirtala/ark/tree/main/packages/ledger#readme",
+  "bugs": "https://github.com/nikovirtala/ark/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nikovirtala/ark.git",
+    "directory": "packages/ledger"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/types/testing/index.d.ts",
+      "default": "./dist/testing.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.tsbuildinfo"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  }
+}

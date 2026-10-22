@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+*.tgz
+*.log
+.DS_Store
+
+# Local agent working state; never committed
+.agents/
+.worktrees/
