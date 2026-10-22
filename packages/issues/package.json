@@ -1,0 +1,44 @@
+{
+  "name": "@nikovirtala/issues",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Issue tracking kept as event logs in git. Skeleton: not published yet.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nikovirtala/ark.git",
+    "directory": "packages/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "bin": {
+    "issues": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./kind": {
+      "types": "./dist/types/kind.d.ts",
+      "default": "./dist/kind.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.tsbuildinfo"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "@nikovirtala/adr": "workspace:^",
+    "@nikovirtala/ledger": "workspace:^"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "name": "@nikovirtala/adr",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Architecture decision records kept as event logs in git. Skeleton: not published yet.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nikovirtala/ark.git",
+    "directory": "packages/adr"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "bin": {
+    "adr": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./kind": {
+      "types": "./dist/types/kind.d.ts",
+      "default": "./dist/kind.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.tsbuildinfo"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "@nikovirtala/ledger": "workspace:^"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  }
+}

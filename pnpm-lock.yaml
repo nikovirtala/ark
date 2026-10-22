@@ -185,6 +185,21 @@ importers:
         specifier: 5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2))
 
+  packages/adr:
+    dependencies:
+      '@nikovirtala/ledger':
+        specifier: workspace:^
+        version: link:../ledger
+
+  packages/issues:
+    dependencies:
+      '@nikovirtala/adr':
+        specifier: workspace:^
+        version: link:../adr
+      '@nikovirtala/ledger':
+        specifier: workspace:^
+        version: link:../ledger
+
   packages/ledger: {}
 
 packages:

@@ -1,4 +1,11 @@
 {
   "files": [],
-  "references": [{ "path": "packages/ledger" }, { "path": "packages/ledger/tsconfig.test.json" }]
+  "references": [
+    { "path": "packages/ledger" },
+    { "path": "packages/ledger/tsconfig.test.json" },
+    { "path": "packages/adr" },
+    { "path": "packages/adr/tsconfig.test.json" },
+    { "path": "packages/issues" },
+    { "path": "packages/issues/tsconfig.test.json" }
+  ]
 }
