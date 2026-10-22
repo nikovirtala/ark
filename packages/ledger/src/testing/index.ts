@@ -18,6 +18,11 @@ export {
 } from "./arbitraries.js";
 export { exampleKind, exampleLayout } from "./example-kind.js";
 export {
+  type ForkAndMergeOptions,
+  type ForkAndMergeResult,
+  forkAndMerge,
+} from "./fork-and-merge.js";
+export {
   arbEventSequence,
   arbLogFixture,
   type LogFixture,
