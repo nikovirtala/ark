@@ -49,7 +49,7 @@ ark/
     artifact/                   # @nikovirtala/artifact, binary artifact
   docs/
     adr/                        # ark's own decisions, managed by adr
-  issues/                       # ark's own work, managed by issues
+    issues/                     # ark's own work, managed by issues
   .github/workflows/
 ```
 
@@ -63,7 +63,7 @@ ark/
 
 **ledger is published to npm** as `@nikovirtala/ledger`, at 0.x and documented as internal until its API settles. adr and issues depend on it like any other package, so it is installed once when a project uses both.
 
-**ark uses its own tools.** Its architecture decisions live in `docs/adr/` and its work in `issues/`, managed by the tools built in the same repository. That is the most direct test of both, and it is how the monorepo's own decisions, starting with the ones in this document, get recorded once adr exists.
+**ark uses its own tools.** Its architecture decisions live in `docs/adr/` and its work in docs/`issues/`, managed by the tools built in the same repository. That is the most direct test of both, and it is how the monorepo's own decisions, starting with the ones in this document, get recorded once adr exists.
 
 **Shared conventions**
 
@@ -74,7 +74,7 @@ Every tool, ledger-based or not, follows the same surface rules, so knowing one 
 - MCP servers start with `<tool> mcp` over stdio, and their tools are named `<tool>_<verb>`.
 - Every tool that agents use ships a SKILL.md, installed with `<tool> init --skill`.
 
-**artifact moves in.** artifact v1 already lives at `github.com/nikovirtala/artifact`. It moves into `packages/artifact` with its git history preserved, and the old repository is archived with a pointer. Its npm name stays the same, and its planned AWS construct library stays a subpath export of the same package.
+**artifact moves in.** artifact v1 already lives at `github.com/nikovirtala/artifact`. As the last step of the roadmap, it moves into `packages/artifact` with its git history preserved, and the old repository is archived with a pointer. Its npm name stays the same, and its planned AWS construct library stays a subpath export of the same package.
 
 ## ledger: the model
 
@@ -190,12 +190,13 @@ The two first kinds differ enough to keep ledger honest: one freezes bodies and 
 
 ledger grows from its users rather than ahead of them. Mechanical layers go into the core immediately; layers that encode domain behavior move in only once both adr and issues have used them and the shapes match.
 
-1. **Scaffold.** Create `nikovirtala/ark` with the workspace, build, test and release setup. Move artifact in with its history and release it from the monorepo once, unchanged, to prove the pipeline.
+1. **Scaffold.** Create `nikovirtala/ark` with the workspace, build, test and release setup. The first 0.x release of ledger proves the pipeline.
 2. **Mechanical core.** Build ledger's git, identity and files, envelope, verify findings, sources, templates, hooks and testing layers. These have no domain choices in them.
 3. **adr on ledger.** Build adr as the first kind. The fold engine and the state-machine-as-data definition are written in ledger with adr as their only user, and kept small.
 4. **issues on ledger.** Build issues as the second kind. Where it needs something adr does not (relations, set events, mutable bodies), it starts in the issues package.
 5. **Lift what matches.** Once both kinds work, move into ledger whatever they both implement the same way, most likely the relation layer and set events, and delete the copies.
 6. **One verify step.** Publish a reusable GitHub Action that runs `verify` for every ark tool configured in a repository and merges their findings into one set of annotations.
+7. **Move artifact in.** Bring artifact into `packages/artifact` with its git history, release it from the monorepo once, unchanged, and archive the old repository with a pointer. Until then it keeps living in its own repository.
 
 ark starts recording its own decisions with adr as soon as step 3 lands, beginning with the decisions in this document: the monorepo, ledger as the shared core, and the shared envelope.
 
