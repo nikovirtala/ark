@@ -203,7 +203,11 @@ importers:
         specifier: workspace:^
         version: link:../ledger
 
-  packages/ledger: {}
+  packages/ledger:
+    dependencies:
+      fast-check:
+        specifier: ^4.0.0
+        version: 4.10.2
 
 packages:
 
