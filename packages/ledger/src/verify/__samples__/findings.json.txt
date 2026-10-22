@@ -1,0 +1,55 @@
+{
+  "format": "ledger-findings/v1",
+  "ok": false,
+  "summary": {
+    "errors": 4,
+    "warnings": 1
+  },
+  "findings": [
+    {
+      "severity": "error",
+      "rule": "body/frozen-modified",
+      "message": "body changed after it was frozen by accepted event 01JAB3K9Z6Q8M2X7FQ0V4TQ8A1",
+      "file": "docs/adr/decisions/a7c2m9xd-use-dynamodb-for-orders.md",
+      "line": null,
+      "subject": "a7c2m9xd",
+      "kind": "decision"
+    },
+    {
+      "severity": "error",
+      "rule": "append-only/modified",
+      "message": "event file was modified; event files are append-only",
+      "file": "docs/adr/events/a7c2m9xd/20260314T120211Z-q8a1-accepted.yaml",
+      "line": null,
+      "subject": "a7c2m9xd",
+      "kind": "decision"
+    },
+    {
+      "severity": "warning",
+      "rule": "identity/stray-file",
+      "message": "unexpected file in an event directory",
+      "file": "docs/adr/events/k3f9q8a1/.gitkeep",
+      "line": null,
+      "subject": "k3f9q8a1",
+      "kind": "decision"
+    },
+    {
+      "severity": "error",
+      "rule": "envelope/schema",
+      "message": "/actor: must have required property 'agent'",
+      "file": "docs/adr/events/k3f9q8a1/20261016T081030Z-p4d2-proposed.yaml",
+      "line": null,
+      "subject": "k3f9q8a1",
+      "kind": "decision"
+    },
+    {
+      "severity": "error",
+      "rule": "envelope/unknown-version",
+      "message": "unknown envelope version \"ledger/v2\"; upgrade the tool to read this event",
+      "file": "docs/adr/events/k3f9q8a1/20261018T070215Z-z9c4-noted.yaml",
+      "line": null,
+      "subject": "k3f9q8a1",
+      "kind": "decision"
+    }
+  ]
+}

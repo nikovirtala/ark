@@ -33,7 +33,8 @@ export interface LogFixture {
 }
 
 const encoder = new TextEncoder();
-const arbRandomHash = fc
+/** A random lowercase hex SHA-256. */
+export const arbRandomHash = fc
   .uint8Array({ minLength: 32, maxLength: 32 })
   .map((b) => Buffer.from(b).toString("hex"));
 
@@ -110,14 +111,18 @@ function arbDataFor(
     }));
 }
 
-function freezePolicy(kind: KindSchema): { freezeOn: string; hashField: string } | null {
+/** The kind's freeze type and hash field, or `null` for `none` and `mutable` bodies. */
+export function freezePolicy(kind: KindSchema): { freezeOn: string; hashField: string } | null {
   return typeof kind.body === "object"
     ? { freezeOn: kind.body.freezeOn, hashField: kind.body.hashField ?? "body_sha256" }
     : null;
 }
 
-/** `hash` is written into every freeze-type event; `null` draws a random one. */
-function arbEvents(
+/**
+ * Valid events of one subject, of the given types, in file-name order. `hash` is written into
+ * every freeze-type event; `null` draws a random one.
+ */
+export function arbSubjectEvents(
   kind: KindSchema,
   subject: string,
   types: readonly string[],
@@ -154,7 +159,8 @@ function arbEvents(
     });
 }
 
-const allTypes = (kind: KindSchema) => [
+/** Every event type any schema version of the kind defines. */
+export const allTypes = (kind: KindSchema): string[] => [
   ...new Set(Object.values(kind.schemas).flatMap((v) => Object.keys(v.events))),
 ];
 
@@ -170,7 +176,7 @@ export function arbEventSequence(o: {
 }): fc.Arbitrary<EventEnvelope[]> {
   const length = { minLength: o.minLength ?? 1, maxLength: o.maxLength ?? 5 };
   return (o.subject === undefined ? arbSubjectId() : fc.constant(o.subject)).chain((subject) =>
-    arbEvents(o.kind, subject, allTypes(o.kind), length, null),
+    arbSubjectEvents(o.kind, subject, allTypes(o.kind), length, null),
   );
 }
 
@@ -202,7 +208,7 @@ export function arbLogFixture(o: {
             : fc.option(fc.string({ unit: "grapheme", maxLength: 80 }), { nil: undefined }),
       })
       .chain(({ slug, body }) =>
-        arbEvents(
+        arbSubjectEvents(
           kind,
           id,
           body === undefined ? unfrozenTypes : types,

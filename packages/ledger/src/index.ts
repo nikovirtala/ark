@@ -108,3 +108,14 @@ export {
   loadLog,
 } from "./log/snapshot.js";
 export { writeEvent } from "./log/write.js";
+export {
+  appendOnly,
+  bodyPolicy,
+  type Check,
+  type CheckContext,
+  duplicates,
+  loadFindings,
+  mechanicalChecks,
+} from "./verify/checks.js";
+export { type Change, diffTrees } from "./verify/diff.js";
+export { type VerifyMode, verifyLog, verifySnapshots } from "./verify/verify.js";

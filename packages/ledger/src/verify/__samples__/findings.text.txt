@@ -1,0 +1,7 @@
+docs/adr/decisions/a7c2m9xd-use-dynamodb-for-orders.md: error: body changed after it was frozen by accepted event 01JAB3K9Z6Q8M2X7FQ0V4TQ8A1 [body/frozen-modified] (a7c2m9xd)
+docs/adr/events/a7c2m9xd/20260314T120211Z-q8a1-accepted.yaml: error: event file was modified; event files are append-only [append-only/modified] (a7c2m9xd)
+docs/adr/events/k3f9q8a1/.gitkeep: warning: unexpected file in an event directory [identity/stray-file] (k3f9q8a1)
+docs/adr/events/k3f9q8a1/20261016T081030Z-p4d2-proposed.yaml: error: /actor: must have required property 'agent' [envelope/schema] (k3f9q8a1)
+docs/adr/events/k3f9q8a1/20261018T070215Z-z9c4-noted.yaml: error: unknown envelope version "ledger/v2"; upgrade the tool to read this event [envelope/unknown-version] (k3f9q8a1)
+
+4 errors, 1 warning
