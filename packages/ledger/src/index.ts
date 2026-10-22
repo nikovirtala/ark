@@ -32,3 +32,26 @@ export {
   summarize,
 } from "./findings/finding.js";
 export { type FindingsReport, formatGithub, formatJson, formatText } from "./findings/format.js";
+export {
+  GIT_ENV_ISOLATION,
+  GIT_LOCATING_ENV,
+  Git,
+  type GitOptions,
+  type RunOptions,
+  type RunResult,
+  type Trailer,
+} from "./git/git.js";
+export {
+  type CommitInfo,
+  firstParentAdditions,
+  firstParentHistory,
+  parseTrailerBlock,
+} from "./git/history.js";
+export {
+  indexReader,
+  MemoryTree,
+  refReader,
+  type TreeEntry,
+  type TreeReader,
+  worktreeReader,
+} from "./git/tree.js";
