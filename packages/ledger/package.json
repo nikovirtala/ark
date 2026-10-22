@@ -46,5 +46,9 @@
     "build": "tsdown",
     "test": "vitest run",
     "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "yaml": "^2.9.1"
   }
 }

@@ -5,11 +5,15 @@
  */
 export { InvalidArgumentError, LedgerError } from "../errors.js";
 export {
+  arbActor,
   arbAt,
+  arbEnvelope,
   arbEventFileName,
   arbEventType,
   arbSlug,
   arbSubjectId,
   arbUlid,
+  arbUnknownFields,
+  arbYamlTrickyString,
 } from "./arbitraries.js";
 export { createTempRepo, type TempRepo, type TempRepoOptions } from "./temp-repo.js";
