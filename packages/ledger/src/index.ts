@@ -1,10 +1,27 @@
-/**
- * Version tag of the shared event envelope that every ledger-based kind writes.
- */
-export const ENVELOPE_VERSION = "ledger/v1" as const;
-
-export type EnvelopeVersion = typeof ENVELOPE_VERSION;
-
+export {
+  type BodyPolicy,
+  type CompiledKind,
+  compileKind,
+  type EventTypeSchema,
+  type KindSchema,
+  type ValidationResult,
+} from "./envelope/kind.js";
+export { envelopeSchema } from "./envelope/schema.js";
+export {
+  type Actor,
+  ENVELOPE_KEYS,
+  type EventEnvelope,
+  type JsonSchema,
+  unknownFields,
+} from "./envelope/types.js";
+export { ENVELOPE_VERSION, type EnvelopeVersion } from "./envelope/version.js";
+export {
+  canonicalEvent,
+  MAX_EVENT_BYTES,
+  type ParseResult,
+  parseEventYaml,
+  serializeEvent,
+} from "./envelope/yaml.js";
 export {
   ConfigError,
   EventExistsError,
