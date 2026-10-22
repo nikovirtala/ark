@@ -72,6 +72,20 @@ export {
   type TreeReader,
   worktreeReader,
 } from "./git/tree.js";
+export {
+  type HookInstallResult,
+  installHooks,
+  readHookRegistry,
+  uninstallHooks,
+} from "./hooks/install.js";
+export {
+  DEFAULT_HOOK_COMMANDS,
+  type HookName,
+  type HookRegistration,
+  parseShim,
+  renderShim,
+} from "./hooks/shim.js";
+export { type HookManager, hookSnippet } from "./hooks/snippets.js";
 export { CROCKFORD, decodeCrockford, encodeCrockford } from "./identity/crockford.js";
 export {
   bodyFileName,
