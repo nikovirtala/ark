@@ -16,4 +16,12 @@ export {
   arbUnknownFields,
   arbYamlTrickyString,
 } from "./arbitraries.js";
+export { exampleKind, exampleLayout } from "./example-kind.js";
+export {
+  arbEventSequence,
+  arbLogFixture,
+  type LogFixture,
+  type LogFixtureSubjectInput,
+  logFixtureFiles,
+} from "./log-fixture.js";
 export { createTempRepo, type TempRepo, type TempRepoOptions } from "./temp-repo.js";

@@ -15,6 +15,8 @@ export interface TempRepo {
   readonly git: Git;
   write(path: string, content: string | Uint8Array): Promise<void>;
   remove(path: string): Promise<void>;
+  /** Writes every file of a path → content map, for example a `logFixtureFiles` result. */
+  writeFiles(files: Readonly<Record<string, string | Uint8Array>>): Promise<void>;
   stage(...paths: string[]): Promise<void>;
   /** Commits the index (with `all`, every tracked change first); returns the sha. */
   commit(
@@ -88,7 +90,7 @@ export async function createTempRepo(o: TempRepoOptions = {}): Promise<TempRepo>
     await git.run(["config", "commit.gpgsign", "false"]);
     const repo = tempRepo(root, git, env, o.clock, dispose);
     if (o.files !== undefined) {
-      for (const [path, content] of Object.entries(o.files)) await repo.write(path, content);
+      await repo.writeFiles(o.files);
       await repo.stage(...Object.keys(o.files));
       await repo.commit("initial");
     }
@@ -125,13 +127,19 @@ function tempRepo(
     return sha;
   };
 
+  const write = async (path: string, content: string | Uint8Array): Promise<void> => {
+    const full = join(workTree(path), path);
+    await mkdir(dirname(full), { recursive: true });
+    await writeFile(full, content);
+  };
+
   return {
     root,
     git,
-    async write(path, content) {
-      const full = join(workTree(path), path);
-      await mkdir(dirname(full), { recursive: true });
-      await writeFile(full, content);
+    write,
+    async writeFiles(files) {
+      workTree();
+      for (const [path, content] of Object.entries(files)) await write(path, content);
     },
     async remove(path) {
       await rm(join(workTree(path), path), { recursive: true, force: true });

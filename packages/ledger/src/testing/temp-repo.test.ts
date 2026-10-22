@@ -66,6 +66,16 @@ describe("createTempRepo", () => {
     expect((await tree.list("")).map((e) => e.path)).toEqual(["a.txt"]);
   });
 
+  it("writes a map of files", async () => {
+    const r = await repo();
+    await r.writeFiles({ "log/a.txt": "a\n", "log/b/c.bin": new Uint8Array([0, 1]) });
+    await r.stage("log");
+    await r.commit("files");
+    const tree = await refReader(r.git, "HEAD");
+    expect((await tree.list("log")).map((e) => e.path)).toEqual(["log/a.txt", "log/b/c.bin"]);
+    expect(await tree.read("log/b/c.bin")).toEqual(new Uint8Array([0, 1]));
+  });
+
   it("uses fixed dates when a clock is given", async () => {
     const r = await repo({ clock: () => new Date("2026-10-22T10:15:00Z") });
     await r.commit("empty", { allowEmpty: true });
@@ -87,6 +97,7 @@ describe("createTempRepo", () => {
     expect(Buffer.from(head.stdout).toString()).toBe("refs/heads/trunk\n");
     await expect(bare.write("a", "a")).rejects.toBeInstanceOf(InvalidArgumentError);
     await expect(bare.remove("a")).rejects.toBeInstanceOf(InvalidArgumentError);
+    await expect(bare.writeFiles({})).rejects.toBeInstanceOf(InvalidArgumentError);
     await expect(bare.stage("a")).rejects.toBeInstanceOf(InvalidArgumentError);
     await expect(bare.commit("m")).rejects.toThrow("operation needs a work tree");
     await expect(bare.checkout("x")).rejects.toBeInstanceOf(InvalidArgumentError);

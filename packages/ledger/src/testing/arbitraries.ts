@@ -8,6 +8,15 @@ import { newSubjectId } from "../identity/ids.js";
 import { atToStamp, formatAt } from "../identity/time.js";
 import { createUlidFactory } from "../identity/ulid.js";
 
+/** Builds an arbitrary once; constructing some (`stringMatching`) is slow. */
+function once<T>(build: () => fc.Arbitrary<T>): () => fc.Arbitrary<T> {
+  let arb: fc.Arbitrary<T> | undefined;
+  return () => {
+    arb ??= build();
+    return arb;
+  };
+}
+
 const fill = (bytes: Uint8Array) => (buf: Uint8Array) => buf.set(bytes);
 
 export function arbSubjectId(): fc.Arbitrary<string> {
@@ -36,13 +45,17 @@ export function arbAt(): fc.Arbitrary<string> {
     .map(formatAt);
 }
 
-export function arbEventType(): fc.Arbitrary<string> {
-  return fc
+const eventType = once(() =>
+  fc
     .tuple(
       fc.stringMatching(/^[a-z][a-z0-9]{0,11}$/),
       fc.array(fc.stringMatching(/^[a-z0-9]{1,8}$/), { maxLength: 4 }),
     )
-    .map(([head, rest]) => [head, ...rest].join("-"));
+    .map(([head, rest]) => [head, ...rest].join("-")),
+);
+
+export function arbEventType(): fc.Arbitrary<string> {
+  return eventType();
 }
 
 export function arbEventFileName(): fc.Arbitrary<EventFileName> {
@@ -53,11 +66,13 @@ export function arbEventFileName(): fc.Arbitrary<EventFileName> {
   });
 }
 
+const slug = once(() =>
+  fc.array(fc.stringMatching(/^[a-z0-9]{1,10}$/), { maxLength: 5 }).map((words) => words.join("-")),
+);
+
 /** Valid slugs of at most 60 chars, including `""`. */
 export function arbSlug(): fc.Arbitrary<string> {
-  return fc
-    .array(fc.stringMatching(/^[a-z0-9]{1,10}$/), { maxLength: 5 })
-    .map((words) => words.join("-"));
+  return slug();
 }
 
 // Strings YAML could read as another type, or that need quoting, escaping or a block scalar.
@@ -126,8 +141,7 @@ const YAML_TRICKY = [
   "back\\slash",
 ] as const;
 
-/** Strings that are easy to get wrong in YAML, alone or combined with arbitrary text. */
-export function arbYamlTrickyString(): fc.Arbitrary<string> {
+const yamlTricky = once(() => {
   const tricky = fc.constantFrom(...YAML_TRICKY);
   return fc.oneof(
     tricky,
@@ -136,30 +150,40 @@ export function arbYamlTrickyString(): fc.Arbitrary<string> {
       .tuple(tricky, fc.string({ unit: "grapheme", maxLength: 8 }), tricky)
       .map(([a, b, c]) => `${a}${b}${c}`),
   );
+});
+
+/** Strings that are easy to get wrong in YAML, alone or combined with arbitrary text. */
+export function arbYamlTrickyString(): fc.Arbitrary<string> {
+  return yamlTricky();
 }
 
-const arbFieldKey = (reserved: readonly string[]): fc.Arbitrary<string> =>
+const fieldKey = once(() =>
   fc
     .oneof(fc.stringMatching(/^[a-z_][a-z0-9_]{0,10}$/), arbYamlTrickyString())
-    .filter((k) => k !== "__proto__" && !reserved.includes(k));
+    .filter((k) => k !== "__proto__"),
+);
 
-const arbJsonValue: fc.Arbitrary<JsonValue> = fc.letrec<{ value: JsonValue }>((tie) => ({
-  value: fc.oneof(
-    { depthSize: "small" },
-    fc.constant(null),
-    fc.boolean(),
-    fc.integer(),
-    arbYamlTrickyString(),
-    fc.array(tie("value"), { maxLength: 3 }),
-    fc.dictionary(arbFieldKey([]), tie("value"), { maxKeys: 3 }),
-  ),
-})).value;
+const jsonValue = once(
+  () =>
+    fc.letrec<{ value: JsonValue }>((tie) => ({
+      value: fc.oneof(
+        { depthSize: "small" },
+        fc.constant(null),
+        fc.boolean(),
+        fc.integer(),
+        arbYamlTrickyString(),
+        fc.array(tie("value"), { maxLength: 3 }),
+        fc.dictionary(fieldKey(), tie("value"), { maxKeys: 3 }),
+      ),
+    })).value,
+);
 
 /** Extra fields, keyed by anything but `reserved`, that a reader must preserve. */
 export function arbUnknownFields(
   reserved: readonly string[],
 ): fc.Arbitrary<Record<string, JsonValue>> {
-  return fc.dictionary(arbFieldKey(reserved), arbJsonValue, { maxKeys: 3 });
+  const key = reserved.length === 0 ? fieldKey() : fieldKey().filter((k) => !reserved.includes(k));
+  return fc.dictionary(key, jsonValue(), { maxKeys: 3 });
 }
 
 const nonEmpty = () => arbYamlTrickyString().filter((s) => s.length > 0);
@@ -187,7 +211,7 @@ export function arbActor(): fc.Arbitrary<Actor> {
     });
 }
 
-const arbKindName = () => fc.stringMatching(/^[a-z][a-z0-9]{0,9}(?:-[a-z0-9]{1,6}){0,2}$/);
+const arbKindName = once(() => fc.stringMatching(/^[a-z][a-z0-9]{0,9}(?:-[a-z0-9]{1,6}){0,2}$/));
 
 function kindTargets(kind: KindSchema, type: string | undefined): [string, string][] {
   const targets = Object.entries(kind.schemas).flatMap(([schema, v]) =>
