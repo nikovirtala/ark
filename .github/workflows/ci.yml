@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The base branch must be present for the changed-packages filter.
+          fetch-depth: 0
+          persist-credentials: false
+      # pnpm comes from "packageManager" in package.json; Node is the major pinned in mise.toml.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      # tsc -b (declarations and test typecheck) and tsdown bundles for the whole workspace:
+      # dependents need their dependencies built.
+      - run: pnpm build
+      - name: Test affected packages
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$EVENT" != pull_request ]; then
+            echo "push to ${GITHUB_REF_NAME}: testing every package" | tee -a "$GITHUB_STEP_SUMMARY"
+            pnpm -r run test
+            exit 0
+          fi
+          base="origin/$BASE_REF"
+          # pnpm's changed filter ignores workspace-level files that affect every package.
+          if git diff --name-only "$base"...HEAD | grep -qvE '^(packages/|docs/|\.changeset/|[^/]+\.md$)'; then
+            echo "workspace-level files changed: testing every package" | tee -a "$GITHUB_STEP_SUMMARY"
+            pnpm -r run test
+          else
+            echo "testing packages changed since $base and their dependents" | tee -a "$GITHUB_STEP_SUMMARY"
+            pnpm --filter "...{./packages/**}[$base]" run test
+          fi
