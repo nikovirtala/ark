@@ -97,6 +97,42 @@ function schemaFindings(
   });
 }
 
+/**
+ * Steps 1–3 of the validation order (design §4.3.2): a mapping, a known envelope version and the
+ * envelope schema. `null` when the envelope is valid; the kind's own checks come after.
+ */
+export function envelopeFailure(
+  doc: unknown,
+  file: string | null,
+): { readonly findings: readonly Finding[]; readonly versionKnown: boolean } | null {
+  const one = (rule: string, message: string) => [
+    finding({ severity: "error", rule, message, file }),
+  ];
+  if (!isMapping(doc)) {
+    return { findings: one("event/not-a-mapping", "event is not a mapping"), versionKnown: true };
+  }
+  if (typeof doc.envelope === "string" && doc.envelope !== ENVELOPE_VERSION) {
+    return {
+      findings: one(
+        "envelope/unknown-version",
+        `unknown envelope version ${JSON.stringify(doc.envelope)}; upgrade the tool to read this event`,
+      ),
+      versionKnown: false,
+    };
+  }
+  const errors = envelopeErrors(doc);
+  if (errors !== null) {
+    return { findings: schemaFindings(errors, "envelope/schema", file, ""), versionKnown: true };
+  }
+  if (!isAt(doc.at)) {
+    return {
+      findings: one("envelope/schema", "/at: not a valid UTC timestamp"),
+      versionKnown: true,
+    };
+  }
+  return null;
+}
+
 const compiled = new WeakMap<KindSchema, CompiledKind>();
 
 /** Compiles a kind's data schemas once per kind object; throws `KindDefinitionError`. */
@@ -155,28 +191,18 @@ export function compileKind(kind: KindSchema): CompiledKind {
         finding({ severity: "error", rule, message, file }),
       ];
 
-      if (!isMapping(doc)) return failed(one("event/not-a-mapping", "event is not a mapping"));
-      if (typeof doc.envelope === "string" && doc.envelope !== ENVELOPE_VERSION) {
-        return failed(
-          one(
-            "envelope/unknown-version",
-            `unknown envelope version ${JSON.stringify(doc.envelope)}; upgrade the tool to read this event`,
-          ),
-          false,
-        );
-      }
-      const errors = envelopeErrors(doc);
-      if (errors !== null) return failed(schemaFindings(errors, "envelope/schema", file, ""));
-      if (!isAt(doc.at)) return failed(one("envelope/schema", "/at: not a valid UTC timestamp"));
-      if (doc.kind !== name) {
+      const envelope = envelopeFailure(doc, file);
+      if (envelope !== null) return failed(envelope.findings, envelope.versionKnown);
+      const e = doc as Record<string, unknown>; // a mapping: envelopeFailure checked it
+      if (e.kind !== name) {
         return failed(
           one(
             "envelope/kind-mismatch",
-            `event kind ${JSON.stringify(doc.kind)} does not match the log's kind "${name}"`,
+            `event kind ${JSON.stringify(e.kind)} does not match the log's kind "${name}"`,
           ),
         );
       }
-      const schema = String(doc.schema);
+      const schema = String(e.schema);
       const types = validators.get(schema);
       if (types === undefined) {
         return failed(
@@ -187,19 +213,19 @@ export function compileKind(kind: KindSchema): CompiledKind {
           false,
         );
       }
-      const validateData = types.get(String(doc.type));
+      const validateData = types.get(String(e.type));
       if (validateData === undefined) {
         return failed(
           one(
             "envelope/unknown-type",
-            `unknown event type ${JSON.stringify(doc.type)} in schema "${schema}"`,
+            `unknown event type ${JSON.stringify(e.type)} in schema "${schema}"`,
           ),
         );
       }
-      if (!validateData(doc.data)) {
+      if (!validateData(e.data)) {
         return failed(schemaFindings(validateData.errors, "data/schema", file, "/data"));
       }
-      return { ok: true, event: doc as unknown as EventEnvelope, findings: [] };
+      return { ok: true, event: e as unknown as EventEnvelope, findings: [] };
     },
   };
   compiled.set(kind, result);

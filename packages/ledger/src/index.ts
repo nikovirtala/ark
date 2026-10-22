@@ -101,3 +101,10 @@ export {
   ulid,
   ulidTime,
 } from "./identity/ulid.js";
+export {
+  type LoadedEvent,
+  type LoadedSubject,
+  type LogSnapshot,
+  loadLog,
+} from "./log/snapshot.js";
+export { writeEvent } from "./log/write.js";
