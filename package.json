@@ -1,0 +1,26 @@
+{
+  "name": "ark",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.15.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc -b && pnpm -r run build",
+    "typecheck": "tsc -b",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "test": "pnpm -r run test",
+    "check": "pnpm lint && pnpm build && pnpm test",
+    "clean": "pnpm -r run clean"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.2",
+    "@types/node": "24.19.2",
+    "fast-check": "4.10.2",
+    "tsdown": "0.23.1",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5"
+  }
+}
