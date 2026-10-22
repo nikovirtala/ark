@@ -16,3 +16,5 @@ Install the toolchain with `mise install`, or use Node 24 with corepack enabled.
 pnpm install
 pnpm check   # lint, build (tsc -b + tsdown), test
 ```
+
+Releases: see [RELEASING.md](RELEASING.md).
