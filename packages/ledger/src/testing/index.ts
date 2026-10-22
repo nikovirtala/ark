@@ -24,4 +24,11 @@ export {
   type LogFixtureSubjectInput,
   logFixtureFiles,
 } from "./log-fixture.js";
+export {
+  applyTamper,
+  arbAppend,
+  arbTamper,
+  expectedRules,
+  type TamperMutation,
+} from "./tamper.js";
 export { createTempRepo, type TempRepo, type TempRepoOptions } from "./temp-repo.js";

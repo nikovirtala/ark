@@ -1,0 +1,119 @@
+import { type CompiledKind, compileKind, type KindSchema } from "../envelope/kind.js";
+import { InvalidArgumentError, RefNotFoundError, VerifyUsageError } from "../errors.js";
+import { type Finding, sortFindings } from "../findings/finding.js";
+import type { Git } from "../git/git.js";
+import { indexReader, refReader, type TreeReader, worktreeReader } from "../git/tree.js";
+import { parseBodyFileName } from "../identity/files.js";
+import { classifyPath, type LogLayout } from "../identity/layout.js";
+import { loadLog } from "../log/snapshot.js";
+import { type Check, type CheckContext, mechanicalChecks } from "./checks.js";
+import { type Change, diffTrees } from "./diff.js";
+
+export type VerifyMode =
+  /** Base `HEAD` (none on an unborn `HEAD`), head the index; only touched subjects. */
+  | { readonly type: "staged" }
+  /** Base the merge base of `base` and `head ?? HEAD`; head the ref, or the work tree. */
+  | { readonly type: "range"; readonly base: string; readonly head?: string }
+  /** No base; head the ref, or the work tree. */
+  | { readonly type: "full"; readonly head?: string };
+
+/** The subject a changed path belongs to, if it names one. */
+function subjectOf(layout: LogLayout, change: Change): string | null {
+  const p = classifyPath(layout, change.path);
+  if (p.area === "event") return p.subject;
+  if (p.area === "body" && !p.file.includes("/")) return parseBodyFileName(p.file)?.id ?? null;
+  return null;
+}
+
+/**
+ * Verifies `head` against `base` (`null`: no base) with the given checks (default
+ * `mechanicalChecks`). Returns the findings sorted, with `kind` filled in.
+ */
+export async function verifySnapshots(o: {
+  readonly kind: CompiledKind;
+  readonly layout: LogLayout;
+  readonly base: TreeReader | null;
+  readonly head: TreeReader;
+  readonly scope: "changed" | "all";
+  readonly checks?: readonly Check[];
+}): Promise<Finding[]> {
+  const { kind, layout, scope } = o;
+  if ((kind.kind.body === "none") !== (layout.bodies === null)) {
+    throw new InvalidArgumentError(
+      `kind ${kind.kind.name} body policy and layout bodies must both be set or both be absent`,
+    );
+  }
+  const changes = await diffTrees(o.base, o.head, layout.root);
+  const changed = new Set<string>();
+  const baseNeeded = new Set<string>();
+  for (const c of changes) {
+    const id = subjectOf(layout, c);
+    if (id === null) continue;
+    changed.add(id);
+    const area = classifyPath(layout, c.path).area;
+    if (area === "body" || (area === "event" && c.status === "deleted")) baseNeeded.add(id);
+  }
+  const head =
+    scope === "all"
+      ? await loadLog(o.head, { kind, layout })
+      : await loadLog(o.head, { kind, layout, subjects: changed });
+  const inScope = scope === "all" ? new Set([...head.subjects.keys(), ...changed]) : changed;
+  const base =
+    o.base === null ? null : await loadLog(o.base, { kind, layout, subjects: baseNeeded });
+  const ctx: CheckContext = { kind, layout, base, head, changes, scope, inScope };
+
+  const findings: Finding[] = [];
+  for (const check of o.checks ?? mechanicalChecks) findings.push(...(await check.run(ctx)));
+  return sortFindings(findings.map((f) => ({ ...f, kind: kind.kind.name })));
+}
+
+async function commitOf(git: Git, ref: string): Promise<string> {
+  const sha = await git.resolveCommit(ref);
+  if (sha === null) throw new RefNotFoundError(ref);
+  return sha;
+}
+
+/**
+ * Verifies a log in a repository. `staged` checks the subjects touched by the index against
+ * `HEAD`; `range` checks everything from the merge base to the head; `full` checks a single tree.
+ */
+export async function verifyLog(o: {
+  readonly git: Git;
+  readonly kind: KindSchema;
+  readonly layout: LogLayout;
+  readonly mode: VerifyMode;
+  readonly checks?: readonly Check[];
+}): Promise<Finding[]> {
+  const { git, mode } = o;
+  let base: TreeReader | null;
+  let head: TreeReader;
+  let scope: "changed" | "all" = "all";
+  if (mode.type === "staged") {
+    head = await indexReader(git);
+    const sha = await git.resolveCommit("HEAD");
+    base = sha === null ? null : await refReader(git, sha);
+    scope = "changed";
+  } else if (mode.type === "range") {
+    const baseSha = await commitOf(git, mode.base);
+    const headSha = await commitOf(git, mode.head ?? "HEAD");
+    const mergeBase = await git.mergeBase(baseSha, headSha);
+    if (mergeBase === null) {
+      throw new VerifyUsageError(
+        `no common ancestor between ${mode.base} and ${mode.head ?? "HEAD"}`,
+      );
+    }
+    base = await refReader(git, mergeBase);
+    head = mode.head === undefined ? worktreeReader(git) : await refReader(git, mode.head);
+  } else {
+    base = null;
+    head = mode.head === undefined ? worktreeReader(git) : await refReader(git, mode.head);
+  }
+  return verifySnapshots({
+    kind: compileKind(o.kind),
+    layout: o.layout,
+    base,
+    head,
+    scope,
+    ...(o.checks === undefined ? {} : { checks: o.checks }),
+  });
+}

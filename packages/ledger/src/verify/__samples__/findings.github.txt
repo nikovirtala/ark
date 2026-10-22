@@ -1,0 +1,5 @@
+::error file=docs/adr/decisions/a7c2m9xd-use-dynamodb-for-orders.md,title=body/frozen-modified::body changed after it was frozen by accepted event 01JAB3K9Z6Q8M2X7FQ0V4TQ8A1 (a7c2m9xd)
+::error file=docs/adr/events/a7c2m9xd/20260314T120211Z-q8a1-accepted.yaml,title=append-only/modified::event file was modified; event files are append-only (a7c2m9xd)
+::warning file=docs/adr/events/k3f9q8a1/.gitkeep,title=identity/stray-file::unexpected file in an event directory (k3f9q8a1)
+::error file=docs/adr/events/k3f9q8a1/20261016T081030Z-p4d2-proposed.yaml,title=envelope/schema::/actor: must have required property 'agent' (k3f9q8a1)
+::error file=docs/adr/events/k3f9q8a1/20261018T070215Z-z9c4-noted.yaml,title=envelope/unknown-version::unknown envelope version "ledger/v2"; upgrade the tool to read this event (k3f9q8a1)
