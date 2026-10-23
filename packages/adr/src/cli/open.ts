@@ -28,8 +28,3 @@ export async function displayAfterWrite(log: DecisionLog): Promise<{ readonly di
   const read = await readDecisions(log);
   return { display: (id) => read.projection.views.get(id)?.display ?? id };
 }
-
-/** `--commit`/`--no-commit` when given, else `[policy] auto_commit`. */
-export function commitRequested(log: DecisionLog, values: Readonly<Record<string, unknown>>) {
-  return typeof values.commit === "boolean" ? values.commit : log.adr.autoCommit;
-}

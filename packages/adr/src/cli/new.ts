@@ -1,8 +1,8 @@
 import { type JsonValue, resolveActor, UsageError } from "@nikovirtala/ledger";
-import type { CommandSpec } from "@nikovirtala/ledger/cli";
+import { COMMIT_OPTIONS, type CommandSpec, commitChoice } from "@nikovirtala/ledger/cli";
 import { proposeDecision } from "../write.js";
 import { editorFor } from "./editor.js";
-import { commitRequested, displayAfterWrite, openForCli } from "./open.js";
+import { displayAfterWrite, openForCli } from "./open.js";
 import { writeText } from "./text.js";
 
 const strings = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : []);
@@ -30,13 +30,13 @@ export const newCommand: CommandSpec = {
   name: "new",
   summary: "propose a decision from a template and stage it",
   usage:
-    "new <title> [--template <name>] [--supersedes <decision>]… [--section <id>=<markdown>]… [--edit | --no-edit] [--commit | --no-commit]",
+    "new <title> [--template <name>] [--supersedes <decision>]… [--section <id>=<markdown>]… [--edit | --no-edit] [--commit | --no-commit] [-m <message>]",
   options: {
     template: { type: "string" },
     supersedes: { type: "string", multiple: true },
     section: { type: "string", multiple: true },
     edit: { type: "boolean" },
-    commit: { type: "boolean" },
+    ...COMMIT_OPTIONS,
   },
   positionals: { min: 1, max: 1, names: ["title"] },
   ref: "reject",
@@ -46,7 +46,9 @@ export const newCommand: CommandSpec = {
     const log = await openForCli(io, flags);
     const actor = await resolveActor(log.git, { env: io.env });
     // Design review NIT 1: the skip notes say "not committed" only when a commit was asked for.
-    const requested = commitRequested(log, values);
+    const { commit: requested, message } = commitChoice(values, {
+      autoCommit: log.adr.autoCommit,
+    });
     const notes: string[] = [];
     const editor = editorFor(io.env, { stdoutIsTTY: io.stdoutIsTTY });
     const wantsEdit = values.edit === true || (values.edit === undefined && io.interactive);
@@ -70,6 +72,7 @@ export const newCommand: CommandSpec = {
       },
       {
         commit: requested,
+        message,
         ...(edit === undefined ? {} : { edit }),
         onNote: (note) => notes.push(requested ? `not committed: ${note}` : note),
       },

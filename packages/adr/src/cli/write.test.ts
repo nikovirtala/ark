@@ -249,10 +249,10 @@ describe("adr accept and supersede", { timeout: 60_000 }, () => {
     const missing = runAdr(r, ["supersede", a]);
     expect(missing.status).toBe(2);
     expect(missing.stderr).toBe(
-      "adr: error: missing --by <decision>; usage: adr supersede <decision> --by <decision> [--reason <text>] [--commit | --no-commit]\n",
+      "adr: error: missing --by <decision>; usage: adr supersede <decision> --by <decision> [--reason <text>] [--commit | --no-commit] [-m <message>]\n",
     );
     expect(runAdr(r, ["supersede", a, "--by", "x:ADR-0001"]).stderr).toBe(
-      "adr: error: --by x:ADR-0001: cross-log supersession arrives in phase 2\n",
+      "adr: error: --by x:ADR-0001: cross-log supersession isn't supported yet\n",
     );
     expect(runAdr(r, ["supersede", a, "--by", "ADR-0042"]).stderr).toBe(
       "adr: error: unknown decision ADR-0042\n",
@@ -262,6 +262,222 @@ describe("adr accept and supersede", { timeout: 60_000 }, () => {
     expect(out.stdout).toBe(
       `Superseded ADR-0001 (${a}): Use DynamoDB for orders\n  by ADR-0002 (${b})\nStaged; commit to record it.\n`,
     );
+  });
+});
+
+describe("--commit messages", { timeout: 60_000 }, () => {
+  const body = (r: TempRepo) => git(r, "log", "-1", "--format=%B");
+  const LONG =
+    "Use event sourcing with one append-only log per subject for every record kind in the monorepo";
+
+  it("writes conventional subjects, bodies and the trailers last", async () => {
+    const r = await repo();
+    const created = runAdr(r, ["new", "Use DynamoDB for orders", ...FULL, "--commit", "--json"]);
+    expect(created.status).toBe(0);
+    const a = json(created.stdout).decision?.id ?? "";
+    expect(await body(r)).toBe(
+      `docs(adr): propose to use DynamoDB for orders\n\nADR: ${a}\nADR-Event: proposed\n\n`,
+    );
+    expect(runAdr(r, ["accept", a, "--commit"]).status).toBe(0);
+    expect(await body(r)).toBe(
+      `docs(adr): decide to use DynamoDB for orders\n\nADR: ${a}\nADR-Event: accepted\n\n`,
+    );
+    // A title ending in "." gets one period in the body sentence.
+    const b = await seedDecision(r, "Use Aurora for orders.");
+    expect(runAdr(r, ["supersede", a, "--by", b, "--commit"]).status).toBe(0);
+    expect(await body(r)).toBe(
+      [
+        "docs(adr): supersede ADR-0001 with ADR-0002",
+        "",
+        "Superseded by ADR-0002: Use Aurora for orders.",
+        "",
+        `ADR: ${a}`,
+        "ADR-Event: superseded",
+        "",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("shortens a long title, keeps it in the body and says so", async () => {
+    const r = await repo();
+    const id = await seedDecision(r, LONG, { accept: false });
+    const out = runAdr(r, ["accept", id, "--commit", "--json"]);
+    expect(out.status).toBe(0);
+    expect(await body(r)).toBe(
+      [
+        "docs(adr): decide to use event sourcing with one append-only log per subject for…",
+        "",
+        "Full title: Use event sourcing with one append-only log per subject for",
+        "every record kind in the monorepo",
+        "",
+        `ADR: ${id}`,
+        "ADR-Event: accepted",
+        "",
+        "",
+      ].join("\n"),
+    );
+    const note = "commit subject shortened to 72 characters; the full title is in the commit body";
+    expect(json(out.stdout).notes).toEqual([note]);
+    expect(out.stderr).toBe(`adr: warning: ${note}\n`);
+  });
+
+  it("keeps the natural casing of the title after its first letter", async () => {
+    const r = await repo();
+    const out = runAdr(r, ["new", "Use the CLI with ARK_AGENT on Node 24.", ...FULL, "--commit"]);
+    expect(out.status).toBe(0);
+    expect(await git(r, "log", "-1", "--format=%s")).toBe(
+      "docs(adr): propose to use the CLI with ARK_AGENT on Node 24\n",
+    );
+  });
+
+  it("commits -m as given, with the trailers as its last paragraph", async () => {
+    const r = await repo();
+    const out = runAdr(r, [
+      "new",
+      "Use Aurora for orders",
+      ...FULL,
+      "--commit",
+      "-m",
+      "chore: Record the Aurora proposal\n\nThe team agreed on it.",
+      "--json",
+    ]);
+    expect(out.status).toBe(0);
+    const id = json(out.stdout).decision?.id ?? "";
+    expect(await body(r)).toBe(
+      `chore: Record the Aurora proposal\n\nThe team agreed on it.\n\nADR: ${id}\nADR-Event: proposed\n\n`,
+    );
+    expect(json(out.stdout).notes).toEqual([]);
+  });
+
+  it("appends the trailers to a -m message's own trailer block", async () => {
+    const r = await repo();
+    const out = runAdr(r, [
+      "new",
+      "Use Aurora for orders",
+      ...FULL,
+      "--commit",
+      "-m",
+      "chore: record it\n\nCo-authored-by: A <a@x>\nRefs: #12",
+      "--json",
+    ]);
+    expect(out.status).toBe(0);
+    const id = json(out.stdout).decision?.id ?? "";
+    expect(await body(r)).toBe(
+      `chore: record it\n\nCo-authored-by: A <a@x>\nRefs: #12\nADR: ${id}\nADR-Event: proposed\n\n`,
+    );
+  });
+
+  it("appends the trailers to a -m block git reads as trailers, and only to those", async () => {
+    const r = await repo();
+    const cases = [
+      ["chore: record it\n\nSigned-off-by: A <a@x>\nwe paired on this", "\n"],
+      ["chore: record it\n\nSee the design doc at https://example.com/adr/42.", "\n\n"],
+      ["chore: record it\n\nWe decided: use Aurora.", "\n\n"],
+    ] as const;
+    for (const [i, [message, gap]] of cases.entries()) {
+      const out = runAdr(r, [
+        "new",
+        `Use Aurora ${i}`,
+        ...FULL,
+        "--commit",
+        "-m",
+        message,
+        "--json",
+      ]);
+      expect(out.status).toBe(0);
+      const id = json(out.stdout).decision?.id ?? "";
+      expect(await body(r)).toBe(`${message}${gap}ADR: ${id}\nADR-Event: proposed\n\n`);
+    }
+  });
+
+  it("keeps a mixed-case first word of the title as written", async () => {
+    const r = await repo();
+    const out = runAdr(r, ["new", "GraphQL federation for the public API", ...FULL, "--commit"]);
+    expect(out.status).toBe(0);
+    expect(await git(r, "log", "-1", "--format=%s")).toBe(
+      "docs(adr): propose to GraphQL federation for the public API\n",
+    );
+  });
+
+  it("refuses a [commit] subject that could cut a supersede subject's names", async () => {
+    const subject = (fixed: number) =>
+      `[commit]\nsubject = "docs(adr): ${"x".repeat(fixed - 1)} {title}"\n`;
+    const r = await repo({ "docs/adr/adr.toml": subject(52) });
+    const bad = runAdr(r, ["new", "Use Aurora", ...FULL, "--commit"]);
+    expect(bad.status).toBe(2);
+    expect(bad.stderr).toContain("adr: error: docs/adr/adr.toml: commit.subject leaves no room");
+
+    await writeFile(join(r.root, "docs/adr/adr.toml"), subject(30));
+    for (const title of ["Use DynamoDB", "Use Aurora"]) {
+      const created = runAdr(r, ["new", title, ...FULL, "--commit", "--json"]);
+      expect(created.status).toBe(0);
+      expect(
+        runAdr(r, ["accept", json(created.stdout).decision?.id ?? "", "--commit"]).status,
+      ).toBe(0);
+    }
+    const out = runAdr(r, ["supersede", "ADR-0001", "--by", "ADR-0002", "--commit", "--json"]);
+    expect(out.status).toBe(0);
+    expect(await git(r, "log", "-1", "--format=%s")).toBe(
+      `docs(adr): ${"x".repeat(29)} ADR-0001 with ADR-0002\n`,
+    );
+    expect(await body(r)).not.toContain("Full title:");
+    expect(json(out.stdout).notes).toEqual([]);
+  });
+
+  it("uses [commit] subject from adr.toml, and exits 2 for an invalid one", async () => {
+    const r = await repo({
+      "docs/adr/adr.toml": '[commit]\nsubject = "docs({command}): {action} {raw_title}"\n',
+    });
+    expect(runAdr(r, ["new", "Use Aurora", ...FULL, "--commit"]).status).toBe(0);
+    expect(await git(r, "log", "-1", "--format=%s")).toBe("docs(new): propose to Use Aurora\n");
+
+    await writeFile(
+      join(r.root, "docs/adr/adr.toml"),
+      '[commit]\nsubject = "docs(adr): {verb} {title}"\n',
+    );
+    const before = await git(r, "status", "--porcelain");
+    const bad = runAdr(r, ["--json", "new", "Use DynamoDB", ...FULL, "--commit"]);
+    expect(bad.status).toBe(2);
+    expect(JSON.parse(bad.stdout)).toMatchObject({
+      format: "ark-error/v1",
+      error: { code: "config" },
+    });
+    expect(bad.stderr).toContain(
+      "adr: error: docs/adr/adr.toml: commit.subject uses unknown placeholder {verb}",
+    );
+    expect(await git(r, "status", "--porcelain")).toBe(before);
+  });
+
+  it("exits 2 for -m without a commit, and for --commit without a committer", async () => {
+    const r = await repo();
+    const cases: [string[], NodeJS.ProcessEnv, string][] = [
+      [
+        ["new", "T", ...FULL, "-m", "x"],
+        {},
+        "--message needs --commit (or [policy] auto_commit = true)",
+      ],
+      [
+        ["new", "T", ...FULL, "--no-commit", "-m", "x"],
+        {},
+        "--message can't be used with --no-commit",
+      ],
+      [["new", "T", ...FULL, "--commit", "-m", "  "], {}, "the commit message is empty"],
+      [
+        ["new", "T", ...FULL, "--commit"],
+        { GIT_COMMITTER_NAME: undefined, GIT_COMMITTER_EMAIL: undefined },
+        "--commit needs a git identity; set git user.name and user.email",
+      ],
+    ];
+    for (const [args, env, message] of cases) {
+      const out = runAdr(r, args, { env });
+      expect(out.status, args.join(" ")).toBe(2);
+      expect(out.stderr).toBe(`adr: error: ${message}\n`);
+    }
+    expect(await git(r, "status", "--porcelain")).toBe("");
+    const a = await seedDecision(r, "Use Aurora", { accept: false, commit: false });
+    expect(runAdr(r, ["accept", a, "-m", "x"]).status).toBe(2);
+    expect(runAdr(r, ["supersede", a, "--by", a, "--no-commit", "-m", "x"]).status).toBe(2);
   });
 });
 

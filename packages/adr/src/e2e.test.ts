@@ -78,6 +78,9 @@ it("proposes, accepts, supersedes, lists, shows and verifies decisions", {
   expect(await git(r, "log", "-1", "--format=%(trailers:only,unfold)")).toBe(
     `ADR: ${id1}\nADR-Event: proposed\nADR: ${id1}\nADR-Event: accepted\n\n`,
   );
+  expect(await git(r, "log", "-1", "--format=%s")).toBe(
+    "docs(adr): decide to use DynamoDB for orders\n",
+  );
   expect(ok(["list"]).stdout).toBe(`ADR-0001  ${id1}  accepted  Use DynamoDB for orders\n`);
   verifyHead();
 
@@ -102,6 +105,9 @@ it("proposes, accepts, supersedes, lists, shows and verifies decisions", {
     decision: { id: id1, display: "ADR-0001", status: "superseded", effective: id2 },
     affected: [{ id: id1, display: "ADR-0001", status: "superseded" }],
   });
+  expect(await git(r, "log", "-1", "--format=%s")).toBe(
+    "docs(adr): supersede ADR-0001 with ADR-0002\n",
+  );
   verifyHead();
   const show = ok(["show", "ADR-0001"]).stdout.split("\n");
   expect(show[0]).toBe(`ADR-0001 (${id1}) · superseded`);

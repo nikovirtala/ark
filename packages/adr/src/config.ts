@@ -1,4 +1,24 @@
-import { ConfigError, type Severity, type ToolConfig } from "@nikovirtala/ledger";
+import {
+  type CommitTemplate,
+  ConfigError,
+  parseCommitTemplate,
+  readCommitTemplate,
+  type Severity,
+  type ToolConfig,
+} from "@nikovirtala/ledger";
+
+/** adr's commit-subject placeholders, each with its longest value (design §4.2). */
+const COMMIT_VARS = Object.freeze({ action: 24, id: 8, display: 13, command: 9 });
+/** The default `[commit] subject`. */
+export const DEFAULT_COMMIT_SUBJECT = "docs(adr): {action} {title}";
+/**
+ * The names the title placeholder holds instead of a title, which are never shortened, each with
+ * its action: supersede's `<display> with <display>`. The shorter names (a display, at most 13
+ * characters) always fit in the room a title gets.
+ */
+const COMMIT_NAMES = Object.freeze([
+  { length: COMMIT_VARS.display * 2 + " with ".length, vars: { action: "supersede".length } },
+]);
 
 /** adr's settings from `adr.toml` (design §5.3); every key is optional. */
 export interface AdrConfig {
@@ -16,6 +36,8 @@ export interface AdrConfig {
   readonly mcpCanDecide: boolean;
   /** `[verify] fail_on`. */
   readonly failOn: Severity;
+  /** `[commit] subject`: the template of `--commit` subjects. */
+  readonly commitSubject: CommitTemplate;
 }
 
 export const DEFAULT_ADR_CONFIG: AdrConfig = Object.freeze({
@@ -26,6 +48,11 @@ export const DEFAULT_ADR_CONFIG: AdrConfig = Object.freeze({
   autoCommit: false,
   mcpCanDecide: false,
   failOn: "error",
+  commitSubject: parseCommitTemplate(DEFAULT_COMMIT_SUBJECT, {
+    vars: COMMIT_VARS,
+    where: "commit.subject",
+    names: COMMIT_NAMES,
+  }),
 });
 
 const TEMPLATE = /^[a-z][a-z0-9-]*$/;
@@ -95,5 +122,11 @@ export function parseAdrConfig(config: ToolConfig | null, file: string | null): 
     autoCommit: bool(policy, "policy", "auto_commit", false),
     mcpCanDecide: bool(policy, "policy", "mcp_can_decide", false),
     failOn: oneOf(verify, "verify", "fail_on", ["error", "warning"] as const, "error"),
+    commitSubject: readCommitTemplate(config, {
+      file: where,
+      vars: COMMIT_VARS,
+      defaultSubject: DEFAULT_COMMIT_SUBJECT,
+      names: COMMIT_NAMES,
+    }),
   };
 }
