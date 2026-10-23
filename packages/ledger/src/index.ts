@@ -181,6 +181,12 @@ export {
   scopeLookup,
 } from "./scope/lookup.js";
 export {
+  type FollowResult,
+  followRenames,
+  type Rename,
+  stagedRenames,
+} from "./scope/renames.js";
+export {
   applySetOp,
   latestSet,
   type SetOp,
