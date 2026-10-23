@@ -51,6 +51,9 @@ export {
   summarize,
 } from "./findings/finding.js";
 export { type FindingsReport, formatGithub, formatJson, formatText } from "./findings/format.js";
+export { compareEvents, foldLog, foldSubject } from "./fold/fold.js";
+export { NO_NUMBERING, type Numbering } from "./fold/numbering.js";
+export { kindFindings, type Projection, projectLog } from "./fold/project.js";
 export {
   GIT_ENV_ISOLATION,
   GIT_LOCATING_ENV,
@@ -147,7 +150,7 @@ export {
   type LogSnapshot,
   loadLog,
 } from "./log/snapshot.js";
-export { writeEvent } from "./log/write.js";
+export { nextEventIdentity, writeEvent } from "./log/write.js";
 export {
   MAX_CONFIG_BYTES,
   parseToolConfig,
