@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M5MFBY347K8B07AZAX9D7BS9
+subject: ew1emghd
+type: proposed
+at: 2026-10-23T13:31:52Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Share exit codes and failing findings across ark tools
+  template: nygard
+  template_version: 1
