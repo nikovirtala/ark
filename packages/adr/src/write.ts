@@ -2,6 +2,7 @@ import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type Actor,
+  applySetOp,
   bodyFileName,
   bodySha256,
   ConfigError,
@@ -15,8 +16,10 @@ import {
   FileExistsError,
   type Finding,
   finding,
+  globMatcher,
   historyTemplates,
   InvalidArgumentError,
+  indexReader,
   isSubjectId,
   lintDocument,
   lintTemplate,
@@ -24,9 +27,11 @@ import {
   nextEventIdentity,
   overlayTree,
   parseEventFileName,
+  parseGlob,
   parseTemplate,
   renderCommitMessage,
   renderTemplate,
+  type SetOp,
   serializeEvent,
   slugify,
   type Template,
@@ -47,7 +52,7 @@ import {
 } from "./log.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
 
-/** `adr new|accept|supersede|reject|withdraw|deprecate|note|link --json` (design §5.5, §6.1). */
+/** `adr <write command> --json` (design §5.5, §6.1). */
 export interface WriteResultJson {
   readonly format: "adr-write/v1";
   readonly command:
@@ -58,7 +63,8 @@ export interface WriteResultJson {
     | "withdraw"
     | "deprecate"
     | "note"
-    | "link";
+    | "link"
+    | "scope";
   readonly ok: boolean;
   /**
    * The decision after the write; before it when `ok` is false (`null` for a refused `new`).
@@ -901,6 +907,110 @@ export async function planLink(
   };
 }
 
+export interface ScopeInput {
+  readonly id: string;
+  /** Replace (`set`, `[]` clears), or `add` and `remove` globs (design §3.2). */
+  readonly op: SetOp;
+  readonly actor: Actor;
+  /** How the caller names `set`, `add`, `remove` and `clear` in messages; default the field names. */
+  readonly names?: {
+    readonly set: string;
+    readonly add: string;
+    readonly remove: string;
+    readonly clear?: string;
+  };
+}
+
+/** `ADR-0003 (k3f9q8a1)`, or the id alone when the decision has no number. */
+const namedView = (v: DecisionView) => (v.display === v.id ? v.id : `${v.display} (${v.id})`);
+
+/** The globs of `globs` that match none of `files`. */
+function unmatchedGlobs(globs: readonly string[], files: readonly string[]): string[] {
+  const matches = globMatcher(globs);
+  const hit = new Set(files.flatMap((f) => matches(f)));
+  return globs.filter((g) => !hit.has(g));
+}
+
+/**
+ * Plans `adr scope` with a set operation (design §6.8): one `scoped` event with the whole new set
+ * while proposed, accepted or deprecated, or nothing when the set doesn't change. Invalid globs,
+ * conflicting operations and more than 200 globs are `UsageError`s. Notes name removed globs that
+ * weren't there, added ones that were, resulting globs matching none of `o.tracked` (when given)
+ * and a narrowed accepted scope.
+ */
+export async function planScope(
+  read: DecisionsRead,
+  input: ScopeInput,
+  c: PlanContext,
+  o: { readonly tracked?: readonly string[] } = {},
+): Promise<PlanResult> {
+  const id = resolveDecision(read, input.id);
+  const view = viewOf(read, id);
+  const result = applySetOp(view.applies_to, input.op, {
+    what: "glob",
+    validate: (g) => {
+      const parsed = parseGlob(g);
+      return parsed.ok ? null : parsed.message;
+    },
+    maxItems: 200,
+    ...(input.names === undefined ? {} : { names: input.names }),
+  });
+  if (!adrKind.machine.allowed(view.status, "scoped")) {
+    return {
+      ok: false,
+      decision: view,
+      findings: [refusal(read, "transition/illegal", illegal("scoped", view.status), id)],
+    };
+  }
+  const named = namedView(view);
+  const notes = [
+    ...result.absent.map((g) => `${g} is not in the scope of ${named}`),
+    ...result.present.map((g) => `${g} is already in the scope of ${named}`),
+  ];
+  if (!result.changed) {
+    return {
+      ok: true,
+      plan: {
+        command: "event",
+        subject: id,
+        files: {},
+        events: [],
+        stage: [],
+        involved: [id],
+        commitScope: [],
+        eventDirs: [],
+        draft: null,
+        commit: null,
+        trailers: [],
+        decision: view,
+        affected: [],
+        findings: [],
+        notes,
+      },
+    };
+  }
+  if (o.tracked !== undefined) {
+    notes.push(...unmatchedGlobs(result.set, o.tracked).map((g) => `${g} matches no tracked file`));
+  }
+  if (result.removed.length > 0 && (view.status === "accepted" || view.status === "deprecated")) {
+    notes.push(
+      "this narrows the scope of an accepted decision; if its Scope section no longer reads true, propose a superseding decision instead",
+    );
+  }
+  const r = await planEvent(
+    read,
+    { subject: id, type: "scoped", data: { set: [...result.set] }, actor: input.actor },
+    c,
+  );
+  return r.ok ? { ok: true, plan: { ...r.plan, notes } } : r;
+}
+
+/** Every tracked file in the index, for the "matches no tracked file" notes. */
+async function trackedFiles(log: DecisionLog): Promise<string[]> {
+  const index = await indexReader(log.git);
+  return (await index.list("")).filter((e) => e.type === "file").map((e) => e.path);
+}
+
 /** What the editor step decided (§5.4 step 4a). */
 export interface AfterStage {
   /** Draft lint findings to report instead of `plan.findings`; `null` keeps `plan.findings`. */
@@ -1336,4 +1446,18 @@ export async function linkDecision(
 ): Promise<WriteResultJson> {
   const sources = (log.config?.sources ?? []).map((s) => s.name);
   return write(log, "link", (read, c) => planLink(read, input, c, { sources }), o, deps);
+}
+
+/**
+ * `adr scope <id> --set|--add|--remove …`: writes one `scoped` event with the new set, stages it,
+ * and commits with `commit`. An unchanged set writes nothing.
+ */
+export async function scopeDecision(
+  log: DecisionLog,
+  input: ScopeInput,
+  o: WriteOptions = {},
+  deps: WriteDeps = DEFAULT_DEPS,
+): Promise<WriteResultJson> {
+  const tracked = await trackedFiles(log);
+  return write(log, "scope", (read, c) => planScope(read, input, c, { tracked }), o, deps);
 }

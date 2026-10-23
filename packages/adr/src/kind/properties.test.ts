@@ -4,7 +4,9 @@ import {
   foldChecks,
   foldLog,
   foldSubject,
+  formatAt,
   type LoadedSubject,
+  latestSet,
   loadLog,
   MemoryTree,
   NO_NUMBERING,
@@ -33,7 +35,14 @@ import {
   arbAdrHistory,
   arbAdrTamper,
 } from "../test-support/decision-arbs.js";
-import { COMPILED, foldFiles, hashOf } from "../test-support/events.js";
+import {
+  COMPILED,
+  decisionEvent,
+  decisionFiles,
+  foldFiles,
+  hashOf,
+  proposedData,
+} from "../test-support/events.js";
 
 const checks = foldChecks(adrKind, { templates: null });
 const scopes = ["all", "changed"] as const;
@@ -304,5 +313,69 @@ describe("tamper detection (AC 11)", () => {
       expect(events.every((e) => e.type === "proposed")).toBe(true);
       expect(arbAdrTamper(x)).toBe(null);
     }
+  });
+});
+
+// AC-S2.4 (adr half): the reducer's scope is ledger's latestSet, the data.set of the last applied
+// scoped event, even when rejected, withdrawn or superseded make later scoped events illegal.
+describe("scoped events, latest wins", () => {
+  const ID = "k3f9q8a1";
+  const BODY = "# Use Aurora\n";
+  const T0 = Date.parse("2026-03-12T09:00:00Z");
+  const arbStep = fc.record({
+    type: fc.constantFrom(
+      "scoped",
+      "scoped",
+      "scoped",
+      "accepted",
+      "rejected",
+      "withdrawn",
+      "deprecated",
+      "superseded",
+    ),
+    second: fc.integer({ min: 1, max: 4 }),
+    set: fc.uniqueArray(fc.constantFrom("src/**", "docs/*.md", "lib/a.ts"), { maxLength: 3 }),
+  });
+  const dataOf = (type: string, set: readonly string[]): Record<string, unknown> => {
+    if (type === "scoped") return { set: [...set].sort() };
+    if (type === "accepted") return { body_sha256: hashOf(BODY) };
+    if (type === "superseded") return { by: "a7c2m9xd" };
+    return {};
+  };
+
+  it("keeps the set of the last applied scoped event", async () => {
+    await fc.assert(
+      fc.asyncProperty(fc.array(arbStep, { minLength: 1, maxLength: 10 }), async (steps) => {
+        const at = (ms: number) => formatAt(new Date(ms));
+        const events = [
+          decisionEvent(ID, "proposed", { data: proposedData("Use Aurora"), at: at(T0) }),
+          ...steps.map((s) =>
+            decisionEvent(ID, s.type, {
+              data: dataOf(s.type, s.set),
+              at: at(T0 + s.second * 1000),
+              ...(s.type === "rejected" || s.type === "deprecated" ? { reason: "why" } : {}),
+            }),
+          ),
+        ];
+        const log = await foldFiles(decisionFiles([{ id: ID, body: BODY, events }]));
+        const subject = log.subjects.get(ID);
+        if (subject === undefined) throw new Error("not folded");
+
+        let status: Status = "proposed";
+        let expected: readonly string[] | null = null;
+        const ordered = events
+          .slice(1)
+          .sort((a, b) => (a.at === b.at ? (a.id < b.id ? -1 : 1) : a.at < b.at ? -1 : 1));
+        for (const e of ordered) {
+          const to: Status | "same" | undefined = NEXT[status][e.type];
+          if (to === undefined) continue;
+          if (to !== "same") status = to;
+          if (e.type === "scoped") expected = (e.data as { set: string[] }).set;
+        }
+        expect(subject.status).toBe(status);
+        expect(latestSet(subject, "scoped")).toEqual(expected);
+        expect(subject.state?.appliesTo).toEqual(expected ?? []);
+      }),
+    );
   });
 });

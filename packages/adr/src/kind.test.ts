@@ -33,3 +33,23 @@ it("compiles, with exactly the 9 event types of decision/v1 (AC 2)", () => {
 it("derives the terminal states rejected, withdrawn and superseded", () => {
   expect([...adrKind.machine.terminal].sort()).toEqual(["rejected", "superseded", "withdrawn"]);
 });
+
+// AC-S2.1: scoped is built with ledger's setEventType and equals the decision/v1 literal.
+it("keeps the scoped event of decision/v1 as it was", () => {
+  expect(adrKind.def.events.scoped).toEqual({
+    data: {
+      type: "object",
+      required: ["set"],
+      properties: {
+        set: {
+          type: "array",
+          items: { type: "string", minLength: 1, maxLength: 500 },
+          uniqueItems: true,
+          maxItems: 200,
+        },
+      },
+    },
+    allowedIn: ["proposed", "accepted", "deprecated"],
+    to: null,
+  });
+});

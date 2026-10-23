@@ -10,6 +10,7 @@ import { newCommand } from "./new.js";
 import { noteCommand } from "./note.js";
 import { openForCli } from "./open.js";
 import { rejectCommand } from "./reject.js";
+import { scopeCommand } from "./scope.js";
 import { showCommand } from "./show.js";
 import { supersedeCommand } from "./supersede.js";
 import { withdrawCommand } from "./withdraw.js";
@@ -49,6 +50,7 @@ export function adrCli(version: string): ToolCli {
       supersedeCommand,
       noteCommand,
       linkCommand,
+      scopeCommand,
       listCommand,
       showCommand,
       verify,
