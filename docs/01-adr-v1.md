@@ -45,7 +45,7 @@ Everything lives under one directory, configurable in `adr.toml`. Events are gro
 
 ```
 docs/adr/
-  adr.toml                        # config: default template, policies, index mode
+  adr.toml                        # config: default template, policies, index mode; or adr.toml at the repository root
   templates/
     nygard.md
     madr.md
@@ -90,14 +90,18 @@ A minimal config:
 
 ```toml
 [log]
-root = "docs/adr"
+root = "docs/adr"  # read from <repo>/adr.toml; the default
 default_template = "team-lightweight"
+main_branch = "origin/main"     # the ref numbers come from; default origin/HEAD, origin/main, origin/master, main, master
 index = "committed"             # committed | none
 
 [policy]
 accept_requires_human = true
 mcp_can_decide = false          # agents propose, humans decide
 auto_commit = false
+
+[verify]
+fail_on = "error"               # error | warning
 ```
 
 ## Event schema
@@ -130,7 +134,7 @@ data:
 | `rejected` | none, `reason` required | yes | Terminal |
 | `withdrawn` | none | yes | Author abandons a proposal; terminal |
 | `deprecated` | none, `reason` required | yes | No longer applies, nothing replaces it |
-| `superseded` | `by` | yes | Target must be accepted in the same or an earlier commit |
+| `superseded` | `by` | yes | Target must be accepted in the same tree, so in the same commit or earlier |
 | `noted` | `text` | no | Clarification or follow-up; the additive alternative to editing a body |
 | `linked` | `to`, `rel` (`relates-to`, `refines`, `depends-on`) | no | Non-lifecycle relations between ADRs |
 | `scoped` | `set: [globs]` | no | Replaces the decision's code scope as a whole; the latest one wins. Allowed while proposed, accepted or deprecated |
@@ -160,7 +164,7 @@ A proposal ends in exactly one of accepted, rejected or withdrawn; an accepted d
 - The first event is `proposed`, and at most one terminal transition ever happens.
 - `accepted` requires the draft to pass template lint, and records the body hash.
 - `deprecated` applies only to accepted decisions; `superseded` applies to accepted or deprecated ones.
-- `superseded.by` must reference an ADR accepted in the same commit or earlier, and supersession chains are acyclic.
+- `superseded.by` must reference an ADR accepted in the same tree, so in the same commit or earlier, and supersession chains are acyclic.
 - A proposal's `supersedes` is intent only. The `superseded` events are written together with the new ADR's `accepted` event, so nothing is marked superseded by a decision not yet in force.
 - `noted`, `linked` and `scoped` never change state. `noted` and `linked` are allowed in any state, including terminal ones; `scoped` only while proposed, accepted or deprecated.
 
@@ -207,9 +211,9 @@ The CLI is the human interface and the automation entry point for hooks and CI. 
 | --- | --- | --- |
 | `adr init [--template madr]` | Creates the layout, config and starter templates | config, templates |
 | `adr new "Title" [--template X] [--supersedes 7]` | Renders a draft from the template, opens `$EDITOR` | decision file, `proposed` event |
-| `adr accept 12` | Lints the draft, hashes the body, accepts; supersedes anything declared | `accepted` + `superseded` events |
-| `adr reject 12 --reason "…"` | Rejects a proposal | `rejected` event |
-| `adr withdraw 12` | Author abandons a proposal | `withdrawn` event |
+| `adr accept k3f9q8a1` | Lints the draft, hashes the body, accepts; supersedes anything declared | `accepted` + `superseded` events |
+| `adr reject k3f9q8a1 --reason "…"` | Rejects a proposal | `rejected` event |
+| `adr withdraw k3f9q8a1` | Author abandons a proposal | `withdrawn` event |
 | `adr deprecate 7 --reason "…"` | Retires a decision with no replacement | `deprecated` event |
 | `adr supersede 7 --by 12` | Supersedes after the fact, when 12 is already accepted | `superseded` event |
 | `adr note 7 "…"` | Adds a clarification without touching the body | `noted` event |
@@ -227,7 +231,7 @@ The CLI is the human interface and the automation entry point for hooks and CI. 
 
 Global flags: `--ref <git-ref>` for time travel, `--json` for machine output, `--root` to override the decision log directory. These are ark's shared flags, with the same meaning and exit codes in every ark tool.
 
-When a command creates a commit, it adds trailers such as `ADR: 12` and `ADR-Event: accepted`. They are redundant with the event files but make `git log --grep` and forge searches useful.
+When a command creates a commit, it adds trailers such as `ADR: k3f9q8a1` and `ADR-Event: accepted`. They are redundant with the event files but make `git log --grep` and forge searches useful. The trailer carries the canonical id, because a commit on a branch is made before the decision has a number.
 
 ## MCP surface
 
@@ -448,7 +452,7 @@ Use the CLI with --json: adr search, adr show, adr new, adr note.
 - TypeScript, in the ark monorepo as `packages/adr`, published on npm as @nikovirtala/adr with the binary `adr`, so `npx @nikovirtala/adr` works without a global install. Versioned independently of the other ark packages.
 - Depends on `@nikovirtala/ledger` for everything below the domain. All I/O, including shelling out to `git`, goes through ledger, so the user's git config, credentials and signing setup apply unchanged.
 - Exports its kind as `@nikovirtala/adr/kind`, with no CLI or MCP dependencies. issues imports it to fold decision logs and check its `implements` links; adr itself depends on nothing else in ark.
-- The decision kind stays pure: `reduce`, `invariants` and `project` take data and return data, which makes the state machine trivially testable.
+- The decision kind stays pure: `reduce`, `invariants`, `relate` and `project` take data and return data, which makes the state machine trivially testable.
 - The supersession chain lives in the adr package until issues' relations show the same shape; then both move into ledger's relation layer and the copies are deleted.
 
 **Roadmap**
@@ -456,9 +460,9 @@ Use the CLI with --json: adr search, adr show, adr new, adr note.
 adr is step 3 of ark's extraction plan: the first kind built on ledger, starting once ledger's mechanical core exists.
 
 1. Core: the decision kind (events, state machine, invariants), with ledger's fold engine built alongside it; `new` / `accept` / `supersede`, `list` / `show`, `verify`.
-2. Guardrails: decision-specific checks in ark's shared CI action and hooks, generated index.
-3. Agents: MCP server, SKILL.md, response state headers.
+2. Guardrails: decision-specific checks in ark's shared CI action and hooks, generated index; the commands `init`, `reject`, `withdraw`, `deprecate`, `note`, `link`, `scope` and `for`. Phase 1's kind, fold and verify already support the events behind them.
+3. Agents: MCP server, SKILL.md and `init --skill`, response state headers, `search`.
 4. Adoption: template management, and import from existing adr-tools or log4brains repos, synthesizing `proposed` and `accepted` events from their status lines without rewriting the files.
 5. Later: an optional live index published as an artifact page that reloads on every new event, as decided in the ark design. Not part of the first version.
 
-ark records its own architecture decisions with adr from step 1 onwards.
+ark's step 3 lands over phases 1–3. ark starts recording its own architecture decisions with adr once phase 1 is merged and released.
