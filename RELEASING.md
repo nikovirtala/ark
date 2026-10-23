@@ -8,7 +8,7 @@ Packages are versioned independently with [Changesets](https://github.com/change
 2. When that reaches `main`, the release workflow opens or updates the **"chore: version packages"** PR, which bumps versions, writes changelogs and deletes the consumed changesets.
 3. Merging the version PR publishes the bumped public packages to npm with provenance and creates their git tags and GitHub releases.
 
-Only packages with changesets are bumped; there are no fixed or linked groups. Private packages (currently `@nikovirtala/adr` and `@nikovirtala/issues`) are never versioned or published.
+Only packages with changesets are bumped; there are no fixed or linked groups. Private packages (currently `@nikovirtala/issues`) are never versioned or published.
 
 The version PR is opened with `GITHUB_TOKEN`, so it doesn't start CI by itself. Re-run CI from the Actions tab, or push an empty commit to the version branch, if a run is needed before merging.
 
@@ -31,7 +31,7 @@ The version PR is opened with `GITHUB_TOKEN`, so it doesn't start CI by itself. 
 3. **Optional:** Settings → Publishing access → "Require two-factor authentication and disallow tokens".
 4. **GitHub Actions.** Repository Settings → Actions → General: enable "Allow GitHub Actions to create and approve pull requests", so the release workflow can open the version PR.
 5. **Merging.** Settings → General → Pull Requests: allow only "Rebase and merge" (linear history, see [AGENTS.md](AGENTS.md)). Optionally protect `main` and require the CI `check` job.
-6. When `@nikovirtala/adr` or `@nikovirtala/issues` drops `"private": true`, repeat steps 1 and 2 for it.
+6. Placeholders for `@nikovirtala/adr` and `@nikovirtala/issues` were published on 2026-10-22 (version 0.0.0, deprecated), so step 1 is already done for them. When a package drops `"private": true`, do step 2 for it right before merging the first version PR that publishes it.
 
 ## Troubleshooting
 

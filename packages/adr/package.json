@@ -1,9 +1,17 @@
 {
   "name": "@nikovirtala/adr",
   "version": "0.0.0",
-  "private": true,
-  "description": "Architecture decision records kept as event logs in git. Skeleton: not published yet.",
+  "description": "Architecture decision records kept as event logs in git: frozen bodies, computed status and supersession chains. CLI and library.",
+  "keywords": [
+    "adr",
+    "architecture-decision-records",
+    "git",
+    "event-sourcing",
+    "cli"
+  ],
   "license": "MIT",
+  "homepage": "https://github.com/nikovirtala/ark/tree/main/packages/adr#readme",
+  "bugs": "https://github.com/nikovirtala/ark/issues",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/nikovirtala/ark.git",
@@ -31,6 +39,10 @@
   ],
   "engines": {
     "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "dependencies": {
     "@nikovirtala/ledger": "workspace:^"
