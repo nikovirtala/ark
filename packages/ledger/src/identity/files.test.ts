@@ -88,6 +88,15 @@ describe("slugify", () => {
     expect(slugify("日本語")).toBe("");
   });
 
+  it("drops apostrophes instead of splitting the word at them", () => {
+    expect(slugify("Keep ark's tools in one monorepo")).toBe("keep-arks-tools-in-one-monorepo");
+    for (const q of ["'", "\u2018", "\u2019", "\u02bc", "`"]) {
+      expect(slugify(`Don${q}t use ark${q}s ${q}quoted${q} words`)).toBe(
+        "dont-use-arks-quoted-words",
+      );
+    }
+  });
+
   it("cuts at a dash within max", () => {
     expect(slugify("aaa bbb ccc", 7)).toBe("aaa-bbb");
     expect(slugify("aaa bbb ccc", 8)).toBe("aaa-bbb");
