@@ -149,7 +149,7 @@ export function resolveDecision(read: DecisionsRead, input: string): string {
       throw new UsageError(`invalid decision ${JSON.stringify(input)}`);
     case "qualified":
       throw new UsageError(
-        `decision ${shown} is in another log; cross-log references arrive in phase 2`,
+        `decision ${shown} is in another log; cross-log references aren't supported yet`,
       );
     case "numbers-unavailable":
       throw new UsageError(

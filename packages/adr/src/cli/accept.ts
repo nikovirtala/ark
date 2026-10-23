@@ -1,15 +1,15 @@
 import { type JsonValue, resolveActor } from "@nikovirtala/ledger";
-import type { CommandSpec } from "@nikovirtala/ledger/cli";
+import { COMMIT_OPTIONS, type CommandSpec, commitChoice } from "@nikovirtala/ledger/cli";
 import { acceptDecision } from "../write.js";
-import { commitRequested, displayAfterWrite, openForCli } from "./open.js";
+import { displayAfterWrite, openForCli } from "./open.js";
 import { writeText } from "./text.js";
 
-/** `adr accept <decision> [--commit | --no-commit]` (design §5.6). */
+/** `adr accept <decision> [--commit | --no-commit] [-m <message>]` (design §5.6). */
 export const acceptCommand: CommandSpec = {
   name: "accept",
   summary: "accept a proposed decision, superseding the decisions it declares",
-  usage: "accept <decision> [--commit | --no-commit]",
-  options: { commit: { type: "boolean" } },
+  usage: "accept <decision> [--commit | --no-commit] [-m <message>]",
+  options: { ...COMMIT_OPTIONS },
   positionals: { min: 1, max: 1, names: ["decision"] },
   ref: "reject",
   async run({ io, flags, values, positionals }) {
@@ -19,7 +19,7 @@ export const acceptCommand: CommandSpec = {
     const doc = await acceptDecision(
       log,
       { id: input, actor },
-      { commit: commitRequested(log, values) },
+      commitChoice(values, { autoCommit: log.adr.autoCommit }),
     );
     const { display } = await displayAfterWrite(log);
     const v = doc.decision;

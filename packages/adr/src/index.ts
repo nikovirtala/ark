@@ -34,5 +34,6 @@ export {
   type ProposeInput,
   proposeDecision,
   supersedeDecision,
+  type WriteOptions,
   type WriteResultJson,
 } from "./write.js";

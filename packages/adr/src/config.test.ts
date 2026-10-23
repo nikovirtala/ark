@@ -2,6 +2,9 @@ import { ConfigError, parseToolConfig } from "@nikovirtala/ledger";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_ADR_CONFIG, parseAdrConfig } from "./config.js";
 
+const COMMIT_VARS = { action: 24, id: 8, display: 13, command: 9 };
+const DEFAULT_SUBJECT = { source: "docs(adr): {action} {title}", vars: COMMIT_VARS };
+
 const parse = (toml: string) =>
   parseAdrConfig(parseToolConfig(toml, { file: "adr.toml" }), "adr.toml");
 
@@ -15,8 +18,10 @@ describe("parseAdrConfig", () => {
       autoCommit: false,
       mcpCanDecide: false,
       failOn: "error",
+      commitSubject: DEFAULT_SUBJECT,
     });
     expect(parse("")).toEqual(DEFAULT_ADR_CONFIG);
+    expect(parse("[commit]\n")).toEqual(DEFAULT_ADR_CONFIG);
   });
 
   it("reads every key", () => {
@@ -35,6 +40,9 @@ mcp_can_decide = true
 
 [verify]
 fail_on = "warning"
+
+[commit]
+subject = "docs({command}): {action} {raw_title} ({display})"
 `),
     ).toEqual({
       defaultTemplate: "madr",
@@ -44,6 +52,10 @@ fail_on = "warning"
       autoCommit: true,
       mcpCanDecide: true,
       failOn: "warning",
+      commitSubject: {
+        source: "docs({command}): {action} {raw_title} ({display})",
+        vars: COMMIT_VARS,
+      },
     });
   });
 
@@ -74,6 +86,20 @@ fail_on = "warning"
     ["[policy]\nauto_commit = 1", "policy.auto_commit must be true or false"],
     ["[policy]\nmcp_can_decide = 'no'", "policy.mcp_can_decide must be true or false"],
     ["[verify]\nfail_on = 'info'", 'verify.fail_on must be "error" or "warning"'],
+    ["commit = 'x'", "adr.toml: commit must be a table"],
+    ["[commit]\nsubject = 1", "adr.toml: commit.subject must be a string"],
+    [
+      "[commit]\nsubject = 'docs(adr): {verb} {title}'",
+      "adr.toml: commit.subject uses unknown placeholder {verb}; use {title}, {raw_title}, {action}, {id}, {display}, {command}",
+    ],
+    [
+      "[commit]\nsubject = 'docs(adr): {title} ({raw_title})'",
+      "adr.toml: commit.subject can use {title} or {raw_title} once",
+    ],
+    [
+      "[commit]\nsubject = 'docs(architecture-decisions): {action} {title}'",
+      "adr.toml: commit.subject: the type and scope can push the header past 100 characters",
+    ],
   ])("refuses %j", (toml, message) => {
     let error: unknown;
     try {
@@ -85,6 +111,18 @@ fail_on = "warning"
     expect((error as ConfigError).message).toContain(message);
     expect((error as ConfigError).file).toBe("adr.toml");
     expect((error as ConfigError).code).toBe("config");
+  });
+
+  it("leaves room in [commit] subject for the longest name, which is never shortened", () => {
+    // Without {action}, the fixed part is "<x's> "; supersede's name is 32 characters.
+    const subject = (fixed: number) =>
+      `[commit]\nsubject = 'docs(adr): ${"x".repeat(fixed - 1)} {title}'`;
+    const longest = 32;
+    expect(() => parse(subject(72 - longest))).not.toThrow();
+    expect(() => parse(subject(73 - longest))).toThrow(ConfigError);
+    expect(() => parse(subject(73 - longest))).toThrow(
+      "adr.toml: commit.subject leaves no room for the title",
+    );
   });
 
   it("names the file it was given", () => {

@@ -161,7 +161,7 @@ describe("proposeDecision", () => {
       [{ title: "x".repeat(201) }, /^the title must be a single line/],
       [
         { supersedes: ["other:a7c2m9xd"] },
-        /^cannot supersede other:a7c2m9xd: cross-log supersession arrives in phase 2$/,
+        /^cannot supersede other:a7c2m9xd: cross-log supersession isn't supported yet$/,
       ],
       [{ supersedes: ["ADR-0042"] }, /^unknown decision ADR-0042$/],
       [{ supersedes: ["a7c2m9xd"] }, /^unknown decision a7c2m9xd$/],
@@ -317,7 +317,7 @@ describe("acceptDecision", () => {
     expect(a.findings.map((f) => [f.rule, f.message])).toEqual([
       [
         "decision/reference-missing",
-        "supersedes ext:a7c2m9xd: cross-log supersession arrives in phase 2",
+        "supersedes ext:a7c2m9xd: cross-log supersession isn't supported yet",
       ],
     ]);
   });
@@ -333,7 +333,7 @@ describe("acceptDecision", () => {
     expect((await committed(r)).sort()).toEqual([...w.written, ...a.written].sort());
     expect(await headTrailers(r)).toEqual([...pairs(id, "proposed"), ...pairs(id, "accepted")]);
     expect((await firstParentHistory(r.git, "HEAD"))[0]?.subject).toBe(
-      `Accept decision ${id}: Use Aurora`,
+      "docs(adr): decide to use Aurora",
     );
     expect(await staged(r)).toEqual(["unrelated.txt"]);
     expect(await verifyHead(r)).toEqual([]);
@@ -358,8 +358,11 @@ describe("acceptDecision", () => {
       ...pairs(c, "accepted"),
       ...pairs(b, "superseded"),
     ]);
-    expect((await firstParentHistory(r.git, "HEAD"))[0]?.subject).toBe(`Accept decision ${c}: New`);
-    expect(await git(r, "log", "-1", "--format=%B")).toContain(`\n\nSupersedes ${b}.\n`);
+    expect((await firstParentHistory(r.git, "HEAD"))[0]?.subject).toBe("docs(adr): decide to new");
+    // The superseded decision's acceptance is staged, not on main, so it has no number yet.
+    expect(await git(r, "log", "-1", "--format=%B")).toMatch(
+      new RegExp(`^docs\\(adr\\): decide to new\n\nSupersedes ${b}: Old\\.\n\nADR: `),
+    );
     expect(await staged(r)).toEqual([]);
     expect(await verifyHead(r)).toEqual([]);
   });
@@ -503,7 +506,7 @@ describe("supersedeDecision", () => {
       ["decision/supersession-cycle", `supersession cycle: ${a} → ${a}`],
     ]);
     await expect(supersede(r, a, `ext:${b}`)).rejects.toThrow(
-      new UsageError(`--by ext:${b}: cross-log supersession arrives in phase 2`),
+      new UsageError(`--by ext:${b}: cross-log supersession isn't supported yet`),
     );
     await expect(supersede(r, a, b, { reason: "  " })).rejects.toThrow(UsageError);
     await expect(supersede(r, a, "zzzzzzzz")).rejects.toThrow(/^unknown decision zzzzzzzz$/);

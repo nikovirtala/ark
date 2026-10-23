@@ -4,6 +4,7 @@ import {
   type Actor,
   bodyFileName,
   bodySha256,
+  ConfigError,
   classifyPath,
   compileKind,
   ENVELOPE_VERSION,
@@ -24,6 +25,7 @@ import {
   overlayTree,
   parseEventFileName,
   parseTemplate,
+  renderCommitMessage,
   renderTemplate,
   serializeEvent,
   slugify,
@@ -63,8 +65,21 @@ export interface WriteResultJson {
   readonly commit: string | null;
   /** Refusal findings when `ok` is false; the draft's template lint for `new` (informational). */
   readonly findings: readonly Finding[];
-  /** How the log was located (`ToolLog.notes`). */
+  /**
+   * How the log was located (`ToolLog.notes`), then the caller's notes (attribution), then the
+   * write's own (a shortened commit subject, …).
+   */
   readonly notes: readonly string[];
+}
+
+/** What every write function takes besides its input (design §6.1). */
+export interface WriteOptions {
+  /** Commit the write; default `[policy] auto_commit`. */
+  readonly commit?: boolean;
+  /** The commit message to use instead of the `[commit] subject` one; used only when committing. */
+  readonly message?: string | null;
+  /** Notes to report before the write's own, such as the attribution notes. */
+  readonly notes?: readonly string[];
 }
 
 export interface ProposeInput {
@@ -111,8 +126,8 @@ export interface WritePlan {
     readonly rendered: Uint8Array;
     readonly template: Template;
   } | null;
-  /** The D6 commit message. */
-  readonly message: string;
+  /** What the commit message is made of; `write()` renders it with `[commit] subject`. */
+  readonly commit: CommitParts | null;
   /** One `ADR`/`ADR-Event` pair per plan event, in write order. */
   readonly trailers: readonly Trailer[];
   /** Views after the write, computed on `overlayTree(read.tree, files)`. */
@@ -120,6 +135,22 @@ export interface WritePlan {
   readonly affected: readonly DecisionView[];
   /** Informational (new: the draft's template lint). */
   readonly findings: readonly Finding[];
+}
+
+/** The parts of a commit message (design §4.3): the template's variables and the body. */
+export interface CommitParts {
+  /** `{action}`, the verb phrase, e.g. `propose to` or `set the scope of`. */
+  readonly action: string;
+  /**
+   * The text after `{action}`, which `{title}` and `{raw_title}` come from: the decision's title
+   * as recorded for propose, accept, reject and withdraw, else its display (`ADR-0006`, or
+   * `ADR-0006 with ADR-0007` for supersede).
+   */
+  readonly title: string;
+  readonly id: string;
+  readonly display: string;
+  /** Body paragraphs, each wrapped at 72. */
+  readonly body: readonly string[];
 }
 
 export type PlanResult =
@@ -136,7 +167,7 @@ const compiled = compileKind(adrKind);
 const TEMPLATE_NAME = /^[a-z][a-z0-9-]*$/;
 const MAX_TEXT_BYTES = 64 * 1024;
 const SUBJECT_ATTEMPTS = 5;
-const QUALIFIED_SUPERSESSION = "cross-log supersession arrives in phase 2";
+const QUALIFIED_SUPERSESSION = "cross-log supersession isn't supported yet";
 
 const sorted = (xs: Iterable<string>): string[] => [...new Set(xs)].sort();
 const templatePath = (read: DecisionsRead, name: string) => `${read.root}/templates/${name}.md`;
@@ -385,7 +416,7 @@ export async function planPropose(
       commitScope: scope,
       eventDirs,
       draft: { path: bodyPath, rendered: body, template: t },
-      message: `Propose decision ${id}: ${title}`,
+      commit: { action: ACTIONS.proposed.action, title, id, display: id, body: [] },
       trailers: pairsOf([event]),
       decision: viewOf(after, id),
       affected: [],
@@ -529,10 +560,16 @@ export async function planAccept(
       commitScope: scope,
       eventDirs,
       draft: null,
-      message: [
-        `Accept decision ${id}: ${view.title}`,
-        ...(targets.length === 0 ? [] : ["", ...targets.map((t) => `Supersedes ${t}.`)]),
-      ].join("\n"),
+      commit: {
+        action: ACTIONS.accepted.action,
+        title: view.title,
+        id,
+        display: view.display,
+        body: targets.map((t) => {
+          const v = viewOf(read, t);
+          return `Supersedes ${v.display}: ${v.title}.`;
+        }),
+      },
       trailers: pairsOf(events),
       decision: viewOf(after, id),
       affected: targets.map((t) => viewOf(after, t)),
@@ -611,7 +648,13 @@ export async function planSupersede(
       commitScope: scope,
       eventDirs,
       draft: null,
-      message: `Supersede decision ${id}: ${view.title}\n\nSuperseded by ${by}.`,
+      commit: {
+        action: ACTIONS.superseded.action,
+        title: `${view.display} with ${target.display}`,
+        id,
+        display: view.display,
+        body: [`Superseded by ${target.display}: ${sentenceTitle(target.title)}.`],
+      },
       trailers: pairsOf([event]),
       decision: viewOf(after, id),
       affected: [viewOf(after, id)],
@@ -620,17 +663,33 @@ export async function planSupersede(
   };
 }
 
-const VERBS: Readonly<Record<string, string>> = {
-  proposed: "Propose",
-  accepted: "Accept",
-  rejected: "Reject",
-  withdrawn: "Withdraw",
-  deprecated: "Deprecate",
-  superseded: "Supersede",
-  noted: "Note on",
-  linked: "Link",
-  scoped: "Scope",
-};
+/**
+ * `{action}` of a commit that writes one event of each type (design §4.3), and what the title slot
+ * names: the decision's title for the events that change whether it is decided, else its display.
+ */
+const ACTIONS = {
+  proposed: { action: "propose to", names: "title" },
+  accepted: { action: "decide to", names: "title" },
+  rejected: { action: "decide not to", names: "title" },
+  withdrawn: { action: "withdraw the proposal to", names: "title" },
+  deprecated: { action: "deprecate", names: "display" },
+  superseded: { action: "supersede", names: "display" },
+  noted: { action: "add a note to", names: "display" },
+  linked: { action: "link", names: "display" },
+  scoped: { action: "set the scope of", names: "display" },
+} as const satisfies Record<string, { action: string; names: "title" | "display" }>;
+
+const actionOf = (type: string): { action: string; names: "title" | "display" } =>
+  Object.hasOwn(ACTIONS, type)
+    ? ACTIONS[type as keyof typeof ACTIONS]
+    : { action: type, names: "display" };
+
+/** A title in a body sentence: whitespace collapsed and trailing dots removed, as in a subject. */
+const sentenceTitle = (title: string) =>
+  title
+    .replace(/\s+/g, " ")
+    .replace(/[. ]+$/, "")
+    .trim();
 
 /**
  * Plans any one event on an existing decision: the state machine and the event's validation
@@ -690,7 +749,13 @@ export async function planEvent(
       commitScope: scope,
       eventDirs,
       draft: null,
-      message: `${VERBS[input.type] ?? input.type} decision ${id}: ${view.title}`,
+      commit: {
+        action: actionOf(input.type).action,
+        title: actionOf(input.type).names === "title" ? view.title : view.display,
+        id,
+        display: view.display,
+        body: reason === null ? [] : [`Reason: ${reason}`],
+      },
       trailers: pairsOf([event]),
       decision: viewOf(after, id),
       affected: input.type === "superseded" ? [viewOf(after, id)] : [],
@@ -717,9 +782,19 @@ const isYaml = (path: string) => /\.ya?ml$/.test(path);
 export async function applyPlan(
   log: DecisionLog,
   plan: WritePlan,
-  o: { readonly commit: boolean; readonly afterStage?: () => Promise<AfterStage> },
+  o: {
+    readonly commit: boolean;
+    /** The commit message, without trailers; required when committing. */
+    readonly message?: string;
+    /** `message` is the user's own: append the trailers to its own trailer block, if it ends in one. */
+    readonly mergeTrailers?: boolean;
+    readonly afterStage?: () => Promise<AfterStage>;
+  },
 ): Promise<{ written: string[]; commit: string | null; findings: readonly Finding[] }> {
   const { git } = log;
+  if (o.commit && o.message === undefined) {
+    throw new InvalidArgumentError("applyPlan needs a message to commit");
+  }
   const stage = new Set(plan.stage);
   // This check runs before anything is written. It stays correct with an editor in between for
   // the body, which is in `plan.stage` and is re-staged after a successful edit; every other path
@@ -781,7 +856,8 @@ export async function applyPlan(
         : [];
     });
     sha = await git.commit({
-      message: plan.message,
+      message: o.message ?? "",
+      mergeTrailers: o.mergeTrailers === true,
       trailers: [...staged, ...plan.trailers],
       only: sorted([...plan.stage, ...extra]),
     });
@@ -817,12 +893,45 @@ async function viewsAfter(
   return { decision: view(plan.decision), affected: plan.affected.map(view) };
 }
 
-/** Plan, then apply, with the single `EventExistsError` retry (§5.4 steps 1–5). */
+const SHORTENED_NOTE =
+  "commit subject shortened to 72 characters; the full title is in the commit body";
+
+/**
+ * `--commit` needs an author and a committer identity; checked before anything is written, since
+ * `GIT_AUTHOR_*` alone satisfies the author while `git commit` still fails on the committer.
+ */
+async function checkCommitIdentity(log: DecisionLog): Promise<void> {
+  if ((await log.git.identity()) === null || (await log.git.committerIdentity()) === null) {
+    throw new ConfigError("--commit needs a git identity; set git user.name and user.email");
+  }
+}
+
+/** The plan's commit message from `[commit] subject` (design §4), and whether it was shortened. */
+function commitMessage(
+  log: DecisionLog,
+  command: string,
+  plan: WritePlan,
+): { message: string; shortened: boolean } {
+  const parts = plan.commit;
+  if (parts === null) throw new InvalidArgumentError("this write can't be committed");
+  const r = renderCommitMessage(log.adr.commitSubject, {
+    title: parts.title,
+    vars: { action: parts.action, id: parts.id, display: parts.display, command },
+    body: parts.body,
+  });
+  return { message: r.message, shortened: r.shortened };
+}
+
+/**
+ * Plan, then apply, with the single `EventExistsError` retry (§5.4 steps 1–5). `o.message`
+ * replaces the rendered commit message; `o.notes` come before the write's own notes. A plan with
+ * no files and no events is reported as written without touching the repository.
+ */
 async function write(
   log: DecisionLog,
   command: WriteResultJson["command"],
   plan: (read: DecisionsRead, c: PlanContext) => Promise<PlanResult>,
-  o: { readonly commit?: boolean },
+  o: WriteOptions,
   deps: WriteDeps,
   afterStage?: (plan: WritePlan, commit: boolean) => () => Promise<AfterStage>,
 ): Promise<WriteResultJson> {
@@ -835,6 +944,8 @@ async function write(
     );
   }
   const commit = o.commit ?? log.adr.autoCommit;
+  if (commit) await checkCommitIdentity(log);
+  const notes = [...log.notes, ...(o.notes ?? [])];
   for (let attempt = 0; ; attempt++) {
     const read = await readDecisions(log);
     const ref = await templateHistoryRef(log.git, { type: "full" });
@@ -855,15 +966,37 @@ async function write(
         written: [],
         commit: null,
         findings: r.findings,
-        notes: log.notes,
+        notes,
       };
     }
+    if (r.plan.events.length === 0 && Object.keys(r.plan.files).length === 0) {
+      return {
+        format: "adr-write/v1",
+        command,
+        ok: true,
+        decision: r.plan.decision,
+        affected: r.plan.affected,
+        written: [],
+        commit: null,
+        findings: r.plan.findings,
+        notes,
+      };
+    }
+    const rendered = commit ? commitMessage(log, command, r.plan) : null;
+    const given = o.message ?? null;
     try {
       const applied = await deps.apply(log, r.plan, {
         commit,
+        ...(rendered === null
+          ? {}
+          : { message: given ?? rendered.message, mergeTrailers: given !== null }),
         ...(afterStage === undefined ? {} : { afterStage: afterStage(r.plan, commit) }),
       });
       const views = await viewsAfter(log, r.plan, applied.commit);
+      const own =
+        applied.commit !== null && given === null && rendered?.shortened === true
+          ? [SHORTENED_NOTE]
+          : [];
       return {
         format: "adr-write/v1",
         command,
@@ -873,7 +1006,7 @@ async function write(
         written: applied.written,
         commit: applied.commit,
         findings: applied.findings,
-        notes: log.notes,
+        notes: [...notes, ...own],
       };
     } catch (err) {
       // Another process wrote the same event path in the same instant: writeEvents removed this
@@ -962,8 +1095,7 @@ function editorStep(
 export async function proposeDecision(
   log: DecisionLog,
   input: ProposeInput,
-  o: {
-    readonly commit?: boolean;
+  o: WriteOptions & {
     readonly edit?: (absBodyPath: string) => Promise<string | null>;
     readonly onNote?: (note: string) => void;
   } = {},
@@ -986,7 +1118,7 @@ export async function proposeDecision(
 export async function acceptDecision(
   log: DecisionLog,
   input: { readonly id: string; readonly actor: Actor },
-  o: { readonly commit?: boolean } = {},
+  o: WriteOptions = {},
   deps: WriteDeps = DEFAULT_DEPS,
 ): Promise<WriteResultJson> {
   return write(log, "accept", (read, c) => planAccept(read, input, c), o, deps);
@@ -1001,7 +1133,7 @@ export async function supersedeDecision(
     readonly reason?: string | null;
     readonly actor: Actor;
   },
-  o: { readonly commit?: boolean } = {},
+  o: WriteOptions = {},
   deps: WriteDeps = DEFAULT_DEPS,
 ): Promise<WriteResultJson> {
   return write(log, "supersede", (read, c) => planSupersede(read, input, c), o, deps);

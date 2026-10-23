@@ -279,7 +279,7 @@ describe("resolveDecision", () => {
     );
     expect(() => resolveDecision(r, "zzzzzzzz")).toThrow(/^unknown decision zzzzzzzz$/);
     expect(() => resolveDecision(r, `other:${A}`)).toThrow(
-      /is in another log; cross-log references arrive in phase 2/,
+      /is in another log; cross-log references aren't supported yet/,
     );
     expect(() => resolveDecision(r, "")).toThrow(/^invalid decision ""$/);
     const unnumbered = await read(chainLog());
