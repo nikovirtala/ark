@@ -2,7 +2,7 @@
 
 Architecture decision records kept as event logs in git, built on [`@nikovirtala/ledger`](https://www.npmjs.com/package/@nikovirtala/ledger). A decision is a Markdown body plus append-only event files. Its status (proposed, accepted, rejected, withdrawn, deprecated, superseded) is computed from the events, the body is frozen by its hash once accepted, and supersession chains always lead to the decision in force. See the [design doc](https://github.com/nikovirtala/ark/blob/main/docs/01-adr-v1.md).
 
-This is phase 1 ("Core"), released at 0.x: the decision kind, the library and the `adr` CLI with `new`, `accept`, `supersede`, `list`, `show` and `verify`.
+Released at 0.x. Phase 1 ("Core") brought the decision kind, the library and the `adr` CLI with `new`, `accept`, `supersede`, `list`, `show` and `verify`. Phase 2a ("Commands and Scope") adds `init`, `reject`, `withdraw`, `deprecate`, `note`, `link`, `scope` and `for`, `accept --copy-scope`, Conventional Commits messages for `--commit`, and `ARK_ON_BEHALF_OF` for agents.
 
 ## Install
 
@@ -10,6 +10,8 @@ This is phase 1 ("Core"), released at 0.x: the decision kind, the library and th
 npm install --save-dev @nikovirtala/adr   # Node 24 or newer, git 2.32.0 or newer
 npx @nikovirtala/adr --help               # or run it without installing
 ```
+
+adr needs Node 24 or newer (`engines: >=24`). On older Node, npm prints an `EBADENGINE` warning and adr isn't supported.
 
 ## Layout
 
@@ -27,6 +29,9 @@ Each decision has a canonical id (`k3f9q8a1`). Accepted decisions also get a num
 ## Commands
 
 ```sh
+# Set up: write adr.toml and starter templates; never overwrites a file.
+adr init --template nygard --template madr --commit
+
 # Propose: render a draft from a template, write the body and the proposed event, and stage them.
 adr new "Use Aurora for orders" --section context="We need SQL." --section scope=services/orders
 adr new "Use Aurora Serverless" --supersedes ADR-0002 --template madr --edit
@@ -36,6 +41,24 @@ adr accept k3f9q8a1 --commit
 
 # Supersede an accepted decision by another accepted one.
 adr supersede ADR-0001 --by ADR-0002 --reason "Aurora fits the query load" --commit
+
+# End a decision's life: reject or withdraw a proposal, deprecate an accepted decision.
+adr reject k3f9q8a1 --reason "Too early" --commit
+adr withdraw k3f9q8a1 --commit                       # --reason is optional
+adr deprecate ADR-0003 --reason "Moving to a managed service" --commit
+
+# Annotate: a note in any state, and typed links (relates-to, refines, depends-on).
+adr note ADR-0003 "Benchmarks are in the wiki" --commit
+adr link ADR-0004 ADR-0002 --rel refines --commit
+adr link ADR-0004 platform:k3f9q8a1                  # a decision in a configured [[sources]] log
+
+# Scope: the code a decision governs, as globs, and which decisions govern a file.
+adr scope ADR-0004 --set 'services/orders/**' --set 'libs/db/**'
+adr scope ADR-0004 --add 'services/billing/**' --remove 'libs/db/**' --commit
+adr scope ADR-0004 --clear
+adr scope --follow-renames                           # after git mv: update the globs, stage, never commit
+adr for services/orders/api.ts
+adr for services/orders/api.ts --ref v1.2.0
 
 # Read: list with computed status, show one decision with its state header.
 adr list --status accepted
@@ -49,7 +72,12 @@ adr verify --staged
 ```
 
 - `new` takes `--template <name>` (default `nygard`; built-ins `nygard`, `madr`, `y-statement`, or your own `<root>/templates/<name>.md`), `--section <id>=<markdown>` (repeatable), `--supersedes <decision>` (repeatable), and `--edit`/`--no-edit`. It opens `$VISUAL` or `$EDITOR` with `--edit`, or by default in an interactive terminal; an editor failure never loses your edits and never commits content you didn't confirm.
+- `new --no-edit --commit` (or `--commit` with no editor) refuses a draft with unfilled required sections: exit 1, nothing written. Without `--commit` the draft is staged with a warning on stderr; after an editor, a draft that still has unfilled sections stays staged and isn't committed.
+- `accept` of a decision that supersedes others offers their scope globs: `--copy-scope` copies them in the same write, `--no-copy-scope` doesn't, and without either it asks `[y/N]` in a terminal and otherwise prints the `adr scope … --add …` command that would copy them.
+- `scope` takes `--set <glob>` (repeatable; replaces the set), `--add`/`--remove <glob>` (repeatable) or `--clear`, and stores the set sorted and deduplicated. It notes a glob that matches no tracked file and a narrowing of an accepted decision. `scope --follow-renames [<decision>]` updates the globs of every decision (or one) for the staged renames, so a moved file stays governed, and only stages.
+- `for <path>…` lists the decisions governing each file, from scope globs and code anchors, with a warning for decisions that aren't in force. A code anchor is a comment such as `// adr:<id>` or `# adr:<source>:<id>`: the token counts only after a comment leader on the same line (a heuristic), and anchors in binary files, submodules, the log directory and files matched by `[scope] anchor_exclude` are not found.
 - Writes stage their files and don't commit, unless you pass `--commit` or set `auto_commit`. A commit holds every file of the decisions it touches (body, events, template), so `adr verify --ref <commit>` is clean, and never your unrelated staged work. It refuses with exit 2 when a file it needs has unstaged changes or isn't tracked. Its `ADR: <id>` and `ADR-Event: <type>` trailers name one event each, in a fixed order, whatever your `trailer.*` config.
+- `--commit` messages follow Conventional Commits: the subject comes from `[commit] subject` (default `docs(adr): {action} {title}`, for example `docs(adr): propose to use Aurora for orders`, `docs(adr): decide to use Aurora for orders`, `docs(adr): set the scope of ADR-0003`). The description starts with a lowercase letter and the rest keeps its natural casing (`Use` becomes `use`; `CLI`, `ARK_AGENT`, `GraphQL` and `Node 24` stay). `new`, `accept`, `reject` and `withdraw` name the decision by its title (`propose to`, `decide to`, `decide not to`, `withdraw the proposal to`), while `deprecate`, `supersede`, `note`, `link` and `scope` name it by its number or id. A title that would make the description longer than 72 characters is shortened with `…`, at a word boundary when one is near the limit, the body then starts with `Full title: <title>`, and a note says so; numbers and ids are never shortened. `-m/--message <text>` replaces the subject and body as given; a message that ends in its own trailer block as git reads it, such as `Co-authored-by:` or `Refs:` lines, gets adr's trailers appended to that paragraph. The trailers are always the last paragraph, so `git log --grep "ADR: <id>"` finds a decision's commits.
 - `show` leads with a state header. A decision that isn't in force says so and names what to read instead, for example `SUPERSEDED by ADR-0002 (accepted 2026-10-18). Do not apply this decision; read ADR-0002 instead.`
 
 Every command takes `--json`, `--root <dir>` (the log directory) and `--help`; reads also take `--ref <ref>`, and writes refuse it.
@@ -58,9 +86,9 @@ Every command takes `--json`, `--root <dir>` (the log directory) and `--help`; r
 
 - **0**: success.
 - **1**: failing findings from `verify`, or a write the log's rules forbid (an illegal transition, a draft that fails its template lint, an agent's acceptance, an unaccepted successor). Nothing is written, and the findings are in the output.
-- **2**: bad usage (unknown command, flag or decision, a missing argument, `--ref` on a write), and config or environment errors.
+- **2**: the tool can't run: bad usage (unknown command, flag or decision, a missing argument, `--ref` on a write), config, environment or internal errors. Nothing is written.
 
-With `--json`, stdout carries exactly one JSON document: `adr-list/v1`, `adr-show/v1`, `adr-write/v1` (for `new`, `accept` and `supersede`), ledger's `ledger-findings/v1` for `verify`, or `ark-error/v1` (`{ "format": "ark-error/v1", "error": { "code", "message" } }`) when the command exits 2. Every key is always present, with `null` where a value is unknown. Warnings and notes go to stderr.
+With `--json`, stdout carries exactly one JSON document: `adr-list/v1`, `adr-show/v1`, `adr-write/v1` (for every write command), `adr-for/v1`, `adr-init/v1`, ledger's `ledger-findings/v1` for `verify`, or `ark-error/v1` (`{ "format": "ark-error/v1", "error": { "code", "message" } }`) when the command exits 2. Every key is always present, with `null` where a value is unknown. Warnings and notes go to stderr.
 
 ## Config (`adr.toml`)
 
@@ -80,13 +108,24 @@ mcp_can_decide = false          # validated now, used in phase 3
 
 [verify]
 fail_on = "error"               # or "warning"
+
+[commit]
+subject = "docs(adr): {action} {title}"   # the default; --message overrides it
+
+[scope]
+anchor_keyword = "adr"          # the default: anchors read adr:<id>
+anchor_exclude = ["**/*.md"]    # files never searched for anchors (docs that show examples); default []
 ```
+
+`[commit] subject` is one line with `{title}` (what names the decision: its title with an ordinary capitalized first word lowercased (`Use` → `use`, so a single-capital proper noun such as `Aurora` loses that capital; `CLI`, `GraphQL` and `ARK_AGENT` stay), or its number or id), `{raw_title}` (the same with its case kept), `{action}`, `{id}`, `{display}` and `{command}`. It is checked when the config is read: at most one title placeholder, after the type and scope, and room within 72 characters for the title (20 characters) and, uncut, for the longest number-based name (`ADR-0001 to a decision in another log`); an invalid template exits 2. Whatever the template, the description's first letter is lowercased.
 
 The config is `<repo>/adr.toml`, whose `[log] root` chooses the log directory, or `<root>/adr.toml`. `--root` uses a repository-level file that names the same root, and overrides one that names another root with a warning.
 
 ## Agents
 
-An agent using the CLI sets `ARK_AGENT=<agent-id>`. Its events are recorded as the agent, acting on behalf of the git user, and with `accept_requires_human` on (the default) `adr accept` refuses them with exit 1 (`decision/agent-accepted`). The git identity comes from `user.name` and `user.email` and is never guessed.
+An agent using the CLI sets `ARK_AGENT=<agent-id>`, and `ARK_ON_BEHALF_OF=<email>` for the person it acts for. Its events are recorded as the agent, acting on behalf of that address. Without `ARK_ON_BEHALF_OF` they are recorded on behalf of the git user, and every write says so in a note on stderr and in the JSON `notes`: `on_behalf_of taken from the git identity <email>; set ARK_ON_BEHALF_OF to name who you act for`. An `ARK_ON_BEHALF_OF` that isn't an email address exits 2 before anything is written; without `ARK_AGENT` it is ignored, with a note. With `accept_requires_human` on (the default), `adr accept` refuses an agent with exit 1 (`decision/agent-accepted`), and `adr new` tells the agent to ask a human to review and accept.
+
+The git identity is git's author identity (`git var GIT_AUTHOR_IDENT` with `user.useConfigOnly`): `GIT_AUTHOR_NAME` and `GIT_AUTHOR_EMAIL` when set, else `user.name` and `user.email`; it is never guessed. Setting `GIT_AUTHOR_*` also changes the author of `--commit` commits, which is why agents should use `ARK_ON_BEHALF_OF` instead. `--commit` also needs a committer identity, and exits 2 before writing without one.
 
 ## Library
 
@@ -101,7 +140,7 @@ const { decisions } = listDecisions(read, { status: ["accepted"] });
 const findings = await verifyDecisions(log, { type: "full" });
 ```
 
-`proposeDecision`, `acceptDecision` and `supersedeDecision` write, `resolveDecision` turns an id or number into an id, and `stateHeader` gives the header `show` prints.
+`initDecisionLog`, `proposeDecision`, `acceptDecision`, `rejectDecision`, `withdrawDecision`, `deprecateDecision`, `supersedeDecision`, `noteDecision`, `linkDecision`, `scopeDecision` and `followScopeRenames` write, `decisionsFor` answers `adr for`, `resolveDecision` turns an id or number into an id, and `stateHeader` gives the header `show` prints.
 
 `@nikovirtala/adr/kind` exports only the decision kind (`adrKind`, made with ledger's `defineKind`) and its types, without any CLI code, for tools that fold decision logs themselves, such as issues linking to decisions:
 
@@ -111,6 +150,7 @@ import { adrKind } from "@nikovirtala/adr/kind";
 
 ## Not yet included
 
-- **Reference checks are local in phase 1.** `verify` checks that `supersedes`, `superseded.by` and `linked.to` name decisions in the same log. Qualified references to other logs (`<source>:<id>`) are skipped; no phase 1 command writes them.
-- **Phase 2:** `init`, `reject`, `withdraw`, `deprecate`, `note`, `link`, `scope` and `for`; git hooks; a generated index (and the number fallback for shallow clones); scope globs and code anchors; cross-log reference checks and listing across sources.
+- **Reference checks are local.** `verify` checks that `supersedes`, `superseded.by` and `linked.to` name decisions in the same log. Qualified references to other logs (`<source>:<id>`, written by `adr link`) are skipped.
+- **Phase 2b:** git hooks (pre-commit, commit-msg, post-merge, pre-push), a hint for recovering a failed commit, a generated index (and the number fallback for shallow clones), `list --since`, and CI checks for index freshness, scope globs, code anchors, decisions governed by inactive ones and scope narrowing.
 - **Phase 3:** an MCP server, a SKILL.md for agents, and search.
+- **ark's step 4, with issues:** cross-log reference checks at the pinned ref and listing across sources; until then `link` stores a qualified target unchecked.
