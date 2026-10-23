@@ -184,6 +184,10 @@ export {
   resolveQualifiedId,
   sourceLogRef,
 } from "./sources/resolve.js";
+export { resolveActor } from "./surfaces/actor.js";
+export { renderStateHeader, type StateHeader } from "./surfaces/header.js";
+export { resolveSubjectInput, type SubjectInput } from "./surfaces/subject-input.js";
+export { openToolLog, type ToolLog, type ToolLogOptions } from "./surfaces/tool-log.js";
 export { findTemplateVersion, loadTemplates } from "./templates/history.js";
 export { lintDocument, lintTemplate } from "./templates/lint.js";
 export {

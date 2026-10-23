@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process";
 import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { InvalidArgumentError } from "../errors.js";
 import { firstParentHistory } from "../git/history.js";
@@ -47,6 +49,30 @@ describe("createTempRepo", () => {
     expect(r.git.gitDir).toBe(join(r.root, ".git"));
     await expect(stat(join(outer, "bogus.git"))).rejects.toThrow();
     await expect(stat(join(outer, "index"))).rejects.toThrow();
+  });
+
+  it("exposes an env that keeps a spawned process out of an outer GIT_DIR", async () => {
+    const outer = await mkdtemp(join(tmpdir(), "ledger-outer-"));
+    cleanup.push(() => rm(outer, { recursive: true, force: true }));
+    vi.stubEnv("GIT_DIR", join(outer, "bogus.git"));
+    vi.stubEnv("GIT_WORK_TREE", outer);
+    const r = await repo({ files: { "a.txt": "a\n" } });
+    for (const k of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]) {
+      expect(Object.hasOwn(r.env, k)).toBe(true);
+      expect(r.env[k]).toBeUndefined();
+    }
+    expect(r.env.GIT_AUTHOR_EMAIL).toBe("ledger-test@example.com");
+    expect(Object.isFrozen(r.env)).toBe(true);
+    const env: Record<string, string> = {};
+    for (const [k, v] of Object.entries({ ...process.env, ...r.env })) {
+      if (v !== undefined) env[k] = v;
+    }
+    const { stdout } = await promisify(execFile)(
+      "git",
+      ["rev-parse", "--absolute-git-dir", "--show-toplevel"],
+      { cwd: r.root, env },
+    );
+    expect(stdout).toBe(`${join(r.root, ".git")}\n${r.root}\n`);
   });
 
   it("commits files, branches and merges on the initial branch", async () => {
