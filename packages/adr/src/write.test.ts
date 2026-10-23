@@ -4,6 +4,7 @@ import {
   type Actor,
   EventExistsError,
   firstParentHistory,
+  InvalidArgumentError,
   lintDocument,
   parseTemplate,
   type Trailer,
@@ -19,8 +20,10 @@ import { verifyDecisions } from "./verify.js";
 import {
   acceptDecision,
   applyPlan,
+  followScopeRenames,
   type ProposeInput,
   proposeDecision,
+  scopeDecision,
   supersedeDecision,
   type WriteDeps,
   type WriteResultJson,
@@ -511,6 +514,64 @@ describe("supersedeDecision", () => {
     await expect(supersede(r, a, b, { reason: "  " })).rejects.toThrow(UsageError);
     await expect(supersede(r, a, "zzzzzzzz")).rejects.toThrow(/^unknown decision zzzzzzzz$/);
     expect(await porcelain(r)).toBe(before);
+  });
+});
+
+// Design §6.8 (D-i): the library owns the no-commit rule of --follow-renames.
+describe("followScopeRenames", () => {
+  async function renamed(): Promise<{ r: TempRepo; id: string }> {
+    const r = await repo({
+      "docs/adr/adr.toml": "[policy]\nauto_commit = true\n",
+      "src/orders/api.ts": "export {}\n",
+    });
+    const id = idOf(await propose(r, "Use Aurora"));
+    const scoped = await scopeDecision(await open(r), {
+      id,
+      op: { set: ["src/orders/**"] },
+      actor: HUMAN,
+    });
+    expect(scoped.commit).not.toBeNull();
+    await git(r, "mv", "src/orders", "src/billing");
+    return { r, id };
+  }
+  const NOTE = "--follow-renames never commits; commit the scoped events with the renames";
+
+  it("plans without writing in a dry run, and stages without committing otherwise", async () => {
+    const { r, id } = await renamed();
+    const before = await porcelain(r);
+    const head = await r.git.resolveCommit("HEAD");
+    const dry = await followScopeRenames(await open(r), { actor: HUMAN }, { dryRun: true });
+    expect(dry).toMatchObject({
+      ok: true,
+      decision: null,
+      written: [],
+      commit: null,
+      notes: [NOTE],
+    });
+    expect(dry.affected.map((v) => [v.id, v.applies_to])).toEqual([[id, ["src/billing/**"]]]);
+    expect(await porcelain(r)).toBe(before);
+
+    const real = await followScopeRenames(await open(r), { actor: HUMAN });
+    expect(real).toMatchObject({ ok: true, decision: null, commit: null, notes: [NOTE] });
+    expect(real.affected.map((v) => [v.id, v.applies_to])).toEqual([[id, ["src/billing/**"]]]);
+    expect(real.written).toHaveLength(1);
+    expect(await staged(r)).toContain(real.written[0]);
+    expect(await r.git.resolveCommit("HEAD")).toBe(head);
+  });
+
+  it("refuses commit: true and a message", async () => {
+    const { r } = await renamed();
+    const log = await open(r);
+    await expect(followScopeRenames(log, { actor: HUMAN }, { commit: true })).rejects.toThrow(
+      InvalidArgumentError,
+    );
+    await expect(followScopeRenames(log, { actor: HUMAN }, { message: "x" })).rejects.toThrow(
+      InvalidArgumentError,
+    );
+    expect(await followScopeRenames(log, { actor: HUMAN }, { commit: false })).toMatchObject({
+      ok: true,
+      commit: null,
+    });
   });
 });
 
