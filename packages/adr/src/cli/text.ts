@@ -126,20 +126,36 @@ function findingLines(findings: readonly Finding[]): string[] {
 
 const short = (sha: string) => sha.slice(0, 7);
 
+/** The past participle of each write command, for `Not <verb>: …`. */
+const VERBS: Readonly<Record<WriteResultJson["command"], string>> = {
+  new: "proposed",
+  accept: "accepted",
+  supersede: "superseded",
+  reject: "rejected",
+  withdraw: "withdrawn",
+  deprecate: "deprecated",
+};
+
 /**
- * The text of `adr new|accept|supersede` (design §5.6). `subject` names what a refused command
- * was about; `number` is the decision's number in the write result, if it has one now.
+ * The text of a write command (design §5.6, §6.1). `subject` names what a refused command was
+ * about; `number` is the decision's number in the write result, if it has one now; `reason` is
+ * the reason a lifecycle exit recorded.
  */
 export function writeText(
   doc: WriteResultJson,
   display: Display,
-  o: { readonly subject: string; readonly number: string | null },
+  o: {
+    readonly subject: string;
+    readonly number: string | null;
+    readonly reason?: string | null;
+  },
 ): string {
-  const verb = { new: "proposed", accept: "accepted", supersede: "superseded" }[doc.command];
+  const verb = VERBS[doc.command];
   if (!doc.ok) return [`Not ${verb}: ${o.subject}`, ...findingLines(doc.findings)].join("\n");
   const v = doc.decision;
   if (v === null) return "";
   const committed = doc.commit === null ? null : `Committed ${short(doc.commit)}`;
+  const recorded = committed === null ? "Staged; commit to record it." : `${committed}.`;
   switch (doc.command) {
     case "new":
       return [
@@ -163,7 +179,15 @@ export function writeText(
       return [
         `Superseded ${named(v.id, display)}: ${v.title}`,
         `  by ${named(v.superseded_by ?? "", display)}`,
-        committed === null ? "Staged; commit to record it." : `${committed}.`,
+        recorded,
+      ].join("\n");
+    case "reject":
+    case "withdraw":
+    case "deprecate":
+      return [
+        `${verb.charAt(0).toUpperCase()}${verb.slice(1)} ${named(v.id, display)}: ${v.title}`,
+        ...(o.reason === undefined || o.reason === null ? [] : [`  reason: ${o.reason}`]),
+        recorded,
       ].join("\n");
   }
 }

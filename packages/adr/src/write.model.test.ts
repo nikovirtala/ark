@@ -10,9 +10,12 @@ import {
   type PlanContext,
   type PlanResult,
   planAccept,
+  planDeprecate,
   planEvent,
   planPropose,
+  planReject,
   planSupersede,
+  planWithdraw,
 } from "./write.js";
 
 // AC 6: random command sequences through the plan functions on a MemoryTree, each plan's files
@@ -229,19 +232,11 @@ async function plan(
     case "supersede":
       return planSupersede(read, { id: pick(cmd.x), by: pick(cmd.by), actor }, c);
     case "reject":
-      return planEvent(
-        read,
-        { subject: pick(cmd.x), type: "rejected", data: {}, reason: "too costly", actor },
-        c,
-      );
+      return planReject(read, { id: pick(cmd.x), reason: "too costly", actor }, c);
     case "withdraw":
-      return planEvent(read, { subject: pick(cmd.x), type: "withdrawn", data: {}, actor }, c);
+      return planWithdraw(read, { id: pick(cmd.x), actor }, c);
     case "deprecate":
-      return planEvent(
-        read,
-        { subject: pick(cmd.x), type: "deprecated", data: {}, reason: "obsolete", actor },
-        c,
-      );
+      return planDeprecate(read, { id: pick(cmd.x), reason: "obsolete", actor }, c);
     case "note":
       return planEvent(
         read,
