@@ -4,6 +4,6 @@
     "noEmit": true,
     "tsBuildInfoFile": "dist/test.tsbuildinfo"
   },
-  "include": ["src/**/*.test.ts"],
+  "include": ["src/**/*.test.ts", "src/test-support/**/*.ts"],
   "references": [{ "path": "./tsconfig.json" }]
 }
