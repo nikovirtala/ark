@@ -9,6 +9,7 @@ import {
   foldLog,
   loadLog,
   MemoryTree,
+  type Numbering,
   serializeEvent,
   ulid,
 } from "@nikovirtala/ledger";
@@ -83,6 +84,18 @@ export async function foldFiles(
   files: Readonly<Record<string, string>>,
 ): Promise<FoldedLogOf<typeof adrKind>> {
   return foldLog(adrKind, await loadLog(new MemoryTree(files), { kind: COMPILED, layout: LAYOUT }));
+}
+
+/** A hand-made available `Numbering` on `refs/heads/main`. */
+export function numberingOf(byId: Readonly<Record<string, number>>): Numbering {
+  return {
+    available: true,
+    reason: null,
+    ref: "refs/heads/main",
+    commit: null,
+    byId: new Map(Object.entries(byId)),
+    byNumber: new Map(Object.entries(byId).map(([id, n]) => [n, id])),
+  };
 }
 
 /** `proposed` data with the nygard template. */
