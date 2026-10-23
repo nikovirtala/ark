@@ -165,6 +165,7 @@ export {
   loadLog,
 } from "./log/snapshot.js";
 export { nextEventIdentity, writeEvent, writeEvents, writeNewFile } from "./log/write.js";
+export { type Anchor, anchorsInLine, scanAnchors } from "./scope/anchors.js";
 export {
   escapeGlob,
   type Glob,
@@ -173,6 +174,12 @@ export {
   MAX_GLOB_LENGTH,
   parseGlob,
 } from "./scope/glob.js";
+export {
+  type ScopeMatch,
+  type ScopeVia,
+  scopedSubjects,
+  scopeLookup,
+} from "./scope/lookup.js";
 export {
   applySetOp,
   latestSet,

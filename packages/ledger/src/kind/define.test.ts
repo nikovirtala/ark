@@ -52,6 +52,11 @@ const event = {
 
 describe("defineKind", () => {
   const templates = { dir: "templates", nameField: "template", versionField: "template_version" };
+  const labeled = {
+    data: { type: "object", properties: { set: { type: "array", items: { type: "string" } } } },
+    allowedIn: ["open"],
+    to: null,
+  };
   const invalid: [name: string, patch: Record<string, unknown>, message: string][] = [
     ["no states", { states: [] }, "kind task: states must not be empty"],
     [
@@ -135,6 +140,19 @@ describe("defineKind", () => {
       'kind task: scope.activeIn names unknown state "accepted"',
     ],
     [
+      "a scope.keyword that is not a keyword",
+      {
+        events: events({ labeled }),
+        scope: { event: "labeled", activeIn: ["open"], keyword: "Adr" },
+      },
+      'kind task: scope.keyword "Adr" must match ^[a-z][a-z0-9-]{0,31}$',
+    ],
+    [
+      "a scope.event without a set array",
+      { scope: { event: "noted", activeIn: ["open"] } },
+      'kind task: scope.event "noted" must have a data.set array',
+    ],
+    [
       "a schema without a version",
       { schema: "task" },
       'kind task: schema "task" must be "task/v<n>"',
@@ -200,6 +218,7 @@ describe("defineKind", () => {
       schema: "task/v2",
       body: "none",
       sourceName: "task",
+      anchorKeyword: "task",
     });
     const compiled = compileKind(kind);
     expect(compiled.validate(event, { file: null })).toMatchObject({ ok: true });
@@ -230,9 +249,23 @@ describe("defineKind", () => {
     expect(compileKind(kind).validate(old, { file: null }).ok).toBe(true);
   });
 
+  it("accepts a scope with a set event and an anchor keyword", () => {
+    const scope = { event: "labeled", activeIn: ["open"], keyword: "task-ref" };
+    const kind = define({ events: events({ labeled }), scope });
+    expect(kind.def.scope).toEqual(scope);
+    expect(kind.anchorKeyword).toBe("task-ref");
+    const plain = define({
+      events: events({ labeled }),
+      sourceName: "work",
+      scope: { event: "labeled", activeIn: ["open"] },
+    });
+    expect(plain.anchorKeyword).toBe("work");
+  });
+
   it("derives the layout and source name", () => {
     const kind = define({ sourceName: "work" });
     expect(kind.sourceName).toBe("work");
+    expect(kind.anchorKeyword).toBe("work");
     expect(kind.layoutAt("./docs/tasks/")).toEqual({
       root: "docs/tasks",
       bodies: null,
