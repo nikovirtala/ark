@@ -35,13 +35,25 @@ Follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.
 ## Pull requests
 
 - Open a **draft** pull request as soon as your branch has its first commit: push the branch and open the PR against `main` right away. Don't wait until the work is finished.
-- Push after every new commit (including `fixup!` commits and rebases, using `--force-with-lease`), so the PR always matches your local branch.
+- Push after every new commit (including `fixup!` commits, using `--force-with-lease` when history was rewritten), so the PR always matches your local branch. Pushing doesn't require rebasing or a full per-commit test run; CI covers the tip of each push.
+- While the work is in progress, run tests as you normally would: on your working tree or the branch tip. Don't rebase onto `origin/main` or run per-commit checks after each fixup or before each push.
 - Keep the PR description up to date as the work changes: what the change does, why, what's still left, and how it was tested.
-- Mark the PR **ready for review** (remove draft status) only when all of these are true:
-  - the work is complete, with nothing left to do;
-  - the branch is rebased onto the latest `origin/main`, and every commit passes `git rebase --exec "<test command>" origin/main`;
-  - all `fixup!`/`squash!` commits are squashed;
-  - CI is green;
-  - the PR description is final.
-- To mark a PR ready, use `gh pr ready <number>` or the GraphQL `markPullRequestReadyForReview` mutation. The REST API can't remove draft status. If your environment can't run either, say so explicitly when you hand off, and ask the maintainer to click "Ready for review".
-- If more work is needed after review, you can move the PR back to draft while you make the changes, then mark it ready again.
+
+### Before marking ready for review
+
+Do this once, when the work is complete and you're about to request review, not earlier:
+
+1. Squash all `fixup!`/`squash!` commits (`git rebase -i --autosquash origin/main`).
+2. Rebase onto the latest `origin/main`.
+3. Verify every commit: `git rebase --exec "<test command>" origin/main`.
+   This runs the full test suite once per commit, so it costs *test suite duration × number of commits* (e.g. 1 minute × 15 commits = 15 minutes). That's why it runs only at this point. Running it after every fixup or push wastes that time, and any later rebase onto a newer `main` invalidates the result anyway.
+4. Push with `--force-with-lease` and wait for CI to go green.
+5. Finalize the PR description.
+
+If step 3 fails, fix the offending commit (fixup + autosquash), then rerun steps 2–4. Don't repeat the per-commit check for any other reason.
+
+### Marking ready
+
+- Mark the PR **ready for review** (remove draft status) only after all of the above is done and nothing is left to do.
+- Use `gh pr ready <number>` or the GraphQL `markPullRequestReadyForReview` mutation. The REST API can't remove draft status. If your environment can't run either, say so explicitly when you hand off, and ask the maintainer to click "Ready for review".
+- If review requires more work, move the PR back to draft, make the changes with ordinary pushes, and repeat the "Before marking ready for review" steps once before marking it ready again.
