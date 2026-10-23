@@ -1,5 +1,6 @@
 import { type EventEnvelope, type Finding, renderStateHeader } from "@nikovirtala/ledger";
 import type { DecisionView } from "../kind.js";
+import type { DecisionsForJson } from "../scope.js";
 import type { DecisionListJson, DecisionShowJson } from "../views.js";
 import type { WriteResultJson } from "../write.js";
 
@@ -270,4 +271,35 @@ export function showText(doc: DecisionShowJson, display: Display): string {
   if (doc.events !== null) lines.push("History:", ...historyLines(doc.events));
   const body = doc.body === null ? "" : `\n${doc.body.endsWith("\n") ? doc.body : `${doc.body}\n`}`;
   return `${renderStateHeader(doc.header)}\n${lines.join("\n")}\n${body}`;
+}
+
+/**
+ * `adr for`: per path, one row per decision (named, status, title, how it matched), its warning
+ * below it when it isn't in force, then the anchors that name no decision of this log.
+ */
+export function forText(doc: DecisionsForJson, display: Display, keyword: string): string {
+  const lines: string[] = [];
+  for (const p of doc.paths) {
+    lines.push(p.tracked ? p.path : `${p.path} (not tracked)`);
+    if (p.decisions.length === 0 && p.unresolved.length === 0) lines.push("  no decisions");
+    const rows = columns(
+      p.decisions.map((d) => [
+        named(d.id, display),
+        d.status,
+        d.title,
+        d.via
+          .map((v) => (v.type === "glob" ? `glob ${v.glob}` : `anchor line ${v.line}`))
+          .join(", "),
+      ]),
+    ).split("\n");
+    p.decisions.forEach((d, i) => {
+      lines.push(`  ${rows[i] ?? ""}`);
+      if (d.warning !== null) lines.push(`    ${d.warning}`);
+    });
+    for (const u of p.unresolved) {
+      const why = u.reason === "other-log" ? "in another log" : "not in this log";
+      lines.push(`  unresolved: ${keyword}:${u.ref} (line ${u.line}, ${why})`);
+    }
+  }
+  return lines.join("\n");
 }

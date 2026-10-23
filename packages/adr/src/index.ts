@@ -20,6 +20,12 @@ export {
   readDecisionsFrom,
   resolveDecision,
 } from "./log.js";
+export {
+  type DecisionForJson,
+  type DecisionsForJson,
+  decisionsFor,
+  type UnresolvedAnchorJson,
+} from "./scope.js";
 export { adrChecks, verifyDecisions } from "./verify.js";
 export {
   type DecisionListJson,

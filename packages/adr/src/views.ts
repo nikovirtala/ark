@@ -47,7 +47,8 @@ export interface DecisionShowJson {
   readonly notes: readonly string[];
 }
 
-const numberingJson = (read: DecisionsRead): NumberingJson => ({
+/** The `numbering` key of `adr-list/v1`, `adr-show/v1` and `adr-for/v1`. */
+export const numberingJson = (read: DecisionsRead): NumberingJson => ({
   available: read.numbering.available,
   reason: read.numbering.reason,
   ref: read.numbering.ref,
