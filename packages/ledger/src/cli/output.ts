@@ -1,3 +1,5 @@
+import { createInterface } from "node:readline";
+
 /** What a CLI run sees of its process; tests pass a fake. */
 export interface CliIO {
   /** The arguments, without node and the script. */
@@ -10,6 +12,27 @@ export interface CliIO {
   readonly interactive: boolean;
   /** stdout is a TTY; when it isn't, a child such as an editor must not write to it. */
   readonly stdoutIsTTY: boolean;
+  /** Reads one line from stdin; `null` on EOF. Only used when `interactive`. */
+  readonly readLine?: () => Promise<string | null>;
+}
+
+/**
+ * Reads the first line of `input`, or `null` when it closes first, then closes the reader so the
+ * process doesn't keep waiting on the stream.
+ */
+export function readLineFrom(input: NodeJS.ReadableStream): Promise<string | null> {
+  return new Promise((resolve) => {
+    const rl = createInterface({ input });
+    let done = false;
+    const finish = (line: string | null) => {
+      if (done) return;
+      done = true;
+      rl.close();
+      resolve(line);
+    };
+    rl.once("line", (line) => finish(line));
+    rl.once("close", () => finish(null));
+  });
 }
 
 /** The real process's arguments, directory, environment and streams. */
@@ -23,5 +46,6 @@ export function processIO(): CliIO {
     stderr: { write: (s) => void process.stderr.write(s) },
     interactive: process.stdin.isTTY === true && stdoutIsTTY,
     stdoutIsTTY,
+    readLine: () => readLineFrom(process.stdin),
   };
 }
