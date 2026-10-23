@@ -56,13 +56,15 @@ export function parseEventFileName(name: string): EventFileName | null {
 }
 
 /**
- * A file-name slug: NFKD, marks stripped, lowercase ASCII alphanumerics joined by single `-`, cut
- * at a `-` so it's at most `max` chars (a single longer word is cut at `max`). May be `""`.
+ * A file-name slug: NFKD, marks and apostrophes stripped (so "ark's" gives `arks`), lowercase
+ * ASCII alphanumerics joined by single `-`, cut at a `-` so it's at most `max` chars (a single
+ * longer word is cut at `max`). May be `""`.
  */
 export function slugify(title: string, max = 60): string {
   const slug = title
     .normalize("NFKD")
     .replace(/\p{M}/gu, "")
+    .replace(/['\u2018\u2019\u02bc`]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
