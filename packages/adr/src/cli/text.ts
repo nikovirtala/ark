@@ -5,7 +5,7 @@ import {
   renderStateHeader,
 } from "@nikovirtala/ledger";
 import type { InitResultJson } from "../init.js";
-import type { DecisionView } from "../kind.js";
+import { adrKind, type DecisionView } from "../kind.js";
 import type { DecisionsForJson } from "../scope.js";
 import type { DecisionListJson, DecisionShowJson } from "../views.js";
 import type { ScopeOffer, WriteResultJson } from "../write.js";
@@ -301,6 +301,16 @@ export function writeText(
   }
 }
 
+/**
+ * "Applies to" without globs: nothing is recorded, which isn't "governs nothing" (design §7.3),
+ * with the command that adds globs while the decision can still take them.
+ */
+function noGlobs(v: DecisionView, display: Display): string {
+  return adrKind.machine.allowed(v.status, "scoped")
+    ? `no globs recorded; add them with adr scope ${display(v.id)} --add <glob>`
+    : "no globs recorded";
+}
+
 /** `adr show`: the state header, the decision's fields and its body. */
 export function showText(doc: DecisionShowJson, display: Display): string {
   const v = doc.decision;
@@ -314,7 +324,7 @@ export function showText(doc: DecisionShowJson, display: Display): string {
     ["Effective", v.effective === null ? "none (supersession cycle)" : named(v.effective, display)],
     ["Chain", v.chain.map(display).join(" → ")],
     ["Supersedes", supersedes],
-    ["Applies to", v.applies_to.length === 0 ? "none" : v.applies_to.join(", ")],
+    ["Applies to", v.applies_to.length === 0 ? noGlobs(v, display) : v.applies_to.join(", ")],
     ["Body", bodyLine(v)],
   ];
   if (doc.events === null) fields.push(["History", v.history.join(" · ")]);

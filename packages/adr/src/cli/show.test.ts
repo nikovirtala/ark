@@ -44,13 +44,32 @@ describe("adr show", { timeout: 60_000 }, () => {
       `Effective:  ADR-0002 (${b})`,
       "Chain:      ADR-0001 → ADR-0002",
       "Supersedes: none",
-      "Applies to: none",
+      "Applies to: no globs recorded",
       `Body:       docs/adr/decisions/${a}-use-dynamodb-for-orders.md (intact)`,
       `History:    proposed ${d} · accepted ${d} · superseded ${d}`,
       "",
     ]);
     expect(lines[12]).toBe("# Use DynamoDB for orders");
     expect(out.stdout).toContain("## Scope\nservices/orders\n");
+  });
+
+  it("says when no globs are recorded, and how to add them while it can take them", async () => {
+    const r = await repo();
+    const p = await seedDecision(r, "Use Aurora for orders", { accept: false });
+    const proposed = runAdr(r, ["show", p]);
+    expect(proposed.status).toBe(0);
+    expect(proposed.stdout).toContain(
+      `Applies to: no globs recorded; add them with adr scope ${p} --add <glob>\n`,
+    );
+    expect(JSON.parse(runAdr(r, ["show", p, "--json"]).stdout).decision.applies_to).toEqual([]);
+    const accepted = await seedDecision(r, "Use DynamoDB for orders");
+    expect(runAdr(r, ["show", accepted]).stdout).toContain(
+      "Applies to: no globs recorded; add them with adr scope ADR-0001 --add <glob>\n",
+    );
+    expect(runAdr(r, ["reject", p, "--reason", "Too early", "--commit"]).status).toBe(0);
+    const rejected = runAdr(r, ["show", p]);
+    expect(rejected.stdout).toContain("Applies to: no globs recorded\n");
+    expect(JSON.parse(runAdr(r, ["show", p, "--json"]).stdout).decision.applies_to).toEqual([]);
   });
 
   it("takes an id or a number in any form", async () => {
