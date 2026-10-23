@@ -25,6 +25,7 @@ export {
 export {
   ConfigError,
   EventExistsError,
+  FileExistsError,
   GitError,
   GitNotFoundError,
   GitVersionError,
@@ -37,6 +38,7 @@ export {
   NotARepositoryError,
   RefNotFoundError,
   SourceFetchError,
+  UsageError,
   VerifyUsageError,
 } from "./errors.js";
 export {
@@ -115,6 +117,30 @@ export {
   ulid,
   ulidTime,
 } from "./identity/ulid.js";
+export { defineKind, eventType, isKind } from "./kind/define.js";
+export type {
+  AnyKind,
+  AppliedEvent,
+  DataOf,
+  DataOfType,
+  EventDefs,
+  EventDefsOf,
+  EventTypeDef,
+  EventTypesOf,
+  FoldEvent,
+  FoldedLog,
+  FoldedLogOf,
+  FoldedSubject,
+  FoldedSubjectOf,
+  Kind,
+  KindDef,
+  KindFinding,
+  ProjectContext,
+  StateMachine,
+  StateOf,
+  StatesOf,
+  ViewOf,
+} from "./kind/types.js";
 export {
   type LoadedEvent,
   type LoadedSubject,

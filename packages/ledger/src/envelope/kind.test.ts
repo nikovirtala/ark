@@ -317,6 +317,70 @@ describe("compileKind(…).validate", () => {
   });
 });
 
+describe("required reasons", () => {
+  const k = compileKind({
+    name: "widget",
+    schemas: {
+      "widget/v1": {
+        events: {
+          created: { data: { type: "object" } },
+          retired: { data: { type: "object" }, reason: "required" },
+          noted: { data: { type: "object" }, reason: "optional" },
+        },
+      },
+    },
+    body: "none",
+  });
+  const doc = { ...base, type: "retired", data: {} };
+  const check = (d: unknown) => k.validate(d, { file: "e.yaml" });
+
+  it.each([
+    ["absent", undefined],
+    ["null", null],
+    ["blank", " \t\n "],
+  ])("reports event/reason-required when the reason is %s", (_, reason) => {
+    const r = check(reason === undefined ? doc : { ...doc, reason });
+    expect(r).toMatchObject({ ok: false, versionKnown: true });
+    expect(r.findings).toEqual([
+      expect.objectContaining({
+        rule: "event/reason-required",
+        message: "retired events need a reason",
+        file: "e.yaml",
+      }),
+    ]);
+  });
+
+  it("accepts a non-blank reason", () => {
+    expect(check({ ...doc, reason: "obsolete" }).ok).toBe(true);
+  });
+
+  it("leaves types without a required reason unchanged", () => {
+    expect(check({ ...doc, type: "noted" }).ok).toBe(true);
+    expect(check({ ...doc, type: "created", reason: null }).ok).toBe(true);
+    expect(rules({ ...base, reason: null })).toEqual([]);
+  });
+
+  it("checks the data schema first", () => {
+    const strict = compileKind({
+      name: "widget",
+      schemas: {
+        "widget/v1": {
+          events: {
+            retired: {
+              data: { type: "object", required: ["by"], properties: { by: { type: "string" } } },
+              reason: "required",
+            },
+          },
+        },
+      },
+      body: "none",
+    });
+    expect(strict.validate(doc, { file: null }).findings.map((f) => f.rule)).toEqual([
+      "data/schema",
+    ]);
+  });
+});
+
 describe("compileKind", () => {
   const withData = (data: unknown): KindSchema => ({
     name: "widget",

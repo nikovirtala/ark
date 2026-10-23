@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ConfigError,
   EventExistsError,
+  FileExistsError,
   GitError,
   GitNotFoundError,
   GitVersionError,
@@ -13,6 +14,7 @@ import {
   NotARepositoryError,
   RefNotFoundError,
   SourceFetchError,
+  UsageError,
   VerifyUsageError,
 } from "./errors.js";
 
@@ -40,6 +42,8 @@ describe("error classes", () => {
     [new KindDefinitionError("widget", "bad"), "KindDefinitionError", "kind-definition"],
     [new SourceFetchError("platform", "bad"), "SourceFetchError", "source-fetch"],
     [new HookShimError(".git/hooks/pre-commit", "bad"), "HookShimError", "hook-shim"],
+    [new UsageError("unknown command"), "UsageError", "usage"],
+    [new FileExistsError("docs/adr/a.md"), "FileExistsError", "file-exists"],
   ];
 
   it.each(cases)("%s has its name and code and is a LedgerError", (error, name, code) => {
@@ -70,6 +74,10 @@ describe("error classes", () => {
       stderr: "fatal: y",
     });
     expect(new HookShimError("h", "bad").path).toBe("h");
+    expect(new FileExistsError("docs/adr/a.md")).toMatchObject({
+      path: "docs/adr/a.md",
+      message: "file already exists: docs/adr/a.md",
+    });
   });
 
   it("sets cause when wrapping another error", () => {

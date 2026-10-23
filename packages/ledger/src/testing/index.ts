@@ -18,6 +18,11 @@ export {
 } from "./arbitraries.js";
 export { exampleKind, exampleLayout } from "./example-kind.js";
 export {
+  exampleMachineKind,
+  type WidgetState,
+  type WidgetView,
+} from "./example-machine-kind.js";
+export {
   type ForkAndMergeOptions,
   type ForkAndMergeResult,
   forkAndMerge,
