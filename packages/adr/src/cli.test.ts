@@ -23,12 +23,26 @@ describe("the adr binary", () => {
     expect(result.stderr).toContain("adr: error: missing command");
   });
 
-  it("lists its commands with --help", () => {
+  it("lists its commands with --help, in order", () => {
     const result = run("--help");
     expect(result.status).toBe(0);
-    for (const command of ["list", "show", "verify"]) {
-      expect(result.stdout).toMatch(new RegExp(`^ {2}${command} `, "m"));
-    }
+    const listed = [...result.stdout.matchAll(/^ {2}([a-z]+) {2,}/gm)].map((m) => m[1]);
+    expect(listed).toEqual([
+      "init",
+      "new",
+      "accept",
+      "reject",
+      "withdraw",
+      "deprecate",
+      "supersede",
+      "note",
+      "link",
+      "scope",
+      "for",
+      "list",
+      "show",
+      "verify",
+    ]);
   });
 
   it("starts with the node shebang, so npm can link it as a bin", () => {

@@ -1,4 +1,5 @@
 export { type AdrConfig, DEFAULT_ADR_CONFIG, parseAdrConfig } from "./config.js";
+export { type InitResultJson, initDecisionLog } from "./init.js";
 export {
   type AdrOptions,
   adrKind,
