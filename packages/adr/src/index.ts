@@ -31,9 +31,13 @@ export {
 } from "./views.js";
 export {
   acceptDecision,
+  deprecateDecision,
   type ProposeInput,
   proposeDecision,
+  type ReasonInput,
+  rejectDecision,
   supersedeDecision,
   type WriteOptions,
   type WriteResultJson,
+  withdrawDecision,
 } from "./write.js";

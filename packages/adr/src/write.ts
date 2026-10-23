@@ -47,10 +47,10 @@ import {
 } from "./log.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
 
-/** `adr new|accept|supersede --json` (design §5.5). */
+/** `adr new|accept|supersede|reject|withdraw|deprecate --json` (design §5.5, §6.1). */
 export interface WriteResultJson {
   readonly format: "adr-write/v1";
-  readonly command: "new" | "accept" | "supersede";
+  readonly command: "new" | "accept" | "supersede" | "reject" | "withdraw" | "deprecate";
   readonly ok: boolean;
   /**
    * The decision after the write; before it when `ok` is false (`null` for a refused `new`).
@@ -764,6 +764,28 @@ export async function planEvent(
   };
 }
 
+/** Input of the lifecycle exits: the decision and the envelope's `reason`. */
+export interface ReasonInput {
+  readonly id: string;
+  readonly reason?: string | null;
+  readonly actor: Actor;
+}
+
+/** Plans `adr reject`: `rejected` with its required reason, while proposed. */
+export function planReject(read: DecisionsRead, input: ReasonInput, c: PlanContext) {
+  return planEvent(read, { ...input, subject: input.id, type: "rejected", data: {} }, c);
+}
+
+/** Plans `adr withdraw`: `withdrawn`, with a reason when given, while proposed. */
+export function planWithdraw(read: DecisionsRead, input: ReasonInput, c: PlanContext) {
+  return planEvent(read, { ...input, subject: input.id, type: "withdrawn", data: {} }, c);
+}
+
+/** Plans `adr deprecate`: `deprecated` with its required reason, while accepted. */
+export function planDeprecate(read: DecisionsRead, input: ReasonInput, c: PlanContext) {
+  return planEvent(read, { ...input, subject: input.id, type: "deprecated", data: {} }, c);
+}
+
 /** What the editor step decided (§5.4 step 4a). */
 export interface AfterStage {
   /** Draft lint findings to report instead of `plan.findings`; `null` keeps `plan.findings`. */
@@ -1137,4 +1159,40 @@ export async function supersedeDecision(
   deps: WriteDeps = DEFAULT_DEPS,
 ): Promise<WriteResultJson> {
   return write(log, "supersede", (read, c) => planSupersede(read, input, c), o, deps);
+}
+
+/**
+ * `adr reject <id> --reason <text>`: writes `rejected`, stages it, and commits with `commit`. The
+ * kind requires the reason; without one the write is refused (findings, nothing written).
+ */
+export async function rejectDecision(
+  log: DecisionLog,
+  input: ReasonInput,
+  o: WriteOptions = {},
+  deps: WriteDeps = DEFAULT_DEPS,
+): Promise<WriteResultJson> {
+  return write(log, "reject", (read, c) => planReject(read, input, c), o, deps);
+}
+
+/** `adr withdraw <id> [--reason <text>]`: writes `withdrawn`, stages it, and commits with `commit`. */
+export async function withdrawDecision(
+  log: DecisionLog,
+  input: ReasonInput,
+  o: WriteOptions = {},
+  deps: WriteDeps = DEFAULT_DEPS,
+): Promise<WriteResultJson> {
+  return write(log, "withdraw", (read, c) => planWithdraw(read, input, c), o, deps);
+}
+
+/**
+ * `adr deprecate <id> --reason <text>`: writes `deprecated`, stages it, and commits with `commit`.
+ * The kind requires the reason, as for `rejectDecision`.
+ */
+export async function deprecateDecision(
+  log: DecisionLog,
+  input: ReasonInput,
+  o: WriteOptions = {},
+  deps: WriteDeps = DEFAULT_DEPS,
+): Promise<WriteResultJson> {
+  return write(log, "deprecate", (read, c) => planDeprecate(read, input, c), o, deps);
 }

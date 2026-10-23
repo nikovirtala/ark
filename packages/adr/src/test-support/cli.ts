@@ -39,6 +39,19 @@ export function runAdr(
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
+/** The keys of every `adr-write/v1` document, sorted. */
+export const WRITE_KEYS: readonly string[] = Object.freeze([
+  "affected",
+  "command",
+  "commit",
+  "decision",
+  "findings",
+  "format",
+  "notes",
+  "ok",
+  "written",
+]);
+
 /** The temp repo's identity as a human actor. */
 export const REPO_HUMAN: Actor = Object.freeze({
   kind: "human",
