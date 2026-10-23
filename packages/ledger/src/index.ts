@@ -213,7 +213,12 @@ export {
   resolveQualifiedId,
   sourceLogRef,
 } from "./sources/resolve.js";
-export { resolveActor } from "./surfaces/actor.js";
+export {
+  type Attribution,
+  parseOnBehalfOf,
+  resolveActor,
+  resolveAttribution,
+} from "./surfaces/actor.js";
 export {
   type CommitTemplate,
   checkCommitMessage,

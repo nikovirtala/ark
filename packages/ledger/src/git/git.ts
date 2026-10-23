@@ -281,6 +281,12 @@ function lines(bytes: Uint8Array): string[] {
     .filter((l) => l !== "");
 }
 
+/** `Name <email> <time> <zone>` from `git var`, or `null`. */
+function parseIdent(line: string | undefined): { name: string; email: string } | null {
+  const m = /^(.*) <(.*)> \d+ [+-]\d{4}$/.exec(line ?? "");
+  return m === null ? null : { name: m[1] ?? "", email: m[2] ?? "" };
+}
+
 /** The paths of a `-z` listing, sorted. */
 function zPaths(bytes: Uint8Array): string[] {
   return Buffer.from(bytes)
@@ -451,8 +457,20 @@ export class Git {
       okCodes: [0, 128],
     });
     if (r.code !== 0) return null;
-    const m = /^(.*) <(.*)> \d+ [+-]\d{4}$/.exec(lines(r.stdout)[0] ?? "");
-    return m === null ? null : { name: m[1] ?? "", email: m[2] ?? "" };
+    return parseIdent(lines(r.stdout)[0]);
+  }
+
+  /**
+   * The configured committer, `git -c user.useConfigOnly=true var GIT_COMMITTER_IDENT`: from the
+   * `GIT_COMMITTER_*` variables or `user.name`/`user.email`, never guessed. `null` when there is
+   * none, so a commit would fail.
+   */
+  async committerIdentity(): Promise<{ name: string; email: string } | null> {
+    const r = await this.run(["-c", "user.useConfigOnly=true", "var", "GIT_COMMITTER_IDENT"], {
+      okCodes: [0, 128],
+    });
+    if (r.code !== 0) return null;
+    return parseIdent(lines(r.stdout)[0]);
   }
 
   /**

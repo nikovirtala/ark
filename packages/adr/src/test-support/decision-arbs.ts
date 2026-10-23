@@ -138,9 +138,9 @@ export function applyAdrTamper(
 
 /**
  * The environment for spawning `adr` on `repo` (design §9): the process env with the repo's
- * hermetic git env over it, and no `ARK_AGENT`, `VISUAL` or `EDITOR` unless `testEnv` sets them,
- * so a developer's or agent's own settings never reach the child. Keys left `undefined` are
- * removed.
+ * hermetic git env over it, and no `ARK_AGENT`, `ARK_ON_BEHALF_OF`, `VISUAL` or `EDITOR` unless
+ * `testEnv` sets them, so a developer's or agent's own settings never reach the child. Keys left
+ * `undefined` are removed.
  */
 export function cliEnv(
   repo: { readonly env: NodeJS.ProcessEnv },
@@ -150,6 +150,7 @@ export function cliEnv(
     ...process.env,
     ...repo.env,
     ARK_AGENT: undefined,
+    ARK_ON_BEHALF_OF: undefined,
     VISUAL: undefined,
     EDITOR: undefined,
     ...testEnv,
