@@ -166,6 +166,21 @@ export {
 } from "./log/snapshot.js";
 export { nextEventIdentity, writeEvent, writeEvents, writeNewFile } from "./log/write.js";
 export {
+  escapeGlob,
+  type Glob,
+  type GlobProblem,
+  globMatcher,
+  MAX_GLOB_LENGTH,
+  parseGlob,
+} from "./scope/glob.js";
+export {
+  applySetOp,
+  latestSet,
+  type SetOp,
+  type SetOpResult,
+  setEventType,
+} from "./scope/set.js";
+export {
   MAX_CONFIG_BYTES,
   parseToolConfig,
   readToolConfig,
