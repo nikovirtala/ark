@@ -71,7 +71,7 @@ Event file names are `<UTC timestamp>-<4 random chars>-<type>.yaml`, ledger's na
 
 An issue file holds the title as its first heading and the description below it, and nothing else: no frontmatter, no state. The slug in its name is fixed at creation and never follows a retitle, because the tool finds files by id.
 
-**Identifiers.** Ids come from ledger, the same as adr's. Each issue gets a canonical id at creation: 8 lowercase base32 characters (40 random bits, taken from a ULID), such as `m4p8x2kd`. Parallel branches cannot realistically collide, so file names, events and links use only this id and nothing is ever renamed. CI still rejects duplicates.
+**Identifiers.** Ids come from ledger, the same as adr's. Each issue gets a canonical id at creation: 8 Crockford base32 characters in lowercase (40 random bits, in the alphabet ULIDs use), such as `m4p8x2kd`. Parallel branches cannot realistically collide, so file names, events and links use only this id and nothing is ever renamed. CI still rejects duplicates.
 
 **Display numbers** such as ?42 are derived, never stored. The ? prefix keeps forges from auto-linking them to their own issues and pull requests. The projection numbers issues in the order their `opened` event first landed on the main branch, read with `git log --first-parent`. Main's history is append-only, so a number is stable once assigned. An issue opened on a branch displays by id until it merges. Every command and MCP tool accepts the canonical id, the bare number or the prefixed number, whatever prefix is chosen.
 
@@ -87,7 +87,9 @@ url = "git@github.com:example/platform.git"
 ref = "main"
 ```
 
-Cross-log references use a qualified id, `platform:m4p8x2kd`. Each log owns its issues' events, so `linked` can point anywhere, but an issue can only be closed or reopened in the log that owns it.
+Inside the source repository, the log is read at the entry's `root` when it sets one, otherwise at the kind's default root; a source with neither is a configuration error.
+
+Cross-log references use a qualified id, `platform:m4p8x2kd`, whose prefix is the `name` of the `[[sources]]` entry; `kind` only says what kind of log the source holds. Each log owns its issues' events, so `linked` can point anywhere, but an issue can only be closed or reopened in the log that owns it.
 
 **adr is a source too.** When the repository has an adr decision log, it is discovered automatically as a source named `adr`, so `adr:k3f9q8a1` references a decision with the same syntax as any other cross-log reference. issues reads the decision log by importing adr's kind from @nikovirtala/adr/kind and folding it with ledger, so it never shells out to adr or reimplements its rules. Decisions in other repositories are plain sources with `kind = "adr"`.
 
@@ -116,7 +118,7 @@ Every event is one YAML file in ledger's shared envelope, with `kind: issue` and
 envelope: ledger/v1
 kind: issue
 schema: issue/v1
-id: 01JAD7Q2M8K4X9ZT      # ULID, unique across the repo
+id: 01M5HHPQ50Q2M8K4X9ZTH6C9FA  # ULID, unique across the repo
 subject: m4p8x2kd
 type: closed
 at: 2026-10-22T10:15:00Z
