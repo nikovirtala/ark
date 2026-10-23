@@ -86,6 +86,8 @@ export const newCommand: CommandSpec = {
       text: writeText(doc, display, {
         subject: title.trim(),
         number: v === null || v.number === null ? null : v.display,
+        actor,
+        acceptRequiresHuman: log.adr.acceptRequiresHuman,
       }),
       notes: [...doc.notes, ...notes],
     };

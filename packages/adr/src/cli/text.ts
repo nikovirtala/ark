@@ -1,4 +1,9 @@
-import { type EventEnvelope, type Finding, renderStateHeader } from "@nikovirtala/ledger";
+import {
+  type Actor,
+  type EventEnvelope,
+  type Finding,
+  renderStateHeader,
+} from "@nikovirtala/ledger";
 import type { InitResultJson } from "../init.js";
 import type { DecisionView } from "../kind.js";
 import type { DecisionsForJson } from "../scope.js";
@@ -182,6 +187,9 @@ export function writeText(
     readonly followRenames?: FollowRenamesBefore;
     /** The superseded scope an `accept` copied. */
     readonly copied?: ScopeOffer | null;
+    /** Who proposed with `new`, and the log's `accept_requires_human`, for the next step. */
+    readonly actor?: Actor;
+    readonly acceptRequiresHuman?: boolean;
   },
 ): string {
   const verb = VERBS[doc.command];
@@ -199,7 +207,10 @@ export function writeText(
         ...doc.written.map((p) => `  ${p}`),
         ...draftAdvice(doc.findings),
         ...(committed === null ? [] : [`${committed}.`]),
-        `Next: adr accept ${v.id}`,
+        // An agent can't accept under accept_requires_human, so don't tell it to (design §7.1).
+        o.actor?.kind === "agent" && o.acceptRequiresHuman === true
+          ? `Next: ask a human to review and accept it (adr accept ${v.id})`
+          : `Next: adr accept ${v.id}`,
       ].join("\n");
     case "accept":
       return [
