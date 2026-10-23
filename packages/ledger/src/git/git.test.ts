@@ -606,6 +606,31 @@ describe("commit with only and trailers", () => {
   });
 });
 
+describe("committerIdentity", () => {
+  it("reads GIT_COMMITTER_* or user.*, and is null without either", async () => {
+    const r = await repo();
+    expect(await r.git.committerIdentity()).toEqual({
+      name: "Ledger Test",
+      email: "ledger-test@example.com",
+    });
+    const bare = { ...r.env, GIT_COMMITTER_NAME: undefined, GIT_COMMITTER_EMAIL: undefined };
+    const none = await Git.open(r.root, { env: { ...bare, EMAIL: "guess@example.com" } });
+    expect(await none.committerIdentity()).toBeNull();
+    expect(await none.identity()).not.toBeNull();
+    await r.git.run(["config", "user.name", "Config User"]);
+    await r.git.run(["config", "user.email", "config@example.com"]);
+    expect(await (await Git.open(r.root, { env: bare })).committerIdentity()).toEqual({
+      name: "Config User",
+      email: "config@example.com",
+    });
+    const env = { ...r.env, GIT_COMMITTER_NAME: "Bot", GIT_COMMITTER_EMAIL: "bot@example.com" };
+    expect(await (await Git.open(r.root, { env })).committerIdentity()).toEqual({
+      name: "Bot",
+      email: "bot@example.com",
+    });
+  });
+});
+
 describe("staged, unstaged and untracked paths", () => {
   it("stagedPaths lists added and modified paths on an unborn and a born HEAD", async () => {
     const r = await repo();
