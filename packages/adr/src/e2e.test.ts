@@ -298,6 +298,7 @@ it("runs the phase 2a demo: init, scope, for, renames, copy-scope, lifecycle, ag
   const one = run(["new", "Agent proposal one", ...SECTIONS, "--no-edit", "--commit"], agent);
   expect(one.status).toBe(0);
   expect(one.stderr).toContain("on_behalf_of taken from the git identity ledger-test@example.com");
+  expect(one.stdout).toContain("Next: ask a human to review and accept it (adr accept ");
   const two = run(["new", "Agent proposal two", ...SECTIONS, "--no-edit", "--commit"], {
     ...agent,
     ARK_ON_BEHALF_OF: "demo@example.com",

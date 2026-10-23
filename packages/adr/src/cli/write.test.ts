@@ -2,7 +2,7 @@ import { chmod, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { TempRepo } from "@nikovirtala/ledger/testing";
 import { afterEach, describe, expect, it } from "vitest";
-import { cliRepo, NYGARD_SECTIONS, runAdr, seedDecision } from "../test-support/cli.js";
+import { cliRepo, NYGARD_SECTIONS, runAdr, seedDecision, WRITE_KEYS } from "../test-support/cli.js";
 
 const repos: TempRepo[] = [];
 afterEach(async () => {
@@ -217,6 +217,27 @@ describe("adr accept and supersede", { timeout: 60_000 }, () => {
     expect(notAccepted.stdout).toContain(
       "superseded is not allowed while proposed [transition/illegal]",
     );
+  });
+
+  it("tells an agent to ask a human to accept, unless agents may accept", async () => {
+    const r = await repo();
+    const env = { ARK_AGENT: "test-agent", ARK_ON_BEHALF_OF: "niko@example.com" };
+    const agent = runAdr(r, ["new", "Agent draft", ...FULL], { env });
+    expect(agent.status).toBe(0);
+    const id = /^Proposed (\S+):/.exec(agent.stdout)?.[1] ?? "";
+    expect(agent.stdout.trimEnd().split("\n").at(-1)).toBe(
+      `Next: ask a human to review and accept it (adr accept ${id})`,
+    );
+    const human = runAdr(r, ["new", "Human draft", ...FULL]);
+    const hid = /^Proposed (\S+):/.exec(human.stdout)?.[1] ?? "";
+    expect(human.stdout.trimEnd().split("\n").at(-1)).toBe(`Next: adr accept ${hid}`);
+    const asJson = json(runAdr(r, ["new", "Agent JSON", ...FULL, "--json"], { env }).stdout);
+    expect(Object.keys(asJson).sort()).toEqual(WRITE_KEYS);
+
+    const lax = await repo({ "docs/adr/adr.toml": "[policy]\naccept_requires_human = false\n" });
+    const allowed = runAdr(lax, ["new", "Agent draft", ...FULL], { env });
+    const aid = /^Proposed (\S+):/.exec(allowed.stdout)?.[1] ?? "";
+    expect(allowed.stdout.trimEnd().split("\n").at(-1)).toBe(`Next: adr accept ${aid}`);
   });
 
   it("refuses an agent's acceptance under accept_requires_human", async () => {
