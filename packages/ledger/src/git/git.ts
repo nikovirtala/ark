@@ -79,6 +79,93 @@ export function assertPath(path: string): void {
   }
 }
 
+/** Lines git itself writes, which make a mixed paragraph count as trailers (git's trailer.c). */
+const GIT_GENERATED_PREFIXES = ["Signed-off-by: ", "(cherry picked from commit "];
+/** A token of ASCII letters, digits and `-`, optional spaces or tabs, then `:`. */
+const TRAILER_SEPARATOR = /^[A-Za-z0-9-]+[ \t]*:/;
+const isBlank = (line: string) => /^[ \t\r]*$/.test(line);
+const isComment = (line: string) => line.startsWith("#");
+
+/**
+ * Whether git reads the last paragraph of `message` as a trailer block, by the rules of git's
+ * `trailer.c` (`git interpret-trailers`, `%(trailers)`) with no `trailer.*` config: the first
+ * paragraph is the title and never trailers; a trailer line is `Signed-off-by: …`,
+ * `(cherry picked from commit …` or a token and `:` (`Refs: #12`, `Refs:#12`, `Refs : #12`); an
+ * indented line continues the trailer above it; `#` lines are comments. The paragraph is a block
+ * when it has trailers and nothing else, or when it has a git-generated line and at least 25% of
+ * its lines are trailers.
+ *
+ * Unsupported: `trailer.<token>.key`, `trailer.separators` and `core.commentChar` from the user's
+ * config (with them git can read more paragraphs as trailers), and the `---` divider, which git
+ * ignores for commit messages.
+ */
+export function endsInTrailerBlock(message: string): boolean {
+  const lines = message.split("\n");
+  let title = 0;
+  while (
+    title < lines.length &&
+    (isComment(lines[title] as string) || !isBlank(lines[title] as string))
+  ) {
+    title++;
+  }
+  let onlySpaces = true;
+  let recognized = false;
+  let trailers = 0;
+  let others = 0;
+  let continuations = 0;
+  for (let i = lines.length - 1; i >= title; i--) {
+    const line = lines[i] as string;
+    if (isComment(line)) {
+      others += continuations;
+      continuations = 0;
+    } else if (isBlank(line)) {
+      if (onlySpaces) continue;
+      others += continuations;
+      return (recognized && trailers * 3 >= others) || (trailers > 0 && others === 0);
+    } else {
+      onlySpaces = false;
+      if (GIT_GENERATED_PREFIXES.some((p) => line.startsWith(p))) {
+        trailers++;
+        continuations = 0;
+        recognized = true;
+      } else if (TRAILER_SEPARATOR.test(line)) {
+        trailers++;
+        continuations = 0;
+      } else if (/^[ \t\r]/.test(line)) {
+        continuations++;
+      } else {
+        others += 1 + continuations;
+        continuations = 0;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * The exact text `Git.commit` sends: `message.trimEnd()`, a blank line, then one `Key: value` line
+ * per trailer. With no trailers, `message` unchanged. With `mergeTrailers`, a message whose last
+ * paragraph git reads as a trailer block (see `endsInTrailerBlock`) gets the trailers appended to
+ * that paragraph, so git reads them as one block. A message ending in a paragraph of `#` comment
+ * lines is not merged, since the trailers would land after the comments, away from the block.
+ */
+export function commitMessageText(
+  message: string,
+  trailers: readonly Trailer[],
+  o: { readonly mergeTrailers?: boolean } = {},
+): string {
+  if (trailers.length === 0) return message;
+  const text = message.trimEnd();
+  const lines = trailers.map(([k, v]) => `${k}: ${v}`).join("\n");
+  const paragraphs = text.split(/\n[ \t\r]*\n/);
+  const last = paragraphs[paragraphs.length - 1] as string;
+  const merge =
+    o.mergeTrailers === true &&
+    endsInTrailerBlock(text) &&
+    !last.split("\n").every((line) => isComment(line) || isBlank(line));
+  return `${text}${merge ? "\n" : "\n\n"}${lines}\n`;
+}
+
 /** Returns the work-tree root, or throws `InvalidArgumentError` for a git-directory-only handle. */
 export function requireWorkTree(git: Git): string {
   if (git.root === null) throw new InvalidArgumentError("operation needs a work tree");
@@ -374,7 +461,8 @@ export class Git {
    * `trailers` are written into the message as its last paragraph, in order, rather than through
    * `--trailer`, so the user's `trailer.*` config can't drop, merge or move them. A message whose
    * own last paragraph is a trailer block would end up with two blocks, and git reads only the
-   * last one: pass every trailer through `trailers`. Trailers with an empty message throw
+   * last one: pass every trailer through `trailers`, or set `mergeTrailers` to append them to
+   * that block (see `commitMessageText`). Trailers with an empty message throw
    * `InvalidArgumentError`, since they would become the subject.
    *
    * `only` commits just those paths (`git commit --only`, their work-tree content); other staged
@@ -383,6 +471,7 @@ export class Git {
   async commit(o: {
     readonly message: string;
     readonly trailers?: readonly Trailer[];
+    readonly mergeTrailers?: boolean;
     readonly allowEmpty?: boolean;
     readonly only?: readonly string[];
   }): Promise<string> {
@@ -393,10 +482,9 @@ export class Git {
     if (trailers.length > 0 && o.message.trim() === "") {
       throw new InvalidArgumentError("a commit with trailers needs a message");
     }
-    const message =
-      trailers.length === 0
-        ? o.message
-        : `${o.message.trimEnd()}\n\n${trailers.map(([k, v]) => `${k}: ${v}`).join("\n")}\n`;
+    const message = commitMessageText(o.message, trailers, {
+      mergeTrailers: o.mergeTrailers === true,
+    });
     await this.run(
       [
         ...(o.only === undefined ? [] : ["--literal-pathspecs"]),

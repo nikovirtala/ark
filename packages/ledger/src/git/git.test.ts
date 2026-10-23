@@ -1,6 +1,7 @@
 import { chmod, copyFile, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import fc from "fast-check";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   GitError,
@@ -9,8 +10,16 @@ import {
   InvalidArgumentError,
   NotARepositoryError,
 } from "../errors.js";
+import { parseCommitTemplate, renderCommitMessage } from "../surfaces/commit-message.js";
 import { createTempRepo, type TempRepo } from "../testing/temp-repo.js";
-import { GIT_ENV_ISOLATION, GIT_LOCATING_ENV, Git, type Trailer } from "./git.js";
+import {
+  commitMessageText,
+  endsInTrailerBlock,
+  GIT_ENV_ISOLATION,
+  GIT_LOCATING_ENV,
+  Git,
+  type Trailer,
+} from "./git.js";
 import { firstParentHistory } from "./history.js";
 import { indexReader, refReader, worktreeReader } from "./tree.js";
 
@@ -386,6 +395,101 @@ describe("identity", () => {
   });
 });
 
+describe("trailer blocks as git reads them", () => {
+  /** git's answer: `interpret-trailers` adds a probe to the block, or after a blank line. */
+  const gitReadsBlock = async (r: TempRepo, message: string) => {
+    const out = await r.git.run(["interpret-trailers", "--no-divider", "--trailer", "X-Probe: 1"], {
+      input: message,
+    });
+    return !Buffer.from(out.stdout).toString().includes("\n\nX-Probe: 1");
+  };
+
+  it.each([
+    ["s\n\nRefs: #12", true],
+    ["s\n\nRefs:#12", true],
+    ["s\n\nRefs : #12", true],
+    ["s\n\nRefs\t:#12", true],
+    ["s\n\n2FA: on", true],
+    ["s\n\n-x: y", true],
+    ["s\n\nNote: we chose X", true],
+    ["s\n\nhttps://example.com/x", true],
+    ["s\n\nSee the design doc at https://example.com/adr/42.", false],
+    ["s\n\nWe decided: use X.", false],
+    ["s\n\n: x", false],
+    ["s\n\nRefs foo: x", false],
+    ["s\n\nCo-authored-by: A <a@x>\n  continued", true],
+    ["s\n\nCo-authored-by: A <a@x>\n\tcontinued\nRefs: 1", true],
+    ["s\n\n  indented: x\nRefs: 1", false],
+    ["s\n\nprose\n  Refs: x", false],
+    ["s\n\nSigned-off-by: A <a@x>\nwe paired\non this\ntoday", true],
+    ["s\n\nSigned-off-by: A <a@x>\na\nb\nc\nd", false],
+    ["s\n\nSigned-off-by: A <a@x>\n  wrapped\nprose", true],
+    ["s\n\n(cherry picked from commit abc)\nprose", true],
+    ["s\n\nRefs: 1\nprose", false],
+    ["s\n\nRefs: 1\n# a comment", true],
+    ["s\n\n# a comment\nRefs: 1", true],
+    ["Refs: 1", false],
+    ["s\nmore title\n\nRefs: 1", true],
+    ["s\n\nbody\n\nRefs: 1\n\n", true],
+    ["s\n\nRefs: 1\n\nbody", false],
+  ])("reads %j as a trailer block: %s", async (message, expected) => {
+    const r = await repo();
+    expect(await gitReadsBlock(r, message)).toBe(expected);
+    expect(endsInTrailerBlock(message)).toBe(expected);
+  });
+
+  it("agrees with git on generated last paragraphs", async () => {
+    const r = await repo();
+    const line = fc.constantFrom(
+      "Refs: #12",
+      "Refs:#12",
+      "Key : v",
+      "Signed-off-by: A <a@x>",
+      "(cherry picked from commit abc)",
+      "  continued",
+      "\tcontinued",
+      "we paired on this",
+      "See https://example.com/x",
+      "We decided: use X.",
+      "https://example.com/x",
+      "# a comment",
+      "",
+    );
+    await fc.assert(
+      fc.asyncProperty(fc.array(line, { minLength: 1, maxLength: 7 }), async (last) => {
+        const message = `chore: x\n\n${last.join("\n")}\n`;
+        expect(endsInTrailerBlock(message)).toBe(await gitReadsBlock(r, message));
+      }),
+      { numRuns: 60 },
+    );
+  });
+
+  it("commits trailers into the block git reads with mergeTrailers", async () => {
+    const r = await repo();
+    const ours: Trailer[] = [
+      ["ADR", "k"],
+      ["ADR-Event", "noted"],
+    ];
+    for (const [own, theirs] of [
+      ["Co-authored-by: A <a@x>\n  continued", [["Co-authored-by", "A <a@x> continued"]]],
+      ["Refs:#12", [["Refs", "#12"]]],
+      ["Signed-off-by: A <a@x>\nwe paired on this", [["Signed-off-by", "A <a@x>"]]],
+    ] as const) {
+      const sha = await r.git.commit({
+        message: `chore: x\n\n${own}\n`,
+        allowEmpty: true,
+        mergeTrailers: true,
+        trailers: ours,
+      });
+      const [head] = await firstParentHistory(r.git, "HEAD");
+      expect(head?.trailers).toEqual([...theirs, ...ours]);
+      expect(
+        Buffer.from((await r.git.run(["log", "-1", "--format=%B", sha])).stdout).toString(),
+      ).toBe(`chore: x\n\n${own}\nADR: k\nADR-Event: noted\n\n`);
+    }
+  });
+});
+
 describe("commit with only and trailers", () => {
   const show = async (r: TempRepo, args: string[]) =>
     Buffer.from((await r.git.run(args)).stdout).toString();
@@ -422,6 +526,26 @@ describe("commit with only and trailers", () => {
     expect(await show(r, ["log", "-1", "--format=%B", plain])).toBe("chore: y\n\n");
   });
 
+  it("appends trailers to the message's own trailer block with mergeTrailers", async () => {
+    const r = await repo();
+    await r.git.commit({
+      message: "chore: x\n\nWhy.\n\nCo-authored-by: A <a@x>\nRefs: #12\n",
+      allowEmpty: true,
+      mergeTrailers: true,
+      trailers: [
+        ["ADR", "k"],
+        ["ADR-Event", "noted"],
+      ],
+    });
+    const [head] = await firstParentHistory(r.git, "HEAD");
+    expect(head?.trailers).toEqual([
+      ["Co-authored-by", "A <a@x>"],
+      ["Refs", "#12"],
+      ["ADR", "k"],
+      ["ADR-Event", "noted"],
+    ]);
+  });
+
   it("keeps trailers exact under a hostile trailer config", async () => {
     const r = await repo();
     await r.git.run(["config", "trailer.ifexists", "addIfDifferent"]);
@@ -441,6 +565,34 @@ describe("commit with only and trailers", () => {
     const [head] = await firstParentHistory(r.git, "HEAD");
     expect(head?.trailers).toEqual(trailers);
     expect(head?.subject).toBe("feat(adr): accept k");
+  });
+
+  it("keeps a rendered template subject and its trailers exact under a hostile trailer config", async () => {
+    const r = await repo();
+    await r.git.run(["config", "trailer.ifexists", "replace"]);
+    await r.git.run(["config", "trailer.where", "start"]);
+    const t = parseCommitTemplate("docs(adr): {action} {title}", {
+      vars: { action: 16 },
+      where: "t",
+    });
+    const rendered = renderCommitMessage(t, {
+      title: "Use event sourcing with one append-only log per subject for every record kind",
+      vars: { action: "accept" },
+      body: ["Supersedes ADR-0001: Old."],
+    });
+    const trailers: Trailer[] = [
+      ["ADR", "k3f9q8a1"],
+      ["ADR-Event", "accepted"],
+      ["ADR", "a7c2m9xd"],
+      ["ADR-Event", "superseded"],
+    ];
+    const sha = await r.git.commit({ message: rendered.message, allowEmpty: true, trailers });
+    const [head] = await firstParentHistory(r.git, "HEAD");
+    expect(head?.subject).toBe(rendered.subject);
+    expect(head?.trailers).toEqual(trailers);
+    expect(await show(r, ["log", "-1", "--format=%B", sha])).toBe(
+      `${commitMessageText(rendered.message, trailers)}\n`,
+    );
   });
 
   it("refuses trailers with an empty message", async () => {
