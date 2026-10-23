@@ -56,21 +56,21 @@ ark/
 **Tooling**
 
 - **pnpm workspaces** link packages locally, so a change to ledger is visible to adr and issues without publishing.
-- **TypeScript project references** build packages in dependency order, and each package bundles to a single ESM entry plus its binary.
-- **Vitest with fast-check** runs everywhere. ledger exports its history generators and temporary-repo fixtures, so adr and issues test their kinds with the same harness.
+- **TypeScript project references** build packages in dependency order, and each package bundles to ESM, one entry per export path, plus its binary.
+- **Vitest with fast-check** runs everywhere. ledger exports its history generators and temporary-repo fixtures from a second entry point, `@nikovirtala/ledger/testing`, next to the main `@nikovirtala/ledger`, so adr and issues test their kinds with the same harness.
 - **Changesets** records which packages a change affects and how. Releasing bumps only those, writes their changelogs, and publishes them to npm with provenance from GitHub Actions.
 - **CI runs per affected package**: a change in ledger tests everything that depends on it; a change in artifact tests only artifact.
 
 **ledger is published to npm** as `@nikovirtala/ledger`, at 0.x and documented as internal until its API settles. adr and issues depend on it like any other package, so it is installed once when a project uses both.
 
-**ark uses its own tools.** Its architecture decisions live in `docs/adr/` and its work in docs/`issues/`, managed by the tools built in the same repository. That is the most direct test of both, and it is how the monorepo's own decisions, starting with the ones in this document, get recorded once adr exists.
+**ark uses its own tools.** Its architecture decisions live in `docs/adr/` and its work in `docs/issues/`, managed by the tools built in the same repository. That is the most direct test of both, and it is how the monorepo's own decisions, starting with the ones in this document, get recorded once adr exists.
 
 **Shared conventions**
 
 Every tool, ledger-based or not, follows the same surface rules, so knowing one means knowing all:
 
 - Config in `<tool>.toml` at the tool's root directory.
-- Global CLI flags `--json`, `--root` and, where history applies, `--ref`. Exit code 0 on success, 1 on findings, 2 on usage errors.
+- Global CLI flags `--json`, `--root` and, where history applies, `--ref`. Exit code 0 on success, 1 on failing findings, 2 on usage errors. Errors always fail; warnings fail only where a tool is configured to fail on them (ledger's `failOn: "warning"`).
 - MCP servers start with `<tool> mcp` over stdio, and their tools are named `<tool>_<verb>`.
 - Every tool that agents use ships a SKILL.md, installed with `<tool> init --skill`.
 
@@ -115,7 +115,7 @@ ledger provides everything below a kind's domain rules. Read bottom up, each lay
 | Layer | Provides | Used by adr and issues for |
 | --- | --- | --- |
 | Git | Shelling out to `git`; reading files from the working tree or any ref with `ls-tree` and `show`; staging; commits with trailers; first-parent history of main | Time travel, display numbers, `--commit`, branch views |
-| Identity and files | 8-character base32 subject ids; ULID event ids; `<timestamp>-<rand>-<type>.yaml` names; per-subject event directories; duplicate detection | Conflict-free parallel branches |
+| Identity and files | 8-character Crockford base32 subject ids (lowercase); ULID event ids; `<timestamp>-<rand>-<type>.yaml` names; per-subject event directories; duplicate detection | Conflict-free parallel branches |
 | Envelope | The shared event envelope and its JSON Schema; per-kind `data` schemas plugged in | Validation, actor attribution, forward-compatible fields |
 | Fold | Loading a subject's events, ordering by `at` then `id`, replaying the kind's state machine and `reduce`; numbering on main | Every read |
 | Verify | Base-to-head diffing; append-only and body-policy checks; schema, identity and transition checks; the kind's invariants; the findings model with text, `--json` and GitHub annotation output | `verify`, pre-commit, pre-push, CI |
@@ -129,7 +129,7 @@ ledger provides everything below a kind's domain rules. Read bottom up, each lay
 
 The split is between mechanism and meaning. ledger decides how an event is stored, ordered, validated and found. A kind decides what the event means.
 
-**Hooks across tools.** A repository using both adr and issues gets one shim per hook, not two. Each installed tool registers itself in the shim, and the shim runs `verify --staged` for every registered tool with a single pass over the staged files. Adding a third ledger-based tool later changes nothing in the repository's hooks.
+**Hooks across tools.** A repository using both adr and issues gets one shim per hook, not two. Each installed tool registers itself in the shim. One run of the shim walks that registry once and runs `verify --staged` for each registered tool, each checking the staged files in its own log, and fails if any of them fails. Adding a third ledger-based tool later changes nothing in the repository's hooks.
 
 ## ledger: the shared event envelope
 
@@ -139,7 +139,7 @@ Every event of every kind uses one envelope, versioned separately from each kind
 envelope: ledger/v1       # the envelope version, owned by ledger
 kind: issue               # which kind's rules apply
 schema: issue/v1          # the version of this kind's data schema
-id: 01JAD7Q2M8K4X9ZT      # ULID, unique across the repository
+id: 01M5HHPQ50Q2M8K4X9ZTH6C9FA  # ULID, unique across the repository (checked per log until step 6)
 subject: m4p8x2kd         # the subject's canonical id
 type: closed
 at: 2026-10-22T10:15:00Z
@@ -154,7 +154,7 @@ data:
   resolution: done
 ```
 
-**Change from the current designs.** The adr and issues design docs each define their own envelope, identical except for the subject key (`adr:` in one, `issue:` in the other) and a combined schema id. This envelope replaces both with `subject` plus `kind`, and splits the schema id into `envelope` and `schema`. The two docs will be updated to reference it once this design settles. Making the change now costs nothing; once events exist in real repositories, it would need a migration.
+**Used by adr and issues.** The [adr](01-adr-v1.md) and [issues](02-issues-v1.md) event schemas use this envelope as it is; only `data` and the event types are theirs.
 
 **Rules**
 
@@ -186,19 +186,34 @@ The two first kinds differ enough to keep ledger honest: one freezes bodies and 
 
 **Set events** (`assigned`, `labeled`, `scoped`) are the other shared pattern: the event carries the whole set and the latest wins. ledger provides that once as an event helper, along with `--set`, `--add` and `--remove` on the CLI side.
 
-## Extraction plan and roadmap
+## Implementation notes and roadmap
 
-ledger grows from its users rather than ahead of them. Mechanical layers go into the core immediately; layers that encode domain behavior move in only once both adr and issues have used them and the shapes match.
+**Implementation notes**
+
+- TypeScript, in the ark monorepo as `packages/ledger`, published on npm as `@nikovirtala/ledger` with two entry points, `@nikovirtala/ledger` and `@nikovirtala/ledger/testing`.
+- All I/O, including shelling out to `git`, goes through ledger, so the user's git config, credentials and signing setup apply unchanged.
+- Wrong data in a repository becomes a finding. Caller misuse, bad config and environment failures throw typed `LedgerError` subclasses. ledger never writes to stdout or stderr; output belongs to the tools.
+
+**Roadmap**
+
+The roadmap is ark's extraction plan. ledger grows from its users rather than ahead of them. Mechanical layers go into the core immediately; layers that encode domain behavior move in only once both adr and issues have used them and the shapes match.
 
 1. **Scaffold.** Create `nikovirtala/ark` with the workspace, build, test and release setup. The first 0.x release of ledger proves the pipeline.
 2. **Mechanical core.** Build ledger's git, identity and files, envelope, verify findings, sources, templates, hooks and testing layers. These have no domain choices in them.
-3. **adr on ledger.** Build adr as the first kind. The fold engine and the state-machine-as-data definition are written in ledger with adr as their only user, and kept small.
+3. **adr on ledger.** Build adr as the first kind. The fold engine and the state-machine-as-data definition are written in ledger with adr as their only user, and kept small. So are ledger's Scope, Index and Surfaces layers: they are mechanical, and issues needs the same shared flags and commands, so building them in adr and lifting them later would only be churn. The `pre-push` hook gets its default, `verify --base @{upstream}`, here too. A branch with no upstream is compared against its merge-base with `origin`'s default branch, and a repository with no remote verifies the whole log.
 4. **issues on ledger.** Build issues as the second kind. Where it needs something adr does not (relations, set events, mutable bodies), it starts in the issues package.
 5. **Lift what matches.** Once both kinds work, move into ledger whatever they both implement the same way, most likely the relation layer and set events, and delete the copies.
-6. **One verify step.** Publish a reusable GitHub Action that runs `verify` for every ark tool configured in a repository and merges their findings into one set of annotations.
+6. **One verify step.** Publish a reusable GitHub Action that runs `verify` for every ark tool configured in a repository and merges their findings into one set of annotations. The Action reads each tool's `--json` report, so the `ledger-findings/v1` report format gets a JSON Schema in this step. Event ids also start being checked for uniqueness across all logs in a repository. Until then they are checked per log, which is enough because a ULID has 80 random bits, so a duplicate only comes from a copied file.
 7. **Move artifact in.** Bring artifact into `packages/artifact` with its git history, release it from the monorepo once, unchanged, and archive the old repository with a pointer. Until then it keeps living in its own repository.
 
 ark starts recording its own decisions with adr as soon as step 3 lands, beginning with the decisions in this document: the monorepo, ledger as the shared core, and the shared envelope.
+
+**Backlog**
+
+Known gaps that no step owns yet:
+
+- **Source-cache garbage collection.** Each source is fetched into its own bare cache repository under `<git common dir>/ark/sources/`, one per URL and ref. Old cache directories are never removed, which only costs disk space.
+- **SHA-256 source repositories.** Not supported. Fetching one fails in git and surfaces as a `SourceFetchError`. This is a known limitation.
 
 ## Open questions
 
