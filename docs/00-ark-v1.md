@@ -215,6 +215,7 @@ Known gaps that no step owns yet:
 
 - **Source-cache garbage collection.** Each source is fetched into its own bare cache repository under `<git common dir>/ark/sources/`, one per URL and ref. Old cache directories are never removed, which only costs disk space.
 - **SHA-256 source repositories.** Not supported. Fetching one fails in git and surfaces as a `SourceFetchError`. This is a known limitation.
+- **Conventional Commits for `--commit`.** The commit messages a tool writes with `--commit` are fixed, such as adr's `Propose decision <id>: <title>` and `Accept decision <id>: <title>`, and cannot be changed. A repository or user that enforces Conventional Commits, for example with commitlint in a `commit-msg` hook or in CI, rejects them, so `--commit` is unusable there and every commit has to be made by hand with the trailers copied. Tools need a configurable subject, for example a message template in `<tool>.toml` and a `--message` flag, with a Conventional Commits form such as `docs(adr): accept <title>` available. The trailers stay the last paragraph. Commits are made through ledger, so this applies to every ledger-based tool.
 
 ## Open questions
 
