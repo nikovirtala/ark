@@ -102,6 +102,13 @@ auto_commit = false
 
 [verify]
 fail_on = "error"               # error | warning
+
+[commit]
+subject = "docs(adr): {action} {title}"  # --message overrides it
+
+[scope]
+anchor_keyword = "adr"
+anchor_exclude = ["**/*.md"]    # files never searched for anchors
 ```
 
 ## Event schema
@@ -141,11 +148,11 @@ data:
 
 Ordering within an ADR is by `at`, then `id`. The author-supplied `at` is trusted for ordering, while git history remains the audit trail of when each event actually landed. Ordering and unknown-field handling are ledger's rules, identical for every kind.
 
-**Scope: linking decisions to code.** A decision's scope says which code it governs. Code moves, so scope cannot live in the frozen body: the `scoped` event carries the complete set of globs, and the latest event wins.
+**Scope: linking decisions to code.** A decision's scope says which code it governs. Code moves, so scope cannot live in the frozen body: the `scoped` event carries the complete set of globs, and the latest event wins. Globs match repo-relative paths with `*`, `?`, `**`, `[…]` and `{a,b}`, and `*` and `**` include dot-files.
 
-For precision, code can also point at a decision with a comment anchor above a symbol, such as `// adr:k3f9q8a1` (keyword configurable, qualified ids for other decision logs). Anchors live in the code, so they move with it through refactors and need no event.
+For precision, code can also point at a decision with a comment anchor above a symbol, such as `// adr:k3f9q8a1` (keyword configurable, qualified ids for other decision logs). Anchors live in the code, so they move with it through refactors and need no event. An anchor is a keyword token after a comment leader on the same line, `adr:<id>` or `adr:<source>:<id>`. Files matched by `[scope] anchor_exclude` are not searched for anchors, so docs and tests can show anchor examples.
 
-The projection combines globs and anchors into a path-to-decisions lookup. Scope does not carry over on supersession automatically: when accepting an ADR that supersedes others, `adr accept` offers to copy their scope into a `scoped` event for the new one. Globs, anchors, the path lookup and rename following are ledger's scope layer, shared with issues; the intent-versus-mapping rule below is adr's own.
+The projection combines globs and anchors into a path-to-decisions lookup. Scope does not carry over on supersession automatically: when accepting an ADR that supersedes others, `adr accept --copy-scope` copies their scope into a `scoped` event for the new one; without the flag it asks on a terminal and otherwise tells you the `adr scope` command. Globs, anchors, the path lookup and rename following are ledger's scope layer, shared with issues; the intent-versus-mapping rule below is adr's own.
 
 **Intent versus mapping.** Scope has two layers. The intent is part of the decision: every template has a required Scope section stating in words what the decision governs, for example "all services that write order or payment state". It is frozen with the body. The mapping is the set of globs that projects that intent onto today's code, and it lives in `scoped` events because code moves.
 
@@ -205,21 +212,21 @@ For each ADR the fold produces:
 
 ## CLI surface
 
-The CLI is the human interface and the automation entry point for hooks and CI. Every command writes files and stages them; committing is opt-in with `--commit` or `auto_commit`.
+The CLI is the human interface and the automation entry point for hooks and CI. Every command writes files and stages them; committing is opt-in with `--commit` or `auto_commit`; the message follows `[commit] subject` and `--message` replaces it.
 
 | Command | What it does | Files written |
 | --- | --- | --- |
-| `adr init [--template madr]` | Creates the layout, config and starter templates | config, templates |
+| `adr init [--template madr]…` | Creates the config and copies the chosen starter templates; never overwrites | config, templates |
 | `adr new "Title" [--template X] [--supersedes 7]` | Renders a draft from the template, opens `$EDITOR` | decision file, `proposed` event |
-| `adr accept k3f9q8a1` | Lints the draft, hashes the body, accepts; supersedes anything declared | `accepted` + `superseded` events |
-| `adr reject k3f9q8a1 --reason "…"` | Rejects a proposal | `rejected` event |
+| `adr accept k3f9q8a1 [--copy-scope]` | Lints the draft, hashes the body, accepts; supersedes anything declared; copies superseded decisions' scope with --copy-scope | `accepted` + `superseded` events |
+| `adr reject k3f9q8a1 --reason "…"` | Rejects a proposal | `rejected` event (`--reason` required) |
 | `adr withdraw k3f9q8a1` | Author abandons a proposal | `withdrawn` event |
 | `adr deprecate 7 --reason "…"` | Retires a decision with no replacement | `deprecated` event |
 | `adr supersede 7 --by 12` | Supersedes after the fact, when 12 is already accepted | `superseded` event |
 | `adr note 7 "…"` | Adds a clarification without touching the body | `noted` event |
 | `adr link 7 4 --rel depends-on` | Records a relation | `linked` event |
-| `adr scope 7 --set\|--add\|--remove "src/orders/**"` | Sets which code a decision governs. With --follow-renames, proposes glob updates from git's rename detection | `scoped` event |
-| `adr for src/orders/api.ts` | Lists decisions governing a file, from scope globs and code anchors; with --ref, as of any past commit | none |
+| `adr scope 7 --set\|--add\|--remove "src/orders/**"`, `--clear` | Sets which code a decision governs. With --follow-renames, writes and stages glob updates from the staged renames (never commits) | `scoped` event |
+| `adr for src/orders/api.ts …` | Lists decisions governing files, from scope globs and code anchors, with warnings for inactive ones; with --ref, as of any past commit | none |
 | `adr list [--status accepted] [--json]` | Lists decisions with computed status | none |
 | `adr show 7 [--history] [--json]` | Shows body, status, chain and history | none |
 | `adr search "orders" [--all]` | Full-text search, active decisions only unless `--all` | none |
@@ -231,7 +238,7 @@ The CLI is the human interface and the automation entry point for hooks and CI. 
 
 Global flags: `--ref <git-ref>` for time travel, `--json` for machine output, `--root` to override the decision log directory. These are ark's shared flags, with the same meaning and exit codes in every ark tool.
 
-When a command creates a commit, it adds trailers such as `ADR: k3f9q8a1` and `ADR-Event: accepted`. They are redundant with the event files but make `git log --grep` and forge searches useful. The trailer carries the canonical id, because a commit on a branch is made before the decision has a number.
+When a command creates a commit, it adds trailers such as `ADR: k3f9q8a1` and `ADR-Event: accepted`. They are redundant with the event files but make `git log --grep` and forge searches useful. The trailer carries the canonical id, because a commit on a branch is made before the decision has a number. The subject comes from `[commit] subject` (default `docs(adr): {action} {title}`), and `--message` replaces the subject and body; the trailers stay the last paragraph either way.
 
 ## MCP surface
 
@@ -262,7 +269,7 @@ The MCP server lets agents read decisions safely and propose new ones, but by de
 - Every response that includes a body leads with a state header, before the body text.
 - A superseded or deprecated decision always carries a warning naming the effective decision, for example: `SUPERSEDED by ADR-0012 (accepted 2026-10-18). Do not apply this decision; read adr://decision/12.`
 - Proposals take structured `sections` rather than free markdown, so the template is enforced and lint errors come back as data the agent can fix.
-- Agent-written events get `actor.kind: agent`, the MCP client name in `actor.agent`, and the git user as `on_behalf_of`.
+- Agent-written events get `actor.kind: agent`, the MCP client name in `actor.agent`, and `ARK_ON_BEHALF_OF`, else the git user, as `on_behalf_of`.
 
 ## Templates and customization
 
@@ -378,7 +385,7 @@ The state machine and the verifier are pure functions, so most of the test suite
 | Order independence | A legal history with event files read in random order | Identical projection |
 | Merge safety | A shared history forked into two branches, each valid, then combined | `verify` reports a finding exactly when the branches conflict |
 | Verifier mutation | A valid history plus one tampering: edited accepted body, modified or deleted event, wrong hash, duplicate id, dangling anchor | `verify` flags every mutation and never flags the original |
-| Round trips | Events, template sections, file renames | Events and sections survive serialize and parse unchanged; after renames, a file is covered by the new globs exactly when its original path was covered |
+| Round trips | Events, template sections, file renames | Events and sections survive serialize and parse unchanged; after renames, every file covered before is still covered under its new path, and a file added at a covered path stays covered; a file moved into a covered directory becomes covered, and `adr scope --follow-renames` reports it |
 | Time travel | A repository with history | The state as of a ref equals the fold of the events in that ref's tree |
 
 Most properties run against the pure core at milliseconds per case. A smaller set, mainly merge safety and time travel, runs against real temporary git repositories with fewer iterations. Property tests are built with the core in phase 1 of the roadmap, not added afterwards.
@@ -460,9 +467,13 @@ Use the CLI with --json: adr search, adr show, adr new, adr note.
 adr is step 3 of ark's extraction plan: the first kind built on ledger, starting once ledger's mechanical core exists.
 
 1. Core: the decision kind (events, state machine, invariants), with ledger's fold engine built alongside it; `new` / `accept` / `supersede`, `list` / `show`, `verify`.
-2. Guardrails: decision-specific checks in ark's shared CI action and hooks, generated index; the commands `init`, `reject`, `withdraw`, `deprecate`, `note`, `link`, `scope` and `for`. Phase 1's kind, fold and verify already support the events behind them.
+2. Two releases:
+   - 2a. Commands and Scope: the commands `init`, `reject`, `withdraw`, `deprecate`, `note`, `link`, `scope` and `for`, `accept --copy-scope`, ledger's Scope layer with set events, Conventional Commits messages for `--commit`, and `ARK_ON_BEHALF_OF`. Phase 1's kind, fold and verify already support the events behind them.
+   - 2b. Guardrails: decision-specific checks in ark's shared CI action and hooks, generated index.
 3. Agents: MCP server, SKILL.md and `init --skill`, response state headers, `search`.
 4. Adoption: template management, and import from existing adr-tools or log4brains repos, synthesizing `proposed` and `accepted` events from their status lines without rewriting the files.
 5. Later: an optional live index published as an artifact page that reloads on every new event, as decided in the ark design. Not part of the first version.
+
+Cross-log reference checks at the pinned ref and listing across sources are not an adr phase: they are built in ark's step 4, together with issues, whose `implements` links point into decision logs, including those in other repositories. Until then `adr link` stores a qualified target unchecked and `verify` skips it.
 
 ark's step 3 lands over phases 1–3. ark starts recording its own architecture decisions with adr once phase 1 is merged and released.
