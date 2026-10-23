@@ -28,6 +28,14 @@ export {
   forkAndMerge,
 } from "./fork-and-merge.js";
 export {
+  arbLegalHistory,
+  type DataArbs,
+  finalHistoryContext,
+  type HistoryContext,
+  type LegalHistory,
+  TEST_HUMAN,
+} from "./history.js";
+export {
   arbEventSequence,
   arbLogFixture,
   type LogFixture,
