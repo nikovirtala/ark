@@ -69,8 +69,9 @@ ark/
 
 Every tool, ledger-based or not, follows the same surface rules, so knowing one means knowing all:
 
-- Config in `<tool>.toml` at the tool's root directory.
+- Config in `<tool>.toml`, either in the tool's root directory (`<root>/<tool>.toml`) or at the repository root (`<repo>/<tool>.toml`), where `[log] root` chooses the root. `--root` uses a repository-level file that names the same root, and overrides one that names another root with a warning.
 - Global CLI flags `--json`, `--root` and, where history applies, `--ref`. Exit code 0 on success, 1 on failing findings, 2 on usage errors. Errors always fail; warnings fail only where a tool is configured to fail on them (ledger's `failOn: "warning"`).
+- An agent using a CLI sets `ARK_AGENT=<agent-id>`. Its events are recorded with an `agent` actor, acting on behalf of the git user; without it they are recorded as the git user. The git identity comes from `user.name` and `user.email` and is never guessed.
 - MCP servers start with `<tool> mcp` over stdio, and their tools are named `<tool>_<verb>`.
 - Every tool that agents use ships a SKILL.md, installed with `<tool> init --skill`.
 
@@ -92,13 +93,13 @@ A tool hands ledger its kind, and ledger returns the machinery to fold, verify, 
 import { defineKind } from "@nikovirtala/ledger";
 
 export const issueKind = defineKind({
-  name: "issue",                  // envelope kind, and the qualified-id prefix default
+  name: "issue",                  // envelope kind; the qualified-id prefix defaults to the source name (sourceName), falling back to this
   events: { opened, started, stopped, closed, reopened, assigned, /* … */ },
   initial: "opened",              // the event every subject must start with
   reduce,                         // (state, event) => state, pure
-  invariants,                     // (state) => findings, per subject
-  relate,                         // (states) => findings, across subjects
-  project,                        // (state, graph) => the JSON both surfaces return
+  invariants,                     // (subject, options) => findings, per subject
+  relate,                         // (log, options) => findings, across subjects
+  project,                        // (subject, ctx) => the JSON both surfaces return
   body: "mutable",                // adr: { freezeOn: "accepted" }
   numbering: { on: "opened" },    // which event assigns a display number on main
 });
@@ -190,9 +191,9 @@ The two first kinds differ enough to keep ledger honest: one freezes bodies and 
 
 **Implementation notes**
 
-- TypeScript, in the ark monorepo as `packages/ledger`, published on npm as `@nikovirtala/ledger` with two entry points, `@nikovirtala/ledger` and `@nikovirtala/ledger/testing`.
+- TypeScript, in the ark monorepo as `packages/ledger`, published on npm as `@nikovirtala/ledger` with the entry points `@nikovirtala/ledger`, `@nikovirtala/ledger/testing` and `@nikovirtala/ledger/cli` (and `@nikovirtala/ledger/mcp` once the MCP scaffolding lands). Surfaces live in their own entries so that importing a kind never loads CLI or MCP code.
 - All I/O, including shelling out to `git`, goes through ledger, so the user's git config, credentials and signing setup apply unchanged.
-- Wrong data in a repository becomes a finding. Caller misuse, bad config and environment failures throw typed `LedgerError` subclasses. ledger never writes to stdout or stderr; output belongs to the tools.
+- Wrong data in a repository becomes a finding. Caller misuse, bad config and environment failures throw typed `LedgerError` subclasses. ledger's root entry never writes to stdout or stderr; output belongs to the tools.
 
 **Roadmap**
 
@@ -200,13 +201,13 @@ The roadmap is ark's extraction plan. ledger grows from its users rather than ah
 
 1. **Scaffold.** Create `nikovirtala/ark` with the workspace, build, test and release setup. The first 0.x release of ledger proves the pipeline.
 2. **Mechanical core.** Build ledger's git, identity and files, envelope, verify findings, sources, templates, hooks and testing layers. These have no domain choices in them.
-3. **adr on ledger.** Build adr as the first kind. The fold engine and the state-machine-as-data definition are written in ledger with adr as their only user, and kept small. So are ledger's Scope, Index and Surfaces layers: they are mechanical, and issues needs the same shared flags and commands, so building them in adr and lifting them later would only be churn. The `pre-push` hook gets its default, `verify --base @{upstream}`, here too. A branch with no upstream is compared against its merge-base with `origin`'s default branch, and a repository with no remote verifies the whole log.
+3. **adr on ledger.** Build adr as the first kind. The step lands over adr's phases 1–3. The fold engine and the state-machine-as-data definition are written in ledger with adr as their only user, and kept small. So are ledger's Scope, Index and Surfaces layers: they are mechanical, and issues needs the same shared flags and commands, so building them in adr and lifting them later would only be churn. The `pre-push` hook gets its default, `verify --base @{upstream}`, here too. A branch with no upstream is compared against its merge-base with `origin`'s default branch, and a repository with no remote verifies the whole log.
 4. **issues on ledger.** Build issues as the second kind. Where it needs something adr does not (relations, set events, mutable bodies), it starts in the issues package.
 5. **Lift what matches.** Once both kinds work, move into ledger whatever they both implement the same way, most likely the relation layer and set events, and delete the copies.
 6. **One verify step.** Publish a reusable GitHub Action that runs `verify` for every ark tool configured in a repository and merges their findings into one set of annotations. The Action reads each tool's `--json` report, so the `ledger-findings/v1` report format gets a JSON Schema in this step. Event ids also start being checked for uniqueness across all logs in a repository. Until then they are checked per log, which is enough because a ULID has 80 random bits, so a duplicate only comes from a copied file.
 7. **Move artifact in.** Bring artifact into `packages/artifact` with its git history, release it from the monorepo once, unchanged, and archive the old repository with a pointer. Until then it keeps living in its own repository.
 
-ark starts recording its own decisions with adr as soon as step 3 lands, beginning with the decisions in this document: the monorepo, ledger as the shared core, and the shared envelope.
+ark starts recording its own decisions with adr once adr's phase 1 is merged and released, beginning with the decisions in this document: the monorepo, ledger as the shared core, and the shared envelope.
 
 **Backlog**
 
