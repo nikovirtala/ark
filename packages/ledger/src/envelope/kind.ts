@@ -18,6 +18,8 @@ export type BodyPolicy =
 export interface EventTypeSchema {
   /** JSON Schema (draft 2020-12) of the event's `data`; must stay open at the top level. */
   readonly data: JsonSchema;
+  /** Default `"optional"`. `"required"`: events of this type need a non-blank `reason`. */
+  readonly reason?: "required" | "optional";
 }
 
 /** The structural kind plug-in. Step 3's `defineKind` returns an object satisfying it. */
@@ -149,12 +151,15 @@ export function compileKind(kind: KindSchema): CompiledKind {
   const schemaKey = new RegExp(`^${name}/v[1-9][0-9]*$`);
   const ajv = newAjv();
   const validators = new Map<string, Map<string, ValidateFunction>>();
+  const reasonRequired = new Map<string, Set<string>>();
   for (const [key, version] of Object.entries(kind.schemas)) {
     if (!schemaKey.test(key)) {
       throw fail(`kind ${name}: schema key ${JSON.stringify(key)} must be "${name}/v<n>"`);
     }
     const types = new Map<string, ValidateFunction>();
-    for (const [type, { data }] of Object.entries(version.events)) {
+    const required = new Set<string>();
+    for (const [type, { data, reason }] of Object.entries(version.events)) {
+      if (reason === "required") required.add(type);
       const where = `kind ${name}: ${key} event type ${JSON.stringify(type)}`;
       if (type.length > 64 || !NAME.test(type)) throw fail(`${where} is not a valid event type`);
       if (!isMapping(data) || (data.type !== undefined && data.type !== "object")) {
@@ -170,6 +175,7 @@ export function compileKind(kind: KindSchema): CompiledKind {
       }
     }
     validators.set(key, types);
+    reasonRequired.set(key, required);
   }
   if (typeof kind.body === "object") {
     const { freezeOn } = kind.body;
@@ -224,6 +230,13 @@ export function compileKind(kind: KindSchema): CompiledKind {
       }
       if (!validateData(e.data)) {
         return failed(schemaFindings(validateData.errors, "data/schema", file, "/data"));
+      }
+      const type = String(e.type);
+      if (
+        reasonRequired.get(schema)?.has(type) === true &&
+        (typeof e.reason !== "string" || e.reason.trim() === "")
+      ) {
+        return failed(one("event/reason-required", `${type} events need a reason`));
       }
       return { ok: true, event: e as unknown as EventEnvelope, findings: [] };
     },

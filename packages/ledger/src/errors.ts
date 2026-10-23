@@ -20,7 +20,9 @@ export type LedgerErrorCode =
   | "kind-definition"
   | "source-fetch"
   | "hook-shim"
-  | "ulid-overflow";
+  | "ulid-overflow"
+  | "usage"
+  | "file-exists";
 
 export type JsonValue =
   | null
@@ -70,6 +72,15 @@ export class VerifyUsageError extends LedgerError {
 
   constructor(message: string, options?: ErrorOptions) {
     super("verify-usage", message, options);
+  }
+}
+
+/** Bad command-line usage or an argument that names nothing; surfaces map it to exit 2. */
+export class UsageError extends LedgerError {
+  override name = "UsageError";
+
+  constructor(message: string, options?: ErrorOptions) {
+    super("usage", message, options);
   }
 }
 
@@ -143,6 +154,17 @@ export class EventExistsError extends LedgerError {
 
   constructor(path: string, options?: ErrorOptions) {
     super("event-exists", `event file already exists: ${path}`, options);
+    this.path = path;
+  }
+}
+
+/** A file that must be new already exists (bodies, copied templates). */
+export class FileExistsError extends LedgerError {
+  override name = "FileExistsError";
+  readonly path: string;
+
+  constructor(path: string, options?: ErrorOptions) {
+    super("file-exists", `file already exists: ${path}`, options);
     this.path = path;
   }
 }

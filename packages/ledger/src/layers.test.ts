@@ -3,20 +3,29 @@ import { dirname, join, posix, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-// Layer ranks, bottom up (design §3). A layer file may import only equal or lower ranks.
+// Layer ranks, bottom up (design §3). A layer file may import only equal or lower ranks; the
+// testing harness sits on top and may import any layer.
 const RANKS: readonly [prefix: string, rank: number][] = [
   ["errors.ts", 0],
   ["findings/", 0],
   ["git/", 1],
   ["identity/", 2],
   ["envelope/", 3],
-  ["log/", 4],
-  ["verify/", 5],
-  ["sources/", 6],
-  ["templates/", 7],
-  ["hooks/", 8],
-  ["testing/", 9],
+  ["templates/", 4],
+  ["log/", 5],
+  ["kind/", 6],
+  ["fold/", 7],
+  ["verify/", 8],
+  ["sources/", 9],
+  ["scope/", 10],
+  ["log-index/", 11],
+  ["hooks/", 12],
+  ["surfaces/", 13],
+  ["cli/", 14],
+  ["mcp/", 15],
+  ["testing/", 16],
 ];
+const TESTING_RANK = 16;
 const ENTRY = "index.ts";
 
 function rankOf(file: string): number | null {
@@ -67,7 +76,7 @@ function violations(graph: ReadonlyMap<string, readonly string[]>): string[] {
         continue;
       }
       const targetRank = rankOf(target);
-      if (rank !== null && rank < 9 && targetRank !== null && targetRank > rank) {
+      if (rank !== null && rank < TESTING_RANK && targetRank !== null && targetRank > rank) {
         out.push(`${file} (rank ${rank}) imports ${target} (rank ${targetRank})`);
       }
     }
@@ -111,6 +120,9 @@ describe("layering", () => {
       ["identity/ids.ts", ["git/git.ts", "../outside"]],
       ["testing/index.ts", ["hooks/x.ts", "index.ts"]],
       ["hooks/x.ts", ["testing/index.ts"]],
+      ["kind/define.ts", ["log/snapshot.ts", "fold/fold.ts"]],
+      ["log/snapshot.ts", []],
+      ["fold/fold.ts", []],
       ["stray.ts", []],
     ]);
     expect(violations(graph)).toEqual([
@@ -119,7 +131,8 @@ describe("layering", () => {
       "git/git.ts: must not import the root entry index.ts",
       "identity/ids.ts: relative import ../outside must use a .js specifier",
       "testing/index.ts: must not import the root entry index.ts",
-      "hooks/x.ts (rank 8) imports testing/index.ts (rank 9)",
+      "hooks/x.ts (rank 12) imports testing/index.ts (rank 16)",
+      "kind/define.ts (rank 6) imports fold/fold.ts (rank 7)",
       "stray.ts: not in any layer; add it to a layer directory",
     ]);
   });
