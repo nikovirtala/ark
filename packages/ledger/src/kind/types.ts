@@ -142,8 +142,15 @@ export interface KindDef<S extends string, E extends EventDefs<S>, St, P, O> {
   };
   /** Defaults for the `invariants`/`relate` options. */
   readonly options: O;
-  /** Phase 2 (Scope): which event carries the glob set and in which states it is active. */
-  readonly scope?: { readonly event: keyof E & string; readonly activeIn: readonly S[] };
+  /**
+   * Scope: which whole-set event carries the glob set, in which states it is active, and the
+   * comment-anchor keyword (`<keyword>:<id>`, default `sourceName`).
+   */
+  readonly scope?: {
+    readonly event: keyof E & string;
+    readonly activeIn: readonly S[];
+    readonly keyword?: string;
+  };
 }
 
 /** The state machine of a kind, derived from its event types. */
@@ -175,6 +182,8 @@ export interface Kind<S extends string, E extends EventDefs<S>, St, P, O> extend
   /** The data-schema version new events get. */
   readonly schema: string;
   readonly sourceName: string;
+  /** The comment-anchor keyword: `scope.keyword`, else `sourceName`. */
+  readonly anchorKeyword: string;
   /** `normalizeLayout({ root, ...def.layout })`. */
   layoutAt(root: string): LogLayout;
 }

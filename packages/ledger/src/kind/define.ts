@@ -6,6 +6,8 @@ import type { AnyKind, DATA, EventDefs, EventTypeDef, Kind, KindDef } from "./ty
 
 const NAME = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const BRAND = Symbol.for("@nikovirtala/ledger/kind");
+/** A comment-anchor keyword, as `[[sources]].name`. */
+const KEYWORD = /^[a-z][a-z0-9-]{0,31}$/;
 
 /**
  * Typed constructor: `eventType<{ by: string }>()({ data, allowedIn, to })`. The states are
@@ -96,6 +98,18 @@ function definitionProblem<S extends string, E extends EventDefs<S>, St, P, O>(
     const unknown = (ss ?? []).filter((s) => !isState(s));
     if (unknown.length > 0) return `${field} names unknown state ${list(unknown)}`;
   }
+  if (def.scope !== undefined) {
+    const { keyword, event } = def.scope;
+    if (keyword !== undefined && (typeof keyword !== "string" || !KEYWORD.test(keyword))) {
+      return `scope.keyword ${JSON.stringify(keyword)} must match ${KEYWORD.source}`;
+    }
+    const data = def.events[event]?.data as
+      | { readonly properties?: { readonly set?: { readonly type?: unknown } } }
+      | undefined;
+    if (data?.properties?.set?.type !== "array") {
+      return `scope.event ${JSON.stringify(event)} must have a data.set array`;
+    }
+  }
 
   const prefix = `${def.name}/v`;
   const version = def.schema.startsWith(prefix) ? def.schema.slice(prefix.length) : "";
@@ -152,6 +166,7 @@ export function defineKind<
     }),
     schema: def.schema,
     sourceName: def.sourceName ?? def.name,
+    anchorKeyword: def.scope?.keyword ?? def.sourceName ?? def.name,
     layoutAt: (root: string) => normalizeLayout({ root, ...def.layout }),
   } satisfies Kind<S, E, St, P, O>;
   Object.defineProperty(kind, BRAND, { value: true });
