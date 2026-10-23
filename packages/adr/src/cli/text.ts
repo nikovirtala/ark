@@ -1,4 +1,5 @@
 import { type EventEnvelope, type Finding, renderStateHeader } from "@nikovirtala/ledger";
+import type { InitResultJson } from "../init.js";
 import type { DecisionView } from "../kind.js";
 import type { DecisionsForJson } from "../scope.js";
 import type { DecisionListJson, DecisionShowJson } from "../views.js";
@@ -307,4 +308,18 @@ export function forText(doc: DecisionsForJson, display: Display, keyword: string
     }
   }
   return lines.join("\n");
+}
+
+/** `adr init`: what was written and kept, then the next step; or that nothing was needed. */
+export function initText(doc: InitResultJson): string {
+  if (doc.written.length === 0) {
+    return `Already initialized: ${doc.root} (kept ${doc.kept.join(", ")})`;
+  }
+  return [
+    `Initialized ${doc.root}`,
+    ...doc.written.map((p) => `  ${p}`),
+    ...doc.kept.map((p) => `Kept ${p}`),
+    ...(doc.commit === null ? [] : [`Committed ${short(doc.commit)}.`]),
+    'Next: adr new "<title>"',
+  ].join("\n");
 }
