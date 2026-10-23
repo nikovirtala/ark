@@ -1,5 +1,5 @@
 import { adrKind } from "@nikovirtala/adr/kind";
-import { ENVELOPE_VERSION } from "@nikovirtala/ledger";
+import { ENVELOPE_VERSION, isKind } from "@nikovirtala/ledger";
 import { expect, it } from "vitest";
 import { issueKind } from "./kind.js";
 
@@ -10,5 +10,6 @@ it("defines the issue kind on the ledger envelope", () => {
 
 it("reads adr's kind through the @nikovirtala/adr/kind subpath", () => {
   expect(adrKind.name).toBe("decision");
-  expect(adrKind.envelope).toBe(issueKind.envelope);
+  expect(adrKind.schema).toBe("decision/v1");
+  expect(isKind(adrKind)).toBe(true); // isKind from @nikovirtala/ledger
 });
