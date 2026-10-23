@@ -1,0 +1,15 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M5MHNFQ10DFGYZF61J4P762T
+subject: gyspf3an
+type: accepted
+at: 2026-10-23T14:12:02Z
+actor:
+  kind: human
+  name: Niko Virtala
+  email: niko.virtala@hey.com
+  agent: null
+  on_behalf_of: null
+data:
+  body_sha256: 0a8a8a148caefc2b0a069b7549b8b8a4cc681e06302165aec54d21caeedc68c3
