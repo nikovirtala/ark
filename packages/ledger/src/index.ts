@@ -52,7 +52,13 @@ export {
 } from "./findings/finding.js";
 export { type FindingsReport, formatGithub, formatJson, formatText } from "./findings/format.js";
 export { compareEvents, foldLog, foldSubject } from "./fold/fold.js";
-export { NO_NUMBERING, type Numbering } from "./fold/numbering.js";
+export {
+  assignNumbers,
+  NO_NUMBERING,
+  type Numbering,
+  numberLog,
+  resolveMainRef,
+} from "./fold/numbering.js";
 export { kindFindings, type Projection, projectLog } from "./fold/project.js";
 export {
   GIT_ENV_ISOLATION,

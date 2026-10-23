@@ -322,6 +322,13 @@ export class Git {
     return r.code === 0 ? (lines(r.stdout)[0] ?? null) : null;
   }
 
+  /** The ref a symbolic ref points to (`refs/remotes/origin/HEAD` → `refs/remotes/origin/main`), or `null`. */
+  async symbolicRef(ref: string): Promise<string | null> {
+    assertRev(ref);
+    const r = await this.run(["symbolic-ref", "-q", "--end-of-options", ref], { okCodes: [0, 1] });
+    return r.code === 0 ? (lines(r.stdout)[0] ?? null) : null;
+  }
+
   async isShallow(): Promise<boolean> {
     const r = await this.run(["rev-parse", "--is-shallow-repository"]);
     return lines(r.stdout)[0] === "true";

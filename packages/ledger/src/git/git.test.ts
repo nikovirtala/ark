@@ -328,6 +328,17 @@ describe("commit, trailers and blobs", () => {
     );
   });
 
+  it("symbolicRef reads a symbolic ref's target and is null otherwise", async () => {
+    const r = await repo({ files: { "a.txt": "a\n" } });
+    expect(await r.git.symbolicRef("HEAD")).toBe("refs/heads/main");
+    await r.git.run(["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    await r.git.run(["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"]);
+    expect(await r.git.symbolicRef("refs/remotes/origin/HEAD")).toBe("refs/remotes/origin/main");
+    expect(await r.git.symbolicRef("refs/heads/main")).toBeNull();
+    expect(await r.git.symbolicRef("refs/remotes/upstream/HEAD")).toBeNull();
+    await expect(r.git.symbolicRef("--all")).rejects.toBeInstanceOf(InvalidArgumentError);
+  });
+
   it("readBlobs reads by oid and leaves missing objects out", async () => {
     const r = await repo({ files: { "a.txt": "a\n", "b.bin": "\0\x01\n" } });
     const entries = await (await refReader(r.git, "HEAD")).list("");
