@@ -21,6 +21,10 @@
       "types": "./dist/types/testing/index.d.ts",
       "default": "./dist/testing.js"
     },
+    "./cli": {
+      "types": "./dist/types/cli/index.d.ts",
+      "default": "./dist/cli.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
