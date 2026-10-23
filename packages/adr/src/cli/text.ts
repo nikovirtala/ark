@@ -136,6 +136,7 @@ const VERBS: Readonly<Record<WriteResultJson["command"], string>> = {
   deprecate: "deprecated",
   note: "noted",
   link: "linked",
+  scope: "scoped",
 };
 
 /**
@@ -150,6 +151,8 @@ export function writeText(
     readonly subject: string;
     readonly number: string | null;
     readonly reason?: string | null;
+    /** The decision's globs before a `scope` write. */
+    readonly scopeBefore?: readonly string[];
   },
 ): string {
   const verb = VERBS[doc.command];
@@ -199,6 +202,19 @@ export function writeText(
       if (link === undefined) return `Links of ${named(v.id, display)} unchanged`;
       return [
         `Linked ${named(v.id, display)} ${link.rel} ${named(link.to, display)}`,
+        recorded,
+      ].join("\n");
+    }
+    case "scope": {
+      const before = new Set(o.scopeBefore ?? []);
+      const after = new Set(v.applies_to);
+      const globs = v.applies_to.length === 0 ? "no globs" : v.applies_to.join(", ");
+      if (doc.written.length === 0) return `Scope of ${named(v.id, display)} unchanged: ${globs}`;
+      return [
+        `Scope of ${named(v.id, display)}: ${v.title}`,
+        ...v.applies_to.filter((g) => !before.has(g)).map((g) => `  + ${g}`),
+        ...[...before].filter((g) => !after.has(g)).map((g) => `  - ${g}`),
+        `  = ${globs}`,
         recorded,
       ].join("\n");
     }

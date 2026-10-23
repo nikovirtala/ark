@@ -1,4 +1,4 @@
-import { eventType } from "@nikovirtala/ledger";
+import { eventType, setEventType } from "@nikovirtala/ledger";
 
 /** A decision's computed status. */
 export type DecisionStatus =
@@ -94,21 +94,11 @@ export const decisionEvents = {
     allowedIn: "any",
     to: null,
   }),
-  scoped: eventType<{ set: string[] }>()({
-    data: {
-      type: "object",
-      required: ["set"],
-      properties: {
-        set: {
-          type: "array",
-          items: { type: "string", minLength: 1, maxLength: 500 },
-          uniqueItems: true,
-          maxItems: 200,
-        },
-      },
-    },
+  // ledger's whole-set event (G11): the same schema as before, so decision/v1 is unchanged.
+  scoped: setEventType({
+    item: { type: "string", minLength: 1, maxLength: 500 },
+    maxItems: 200,
     allowedIn: ["proposed", "accepted", "deprecated"],
-    to: null,
   }),
 } as const;
 

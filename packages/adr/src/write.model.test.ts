@@ -11,11 +11,11 @@ import {
   type PlanResult,
   planAccept,
   planDeprecate,
-  planEvent,
   planLink,
   planNote,
   planPropose,
   planReject,
+  planScope,
   planSupersede,
   planWithdraw,
 } from "./write.js";
@@ -173,7 +173,7 @@ function referenceStep(
     case "scope": {
       const d = m(pick(cmd.x));
       if (!["proposed", "accepted", "deprecated"].includes(d.status)) return false;
-      d.scope = [...cmd.set];
+      d.scope = [...cmd.set].sort();
       return true;
     }
   }
@@ -244,11 +244,7 @@ async function plan(
     case "link":
       return planLink(read, { id: pick(cmd.x), to: pick(cmd.to), actor }, c);
     case "scope":
-      return planEvent(
-        read,
-        { subject: pick(cmd.x), type: "scoped", data: { set: [...cmd.set] }, actor },
-        c,
-      );
+      return planScope(read, { id: pick(cmd.x), op: { set: [...cmd.set] }, actor }, c);
   }
 }
 

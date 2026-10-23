@@ -1,6 +1,7 @@
 import { ConfigError, parseToolConfig } from "@nikovirtala/ledger";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_ADR_CONFIG, parseAdrConfig } from "./config.js";
+import { adrKind } from "./kind.js";
 
 const COMMIT_VARS = { action: 24, id: 8, display: 13, command: 9 };
 const DEFAULT_SUBJECT = { source: "docs(adr): {action} {title}", vars: COMMIT_VARS };
@@ -19,7 +20,10 @@ describe("parseAdrConfig", () => {
       mcpCanDecide: false,
       failOn: "error",
       commitSubject: DEFAULT_SUBJECT,
+      anchorKeyword: "adr",
+      anchorExclude: [],
     });
+    expect(adrKind.anchorKeyword).toBe("adr");
     expect(parse("")).toEqual(DEFAULT_ADR_CONFIG);
     expect(parse("[commit]\n")).toEqual(DEFAULT_ADR_CONFIG);
   });
@@ -43,6 +47,10 @@ fail_on = "warning"
 
 [commit]
 subject = "docs({command}): {action} {raw_title} ({display})"
+
+[scope]
+anchor_keyword = "decision"
+anchor_exclude = ["docs/**", "**/*.test.ts"]
 `),
     ).toEqual({
       defaultTemplate: "madr",
@@ -56,6 +64,8 @@ subject = "docs({command}): {action} {raw_title} ({display})"
         source: "docs({command}): {action} {raw_title} ({display})",
         vars: COMMIT_VARS,
       },
+      anchorKeyword: "decision",
+      anchorExclude: ["docs/**", "**/*.test.ts"],
     });
   });
 
@@ -87,6 +97,19 @@ subject = "docs({command}): {action} {raw_title} ({display})"
     ["[policy]\nmcp_can_decide = 'no'", "policy.mcp_can_decide must be true or false"],
     ["[verify]\nfail_on = 'info'", 'verify.fail_on must be "error" or "warning"'],
     ["commit = 'x'", "adr.toml: commit must be a table"],
+    ["scope = 1", "adr.toml: scope must be a table"],
+    ["[scope]\nanchor_keyword = 'ADR'", "scope.anchor_keyword must match ^[a-z][a-z0-9-]{0,31}$"],
+    ["[scope]\nanchor_keyword = 7", "scope.anchor_keyword must match"],
+    ["[scope]\nanchor_exclude = 'docs/**'", "scope.anchor_exclude must be an array of at most 100"],
+    [
+      `[scope]\nanchor_exclude = [${Array(101).fill("'a'").join(",")}]`,
+      "scope.anchor_exclude must be an array of at most 100 globs",
+    ],
+    ["[scope]\nanchor_exclude = [1]", "adr.toml: scope.anchor_exclude[0] must be a string"],
+    [
+      "[scope]\nanchor_exclude = ['ok/**', '/abs']",
+      "adr.toml: scope.anchor_exclude[1]: invalid glob",
+    ],
     ["[commit]\nsubject = 1", "adr.toml: commit.subject must be a string"],
     [
       "[commit]\nsubject = 'docs(adr): {verb} {title}'",

@@ -2,10 +2,12 @@ import {
   type CommitTemplate,
   ConfigError,
   parseCommitTemplate,
+  parseGlob,
   readCommitTemplate,
   type Severity,
   type ToolConfig,
 } from "@nikovirtala/ledger";
+import { adrKind } from "./kind.js";
 
 /** adr's commit-subject placeholders, each with its longest value (design §4.2). */
 const COMMIT_VARS = Object.freeze({ action: 24, id: 8, display: 13, command: 9 });
@@ -40,6 +42,10 @@ export interface AdrConfig {
   readonly failOn: Severity;
   /** `[commit] subject`: the template of `--commit` subjects. */
   readonly commitSubject: CommitTemplate;
+  /** `[scope] anchor_keyword`: the code-anchor keyword, `adr` in `// adr:<id>`. */
+  readonly anchorKeyword: string;
+  /** `[scope] anchor_exclude`: globs of files whose anchors are ignored (docs that show examples). */
+  readonly anchorExclude: readonly string[];
 }
 
 export const DEFAULT_ADR_CONFIG: AdrConfig = Object.freeze({
@@ -55,9 +61,13 @@ export const DEFAULT_ADR_CONFIG: AdrConfig = Object.freeze({
     where: "commit.subject",
     names: COMMIT_NAMES,
   }),
+  anchorKeyword: adrKind.anchorKeyword,
+  anchorExclude: Object.freeze([]),
 });
 
 const TEMPLATE = /^[a-z][a-z0-9-]*$/;
+const KEYWORD = /^[a-z][a-z0-9-]{0,31}$/;
+const MAX_ANCHOR_EXCLUDE = 100;
 
 function isTable(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v) && !(v instanceof Date);
@@ -81,6 +91,7 @@ export function parseAdrConfig(config: ToolConfig | null, file: string | null): 
   const log = table("log");
   const policy = table("policy");
   const verify = table("verify");
+  const scope = table("scope");
   const bool = (t: Record<string, unknown>, section: string, key: string, fallback: boolean) => {
     const v = t[key];
     if (v === undefined) return fallback;
@@ -116,6 +127,21 @@ export function parseAdrConfig(config: ToolConfig | null, file: string | null): 
   ) {
     throw fail("log.main_branch must be a ref name that doesn't start with -");
   }
+  const keyword = scope.anchor_keyword;
+  if (keyword !== undefined && (typeof keyword !== "string" || !KEYWORD.test(keyword))) {
+    throw fail(`scope.anchor_keyword must match ${KEYWORD.source}`);
+  }
+  const exclude = scope.anchor_exclude;
+  if (exclude !== undefined) {
+    if (!Array.isArray(exclude) || exclude.length > MAX_ANCHOR_EXCLUDE) {
+      throw fail(`scope.anchor_exclude must be an array of at most ${MAX_ANCHOR_EXCLUDE} globs`);
+    }
+    exclude.forEach((g: unknown, i) => {
+      if (typeof g !== "string") throw fail(`scope.anchor_exclude[${i}] must be a string`);
+      const parsed = parseGlob(g);
+      if (!parsed.ok) throw fail(`scope.anchor_exclude[${i}]: ${parsed.message}`);
+    });
+  }
   return {
     defaultTemplate: typeof template === "string" ? template : DEFAULT_ADR_CONFIG.defaultTemplate,
     mainBranch: typeof main === "string" ? main : null,
@@ -130,5 +156,7 @@ export function parseAdrConfig(config: ToolConfig | null, file: string | null): 
       defaultSubject: DEFAULT_COMMIT_SUBJECT,
       names: COMMIT_NAMES,
     }),
+    anchorKeyword: typeof keyword === "string" ? keyword : DEFAULT_ADR_CONFIG.anchorKeyword,
+    anchorExclude: Array.isArray(exclude) ? (exclude as string[]) : [],
   };
 }

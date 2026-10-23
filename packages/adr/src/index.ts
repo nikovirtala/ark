@@ -39,6 +39,8 @@ export {
   proposeDecision,
   type ReasonInput,
   rejectDecision,
+  type ScopeInput,
+  scopeDecision,
   supersedeDecision,
   type WriteOptions,
   type WriteResultJson,
