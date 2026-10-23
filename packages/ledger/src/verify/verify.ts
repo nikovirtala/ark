@@ -1,13 +1,16 @@
 import { type CompiledKind, compileKind, type KindSchema } from "../envelope/kind.js";
 import { InvalidArgumentError, RefNotFoundError, VerifyUsageError } from "../errors.js";
 import { type Finding, sortFindings } from "../findings/finding.js";
+import { foldLog } from "../fold/fold.js";
 import type { Git } from "../git/git.js";
 import { indexReader, refReader, type TreeReader, worktreeReader } from "../git/tree.js";
 import { parseBodyFileName } from "../identity/files.js";
 import { classifyPath, type LogLayout } from "../identity/layout.js";
+import { isKind } from "../kind/define.js";
 import { loadLog } from "../log/snapshot.js";
 import { type Check, type CheckContext, mechanicalChecks } from "./checks.js";
 import { type Change, diffTrees } from "./diff.js";
+import { foldChecks } from "./fold-checks.js";
 
 export type VerifyMode =
   /** Base `HEAD` (none on an unborn `HEAD`), head the index; only touched subjects. */
@@ -26,8 +29,11 @@ function subjectOf(layout: LogLayout, change: Change): string | null {
 }
 
 /**
- * Verifies `head` against `base` (`null`: no base) with the given checks (default
- * `mechanicalChecks`). Returns the findings sorted, with `kind` filled in.
+ * Verifies `head` against `base` (`null`: no base) with the given checks. Returns the findings
+ * sorted, with `kind` filled in. For a `defineKind` kind, head and base are folded into
+ * `ctx.folded` and the checks default to `foldChecks(kind)`; in scope `changed`, a kind with
+ * `relate` loads the whole head log, since relations need the subjects they refer to. Other kinds
+ * default to `mechanicalChecks`.
  */
 export async function verifySnapshots(o: {
   readonly kind: CompiledKind;
@@ -53,17 +59,26 @@ export async function verifySnapshots(o: {
     const area = classifyPath(layout, c.path).area;
     if (area === "body" || (area === "event" && c.status === "deleted")) baseNeeded.add(id);
   }
-  const head =
-    scope === "all"
-      ? await loadLog(o.head, { kind, layout })
-      : await loadLog(o.head, { kind, layout, subjects: changed });
+  const defined = isKind(kind.kind) ? kind.kind : null;
+  const whole = scope === "all" || defined?.def.relate !== undefined;
+  const head = whole
+    ? await loadLog(o.head, { kind, layout })
+    : await loadLog(o.head, { kind, layout, subjects: changed });
   const inScope = scope === "all" ? new Set([...head.subjects.keys(), ...changed]) : changed;
   const base =
     o.base === null ? null : await loadLog(o.base, { kind, layout, subjects: baseNeeded });
-  const ctx: CheckContext = { kind, layout, base, head, changes, scope, inScope };
+  const folded =
+    defined === null
+      ? null
+      : {
+          head: foldLog(defined, head),
+          base: base === null ? null : foldLog(defined, base),
+        };
+  const ctx: CheckContext = { kind, layout, base, head, changes, scope, inScope, folded };
 
+  const checks = o.checks ?? (defined === null ? mechanicalChecks : foldChecks(defined));
   const findings: Finding[] = [];
-  for (const check of o.checks ?? mechanicalChecks) findings.push(...(await check.run(ctx)));
+  for (const check of checks) findings.push(...(await check.run(ctx)));
   return sortFindings(findings.map((f) => ({ ...f, kind: kind.kind.name })));
 }
 

@@ -43,6 +43,12 @@ export {
   logFixtureFiles,
 } from "./log-fixture.js";
 export {
+  applySemanticTamper,
+  arbSemanticTamper,
+  type SemanticTamper,
+  semanticExpectedRules,
+} from "./semantic-tamper.js";
+export {
   applyTamper,
   arbAppend,
   arbTamper,
