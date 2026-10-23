@@ -6,6 +6,7 @@ import {
   decisionFiles,
   foldFiles,
   hashOf,
+  numberingOf,
   proposedData,
   type SubjectSpec,
 } from "../test-support/events.js";
@@ -15,14 +16,7 @@ const B = "k3f9q8a1";
 const C = "m2x7p4d2";
 const BODY = "# Decision\n";
 
-const numbering = (byId: Record<string, number>): Numbering => ({
-  available: true,
-  reason: null,
-  ref: "refs/heads/main",
-  commit: null,
-  byId: new Map(Object.entries(byId)),
-  byNumber: new Map(Object.entries(byId).map(([id, n]) => [n, id])),
-});
+const numbering = numberingOf;
 
 async function views(subjects: SubjectSpec[], n: Numbering = NO_NUMBERING) {
   const files = decisionFiles(subjects);
