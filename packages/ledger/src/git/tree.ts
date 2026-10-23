@@ -213,6 +213,36 @@ export async function indexReader(git: Git): Promise<TreeReader> {
   };
 }
 
+/**
+ * `base` with `files` added (a path in both reads from `files`), without touching the disk: for
+ * folding the state a write would produce before writing it. Oids of the added files follow git's
+ * blob formula in `o.objectFormat` (default `sha1`).
+ */
+export function overlayTree(
+  base: TreeReader,
+  files: Readonly<Record<string, Uint8Array>>,
+  o: { readonly objectFormat?: "sha1" | "sha256" } = {},
+): TreeReader {
+  const added = new MemoryTree(files, o);
+  const isAdded = (path: string) => Object.hasOwn(files, path);
+  return {
+    label: base.label,
+    commit: null,
+    async list(prefix) {
+      const [below, over] = await Promise.all([base.list(prefix), added.list(prefix)]);
+      return [...below.filter((e) => !isAdded(e.path)), ...over].sort(comparePaths);
+    },
+    read: (path) => (isAdded(path) ? added.read(path) : base.read(path)),
+    async readMany(paths) {
+      const [fromBase, fromAdded] = await Promise.all([
+        base.readMany(paths.filter((p) => !isAdded(p))),
+        added.readMany(paths.filter(isAdded)),
+      ]);
+      return new Map([...fromBase, ...fromAdded]);
+    },
+  };
+}
+
 /** An in-memory tree whose oids follow git's blob formula, for tests and pure verification. */
 export class MemoryTree implements TreeReader {
   readonly label = "memory";

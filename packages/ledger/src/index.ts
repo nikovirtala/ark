@@ -84,6 +84,7 @@ export {
 export {
   indexReader,
   MemoryTree,
+  overlayTree,
   refReader,
   type TreeEntry,
   type TreeReader,
@@ -163,7 +164,7 @@ export {
   type LogSnapshot,
   loadLog,
 } from "./log/snapshot.js";
-export { nextEventIdentity, writeEvent } from "./log/write.js";
+export { nextEventIdentity, writeEvent, writeEvents, writeNewFile } from "./log/write.js";
 export {
   MAX_CONFIG_BYTES,
   parseToolConfig,
