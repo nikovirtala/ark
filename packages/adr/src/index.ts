@@ -32,6 +32,9 @@ export {
 export {
   acceptDecision,
   deprecateDecision,
+  type LinkInput,
+  linkDecision,
+  noteDecision,
   type ProposeInput,
   proposeDecision,
   type ReasonInput,

@@ -37,7 +37,7 @@ import {
   writeEvents,
   writeNewFile,
 } from "@nikovirtala/ledger";
-import { adrKind, type DecisionView } from "./kind.js";
+import { adrKind, type DecisionView, type LinkRel } from "./kind.js";
 import {
   type DecisionLog,
   type DecisionsRead,
@@ -47,10 +47,18 @@ import {
 } from "./log.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
 
-/** `adr new|accept|supersede|reject|withdraw|deprecate --json` (design §5.5, §6.1). */
+/** `adr new|accept|supersede|reject|withdraw|deprecate|note|link --json` (design §5.5, §6.1). */
 export interface WriteResultJson {
   readonly format: "adr-write/v1";
-  readonly command: "new" | "accept" | "supersede" | "reject" | "withdraw" | "deprecate";
+  readonly command:
+    | "new"
+    | "accept"
+    | "supersede"
+    | "reject"
+    | "withdraw"
+    | "deprecate"
+    | "note"
+    | "link";
   readonly ok: boolean;
   /**
    * The decision after the write; before it when `ok` is false (`null` for a refused `new`).
@@ -135,6 +143,8 @@ export interface WritePlan {
   readonly affected: readonly DecisionView[];
   /** Informational (new: the draft's template lint). */
   readonly findings: readonly Finding[];
+  /** The write's own notes for the result (an already existing link, …). */
+  readonly notes?: readonly string[];
 }
 
 /** The parts of a commit message (design §4.3): the template's variables and the body. */
@@ -786,6 +796,111 @@ export function planDeprecate(read: DecisionsRead, input: ReasonInput, c: PlanCo
   return planEvent(read, { ...input, subject: input.id, type: "deprecated", data: {} }, c);
 }
 
+/** Plans `adr note`: `noted` with the text as given, in every state. */
+export function planNote(
+  read: DecisionsRead,
+  input: { readonly id: string; readonly text: string; readonly actor: Actor },
+  c: PlanContext,
+): Promise<PlanResult> {
+  if (input.text.trim() === "") throw new UsageError("the note text must not be empty");
+  checkText("the note text", input.text);
+  return planEvent(
+    read,
+    { subject: input.id, type: "noted", data: { text: input.text }, actor: input.actor },
+    c,
+  );
+}
+
+const LINK_RELS: readonly LinkRel[] = ["relates-to", "refines", "depends-on"];
+const SOURCE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
+
+export interface LinkInput {
+  readonly id: string;
+  /** A local id or number, or `<source>:<id>` naming a configured `[[sources]]` entry. */
+  readonly to: string;
+  /** Default `relates-to`. */
+  readonly rel?: string;
+  readonly actor: Actor;
+}
+
+/**
+ * Plans `adr link` (design §6.7): `linked` in every state. A qualified target must name one of
+ * `o.sources` (the log's `[[sources]]` names); it isn't looked up in the other log. A link that
+ * already exists plans nothing, with a note.
+ */
+export async function planLink(
+  read: DecisionsRead,
+  input: LinkInput,
+  c: PlanContext,
+  o: { readonly sources?: readonly string[] } = {},
+): Promise<PlanResult> {
+  const rel = input.rel ?? "relates-to";
+  if (!(LINK_RELS as readonly string[]).includes(rel)) {
+    throw new UsageError(`unknown --rel ${rel}; use relates-to, refines or depends-on`);
+  }
+  const id = resolveDecision(read, input.id);
+  const view = viewOf(read, id);
+  const target = input.to.trim();
+  let to: string;
+  let shown: string;
+  let described: string;
+  let named: string;
+  const at = target.indexOf(":");
+  if (at >= 0) {
+    const source = target.slice(0, at);
+    const local = target.slice(at + 1);
+    if (!SOURCE_NAME.test(source) || !isSubjectId(local)) {
+      throw new UsageError(`invalid decision ${JSON.stringify(input.to)}`);
+    }
+    if (!(o.sources ?? []).includes(source)) {
+      throw new UsageError(`unknown source ${source}; add a [[sources]] entry named ${source}`);
+    }
+    to = target;
+    shown = target;
+    described = `${rel} ${target}.`;
+    named = `${view.display} to a decision in another log`;
+  } else {
+    to = resolveDecision(read, target);
+    if (to === id) throw new UsageError("a decision can't link to itself");
+    const t = viewOf(read, to);
+    shown = t.display;
+    described = `${rel} ${t.display}: ${sentenceTitle(t.title)}.`;
+    named = `${view.display} to ${t.display}`;
+  }
+  if (view.links.some((l) => l.to === to && l.rel === rel)) {
+    return {
+      ok: true,
+      plan: {
+        command: "event",
+        subject: id,
+        files: {},
+        events: [],
+        stage: [],
+        involved: [id],
+        commitScope: [],
+        eventDirs: [],
+        draft: null,
+        commit: null,
+        trailers: [],
+        decision: view,
+        affected: [],
+        findings: [],
+        notes: [`already linked: ${view.display} ${rel} ${shown}; nothing written`],
+      },
+    };
+  }
+  const r = await planEvent(
+    read,
+    { subject: id, type: "linked", data: { to, rel }, actor: input.actor },
+    c,
+  );
+  if (!r.ok || r.plan.commit === null) return r;
+  return {
+    ok: true,
+    plan: { ...r.plan, commit: { ...r.plan.commit, title: named, body: [described] } },
+  };
+}
+
 /** What the editor step decided (§5.4 step 4a). */
 export interface AfterStage {
   /** Draft lint findings to report instead of `plan.findings`; `null` keeps `plan.findings`. */
@@ -1001,7 +1116,7 @@ async function write(
         written: [],
         commit: null,
         findings: r.plan.findings,
-        notes,
+        notes: [...notes, ...(r.plan.notes ?? [])],
       };
     }
     const rendered = commit ? commitMessage(log, command, r.plan) : null;
@@ -1015,10 +1130,12 @@ async function write(
         ...(afterStage === undefined ? {} : { afterStage: afterStage(r.plan, commit) }),
       });
       const views = await viewsAfter(log, r.plan, applied.commit);
-      const own =
-        applied.commit !== null && given === null && rendered?.shortened === true
+      const own = [
+        ...(r.plan.notes ?? []),
+        ...(applied.commit !== null && given === null && rendered?.shortened === true
           ? [SHORTENED_NOTE]
-          : [];
+          : []),
+      ];
       return {
         format: "adr-write/v1",
         command,
@@ -1195,4 +1312,28 @@ export async function deprecateDecision(
   deps: WriteDeps = DEFAULT_DEPS,
 ): Promise<WriteResultJson> {
   return write(log, "deprecate", (read, c) => planDeprecate(read, input, c), o, deps);
+}
+
+/** `adr note <id> <text>`: writes `noted`, stages it, and commits with `commit`. */
+export async function noteDecision(
+  log: DecisionLog,
+  input: { readonly id: string; readonly text: string; readonly actor: Actor },
+  o: WriteOptions = {},
+  deps: WriteDeps = DEFAULT_DEPS,
+): Promise<WriteResultJson> {
+  return write(log, "note", (read, c) => planNote(read, input, c), o, deps);
+}
+
+/**
+ * `adr link <id> <target> [--rel <rel>]`: writes `linked`, stages it, and commits with `commit`.
+ * Qualified targets name the log's `[[sources]]`; a link that exists already writes nothing.
+ */
+export async function linkDecision(
+  log: DecisionLog,
+  input: LinkInput,
+  o: WriteOptions = {},
+  deps: WriteDeps = DEFAULT_DEPS,
+): Promise<WriteResultJson> {
+  const sources = (log.config?.sources ?? []).map((s) => s.name);
+  return write(log, "link", (read, c) => planLink(read, input, c, { sources }), o, deps);
 }

@@ -12,6 +12,8 @@ import {
   planAccept,
   planDeprecate,
   planEvent,
+  planLink,
+  planNote,
   planPropose,
   planReject,
   planSupersede,
@@ -238,22 +240,9 @@ async function plan(
     case "deprecate":
       return planDeprecate(read, { id: pick(cmd.x), reason: "obsolete", actor }, c);
     case "note":
-      return planEvent(
-        read,
-        { subject: pick(cmd.x), type: "noted", data: { text: "a note" }, actor },
-        c,
-      );
+      return planNote(read, { id: pick(cmd.x), text: "a note", actor }, c);
     case "link":
-      return planEvent(
-        read,
-        {
-          subject: pick(cmd.x),
-          type: "linked",
-          data: { to: pick(cmd.to), rel: "relates-to" },
-          actor,
-        },
-        c,
-      );
+      return planLink(read, { id: pick(cmd.x), to: pick(cmd.to), actor }, c);
     case "scope":
       return planEvent(
         read,
@@ -285,6 +274,16 @@ describe("write plans (AC 6)", () => {
               templates: treeTemplates(read.tree, `${LAYOUT.root}/templates`),
               builtins: BUILTIN_TEMPLATES,
             };
+            if (
+              cmd.type === "link" &&
+              order[cmd.x % order.length] === order[cmd.to % order.length]
+            ) {
+              // A decision can't link to itself: a usage error, before anything is planned.
+              await expect(plan(read, order, cmd, c)).rejects.toThrow(
+                "a decision can't link to itself",
+              );
+              continue;
+            }
             const r = await plan(read, order, cmd, c);
             const legal = referenceStep(models, order, cmd, r.ok ? r.plan.subject : null);
             expect(r.ok, JSON.stringify({ cmd, r: r.ok ? null : r.findings })).toBe(legal);

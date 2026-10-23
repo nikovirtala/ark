@@ -4,8 +4,10 @@ import { adrKind } from "../kind.js";
 import { adrChecks } from "../verify.js";
 import { acceptCommand } from "./accept.js";
 import { deprecateCommand } from "./deprecate.js";
+import { linkCommand } from "./link.js";
 import { listCommand } from "./list.js";
 import { newCommand } from "./new.js";
+import { noteCommand } from "./note.js";
 import { openForCli } from "./open.js";
 import { rejectCommand } from "./reject.js";
 import { showCommand } from "./show.js";
@@ -45,6 +47,8 @@ export function adrCli(version: string): ToolCli {
       withdrawCommand,
       deprecateCommand,
       supersedeCommand,
+      noteCommand,
+      linkCommand,
       listCommand,
       showCommand,
       verify,
