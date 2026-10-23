@@ -1,6 +1,7 @@
-import { type EventEnvelope, renderStateHeader } from "@nikovirtala/ledger";
+import { type EventEnvelope, type Finding, renderStateHeader } from "@nikovirtala/ledger";
 import type { DecisionView } from "../kind.js";
 import type { DecisionListJson, DecisionShowJson } from "../views.js";
+import type { WriteResultJson } from "../write.js";
 
 /** How a decision id is shown: its display (`ADR-0007`), or the id when it has no number. */
 export type Display = (id: string) => string;
@@ -79,6 +80,92 @@ function historyLines(events: readonly EventEnvelope[]): string[] {
       ...(detail === null ? [] : [`    ${detail}`]),
     ];
   });
+}
+
+const SECTION_FINDING =
+  /^(?:required )?section (.+?) (is missing|is empty|still contains its guidance text)$/;
+const REASONS: Readonly<Record<string, string>> = {
+  "is missing": "missing",
+  "is empty": "empty",
+  "still contains its guidance text": "guidance text left",
+};
+
+/**
+ * The draft lint of `new` as advice: `Fill in N sections before accepting: A, B (why)` for the
+ * section findings, and one line per other finding.
+ */
+function draftAdvice(findings: readonly Finding[]): string[] {
+  const headings: string[] = [];
+  const reasons: string[] = [];
+  const other: string[] = [];
+  for (const f of findings) {
+    const m = SECTION_FINDING.exec(f.message);
+    if (m === null) {
+      other.push(`Draft: ${f.message} [${f.rule}]`);
+      continue;
+    }
+    const [, heading = "", what = ""] = m;
+    const reason = REASONS[what] ?? what;
+    if (!headings.includes(heading)) headings.push(heading);
+    if (!reasons.includes(reason)) reasons.push(reason);
+  }
+  const n = headings.length;
+  return [
+    ...(n === 0
+      ? []
+      : [
+          `Fill in ${n === 1 ? "1 section" : `${n} sections`} before accepting: ${headings.join(", ")} (${reasons.join(", ")})`,
+        ]),
+    ...other,
+  ];
+}
+
+function findingLines(findings: readonly Finding[]): string[] {
+  return findings.map((f) => `  ${f.file === null ? "" : `${f.file}: `}${f.message} [${f.rule}]`);
+}
+
+const short = (sha: string) => sha.slice(0, 7);
+
+/**
+ * The text of `adr new|accept|supersede` (design §5.6). `subject` names what a refused command
+ * was about; `number` is the decision's number in the write result, if it has one now.
+ */
+export function writeText(
+  doc: WriteResultJson,
+  display: Display,
+  o: { readonly subject: string; readonly number: string | null },
+): string {
+  const verb = { new: "proposed", accept: "accepted", supersede: "superseded" }[doc.command];
+  if (!doc.ok) return [`Not ${verb}: ${o.subject}`, ...findingLines(doc.findings)].join("\n");
+  const v = doc.decision;
+  if (v === null) return "";
+  const committed = doc.commit === null ? null : `Committed ${short(doc.commit)}`;
+  switch (doc.command) {
+    case "new":
+      return [
+        `Proposed ${v.id}: ${v.title}`,
+        ...doc.written.map((p) => `  ${p}`),
+        ...draftAdvice(doc.findings),
+        ...(committed === null ? [] : [`${committed}.`]),
+        `Next: adr accept ${v.id}`,
+      ].join("\n");
+    case "accept":
+      return [
+        `Accepted ${v.id}: ${v.title}`,
+        ...doc.affected.map((a) => `Superseded ${named(a.id, display)}: ${a.title}`),
+        committed === null
+          ? "Staged; commit to record it."
+          : o.number === null
+            ? `${committed}. The number is assigned when this commit lands on main.`
+            : `${committed} as ${o.number}.`,
+      ].join("\n");
+    case "supersede":
+      return [
+        `Superseded ${named(v.id, display)}: ${v.title}`,
+        `  by ${named(v.superseded_by ?? "", display)}`,
+        committed === null ? "Staged; commit to record it." : `${committed}.`,
+      ].join("\n");
+  }
 }
 
 /** `adr show`: the state header, the decision's fields and its body. */
