@@ -47,7 +47,7 @@ Everything lives under one directory, configurable in `issues.toml`. Events are 
 
 ```
 docs/issues/
-  issues.toml                     # config: default template, labels, policies, index mode
+  issues.toml                     # config: default template, labels, policies, index mode; or issues.toml at the repository root
   templates/
     bug.md
     feature.md
@@ -97,7 +97,7 @@ A minimal config:
 
 ```toml
 [log]
-root = "docs/issues"         # the default; any path works
+root = "docs/issues"  # read from <repo>/issues.toml; the default, any path works
 default_template = "task"
 index = "committed"             # committed | none
 
