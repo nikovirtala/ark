@@ -204,6 +204,12 @@ it("runs the phase 2a demo: init, scope, for, renames, copy-scope, lifecycle, ag
   });
   expect(await subject()).toBe("docs(adr): set up the decision log");
 
+  // new --no-edit --commit with an unfilled section: refused, nothing written
+  const half = run(["new", "Half done", ...SECTIONS.slice(0, 6), "--no-edit", "--commit"]);
+  expect(half.status).toBe(1);
+  expect(half.stdout).toContain("Not proposed: Half done");
+  expect(await git(r, "status", "--porcelain")).toBe("");
+
   // new --commit: a Conventional subject, trailers last
   const a = json(["new", "Use DynamoDB for orders", ...SECTIONS, "--no-edit", "--commit"]).decision
     .id as string;

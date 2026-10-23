@@ -97,18 +97,19 @@ const REASONS: Readonly<Record<string, string>> = {
   "still contains its guidance text": "guidance text left",
 };
 
-/**
- * The draft lint of `new` as advice: `Fill in N sections before accepting: A, B (why)` for the
- * section findings, and one line per other finding.
- */
-function draftAdvice(findings: readonly Finding[]): string[] {
+/** The section findings of a draft lint as headings and reasons, and the other findings. */
+function sectionGaps(findings: readonly Finding[]): {
+  headings: string[];
+  reasons: string[];
+  other: Finding[];
+} {
   const headings: string[] = [];
   const reasons: string[] = [];
-  const other: string[] = [];
+  const other: Finding[] = [];
   for (const f of findings) {
     const m = SECTION_FINDING.exec(f.message);
     if (m === null) {
-      other.push(`Draft: ${f.message} [${f.rule}]`);
+      other.push(f);
       continue;
     }
     const [, heading = "", what = ""] = m;
@@ -116,6 +117,15 @@ function draftAdvice(findings: readonly Finding[]): string[] {
     if (!headings.includes(heading)) headings.push(heading);
     if (!reasons.includes(reason)) reasons.push(reason);
   }
+  return { headings, reasons, other };
+}
+
+/**
+ * The draft lint of `new` as advice: `Fill in N sections before accepting: A, B (why)` for the
+ * section findings, and one line per other finding.
+ */
+function draftAdvice(findings: readonly Finding[]): string[] {
+  const { headings, reasons, other } = sectionGaps(findings);
   const n = headings.length;
   return [
     ...(n === 0
@@ -123,8 +133,21 @@ function draftAdvice(findings: readonly Finding[]): string[] {
       : [
           `Fill in ${n === 1 ? "1 section" : `${n} sections`} before accepting: ${headings.join(", ")} (${reasons.join(", ")})`,
         ]),
-    ...other,
+    ...other.map((f) => `Draft: ${f.message} [${f.rule}]`),
   ];
+}
+
+/**
+ * The stderr warning of `new` when the draft it wrote has unfilled sections (design §7.2), or
+ * `null` when there are none.
+ */
+export function unfilledWarning(doc: WriteResultJson): string | null {
+  if (doc.command !== "new" || !doc.ok || doc.written.length === 0) return null;
+  const { headings, reasons } = sectionGaps(doc.findings);
+  const n = headings.length;
+  const path = doc.findings.find((f) => f.file !== null)?.file ?? doc.decision?.body_path ?? null;
+  if (n === 0 || path === null) return null;
+  return `${path}: fill in ${n === 1 ? "1 required section" : `${n} required sections`} before committing or accepting: ${headings.join(", ")} (${reasons.join(", ")}); adr verify reports this until then`;
 }
 
 function findingLines(findings: readonly Finding[]): string[] {
@@ -193,7 +216,19 @@ export function writeText(
   },
 ): string {
   const verb = VERBS[doc.command];
-  if (!doc.ok) return [`Not ${verb}: ${o.subject}`, ...findingLines(doc.findings)].join("\n");
+  if (!doc.ok) {
+    // `new --commit` without an editor refuses a draft with unfilled sections (design §7.2).
+    const unfilled = doc.command === "new" && sectionGaps(doc.findings).headings.length > 0;
+    return [
+      `Not ${verb}: ${o.subject}`,
+      ...findingLines(doc.findings),
+      ...(unfilled
+        ? [
+            "Fill them in with --section <id>=<markdown>, or run without --commit and edit the draft.",
+          ]
+        : []),
+    ].join("\n");
+  }
   // Before the null-decision guard: without a <decision>, `decision` is null (design-review L1).
   if (o.followRenames !== undefined) return followRenamesText(doc, display, o.followRenames);
   const v = doc.decision;
