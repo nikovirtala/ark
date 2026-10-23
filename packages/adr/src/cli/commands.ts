@@ -2,9 +2,12 @@ import { templateHistoryRef } from "@nikovirtala/ledger";
 import { type ToolCli, verifyCommand } from "@nikovirtala/ledger/cli";
 import { adrKind } from "../kind.js";
 import { adrChecks } from "../verify.js";
+import { acceptCommand } from "./accept.js";
 import { listCommand } from "./list.js";
+import { newCommand } from "./new.js";
 import { openForCli } from "./open.js";
 import { showCommand } from "./show.js";
+import { supersedeCommand } from "./supersede.js";
 
 /**
  * ledger's shared `verify`: the log as the mode reads it (the index for `--staged`, else the
@@ -32,6 +35,6 @@ export function adrCli(version: string): ToolCli {
     name: "adr",
     version,
     summary: "Architecture decision records kept as event logs in git.",
-    commands: [listCommand, showCommand, verify],
+    commands: [newCommand, acceptCommand, supersedeCommand, listCommand, showCommand, verify],
   };
 }
