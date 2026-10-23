@@ -34,12 +34,15 @@ export function formatText(fs: readonly Finding[]): string {
   return `${lines.join("\n")}\n\n${plural(errors, "error")}, ${plural(warnings, "warning")}`;
 }
 
-/** The `ledger-findings/v1` report, 2-space indented, ending with a newline. */
-export function formatJson(
+/**
+ * The `ledger-findings/v1` report as an object, findings sorted and with every key, for tools that
+ * embed it in a larger JSON document.
+ */
+export function findingsReport(
   fs: readonly Finding[],
   opts: { readonly failOn?: Severity } = {},
-): string {
-  const report: FindingsReport = {
+): FindingsReport {
+  return {
     format: "ledger-findings/v1",
     ok: exitCode(fs, opts) === 0,
     summary: summarize(fs),
@@ -53,7 +56,14 @@ export function formatJson(
       kind: f.kind,
     })),
   };
-  return `${JSON.stringify(report, null, 2)}\n`;
+}
+
+/** The `ledger-findings/v1` report, 2-space indented, ending with a newline. */
+export function formatJson(
+  fs: readonly Finding[],
+  opts: { readonly failOn?: Severity } = {},
+): string {
+  return `${JSON.stringify(findingsReport(fs, opts), null, 2)}\n`;
 }
 
 function escapeData(s: string): string {

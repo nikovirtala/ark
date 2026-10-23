@@ -7,8 +7,11 @@ import { type Finding, finding } from "../findings/finding.js";
 import { MemoryTree } from "../git/tree.js";
 import { bodySha256 } from "../identity/hash.js";
 import { eventPath } from "../identity/layout.js";
+import { defineKind, eventType } from "../kind/define.js";
+import { loadLog } from "../log/snapshot.js";
 import { exampleKind, exampleLayout as layout } from "../testing/example-kind.js";
-import { type Check, mechanicalChecks } from "./checks.js";
+import { type Check, type CheckContext, mechanicalChecks } from "./checks.js";
+import { diffTrees } from "./diff.js";
 import { verifySnapshots } from "./verify.js";
 
 const kind = compileKind(exampleKind);
@@ -277,5 +280,58 @@ describe("verifySnapshots", () => {
     await expect(run({ ...exampleKind, body: "none" }, "items")).rejects.toBeInstanceOf(
       InvalidArgumentError,
     );
+  });
+});
+
+describe("checks without a fold", () => {
+  it("run on a hand-built step-2 context that has no folded field", async () => {
+    const head = { ...base, [BODY_PATH]: `${BODY}more\n` };
+    const ctx: CheckContext = {
+      kind,
+      layout,
+      base: await loadLog(new MemoryTree(base), { kind, layout }),
+      head: await loadLog(new MemoryTree(head), { kind, layout }),
+      changes: await diffTrees(new MemoryTree(base), new MemoryTree(head), layout.root),
+      scope: "all",
+      inScope: new Set([S]),
+    };
+    const findings: Finding[] = [];
+    for (const check of mechanicalChecks) findings.push(...(await check.run(ctx)));
+    expect(brief(findings)).toEqual([
+      ["body/hash-mismatch", FROZEN, S],
+      ["body/frozen-modified", BODY_PATH, S],
+    ]);
+  });
+});
+
+describe("bodyPolicy with a fold", () => {
+  it("reports body/missing for a mutable kind's subject with events and no body", async () => {
+    const mutable = defineKind({
+      name: "widget",
+      schema: "widget/v1",
+      states: ["open"],
+      events: {
+        created: eventType()({ data: { type: "object" }, allowedIn: [], to: "open" }),
+      },
+      initial: "created",
+      reduce: () => null,
+      project: (s) => s.id,
+      body: "mutable",
+      layout: { bodies: "items", events: "events" },
+      defaultRoot: "log",
+      options: undefined,
+    });
+    const run = (files: Record<string, string>) =>
+      verifySnapshots({
+        kind: compileKind(mutable),
+        layout,
+        base: null,
+        head: new MemoryTree(files),
+        scope: "all",
+      });
+    const findings = await run(file(created));
+    expect(brief(findings)).toEqual([["body/missing", CREATED, S]]);
+    expect(findings[0]?.message).toBe("body file is missing");
+    expect(await run({ ...file(created), [BODY_PATH]: "anything" })).toEqual([]);
   });
 });

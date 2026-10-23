@@ -50,7 +50,13 @@ export {
   sortFindings,
   summarize,
 } from "./findings/finding.js";
-export { type FindingsReport, formatGithub, formatJson, formatText } from "./findings/format.js";
+export {
+  type FindingsReport,
+  findingsReport,
+  formatGithub,
+  formatJson,
+  formatText,
+} from "./findings/format.js";
 export { compareEvents, foldLog, foldSubject } from "./fold/fold.js";
 export {
   assignNumbers,
@@ -144,6 +150,7 @@ export type {
   Kind,
   KindDef,
   KindFinding,
+  OptionsOf,
   ProjectContext,
   StateMachine,
   StateOf,
@@ -187,6 +194,14 @@ export {
 } from "./templates/parse.js";
 export { extractSections, normalizeSection, renderTemplate } from "./templates/render.js";
 export {
+  gitTemplates,
+  historyTemplates,
+  type TemplateLookup,
+  type TemplateSource,
+  type TemplateSourceFactory,
+  treeTemplates,
+} from "./templates/source.js";
+export {
   appendOnly,
   bodyPolicy,
   type Check,
@@ -196,4 +211,6 @@ export {
   mechanicalChecks,
 } from "./verify/checks.js";
 export { type Change, diffTrees } from "./verify/diff.js";
+export { foldChecks, invariantsCheck, relateCheck, transitions } from "./verify/fold-checks.js";
+export { templateCheck, templateHistoryRef } from "./verify/template-check.js";
 export { type VerifyMode, verifyLog, verifySnapshots } from "./verify/verify.js";

@@ -1,7 +1,7 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { type Finding, finding } from "./finding.js";
-import { formatGithub, formatJson, formatText } from "./format.js";
+import { findingsReport, formatGithub, formatJson, formatText } from "./format.js";
 
 // The five findings of the design's §9 sample, given in shuffled order.
 const sample: Finding[] = [
@@ -133,6 +133,23 @@ describe("formatJson", () => {
       "subject",
       "kind",
     ]);
+  });
+});
+
+describe("findingsReport", () => {
+  it("equals the parsed formatJson report", () => {
+    const warning = [finding({ severity: "warning", rule: "x/y", message: "w" })];
+    for (const [fs, opts] of [
+      [sample, {}],
+      [[], {}],
+      [warning, {}],
+      [warning, { failOn: "warning" as const }],
+    ] as const) {
+      expect(findingsReport(fs, opts)).toEqual(JSON.parse(formatJson(fs, opts)));
+    }
+    expect(findingsReport(sample).findings.map((f) => f.rule)).toEqual(
+      [sample[3], sample[1], sample[2], sample[4], sample[0]].map((f) => f?.rule),
+    );
   });
 });
 

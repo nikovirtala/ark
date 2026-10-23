@@ -198,6 +198,8 @@ export type DataOfType<K extends AnyKind, T extends EventTypesOf<K>> = DataOf<Ev
 export type StateOf<K extends AnyKind> = ReturnType<K["def"]["reduce"]>;
 /** The kind's projection of one subject. */
 export type ViewOf<K extends AnyKind> = ReturnType<K["def"]["project"]>;
+/** The options the kind's `invariants` and `relate` take. */
+export type OptionsOf<K extends AnyKind> = K["def"]["options"];
 export type FoldedSubjectOf<K extends AnyKind> = FoldedSubject<
   StatesOf<K>,
   StateOf<K>,
