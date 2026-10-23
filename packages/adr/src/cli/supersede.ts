@@ -1,4 +1,4 @@
-import { type JsonValue, resolveActor, UsageError } from "@nikovirtala/ledger";
+import { type JsonValue, resolveAttribution, UsageError } from "@nikovirtala/ledger";
 import { COMMIT_OPTIONS, type CommandSpec, commitChoice } from "@nikovirtala/ledger/cli";
 import { supersedeDecision } from "../write.js";
 import { displayAfterWrite, openForCli } from "./open.js";
@@ -21,7 +21,7 @@ export const supersedeCommand: CommandSpec = {
       throw new UsageError(`missing --by <decision>; usage: adr ${USAGE}`);
     }
     const log = await openForCli(io, flags);
-    const actor = await resolveActor(log.git, { env: io.env });
+    const { actor, notes: attribution } = await resolveAttribution(log.git, { env: io.env });
     const doc = await supersedeDecision(
       log,
       {
@@ -30,7 +30,7 @@ export const supersedeCommand: CommandSpec = {
         actor,
         ...(typeof values.reason === "string" ? { reason: values.reason } : {}),
       },
-      commitChoice(values, { autoCommit: log.adr.autoCommit }),
+      { ...commitChoice(values, { autoCommit: log.adr.autoCommit }), notes: attribution },
     );
     const { display } = await displayAfterWrite(log);
     const v = doc.decision;
