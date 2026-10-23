@@ -489,6 +489,7 @@ export async function planAccept(
   read: DecisionsRead,
   input: { readonly id: string; readonly actor: Actor },
   c: PlanContext,
+  o: { readonly copyGlobs?: readonly string[] } = {},
 ): Promise<PlanResult> {
   const id = resolveDecision(read, input.id);
   const view = viewOf(read, id);
@@ -562,7 +563,33 @@ export async function planAccept(
       actor: input.actor,
     }),
   );
-  const events = [accepted, ...cascade];
+  // Copying the superseded scope (design §6.10): one `scoped` event with the union, in the same
+  // batch. `scoped` is allowed while proposed and accepted, so its order against `accepted`
+  // doesn't change the fold.
+  const copyGlobs = o.copyGlobs ?? [];
+  const copied =
+    copyGlobs.length === 0
+      ? null
+      : newEvent(read, c, {
+          subject: id,
+          type: "scoped",
+          data: {
+            set: [
+              ...applySetOp(view.applies_to, { add: copyGlobs }, { what: "glob", maxItems: 200 })
+                .set,
+            ],
+          },
+          actor: input.actor,
+          after: [accepted],
+        });
+  if (copied !== null) {
+    const valid = compiled.validate(copied, { file: null });
+    if (!valid.ok) {
+      return refused(valid.findings.map((f) => ({ ...f, subject: id, kind: adrKind.name })));
+    }
+  }
+  const sources = copied === null ? [] : scopeToCopy(read, id).sources;
+  const events = [accepted, ...(copied === null ? [] : [copied]), ...cascade];
   const files = filesOf(events, read);
   const { after, added } = await precheck(read, files);
   if (added.length > 0) return refused(added);
@@ -586,10 +613,13 @@ export async function planAccept(
         title: view.title,
         id,
         display: view.display,
-        body: targets.map((t) => {
-          const v = viewOf(read, t);
-          return `Supersedes ${v.display}: ${v.title}.`;
-        }),
+        body: [
+          ...targets.map((t) => {
+            const v = viewOf(read, t);
+            return `Supersedes ${v.display}: ${sentenceTitle(v.title)}.`;
+          }),
+          ...sources.map((t) => `Copies the scope of ${viewOf(read, t).display}.`),
+        ],
       },
       trailers: pairsOf(events),
       decision: viewOf(after, id),
@@ -597,6 +627,59 @@ export async function planAccept(
       findings: [],
     },
   };
+}
+
+/** The scope an `accept` can copy from the decisions it supersedes (design §6.10). */
+export interface ScopeOffer {
+  /** The decision being accepted. */
+  readonly id: string;
+  /** The superseded decisions with globs the accepted one lacks, sorted by id. */
+  readonly sources: readonly string[];
+  /** Their displays (`ADR-0002`, or the id), in `sources` order. */
+  readonly displays: readonly string[];
+  /** The globs to add: the union of their scopes minus the accepted decision's own, sorted. */
+  readonly globs: readonly string[];
+}
+
+/**
+ * Whether `accept` copies the superseded decisions' scope: always, never, never but with a note
+ * naming the `adr scope` command that would (the default), or as a function decides.
+ */
+export type CopyScope = "copy" | "skip" | "suggest" | ((offer: ScopeOffer) => Promise<boolean>);
+
+/**
+ * What accepting `id` could copy: the declared targets it will supersede (accepted or
+ * deprecated, as `planAccept` selects them) and the globs of theirs it doesn't have yet.
+ */
+export function scopeToCopy(read: DecisionsRead, id: string): ScopeOffer {
+  const own = new Set(viewOf(read, id).applies_to);
+  const sources: string[] = [];
+  const globs = new Set<string>();
+  for (const target of sorted(viewOf(read, id).declared_supersedes)) {
+    const t = target === id ? undefined : read.projection.views.get(target);
+    if (t === undefined || (t.status !== "accepted" && t.status !== "deprecated")) continue;
+    const extra = t.applies_to.filter((g) => !own.has(g));
+    if (extra.length === 0) continue;
+    sources.push(target);
+    for (const g of extra) globs.add(g);
+  }
+  return {
+    id,
+    sources,
+    displays: sources.map((t) => viewOf(read, t).display),
+    globs: sorted(globs),
+  };
+}
+
+const shQuote = (s: string) => `'${s.replaceAll("'", "'\\''")}'`;
+const andList = (xs: readonly string[]) =>
+  xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`;
+
+/** The note of an offer not taken: the `adr scope` command that copies it. */
+function copyScopeNote(id: string, offer: ScopeOffer): string {
+  const n = offer.globs.length;
+  const adds = offer.globs.map((g) => `--add ${shQuote(g)}`).join(" ");
+  return `not copying the scope of ${andList(offer.displays)} (${n} ${n === 1 ? "glob" : "globs"}); to copy it: adr scope ${id} ${adds}`;
 }
 
 /** Plans `adr supersede <id> --by <by>`: one `superseded` event on `id`. */
@@ -1534,15 +1617,39 @@ export async function proposeDecision(
 
 /**
  * `adr accept`: lints the draft, hashes the body, writes `accepted` and a `superseded` event on
- * each declared target, stages them with the body, and commits with `commit`.
+ * each declared target, stages them with the body, and commits with `commit`. When the targets
+ * have globs the decision lacks, `copyScope` decides whether a `scoped` event copies them
+ * (default `"suggest"`: no copy, and a note with the `adr scope` command that would).
  */
 export async function acceptDecision(
   log: DecisionLog,
   input: { readonly id: string; readonly actor: Actor },
-  o: WriteOptions = {},
+  o: WriteOptions & { readonly copyScope?: CopyScope } = {},
   deps: WriteDeps = DEFAULT_DEPS,
 ): Promise<WriteResultJson> {
-  return write(log, "accept", (read, c) => planAccept(read, input, c), o, deps);
+  const copyScope = o.copyScope ?? "suggest";
+  // Decided once per command: the EventExistsError retry plans again without asking again.
+  let copy: boolean | null = null;
+  return write(
+    log,
+    "accept",
+    async (read, c) => {
+      const plain = await planAccept(read, input, c);
+      if (!plain.ok) return plain;
+      const id = plain.plan.subject;
+      const offer = scopeToCopy(read, id);
+      if (offer.globs.length === 0) return plain;
+      if (copy === null) {
+        copy = typeof copyScope === "function" ? await copyScope(offer) : copyScope === "copy";
+      }
+      if (copy) return planAccept(read, input, c, { copyGlobs: offer.globs });
+      if (copyScope === "skip") return plain;
+      const notes = [...(plain.plan.notes ?? []), copyScopeNote(id, offer)];
+      return { ok: true, plan: { ...plain.plan, notes } };
+    },
+    o,
+    deps,
+  );
 }
 
 /** `adr supersede <id> --by <by>`: writes `superseded`, stages it, and commits with `commit`. */

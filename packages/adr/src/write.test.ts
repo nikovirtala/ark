@@ -344,7 +344,8 @@ describe("acceptDecision", () => {
 
   it("commits an involved decision's staged acceptance in a cascade", async () => {
     const r = await repo();
-    const b = idOf(await propose(r, "Old"));
+    // A title ending in "." gets one period in the body sentence.
+    const b = idOf(await propose(r, "Old."));
     await accept(r, b);
     const c = idOf(await propose(r, "New", { supersedes: [b] }));
     const a = await accept(r, c, { commit: true });
