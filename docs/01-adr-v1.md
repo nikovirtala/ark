@@ -66,7 +66,7 @@ docs/adr/
 
 Event file names are `<UTC timestamp>-<4 random chars>-<type>.yaml`, ledger's naming for every kind. They sort chronologically in a directory listing, and two branches can never produce the same name.
 
-**Identifiers.** Ids come from ledger, the same as issues'. Each ADR gets a canonical id at creation: 8 lowercase base32 characters (40 random bits, taken from a ULID), such as `k3f9q8a1`. Parallel branches cannot realistically collide, so file names, events and links use only this id and nothing is ever renamed. CI still rejects duplicates.
+**Identifiers.** Ids come from ledger, the same as issues'. Each ADR gets a canonical id at creation: 8 Crockford base32 characters in lowercase (40 random bits, in the alphabet ULIDs use), such as `k3f9q8a1`. Parallel branches cannot realistically collide, so file names, events and links use only this id and nothing is ever renamed. CI still rejects duplicates.
 
 **Display numbers** such as ADR-0012 are derived, never stored. The projection numbers ADRs in the order their `accepted` event first landed on the main branch, read with `git log --first-parent`. Main's history is append-only, so a number is stable once assigned. Proposed, rejected and withdrawn ADRs have no number and display by id. Every command and MCP tool accepts either form.
 
@@ -82,7 +82,9 @@ url = "git@github.com:example/platform-decisions.git"
 ref = "main"
 ```
 
-Cross-log references use a qualified id, `platform:k3f9q8a1`. Each decision log owns its ADRs' events, so `linked` can point anywhere but `superseded` can only be written in the decision log that owns the superseded ADR. Search, list and the MCP tools span all configured sources by default, and CI verifies cross-log references at the pinned ref.
+Inside the source repository, the log is read at the entry's `root` when it sets one, otherwise at the kind's default root; a source with neither is a configuration error.
+
+Cross-log references use a qualified id, `platform:k3f9q8a1`, whose prefix is the `name` of the `[[sources]]` entry; `kind` only says what kind of log the source holds. Each decision log owns its ADRs' events, so `linked` can point anywhere but `superseded` can only be written in the decision log that owns the superseded ADR. Search, list and the MCP tools span all configured sources by default, and CI verifies cross-log references at the pinned ref.
 
 A minimal config:
 
@@ -106,7 +108,7 @@ Every event is one YAML file in ledger's shared envelope, with `kind: decision` 
 envelope: ledger/v1
 kind: decision
 schema: decision/v1
-id: 01JAB3K9Z6Q8M2X7      # ULID, unique across the repo
+id: 01M56X2X6RB3K9Z6Q8R5NWM2X7  # ULID, unique across the repo
 subject: a7c2m9xd
 type: superseded
 at: 2026-10-18T07:02:15Z
@@ -335,7 +337,7 @@ When staged changes rename files covered by a scope glob, `pre-commit` also runs
 
 ## CI checks
 
-CI runs `adr verify --base origin/main` on every pull request, and the build fails on any violation. ark's shared GitHub Action runs it together with every other ark tool configured in the repository and turns findings into file annotations; other CI systems use the exit code and `--json` output.
+CI runs `adr verify --base origin/main` on every pull request, and the build fails on any error; warnings fail it only where configured to. ark's shared GitHub Action runs it together with every other ark tool configured in the repository and turns findings into file annotations; other CI systems use the exit code and `--json` output.
 
 | Check | Fails when |
 | --- | --- |
