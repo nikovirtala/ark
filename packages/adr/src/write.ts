@@ -16,6 +16,7 @@ import {
   FileExistsError,
   type Finding,
   finding,
+  followRenames,
   globMatcher,
   historyTemplates,
   InvalidArgumentError,
@@ -29,14 +30,18 @@ import {
   parseEventFileName,
   parseGlob,
   parseTemplate,
+  type Rename,
+  refReader,
   renderCommitMessage,
   renderTemplate,
   type SetOp,
   serializeEvent,
   slugify,
+  stagedRenames,
   type Template,
   type TemplateSource,
   type Trailer,
+  type TreeReader,
   templateHistoryRef,
   UsageError,
   writeEvents,
@@ -145,7 +150,7 @@ export interface WritePlan {
   /** One `ADR`/`ADR-Event` pair per plan event, in write order. */
   readonly trailers: readonly Trailer[];
   /** Views after the write, computed on `overlayTree(read.tree, files)`. */
-  readonly decision: DecisionView;
+  readonly decision: DecisionView | null;
   readonly affected: readonly DecisionView[];
   /** Informational (new: the draft's template lint). */
   readonly findings: readonly Finding[];
@@ -1005,10 +1010,172 @@ export async function planScope(
   return r.ok ? { ok: true, plan: { ...r.plan, notes } } : r;
 }
 
+/**
+ * Plans one `scoped` event per change, in one batch (design §6.8 step 4): each decision's status
+ * must allow `scoped` and each event must validate, else the first failing decision is refused.
+ * The plan has no commit message, because `--follow-renames` never commits. `decision` is
+ * `input.id`'s view after the write, or `null` without one; `affected` are the changed views.
+ */
+async function planScopeEvents(
+  read: DecisionsRead,
+  changes: readonly { readonly id: string; readonly set: readonly string[] }[],
+  input: { readonly id: string | null; readonly actor: Actor },
+  c: PlanContext,
+): Promise<PlanResult> {
+  const given = input.id === null ? null : viewOf(read, input.id);
+  const events: EventEnvelope[] = [];
+  for (const change of changes) {
+    const view = viewOf(read, change.id);
+    const refused = (findings: readonly Finding[]): PlanResult => ({
+      ok: false,
+      decision: given,
+      findings,
+    });
+    if (!adrKind.machine.allowed(view.status, "scoped")) {
+      return refused([
+        refusal(read, "transition/illegal", illegal("scoped", view.status), change.id),
+      ]);
+    }
+    const event = newEvent(read, c, {
+      subject: change.id,
+      type: "scoped",
+      data: { set: [...change.set] },
+      actor: input.actor,
+    });
+    const valid = compiled.validate(event, { file: null });
+    if (!valid.ok) {
+      return refused(valid.findings.map((f) => ({ ...f, subject: change.id, kind: adrKind.name })));
+    }
+    events.push(event);
+  }
+  const files = filesOf(events, read);
+  const { after, added } = await precheck(read, files);
+  if (added.length > 0) return { ok: false, decision: given, findings: added };
+  const involved = sorted(changes.map((ch) => ch.id));
+  const { scope, eventDirs } = commitScope(read, involved);
+  return {
+    ok: true,
+    plan: {
+      command: "event",
+      subject: input.id ?? involved[0] ?? "",
+      files,
+      events,
+      stage: Object.keys(files),
+      involved,
+      commitScope: scope,
+      eventDirs,
+      draft: null,
+      commit: null,
+      trailers: pairsOf(events),
+      decision: input.id === null ? null : viewOf(after, input.id),
+      affected: changes.map((ch) => viewOf(after, ch.id)),
+      findings: [],
+    },
+  };
+}
+
+/** A plan that writes nothing: the views as they are, and `notes`. */
+function emptyPlan(
+  subject: string,
+  decision: DecisionView | null,
+  notes: readonly string[],
+): PlanResult {
+  return {
+    ok: true,
+    plan: {
+      command: "event",
+      subject,
+      files: {},
+      events: [],
+      stage: [],
+      involved: decision === null ? [] : [decision.id],
+      commitScope: [],
+      eventDirs: [],
+      draft: null,
+      commit: null,
+      trailers: [],
+      decision,
+      affected: [],
+      findings: [],
+      notes,
+    },
+  };
+}
+
+/** The renamed files and the tracked files before and after them (design §3.4). */
+interface StagedRenames {
+  readonly renames: readonly Rename[];
+  readonly before: readonly string[];
+  readonly after: readonly string[];
+}
+
+/**
+ * Plans `adr scope [<decision>] --follow-renames` (design §6.8 steps 1–4): the given decision's
+ * globs, or every decision's, rewritten by `followRenames`. Decisions whose status forbids
+ * `scoped` are skipped, with a note when the renames would have changed their scope; an explicit
+ * one is refused.
+ */
+async function planFollowRenames(
+  read: DecisionsRead,
+  input: { readonly id: string | null; readonly actor: Actor },
+  staged: StagedRenames,
+  c: PlanContext,
+): Promise<PlanResult> {
+  const id = input.id === null ? null : resolveDecision(read, input.id);
+  const given = id === null ? null : viewOf(read, id);
+  if (staged.renames.length === 0) return emptyPlan(id ?? "", given, []);
+  if (given !== null && !adrKind.machine.allowed(given.status, "scoped")) {
+    return {
+      ok: false,
+      decision: given,
+      findings: [refusal(read, "transition/illegal", illegal("scoped", given.status), given.id)],
+    };
+  }
+  const views = given !== null ? [given] : [...read.projection.views.values()];
+  const notes: string[] = [];
+  const changes: { id: string; set: readonly string[] }[] = [];
+  for (const view of [...views].sort((a, b) => (a.id < b.id ? -1 : 1))) {
+    const result = followRenames({ globs: view.applies_to, ...staged });
+    if (!result.changed) continue;
+    const named = namedView(view);
+    if (!adrKind.machine.allowed(view.status, "scoped")) {
+      const covers = globMatcher(view.applies_to);
+      const leaving = staged.renames.filter((r) => covers(r.from).length > 0).length;
+      notes.push(
+        `${named} is ${view.status}; its scope can't follow renames (${leaving} renamed files leave it)`,
+      );
+      continue;
+    }
+    if (result.globs.length > 200) {
+      throw new UsageError(
+        `following the renames gives ${named} ${result.globs.length} globs; the limit is 200`,
+      );
+    }
+    for (const s of result.skipped) {
+      notes.push(
+        `${s.to} can't be written as a scope glob (${s.problem}); ${named} no longer covers it`,
+      );
+    }
+    for (const path of result.gained) {
+      notes.push(
+        `${path} is now covered by ${named}'s scope but wasn't before the rename; check it`,
+      );
+    }
+    changes.push({ id: view.id, set: result.globs });
+  }
+  if (changes.length === 0) return emptyPlan(id ?? "", given, notes);
+  const r = await planScopeEvents(read, changes, { id, actor: input.actor }, c);
+  return r.ok ? { ok: true, plan: { ...r.plan, notes } } : r;
+}
+
+/** The paths of every file in `tree`. */
+async function filePaths(tree: TreeReader): Promise<string[]> {
+  return (await tree.list("")).filter((e) => e.type === "file").map((e) => e.path);
+}
+
 /** Every tracked file in the index, for the "matches no tracked file" notes. */
 async function trackedFiles(log: DecisionLog): Promise<string[]> {
-  const index = await indexReader(log.git);
-  return (await index.list("")).filter((e) => e.type === "file").map((e) => e.path);
+  return filePaths(await indexReader(log.git));
 }
 
 /** What the editor step decided (§5.4 step 4a). */
@@ -1133,11 +1300,14 @@ async function viewsAfter(
   log: DecisionLog,
   plan: WritePlan,
   sha: string | null,
-): Promise<{ decision: DecisionView; affected: readonly DecisionView[] }> {
+): Promise<{ decision: DecisionView | null; affected: readonly DecisionView[] }> {
   if (sha === null) return { decision: plan.decision, affected: plan.affected };
   const read = await readDecisions({ ...log, commit: sha });
   const view = (v: DecisionView) => read.projection.views.get(v.id) ?? v;
-  return { decision: view(plan.decision), affected: plan.affected.map(view) };
+  return {
+    decision: plan.decision === null ? null : view(plan.decision),
+    affected: plan.affected.map(view),
+  };
 }
 
 const SHORTENED_NOTE =
@@ -1172,13 +1342,14 @@ function commitMessage(
 /**
  * Plan, then apply, with the single `EventExistsError` retry (§5.4 steps 1–5). `o.message`
  * replaces the rendered commit message; `o.notes` come before the write's own notes. A plan with
- * no files and no events is reported as written without touching the repository.
+ * no files and no events is reported as written without touching the repository, and so is
+ * every plan with `dryRun` (its views are the plan's).
  */
 async function write(
   log: DecisionLog,
   command: WriteResultJson["command"],
   plan: (read: DecisionsRead, c: PlanContext) => Promise<PlanResult>,
-  o: WriteOptions,
+  o: WriteOptions & { readonly dryRun?: boolean },
   deps: WriteDeps,
   afterStage?: (plan: WritePlan, commit: boolean) => () => Promise<AfterStage>,
 ): Promise<WriteResultJson> {
@@ -1216,7 +1387,8 @@ async function write(
         notes,
       };
     }
-    if (r.plan.events.length === 0 && Object.keys(r.plan.files).length === 0) {
+    const empty = r.plan.events.length === 0 && Object.keys(r.plan.files).length === 0;
+    if (empty || o.dryRun === true) {
       return {
         format: "adr-write/v1",
         command,
@@ -1460,4 +1632,47 @@ export async function scopeDecision(
 ): Promise<WriteResultJson> {
   const tracked = await trackedFiles(log);
   return write(log, "scope", (read, c) => planScope(read, input, c, { tracked }), o, deps);
+}
+
+const FOLLOW_NO_COMMIT_NOTE =
+  "--follow-renames never commits; commit the scoped events with the renames";
+
+/**
+ * `adr scope [<decision>] --follow-renames` (design §6.8): rewrites the scope globs of the given
+ * decision, or of every decision, after the renames staged against `HEAD`, and stages one
+ * `scoped` event per changed decision. It never commits, whatever `[policy] auto_commit` says
+ * (the events belong in the commit with the renames), so `o.commit: true` and a message are
+ * `InvalidArgumentError`s. `dryRun` plans the same events and notes without writing anything.
+ */
+export async function followScopeRenames(
+  log: DecisionLog,
+  input: { readonly id?: string; readonly actor: Actor },
+  o: WriteOptions & { readonly dryRun?: boolean } = {},
+  deps: WriteDeps = DEFAULT_DEPS,
+): Promise<WriteResultJson> {
+  if (o.commit === true) {
+    throw new InvalidArgumentError("followScopeRenames never commits; don't pass commit: true");
+  }
+  if (o.message !== undefined && o.message !== null) {
+    throw new InvalidArgumentError("followScopeRenames never commits, so it takes no message");
+  }
+  const renames = await stagedRenames(log.git);
+  const staged: StagedRenames =
+    renames.length === 0
+      ? { renames, before: [], after: [] }
+      : {
+          renames,
+          before: await filePaths(await refReader(log.git, "HEAD")),
+          after: await filePaths(await indexReader(log.git)),
+        };
+  const doc = await write(
+    log,
+    "scope",
+    (read, c) => planFollowRenames(read, { id: input.id ?? null, actor: input.actor }, staged, c),
+    { ...o, commit: false },
+    deps,
+  );
+  return log.adr.autoCommit && doc.ok && doc.affected.length > 0
+    ? { ...doc, notes: [...doc.notes, FOLLOW_NO_COMMIT_NOTE] }
+    : doc;
 }

@@ -32,6 +32,7 @@ export {
 export {
   acceptDecision,
   deprecateDecision,
+  followScopeRenames,
   type LinkInput,
   linkDecision,
   noteDecision,

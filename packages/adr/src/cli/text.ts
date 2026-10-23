@@ -126,6 +126,29 @@ function findingLines(findings: readonly Finding[]): string[] {
 
 const short = (sha: string) => sha.slice(0, 7);
 
+export interface FollowRenamesBefore {
+  readonly before: ReadonlyMap<string, readonly string[]>;
+  readonly renamed: boolean;
+}
+
+/**
+ * `adr scope --follow-renames`: one `<named>: <old globs> → <new globs>` line per changed
+ * decision (`affected`), whether or not a decision was given.
+ */
+function followRenamesText(doc: WriteResultJson, display: Display, o: FollowRenamesBefore): string {
+  if (!o.renamed) return "No staged renames.";
+  if (doc.affected.length === 0) return "No scope globs follow the staged renames.";
+  const lines = doc.affected.map((v) => {
+    const before = o.before.get(v.id) ?? [];
+    const old = before.filter((g) => !v.applies_to.includes(g));
+    const now = v.applies_to.filter((g) => !before.includes(g));
+    const change =
+      old.length === 0 ? `+ ${now.join(", ")}` : `${old.join(", ")} → ${now.join(", ")}`;
+    return `${named(v.id, display)}: ${change}`;
+  });
+  return [...lines, "Staged; commit the scoped events with the renames."].join("\n");
+}
+
 /** The past participle of each write command, for `Not <verb>: …`. */
 const VERBS: Readonly<Record<WriteResultJson["command"], string>> = {
   new: "proposed",
@@ -153,10 +176,14 @@ export function writeText(
     readonly reason?: string | null;
     /** The decision's globs before a `scope` write. */
     readonly scopeBefore?: readonly string[];
+    /** For `scope --follow-renames`: every decision's globs before, and whether renames were staged. */
+    readonly followRenames?: FollowRenamesBefore;
   },
 ): string {
   const verb = VERBS[doc.command];
   if (!doc.ok) return [`Not ${verb}: ${o.subject}`, ...findingLines(doc.findings)].join("\n");
+  // Before the null-decision guard: without a <decision>, `decision` is null (design-review L1).
+  if (o.followRenames !== undefined) return followRenamesText(doc, display, o.followRenames);
   const v = doc.decision;
   if (v === null) return "";
   const committed = doc.commit === null ? null : `Committed ${short(doc.commit)}`;
