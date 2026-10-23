@@ -136,6 +136,28 @@ export function applyAdrTamper(
   return { ...files, [m.path]: m.content };
 }
 
+/**
+ * The environment for spawning `adr` on `repo` (design §9): the process env with the repo's
+ * hermetic git env over it, and no `ARK_AGENT`, `VISUAL` or `EDITOR` unless `testEnv` sets them,
+ * so a developer's or agent's own settings never reach the child. Keys left `undefined` are
+ * removed.
+ */
+export function cliEnv(
+  repo: { readonly env: NodeJS.ProcessEnv },
+  testEnv: NodeJS.ProcessEnv = {},
+): NodeJS.ProcessEnv {
+  const merged: NodeJS.ProcessEnv = {
+    ...process.env,
+    ...repo.env,
+    ARK_AGENT: undefined,
+    VISUAL: undefined,
+    EDITOR: undefined,
+    ...testEnv,
+  };
+  for (const [k, v] of Object.entries(merged)) if (v === undefined) delete merged[k];
+  return merged;
+}
+
 /** The actor the agent-acceptance tamper writes. */
 export const TEST_AGENT = Object.freeze({
   kind: "agent" as const,
