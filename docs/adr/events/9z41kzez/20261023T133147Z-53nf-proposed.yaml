@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M5MFBRQ3TRB8RZJRCANA53NF
+subject: 9z41kzez
+type: proposed
+at: 2026-10-23T13:31:47Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Use one shared event envelope, ledger/v1, for every kind
+  template: nygard
+  template_version: 1
