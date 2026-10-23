@@ -67,6 +67,7 @@ export {
 } from "./fold/numbering.js";
 export { kindFindings, type Projection, projectLog } from "./fold/project.js";
 export {
+  commitMessageText,
   GIT_ENV_ISOLATION,
   GIT_LOCATING_ENV,
   Git,
@@ -213,6 +214,16 @@ export {
   sourceLogRef,
 } from "./sources/resolve.js";
 export { resolveActor } from "./surfaces/actor.js";
+export {
+  type CommitTemplate,
+  checkCommitMessage,
+  MAX_DESCRIPTION,
+  parseCommitTemplate,
+  type RenderedCommit,
+  readCommitTemplate,
+  renderCommitMessage,
+  wrapParagraph,
+} from "./surfaces/commit-message.js";
 export { renderStateHeader, type StateHeader } from "./surfaces/header.js";
 export { resolveSubjectInput, type SubjectInput } from "./surfaces/subject-input.js";
 export { openToolLog, type ToolLog, type ToolLogOptions } from "./surfaces/tool-log.js";

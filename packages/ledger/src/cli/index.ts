@@ -6,6 +6,7 @@
  * The error classes are re-exported so users of this entry share the root entry's classes.
  */
 export { LedgerError, UsageError } from "../errors.js";
+export { COMMIT_OPTIONS, commitChoice } from "./commit.js";
 export type { GlobalFlags } from "./flags.js";
 export { type CliIO, processIO } from "./output.js";
 export { type CommandSpec, type Outcome, runCli, type ToolCli } from "./run.js";
