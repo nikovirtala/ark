@@ -13,11 +13,13 @@ const COMMIT_VARS = Object.freeze({ action: 24, id: 8, display: 13, command: 9 }
 export const DEFAULT_COMMIT_SUBJECT = "docs(adr): {action} {title}";
 /**
  * The names the title placeholder holds instead of a title, which are never shortened, each with
- * its action: supersede's `<display> with <display>`. The shorter names (a display, at most 13
- * characters) always fit in the room a title gets.
+ * its action: supersede's `<display> with <display>` and a link's `<display> to <display>` or
+ * `<display> to a decision in another log` (`planLink` in write.ts). The shorter names (a display,
+ * at most 13 characters) always fit in the room a title gets.
  */
 const COMMIT_NAMES = Object.freeze([
   { length: COMMIT_VARS.display * 2 + " with ".length, vars: { action: "supersede".length } },
+  { length: COMMIT_VARS.display + " to a decision in another log".length, vars: { action: 4 } },
 ]);
 
 /** adr's settings from `adr.toml` (design §5.3); every key is optional. */

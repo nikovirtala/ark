@@ -134,6 +134,8 @@ const VERBS: Readonly<Record<WriteResultJson["command"], string>> = {
   reject: "rejected",
   withdraw: "withdrawn",
   deprecate: "deprecated",
+  note: "noted",
+  link: "linked",
 };
 
 /**
@@ -189,6 +191,17 @@ export function writeText(
         ...(o.reason === undefined || o.reason === null ? [] : [`  reason: ${o.reason}`]),
         recorded,
       ].join("\n");
+    case "note":
+      return [`Noted on ${named(v.id, display)}: ${v.title}`, recorded].join("\n");
+    case "link": {
+      // The reducer appends a new link, so the one written is the last.
+      const link = doc.written.length === 0 ? undefined : v.links.at(-1);
+      if (link === undefined) return `Links of ${named(v.id, display)} unchanged`;
+      return [
+        `Linked ${named(v.id, display)} ${link.rel} ${named(link.to, display)}`,
+        recorded,
+      ].join("\n");
+    }
   }
 }
 

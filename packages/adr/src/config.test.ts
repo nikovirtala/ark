@@ -114,10 +114,10 @@ subject = "docs({command}): {action} {raw_title} ({display})"
   });
 
   it("leaves room in [commit] subject for the longest name, which is never shortened", () => {
-    // Without {action}, the fixed part is "<x's> "; supersede's name is 32 characters.
+    // Without {action}, the fixed part is "<x's> "; a cross-log link's name is 42 characters.
     const subject = (fixed: number) =>
       `[commit]\nsubject = 'docs(adr): ${"x".repeat(fixed - 1)} {title}'`;
-    const longest = 32;
+    const longest = 42;
     expect(() => parse(subject(72 - longest))).not.toThrow();
     expect(() => parse(subject(73 - longest))).toThrow(ConfigError);
     expect(() => parse(subject(73 - longest))).toThrow(
