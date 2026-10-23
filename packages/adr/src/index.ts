@@ -29,3 +29,10 @@ export {
   showDecision,
   stateHeader,
 } from "./views.js";
+export {
+  acceptDecision,
+  type ProposeInput,
+  proposeDecision,
+  supersedeDecision,
+  type WriteResultJson,
+} from "./write.js";
