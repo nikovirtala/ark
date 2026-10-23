@@ -10,7 +10,8 @@ import {
   NotARepositoryError,
 } from "../errors.js";
 import { createTempRepo, type TempRepo } from "../testing/temp-repo.js";
-import { GIT_ENV_ISOLATION, GIT_LOCATING_ENV, Git } from "./git.js";
+import { GIT_ENV_ISOLATION, GIT_LOCATING_ENV, Git, type Trailer } from "./git.js";
+import { firstParentHistory } from "./history.js";
 import { indexReader, refReader, worktreeReader } from "./tree.js";
 
 const cleanup: (() => Promise<void>)[] = [];
@@ -349,5 +350,165 @@ describe("commit, trailers and blobs", () => {
     expect(Buffer.from(blobs.get(oids[1] ?? "") ?? []).toString()).toBe("\0\x01\n");
     await expect(r.git.readBlobs(["HEAD"])).rejects.toBeInstanceOf(InvalidArgumentError);
     expect((await r.git.readBlobs([])).size).toBe(0);
+  });
+});
+
+describe("identity", () => {
+  const withoutAuthor = (r: TempRepo) =>
+    Git.open(r.root, {
+      env: { ...r.git.options.env, GIT_AUTHOR_NAME: undefined, GIT_AUTHOR_EMAIL: undefined },
+    });
+
+  it("comes from the GIT_AUTHOR_* variables", async () => {
+    const r = await repo();
+    expect(await r.git.identity()).toEqual({
+      name: "Ledger Test",
+      email: "ledger-test@example.com",
+    });
+  });
+
+  it("comes from user.name and user.email", async () => {
+    const r = await repo();
+    await r.git.run(["config", "user.name", "Ada Lovelace"]);
+    await r.git.run(["config", "user.email", "ada@example.com"]);
+    expect(await (await withoutAuthor(r)).identity()).toEqual({
+      name: "Ada Lovelace",
+      email: "ada@example.com",
+    });
+  });
+
+  it("is null when nothing is configured, never guessed", async () => {
+    const r = await repo();
+    const git = await withoutAuthor(r);
+    expect(await git.identity()).toBeNull();
+    await r.git.run(["config", "user.name", "Ada Lovelace"]);
+    expect(await git.identity()).toBeNull();
+  });
+});
+
+describe("commit with only and trailers", () => {
+  const show = async (r: TempRepo, args: string[]) =>
+    Buffer.from((await r.git.run(args)).stdout).toString();
+
+  it("commits only the given paths, from the work tree, and keeps other staged changes", async () => {
+    const r = await repo({ files: { "keep.txt": "k\n" } });
+    await r.write("a.txt", "staged\n");
+    await r.write("b.txt", "b\n");
+    await r.stage("a.txt", "b.txt");
+    await r.write("a.txt", "work tree\n");
+    const sha = await r.git.commit({ message: "only a", only: ["a.txt"] });
+    expect(await show(r, ["show", "--name-only", "--format=", sha])).toBe("a.txt\n");
+    expect(await show(r, ["show", `${sha}:a.txt`])).toBe("work tree\n");
+    expect(await r.git.stagedPaths(["."])).toEqual(["b.txt"]);
+    await expect(r.git.commit({ message: "m", only: ["-x"] })).rejects.toBeInstanceOf(
+      InvalidArgumentError,
+    );
+  });
+
+  it("writes trailers as the message's last paragraph", async () => {
+    const r = await repo();
+    const sha = await r.git.commit({
+      message: "feat: x\n\nbody\n\n",
+      allowEmpty: true,
+      trailers: [
+        ["ADR", "k3f9q8a1"],
+        ["ADR-Event", "proposed"],
+      ],
+    });
+    expect(await show(r, ["log", "-1", "--format=%B", sha])).toBe(
+      "feat: x\n\nbody\n\nADR: k3f9q8a1\nADR-Event: proposed\n\n",
+    );
+    const plain = await r.git.commit({ message: "chore: y\n", allowEmpty: true });
+    expect(await show(r, ["log", "-1", "--format=%B", plain])).toBe("chore: y\n\n");
+  });
+
+  it("keeps trailers exact under a hostile trailer config", async () => {
+    const r = await repo();
+    await r.git.run(["config", "trailer.ifexists", "addIfDifferent"]);
+    await r.git.run(["config", "trailer.ADR.ifexists", "replace"]);
+    await r.git.run(["config", "trailer.where", "start"]);
+    const trailers: Trailer[] = [
+      ["ADR", "k"],
+      ["ADR-Event", "proposed"],
+      ["ADR", "k"],
+      ["ADR-Event", "accepted"],
+      ["ADR", "a"],
+      ["ADR-Event", "superseded"],
+      ["ADR", "b"],
+      ["ADR-Event", "superseded"],
+    ];
+    await r.git.commit({ message: "feat(adr): accept k", allowEmpty: true, trailers });
+    const [head] = await firstParentHistory(r.git, "HEAD");
+    expect(head?.trailers).toEqual(trailers);
+    expect(head?.subject).toBe("feat(adr): accept k");
+  });
+
+  it("refuses trailers with an empty message", async () => {
+    const r = await repo();
+    for (const message of ["", " \n\n"]) {
+      await expect(
+        r.git.commit({ message, allowEmpty: true, trailers: [["ADR", "k"]] }),
+      ).rejects.toBeInstanceOf(InvalidArgumentError);
+    }
+    expect(await r.git.resolveCommit("HEAD")).toBeNull();
+  });
+});
+
+describe("staged, unstaged and untracked paths", () => {
+  it("stagedPaths lists added and modified paths on an unborn and a born HEAD", async () => {
+    const r = await repo();
+    await r.writeFiles({ "log/a.txt": "a\n", "log/sub/b.txt": "b\n", "other.txt": "o\n" });
+    await r.stage("log/a.txt", "log/sub/b.txt", "other.txt");
+    expect(await r.git.stagedPaths(["log"])).toEqual(["log/a.txt", "log/sub/b.txt"]);
+    expect(await r.git.stagedPaths(["log/sub", "other.txt"])).toEqual([
+      "log/sub/b.txt",
+      "other.txt",
+    ]);
+    expect(await r.git.stagedPaths(["log"], { addedOnly: true })).toEqual([
+      "log/a.txt",
+      "log/sub/b.txt",
+    ]);
+    await r.commit("initial");
+    expect(await r.git.stagedPaths(["log"])).toEqual([]);
+
+    await r.write("log/a.txt", "changed\n");
+    await r.write("log/c.txt", "c\n");
+    await r.stage("log/a.txt", "log/c.txt");
+    await r.git.run(["rm", "-q", "--cached", "log/sub/b.txt"]);
+    expect(await r.git.stagedPaths(["log"])).toEqual(["log/a.txt", "log/c.txt"]);
+    expect(await r.git.stagedPaths(["log"], { addedOnly: true })).toEqual(["log/c.txt"]);
+    expect(await r.git.stagedPaths([])).toEqual([]);
+    await expect(r.git.stagedPaths(["-x"])).rejects.toBeInstanceOf(InvalidArgumentError);
+  });
+
+  it("stagedPaths reads pathspecs literally", async () => {
+    const r = await repo();
+    await r.writeFiles({ "log/*.txt": "star\n", "log/a.txt": "a\n" });
+    await r.stage("log/*.txt", "log/a.txt");
+    expect(await r.git.stagedPaths(["log/*.txt"])).toEqual(["log/*.txt"]);
+  });
+
+  it("unstagedPaths lists work-tree changes to tracked files", async () => {
+    const r = await repo({ files: { "log/a.txt": "a\n", "log/b.txt": "b\n", "c.txt": "c\n" } });
+    await r.write("log/a.txt", "changed\n");
+    await r.write("c.txt", "changed\n");
+    await r.write("log/new.txt", "untracked\n");
+    await r.write("log/b.txt", "staged\n");
+    await r.stage("log/b.txt");
+    expect(await r.git.unstagedPaths(["log"])).toEqual(["log/a.txt"]);
+    expect(await r.git.unstagedPaths(["log", "c.txt"])).toEqual(["c.txt", "log/a.txt"]);
+    expect(await r.git.unstagedPaths([])).toEqual([]);
+  });
+
+  it("untrackedPaths lists untracked and ignored files, not tracked ones", async () => {
+    const r = await repo({ files: { ".gitignore": ".DS_Store\n", "log/a.txt": "a\n" } });
+    await r.writeFiles({
+      "log/.DS_Store": "x",
+      "log/sub/notes.txt": "n\n",
+      "outside.txt": "o\n",
+    });
+    expect(await r.git.untrackedPaths(["log"])).toEqual(["log/.DS_Store", "log/sub/notes.txt"]);
+    expect(await r.git.untrackedPaths([])).toEqual([]);
+    await expect(r.git.untrackedPaths(["-x"])).rejects.toBeInstanceOf(InvalidArgumentError);
   });
 });

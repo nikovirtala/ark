@@ -2,16 +2,17 @@ import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import fc from "fast-check";
 import { afterEach, describe, expect, it } from "vitest";
+import { compileKind } from "../envelope/kind.js";
 import type { EventEnvelope } from "../envelope/types.js";
-import { serializeEvent } from "../envelope/yaml.js";
-import { EventExistsError, InvalidArgumentError } from "../errors.js";
+import { MAX_EVENT_BYTES, serializeEvent } from "../envelope/yaml.js";
+import { EventExistsError, FileExistsError, InvalidArgumentError } from "../errors.js";
 import { compareEvents } from "../fold/fold.js";
 import { indexReader } from "../git/tree.js";
 import { formatAt } from "../identity/time.js";
 import { createUlidFactory, ulidTime } from "../identity/ulid.js";
-import { exampleLayout as layout } from "../testing/example-kind.js";
+import { exampleKind, exampleLayout as layout } from "../testing/example-kind.js";
 import { createTempRepo, type TempRepo } from "../testing/temp-repo.js";
-import { nextEventIdentity, writeEvent } from "./write.js";
+import { nextEventIdentity, writeEvent, writeEvents, writeNewFile } from "./write.js";
 
 const event: EventEnvelope = {
   envelope: "ledger/v1",
@@ -145,5 +146,90 @@ describe("nextEventIdentity", () => {
         },
       ),
     );
+  });
+});
+
+describe("writeEvents", () => {
+  const kind = compileKind(exampleKind);
+  const noted: EventEnvelope = {
+    ...event,
+    id: "01JAB3K9Z6Q8M2X7FQ0V4TNTD1",
+    type: "noted",
+    at: "2026-03-14T12:03:00Z",
+    data: {},
+  };
+  const NOTED = "log/events/a7c2m9xd/20260314T120300Z-ntd1-noted.yaml";
+
+  it("writes every event and returns the paths, staged with stage", async () => {
+    const r = await repo();
+    expect(await writeEvents(r.git, layout, [event, noted], { kind })).toEqual([PATH, NOTED]);
+    expect(await readFile(join(r.root, NOTED), "utf8")).toBe(serializeEvent(noted));
+    expect(await staged(r)).toEqual([]);
+    const s = await repo();
+    await writeEvents(s.git, layout, [event, noted], { kind, stage: true });
+    expect(await staged(s)).toEqual([PATH, NOTED]);
+  });
+
+  it("removes the files it wrote when a later write finds an existing file", async () => {
+    const r = await repo();
+    await writeEvent(r.git, layout, noted);
+    const run = writeEvents(r.git, layout, [event, { ...noted, data: { x: 1 } }], {
+      kind,
+      stage: true,
+    });
+    await expect(run).rejects.toBeInstanceOf(EventExistsError);
+    await expect(run).rejects.toMatchObject({ path: NOTED });
+    await expect(stat(join(r.root, PATH))).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readFile(join(r.root, NOTED), "utf8")).toBe(serializeEvent(noted));
+    expect(await staged(r)).toEqual([]);
+  });
+
+  it("refuses an invalid or oversized event before writing anything", async () => {
+    const r = await repo();
+    const untitled = { ...noted, type: "created", data: {} };
+    await expect(writeEvents(r.git, layout, [event, untitled], { kind })).rejects.toThrow(
+      `refusing to write invalid event ${noted.id}: /data: must have required property 'title'`,
+    );
+    const huge = { ...noted, data: { text: "x".repeat(MAX_EVENT_BYTES) } };
+    const run = writeEvents(r.git, layout, [event, huge], { kind, stage: true });
+    await expect(run).rejects.toBeInstanceOf(InvalidArgumentError);
+    await expect(run).rejects.toThrow(
+      new RegExp(`^event ${noted.id} is \\d+ bytes; the limit is 1 MiB$`),
+    );
+    await expect(stat(join(r.root, "log"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("needs a work tree", async () => {
+    const bare = await repo({ bare: true });
+    await expect(writeEvents(bare.git, layout, [event], { kind })).rejects.toThrow(
+      "operation needs a work tree",
+    );
+  });
+});
+
+describe("writeNewFile", () => {
+  it("creates a file with its directories, staged with stage", async () => {
+    const r = await repo();
+    await writeNewFile(r.git, "log/templates/lite.md", "# lite\n");
+    expect(await readFile(join(r.root, "log/templates/lite.md"), "utf8")).toBe("# lite\n");
+    expect(await staged(r)).toEqual([]);
+    await writeNewFile(r.git, "log/items/a7c2m9xd.md", new Uint8Array([0x61]), { stage: true });
+    expect(await staged(r)).toEqual(["log/items/a7c2m9xd.md"]);
+  });
+
+  it("never overwrites an existing file", async () => {
+    const r = await repo();
+    await writeNewFile(r.git, "a.md", "one");
+    const again = writeNewFile(r.git, "a.md", "two");
+    await expect(again).rejects.toBeInstanceOf(FileExistsError);
+    await expect(again).rejects.toMatchObject({ code: "file-exists", path: "a.md" });
+    expect(await readFile(join(r.root, "a.md"), "utf8")).toBe("one");
+  });
+
+  it("refuses paths outside the work tree", async () => {
+    const r = await repo();
+    for (const path of ["../x.md", "/abs.md", "a//b.md", "-x", "a/./b.md", ""]) {
+      await expect(writeNewFile(r.git, path, "x")).rejects.toBeInstanceOf(InvalidArgumentError);
+    }
   });
 });

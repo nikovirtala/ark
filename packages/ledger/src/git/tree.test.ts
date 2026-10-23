@@ -4,7 +4,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import { InvalidArgumentError, RefNotFoundError } from "../errors.js";
 import { createTempRepo, type TempRepo } from "../testing/temp-repo.js";
 import type { Git } from "./git.js";
-import { indexReader, MemoryTree, refReader, type TreeReader, worktreeReader } from "./tree.js";
+import {
+  indexReader,
+  MemoryTree,
+  overlayTree,
+  refReader,
+  type TreeReader,
+  worktreeReader,
+} from "./tree.js";
 
 const repos: TempRepo[] = [];
 
@@ -188,5 +195,56 @@ describe("MemoryTree", () => {
     expect(tree.commit).toBeNull();
     expect(text(await tree.read("a.txt"))).toBe("hello\n");
     expect(await tree.read("nope")).toBeNull();
+  });
+});
+
+describe("overlayTree", () => {
+  const bytes = (s: string) => new TextEncoder().encode(s);
+
+  it("adds files to a base tree without changing it", async () => {
+    const base = new MemoryTree({ "log/a.txt": "a\n", "log/b.txt": "b\n", "other.txt": "o\n" });
+    const tree = overlayTree(base, { "log/ab.txt": bytes("ab\n"), "log/b.txt": bytes("B\n") });
+    expect(await tree.list("log")).toEqual(
+      await new MemoryTree({ "log/a.txt": "a\n", "log/ab.txt": "ab\n", "log/b.txt": "B\n" }).list(
+        "log",
+      ),
+    );
+    expect((await tree.list("")).map((e) => e.path)).toEqual([
+      "log/a.txt",
+      "log/ab.txt",
+      "log/b.txt",
+      "other.txt",
+    ]);
+    expect(text(await tree.read("log/ab.txt"))).toBe("ab\n");
+    expect(text(await tree.read("log/b.txt"))).toBe("B\n");
+    expect(text(await tree.read("log/a.txt"))).toBe("a\n");
+    expect(await tree.read("nope")).toBeNull();
+    const many = await tree.readMany(["log/a.txt", "log/ab.txt", "nope"]);
+    expect([...many.keys()].sort()).toEqual(["log/a.txt", "log/ab.txt"]);
+    expect(text(await base.read("log/b.txt"))).toBe("b\n");
+    expect(await base.read("log/ab.txt")).toBeNull();
+    expect(tree.label).toBe("memory");
+    expect(tree.commit).toBeNull();
+  });
+
+  it("overlays a ref tree with blob oids of the repository's object format", async () => {
+    const r = await repo({ files: { "log/a.txt": "a\n" } });
+    const tree = overlayTree(await refReader(r.git, "HEAD"), { "log/new.txt": bytes("n\n") });
+    expect(await tree.list("log")).toEqual([
+      { path: "log/a.txt", oid: await hashObject(r.git, "a\n"), type: "file" },
+      { path: "log/new.txt", oid: await hashObject(r.git, "n\n"), type: "file" },
+    ]);
+    const s = await repo({ objectFormat: "sha256", files: { "x.txt": "x\n" } });
+    const sha256 = overlayTree(
+      await refReader(s.git, "HEAD"),
+      { "y.txt": bytes("y\n") },
+      {
+        objectFormat: "sha256",
+      },
+    );
+    expect((await sha256.list("")).map((e) => e.oid)).toEqual([
+      await hashObject(s.git, "x\n"),
+      await hashObject(s.git, "y\n"),
+    ]);
   });
 });

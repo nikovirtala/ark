@@ -194,6 +194,15 @@ function lines(bytes: Uint8Array): string[] {
     .filter((l) => l !== "");
 }
 
+/** The paths of a `-z` listing, sorted. */
+function zPaths(bytes: Uint8Array): string[] {
+  return Buffer.from(bytes)
+    .toString("utf8")
+    .split("\0")
+    .filter((p) => p !== "")
+    .sort();
+}
+
 /**
  * A handle on one repository. All git I/O goes through the user's git binary, so their config,
  * credentials and signing apply.
@@ -346,24 +355,58 @@ export class Git {
     await this.run(["--literal-pathspecs", "add", "--", ...paths]);
   }
 
-  /** Commits the index with `message` as given (`--cleanup=whitespace`); returns the new sha. */
+  /**
+   * The configured identity, `git -c user.useConfigOnly=true var GIT_AUTHOR_IDENT`: from the
+   * `GIT_AUTHOR_*` variables or `user.name`/`user.email`, never guessed. `null` when there is none.
+   */
+  async identity(): Promise<{ name: string; email: string } | null> {
+    const r = await this.run(["-c", "user.useConfigOnly=true", "var", "GIT_AUTHOR_IDENT"], {
+      okCodes: [0, 128],
+    });
+    if (r.code !== 0) return null;
+    const m = /^(.*) <(.*)> \d+ [+-]\d{4}$/.exec(lines(r.stdout)[0] ?? "");
+    return m === null ? null : { name: m[1] ?? "", email: m[2] ?? "" };
+  }
+
+  /**
+   * Commits the index with `message` as given (`--cleanup=whitespace`); returns the new sha.
+   *
+   * `trailers` are written into the message as its last paragraph, in order, rather than through
+   * `--trailer`, so the user's `trailer.*` config can't drop, merge or move them. A message whose
+   * own last paragraph is a trailer block would end up with two blocks, and git reads only the
+   * last one: pass every trailer through `trailers`. Trailers with an empty message throw
+   * `InvalidArgumentError`, since they would become the subject.
+   *
+   * `only` commits just those paths (`git commit --only`, their work-tree content); other staged
+   * changes stay staged.
+   */
   async commit(o: {
     readonly message: string;
     readonly trailers?: readonly Trailer[];
     readonly allowEmpty?: boolean;
+    readonly only?: readonly string[];
   }): Promise<string> {
     requireWorkTree(this);
     const trailers = o.trailers ?? [];
     assertTrailers(trailers);
+    for (const p of o.only ?? []) assertPath(p);
+    if (trailers.length > 0 && o.message.trim() === "") {
+      throw new InvalidArgumentError("a commit with trailers needs a message");
+    }
+    const message =
+      trailers.length === 0
+        ? o.message
+        : `${o.message.trimEnd()}\n\n${trailers.map(([k, v]) => `${k}: ${v}`).join("\n")}\n`;
     await this.run(
       [
+        ...(o.only === undefined ? [] : ["--literal-pathspecs"]),
         "commit",
         "--file=-",
         "--cleanup=whitespace",
         ...(o.allowEmpty === true ? ["--allow-empty"] : []),
-        ...trailers.flatMap(([k, v]) => ["--trailer", `${k}: ${v}`]),
+        ...(o.only === undefined ? [] : ["--only", "--", ...o.only]),
       ],
-      { input: o.message },
+      { input: message },
     );
     const sha = await this.resolveCommit("HEAD");
     if (sha === null)
@@ -373,6 +416,66 @@ export class Git {
         stderr: "",
       });
     return sha;
+  }
+
+  /**
+   * Paths under `pathspecs` staged as added or modified (`addedOnly`: added) against `HEAD`, or
+   * against nothing on an unborn `HEAD`. Sorted; `[]` for empty `pathspecs`.
+   */
+  async stagedPaths(
+    pathspecs: readonly string[],
+    o: { readonly addedOnly?: boolean } = {},
+  ): Promise<string[]> {
+    requireWorkTree(this);
+    for (const p of pathspecs) assertPath(p);
+    if (pathspecs.length === 0) return [];
+    const head = (await this.resolveCommit("HEAD")) === null ? [] : ["HEAD"];
+    const r = await this.run([
+      "--literal-pathspecs",
+      "diff",
+      "--cached",
+      "--name-only",
+      "--no-renames",
+      `--diff-filter=${o.addedOnly === true ? "A" : "AM"}`,
+      "-z",
+      ...head,
+      "--",
+      ...pathspecs,
+    ]);
+    return zPaths(r.stdout);
+  }
+
+  /** Paths under `pathspecs` whose work-tree content differs from the index. Sorted. */
+  async unstagedPaths(pathspecs: readonly string[]): Promise<string[]> {
+    requireWorkTree(this);
+    for (const p of pathspecs) assertPath(p);
+    if (pathspecs.length === 0) return [];
+    const r = await this.run([
+      "--literal-pathspecs",
+      "diff",
+      "--name-only",
+      "--no-renames",
+      "-z",
+      "--",
+      ...pathspecs,
+    ]);
+    return zPaths(r.stdout);
+  }
+
+  /** Untracked paths under `pathspecs`, ignored files included. Sorted; `[]` for empty `pathspecs`. */
+  async untrackedPaths(pathspecs: readonly string[]): Promise<string[]> {
+    requireWorkTree(this);
+    for (const p of pathspecs) assertPath(p);
+    if (pathspecs.length === 0) return [];
+    const r = await this.run([
+      "--literal-pathspecs",
+      "ls-files",
+      "--others",
+      "-z",
+      "--",
+      ...pathspecs,
+    ]);
+    return zPaths(r.stdout);
   }
 
   /** Adds trailers to a commit message file, skipping ones already present (for `commit-msg`). */
