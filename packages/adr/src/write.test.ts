@@ -97,6 +97,25 @@ const verifyHead = async (r: TempRepo) =>
   verifyDecisions(await open(r), { type: "full", head: "HEAD" });
 
 describe("proposeDecision", () => {
+  it("refuses to commit a draft with unfilled sections when no editor runs", async () => {
+    const r = await repo();
+    const head = await r.git.resolveCommit("HEAD");
+    const before = await porcelain(r);
+    const w = await propose(r, "Unfilled", { sections: { context: "Why." }, commit: true });
+    expect(w).toMatchObject({ ok: false, decision: null, written: [], commit: null });
+    expect(w.findings.map((f) => f.rule)).toEqual([
+      "template/guidance-left",
+      "template/guidance-left",
+      "template/guidance-left",
+    ]);
+    expect(w.findings[0]?.file).toMatch(/^docs\/adr\/decisions\/\S+-unfilled\.md$/);
+    expect(await porcelain(r)).toBe(before);
+    expect(await r.git.resolveCommit("HEAD")).toBe(head);
+    const staged = await propose(r, "Unfilled", { sections: { context: "Why." } });
+    expect(staged).toMatchObject({ ok: true, commit: null });
+    expect(staged.findings).toHaveLength(3);
+  });
+
   it("writes and stages the body, the materialized template and the proposed event", async () => {
     const r = await repo();
     const w = await propose(r, "Use Aurora for orders");
@@ -257,7 +276,9 @@ describe("acceptDecision", () => {
     const r = await repo();
     const target = idOf(await propose(r, "Target", { commit: true }));
     const declared = idOf(await propose(r, "Replacement", { supersedes: [target], commit: true }));
-    const unfilled = idOf(await propose(r, "Unfilled", { sections: {}, commit: true }));
+    // A commit without an editor refuses unfilled sections (design §7.2), so commit by hand.
+    const unfilled = idOf(await propose(r, "Unfilled", { sections: {} }));
+    await r.commit("unfilled");
     const rejected = idOf(await propose(r, "Rejected", { commit: true }));
     // After the real clock's proposal, so it applies.
     const later = new Date(Date.now() + 3_600_000).toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -738,6 +759,19 @@ describe("the editor step", () => {
     expect(notes).toEqual([
       `${body} was removed while editing; the rendered draft is still staged. Restore it with \`git checkout -- ${body}\``,
     ]);
+  });
+
+  it("skips the commit when the edited draft still has unfilled sections", async () => {
+    const r = await repo();
+    const head = await r.git.resolveCommit("HEAD");
+    const { w, notes, body } = await run(r, async () => null, { sections: { context: "Why." } });
+    expect(w).toMatchObject({ ok: true, commit: null });
+    expect(w.findings).toHaveLength(3);
+    expect(notes).toEqual([
+      `${body} still has unfilled required sections; fill them in, then commit`,
+    ]);
+    expect(await r.git.resolveCommit("HEAD")).toBe(head);
+    expect(await lines(r, "diff", "--cached", "--name-only", "--", body)).toEqual([body]);
   });
 
   it("skips the commit when the template changes while the editor is open (NIT 2)", async () => {

@@ -52,7 +52,7 @@ type WriteDoc = {
   affected: View[];
   written: string[];
   commit: string | null;
-  findings: { rule: string; message: string }[];
+  findings: { rule: string; message: string; file: string | null }[];
   notes: string[];
 };
 const json = (stdout: string) => JSON.parse(stdout) as WriteDoc;
@@ -62,9 +62,11 @@ describe("adr new", { timeout: 60_000 }, () => {
     const r = await repo();
     const out = runAdr(r, ["new", "Use Aurora for orders", ...PARTIAL]);
     expect(out.status).toBe(0);
-    expect(out.stderr).toBe("");
     const lines = out.stdout.trimEnd().split("\n");
     const id = /^Proposed (\S+): Use Aurora for orders$/.exec(lines[0] ?? "")?.[1] ?? "";
+    expect(out.stderr).toBe(
+      `adr: warning: docs/adr/decisions/${id}-use-aurora-for-orders.md: fill in 1 required section before committing or accepting: Consequences (guidance text left); adr verify reports this until then\n`,
+    );
     expect(lines.slice(1, 4)).toEqual([
       `  docs/adr/decisions/${id}-use-aurora-for-orders.md`,
       "  docs/adr/templates/nygard.md",
@@ -85,6 +87,30 @@ describe("adr new", { timeout: 60_000 }, () => {
     expect(runAdr(r, ["new", "Use DynamoDB"]).stdout).toContain(
       "Fill in 4 sections before accepting: Context, Decision, Scope, Consequences (guidance text left)\n",
     );
+  });
+
+  it("refuses --no-edit --commit with unfilled sections and writes nothing", async () => {
+    const r = await repo();
+    const before = await head(r);
+    const out = runAdr(r, ["new", "Use Aurora for orders", ...PARTIAL, "--no-edit", "--commit"]);
+    expect(out.status).toBe(1);
+    const lines = out.stdout.trimEnd().split("\n");
+    expect(lines[0]).toBe("Not proposed: Use Aurora for orders");
+    expect(lines[1]).toMatch(
+      /^ {2}docs\/adr\/decisions\/\S+-use-aurora-for-orders\.md: section Consequences still contains its guidance text \[template\/guidance-left\]$/,
+    );
+    expect(lines.slice(2)).toEqual([
+      "Fill them in with --section <id>=<markdown>, or run without --commit and edit the draft.",
+    ]);
+    expect(out.stderr).toBe("");
+    expect(await git(r, "status", "--porcelain")).toBe("");
+    expect(await head(r)).toBe(before);
+    const doc = json(
+      runAdr(r, ["new", "Use Aurora for orders", ...PARTIAL, "--no-edit", "--commit", "--json"])
+        .stdout,
+    );
+    expect(doc).toMatchObject({ ok: false, decision: null, written: [], commit: null });
+    expect(doc.findings.map((f) => f.rule)).toEqual(["template/guidance-left"]);
   });
 
   it("commits with --commit, or with auto_commit unless --no-commit", async () => {
@@ -505,6 +531,26 @@ describe("--commit messages", { timeout: 60_000 }, () => {
 // AC 19: the editor runs between staging and committing, and never commits unconfirmed content.
 describe("adr new --edit", { timeout: 60_000 }, () => {
   const FILL = `f="$1"; grep -v '${GUIDANCE}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"; echo "Ops get one more service." >> "$f"`;
+
+  it("stages but doesn't commit when the edited draft still has unfilled sections", async () => {
+    const r = await repo();
+    const before = await head(r);
+    const env = await editor(r, "exit 0");
+    const out = runAdr(r, ["new", "Unfilled", ...PARTIAL, "--edit", "--commit", "--json"], { env });
+    expect(out.status).toBe(0);
+    const doc = json(out.stdout);
+    const body = doc.findings[0]?.file ?? "";
+    expect(doc).toMatchObject({ ok: true, commit: null });
+    expect(out.stderr).toBe(
+      [
+        `adr: warning: not committed: ${body} still has unfilled required sections; fill them in, then commit`,
+        `adr: warning: ${body}: fill in 1 required section before committing or accepting: Consequences (guidance text left); adr verify reports this until then`,
+        "",
+      ].join("\n"),
+    );
+    expect(await head(r)).toBe(before);
+    expect(await staged(r)).toContain(body);
+  });
 
   it("commits the edited body with --commit, and lints the edit", async () => {
     const r = await repo();

@@ -3,7 +3,7 @@ import { COMMIT_OPTIONS, type CommandSpec, commitChoice } from "@nikovirtala/led
 import { proposeDecision } from "../write.js";
 import { editorFor } from "./editor.js";
 import { displayAfterWrite, openForCli } from "./open.js";
-import { writeText } from "./text.js";
+import { unfilledWarning, writeText } from "./text.js";
 
 const strings = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : []);
 
@@ -80,6 +80,7 @@ export const newCommand: CommandSpec = {
     );
     const { display } = await displayAfterWrite(log);
     const v = doc.decision;
+    const unfilled = unfilledWarning(doc);
     return {
       exit: doc.ok ? 0 : 1,
       json: doc as unknown as JsonValue,
@@ -89,7 +90,7 @@ export const newCommand: CommandSpec = {
         actor,
         acceptRequiresHuman: log.adr.acceptRequiresHuman,
       }),
-      notes: [...doc.notes, ...notes],
+      notes: [...doc.notes, ...notes, ...(unfilled === null ? [] : [unfilled])],
     };
   },
 };

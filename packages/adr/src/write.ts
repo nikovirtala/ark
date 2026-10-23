@@ -367,11 +367,16 @@ async function chooseTemplate(
   return { ok: true, template: parsed.template, materialize, path };
 }
 
-/** Plans `adr new`: a rendered body, a materialized template if needed, and `proposed`. */
+/**
+ * Plans `adr new`: a rendered body, a materialized template if needed, and `proposed`. With
+ * `refuseIncomplete` (a commit with no editor to fill the draft in, design §7.2), a draft that
+ * fails the template lint is refused with those findings before any file is planned.
+ */
 export async function planPropose(
   read: DecisionsRead,
   input: ProposeInput,
   c: PlanContext,
+  o: { readonly refuseIncomplete?: boolean } = {},
 ): Promise<PlanResult> {
   const title = input.title.trim();
   if (title === "" || title.length > 200 || /[\r\n]/.test(title)) {
@@ -405,6 +410,10 @@ export async function planPropose(
     bodyPath = `${read.root}/${read.layout.bodies}/${bodyFileName(id, slugify(title))}`;
     if (!read.folded.subjects.has(id) && (await read.tree.read(bodyPath)) === null) break;
     if (attempt + 1 >= SUBJECT_ATTEMPTS) throw new FileExistsError(bodyPath);
+  }
+  const lint = lintDocument(t, rendered.text, { file: bodyPath, subject: id });
+  if (o.refuseIncomplete === true && lint.length > 0) {
+    return { ok: false, decision: null, findings: lint };
   }
   const event = newEvent(read, c, {
     subject: id,
@@ -441,7 +450,7 @@ export async function planPropose(
       trailers: pairsOf([event]),
       decision: viewOf(after, id),
       affected: [],
-      findings: lintDocument(t, rendered.text, { file: bodyPath, subject: id }),
+      findings: lint,
     },
   };
 }
@@ -1580,10 +1589,13 @@ function editorStep(
       }
     }
     const text = decoder.decode(bytes ?? d.rendered);
-    return {
-      findings: lintDocument(d.template, text, { file: d.path, subject: plan.subject }),
-      commit,
-    };
+    const findings = lintDocument(d.template, text, { file: d.path, subject: plan.subject });
+    // Never commit a draft that `adr verify` then fails (design §7.2); it stays staged.
+    if (commit && commitRequested && findings.length > 0) {
+      commit = false;
+      onNote?.(`${d.path} still has unfilled required sections; fill them in, then commit`);
+    }
+    return { findings, commit };
   };
 }
 
@@ -1595,6 +1607,9 @@ function editorStep(
  * body path. It resolves to `null` when the editor exited 0, else to a note for the user (spawn
  * error, exit status). `onNote` receives the notes about a skipped commit or a removed body,
  * without the "not committed: " prefix the CLI adds when a commit was requested.
+ *
+ * A draft with unfilled sections is never committed (design §7.2): without `edit` a commit is
+ * refused (`ok: false`, nothing written); after `edit` the commit is skipped with a note.
  */
 export async function proposeDecision(
   log: DecisionLog,
@@ -1608,7 +1623,10 @@ export async function proposeDecision(
   return write(
     log,
     "new",
-    (read, c) => planPropose(read, input, c),
+    (read, c) =>
+      planPropose(read, input, c, {
+        refuseIncomplete: (o.commit ?? log.adr.autoCommit) && o.edit === undefined,
+      }),
     o,
     deps,
     o.edit === undefined ? undefined : editorStep(log, o.edit, o.onNote),
