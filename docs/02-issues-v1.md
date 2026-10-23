@@ -149,7 +149,7 @@ data:
 
 Ordering within an issue is by `at`, then `id`. The author-supplied `at` is trusted for ordering, while git history remains the audit trail of when each event actually landed. Ordering and unknown-field handling are ledger's rules, identical for every kind.
 
-**Set events, not add and remove.** `assigned`, `labeled` and `scoped` carry the complete set rather than a delta. Two branches that each add a label then produce two events, and the later one wins instead of both being applied. That loses a label in a race, but it keeps the fold trivial and the result visible in one event. The CLI still offers `--add` and `--remove`; it computes the new set from current state. Set events start in the issues package and move into ledger once adr's scoped events use the same helper, as step 5 of ark's extraction plan.
+**Set events, not add and remove.** `assigned`, `labeled` and `scoped` carry the complete set rather than a delta. Two branches that each add a label then produce two events, and the later one wins instead of both being applied. That loses a label in a race, but it keeps the fold trivial and the result visible in one event. The CLI still offers `--add` and `--remove`; it computes the new set from current state. issues writes them with ledger's set-event helper, which adr's `scoped` events introduced in adr phase 2a.
 
 **Relations are directional and stored once.** `A depends-on B` is written on A only; the projection derives `blocks` on B. `part-of` builds the parent and child tree. Both `part-of` and `depends-on` must stay acyclic; the other relations may form any graph. Relations are implemented in issues first and lifted into ledger later, alongside adr's supersession chain.
 
@@ -293,7 +293,7 @@ The MCP server lets agents find work, record what they learn and track what they
 - A duplicate always carries a pointer to its canonical issue, for example: `DUPLICATE of ?17 (open, in progress). Track work on ?17; read issues://issue/17.`
 - A blocked issue lists its open blockers, so an agent never starts work that cannot finish.
 - Issues take structured `sections` rather than free markdown, so the template is enforced and lint errors come back as data the agent can fix.
-- Agent-written events get `actor.kind: agent`, the MCP client name in `actor.agent`, and the git user as `on_behalf_of`.
+- Agent-written events get `actor.kind: agent`, the MCP client name in `actor.agent`, and `ARK_ON_BEHALF_OF`, else the git user, as `on_behalf_of`.
 
 ## Templates and customization
 
@@ -488,7 +488,7 @@ issues comment, issues close.
 - Depends on `@nikovirtala/ledger` for everything below the domain, and on `@nikovirtala/adr/kind` to read decision logs.
 - Exports its own kind as `@nikovirtala/issues/kind`, with no CLI or MCP dependencies, so other tools can fold issue logs the same way.
 - The issue kind stays pure: `reduce`, `invariants`, `relate` and `project` take data and return data; all I/O, including git, goes through ledger.
-- Relations and set events live in the issues package until adr uses the same shapes; then they move into ledger and the copies are deleted.
+- Relations live in the issues package until adr uses the same shapes; then they move into ledger and the copies are deleted. Set events come from ledger's Scope layer.
 
 **Roadmap**
 
