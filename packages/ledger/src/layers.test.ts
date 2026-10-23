@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 // Layer ranks, bottom up (design §3). A layer file may import only equal or lower ranks; the
-// testing harness sits on top and may import any layer.
+// testing harness sits on top and may import any layer but the other entries.
 const RANKS: readonly [prefix: string, rank: number][] = [
   ["errors.ts", 0],
   ["findings/", 0],
@@ -27,6 +27,11 @@ const RANKS: readonly [prefix: string, rank: number][] = [
 ];
 const TESTING_RANK = 16;
 const ENTRY = "index.ts";
+// The other entries' directories. The root entry imports none of them, and none imports another,
+// so importing a kind never loads CLI, MCP or test code.
+const ENTRY_DIRS = ["cli/", "mcp/", "testing/"] as const;
+
+const entryDirOf = (file: string) => ENTRY_DIRS.find((d) => file.startsWith(d)) ?? null;
 
 function rankOf(file: string): number | null {
   for (const [prefix, rank] of RANKS) {
@@ -68,11 +73,17 @@ function violations(graph: ReadonlyMap<string, readonly string[]>): string[] {
         continue;
       }
       if (file === ENTRY) {
-        if (target.startsWith("testing/")) out.push(`${file}: must not import ${target}`);
+        if (entryDirOf(target) !== null) out.push(`${file}: must not import ${target}`);
         continue;
       }
       if (target === ENTRY) {
         out.push(`${file}: must not import the root entry ${ENTRY}`);
+        continue;
+      }
+      const fileEntry = entryDirOf(file);
+      const targetEntry = entryDirOf(target);
+      if (fileEntry !== null && targetEntry !== null && targetEntry !== fileEntry) {
+        out.push(`${file}: must not import ${target}`);
         continue;
       }
       const targetRank = rankOf(target);
@@ -112,9 +123,15 @@ describe("layering", () => {
     ).toEqual(["git/git.ts", "errors.ts", "findings/finding.ts", "identity/ids.ts"]);
   });
 
+  it("keeps the cli entry out of the root entry", () => {
+    const graph = sourceGraph(dirname(fileURLToPath(import.meta.url)));
+    expect(graph.has("cli/index.ts")).toBe(true);
+    expect(graph.get(ENTRY)?.filter((t) => t.startsWith("cli/"))).toEqual([]);
+  });
+
   it("catches each kind of violation", () => {
     const graph = new Map<string, string[]>([
-      ["index.ts", ["errors.ts", "testing/index.ts"]],
+      ["index.ts", ["errors.ts", "testing/index.ts", "cli/index.ts", "surfaces/a.ts"]],
       ["errors.ts", []],
       ["git/git.ts", ["errors.ts", "identity/ids.ts", "index.ts"]],
       ["identity/ids.ts", ["git/git.ts", "../outside"]],
@@ -123,16 +140,28 @@ describe("layering", () => {
       ["kind/define.ts", ["log/snapshot.ts", "fold/fold.ts"]],
       ["log/snapshot.ts", []],
       ["fold/fold.ts", []],
+      ["surfaces/a.ts", ["fold/fold.ts"]],
+      ["cli/index.ts", ["cli/run.ts", "surfaces/a.ts", "errors.ts"]],
+      ["cli/run.ts", ["index.ts", "testing/index.ts", "mcp/index.ts"]],
+      ["mcp/index.ts", ["cli/run.ts", "surfaces/a.ts"]],
+      ["testing/x.ts", ["cli/index.ts", "mcp/index.ts", "testing/index.ts", "surfaces/a.ts"]],
       ["stray.ts", []],
     ]);
     expect(violations(graph)).toEqual([
       "index.ts: must not import testing/index.ts",
+      "index.ts: must not import cli/index.ts",
       "git/git.ts (rank 1) imports identity/ids.ts (rank 2)",
       "git/git.ts: must not import the root entry index.ts",
       "identity/ids.ts: relative import ../outside must use a .js specifier",
       "testing/index.ts: must not import the root entry index.ts",
       "hooks/x.ts (rank 12) imports testing/index.ts (rank 16)",
       "kind/define.ts (rank 6) imports fold/fold.ts (rank 7)",
+      "cli/run.ts: must not import the root entry index.ts",
+      "cli/run.ts: must not import testing/index.ts",
+      "cli/run.ts: must not import mcp/index.ts",
+      "mcp/index.ts: must not import cli/run.ts",
+      "testing/x.ts: must not import cli/index.ts",
+      "testing/x.ts: must not import mcp/index.ts",
       "stray.ts: not in any layer; add it to a layer directory",
     ]);
   });
