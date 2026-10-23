@@ -37,6 +37,7 @@ export {
 } from "./views.js";
 export {
   acceptDecision,
+  type CopyScope,
   deprecateDecision,
   followScopeRenames,
   type LinkInput,
@@ -47,7 +48,9 @@ export {
   type ReasonInput,
   rejectDecision,
   type ScopeInput,
+  type ScopeOffer,
   scopeDecision,
+  scopeToCopy,
   supersedeDecision,
   type WriteOptions,
   type WriteResultJson,

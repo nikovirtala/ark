@@ -2,7 +2,7 @@ import { type EventEnvelope, type Finding, renderStateHeader } from "@nikovirtal
 import type { DecisionView } from "../kind.js";
 import type { DecisionsForJson } from "../scope.js";
 import type { DecisionListJson, DecisionShowJson } from "../views.js";
-import type { WriteResultJson } from "../write.js";
+import type { ScopeOffer, WriteResultJson } from "../write.js";
 
 /** How a decision id is shown: its display (`ADR-0007`), or the id when it has no number. */
 export type Display = (id: string) => string;
@@ -179,6 +179,8 @@ export function writeText(
     readonly scopeBefore?: readonly string[];
     /** For `scope --follow-renames`: every decision's globs before, and whether renames were staged. */
     readonly followRenames?: FollowRenamesBefore;
+    /** The superseded scope an `accept` copied. */
+    readonly copied?: ScopeOffer | null;
   },
 ): string {
   const verb = VERBS[doc.command];
@@ -202,6 +204,9 @@ export function writeText(
       return [
         `Accepted ${v.id}: ${v.title}`,
         ...doc.affected.map((a) => `Superseded ${named(a.id, display)}: ${a.title}`),
+        ...(o.copied === undefined || o.copied === null
+          ? []
+          : [`Copied scope from ${o.copied.displays.join(", ")}: ${o.copied.globs.join(", ")}`]),
         committed === null
           ? "Staged; commit to record it."
           : o.number === null
