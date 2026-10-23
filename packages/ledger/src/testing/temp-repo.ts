@@ -13,6 +13,13 @@ export interface TempRepo {
   /** The work-tree root, or the git directory for a bare repo. */
   readonly root: string;
   readonly git: Git;
+  /**
+   * The hermetic environment the repo's git runs with: identity, an empty global config, no
+   * system config, and the `GIT_*` locating variables set to `undefined`. Merge it over
+   * `process.env` (dropping `undefined` values) to spawn a tool on the repo, for example from
+   * inside a git hook, without leaking the outer repository.
+   */
+  readonly env: NodeJS.ProcessEnv;
   write(path: string, content: string | Uint8Array): Promise<void>;
   remove(path: string): Promise<void>;
   /** Writes every file of a path → content map, for example a `logFixtureFiles` result. */
@@ -58,7 +65,7 @@ export async function createTempRepo(o: TempRepoOptions = {}): Promise<TempRepo>
   const tmp = await realpath(await mkdtemp(join(tmpdir(), "ledger-")));
   const globalConfig = join(tmp, ".gitconfig");
   await writeFile(globalConfig, "");
-  const env: NodeJS.ProcessEnv = {
+  const env: NodeJS.ProcessEnv = Object.freeze({
     ...GIT_ENV_ISOLATION,
     GIT_CONFIG_NOSYSTEM: "1",
     GIT_CONFIG_GLOBAL: globalConfig,
@@ -67,7 +74,7 @@ export async function createTempRepo(o: TempRepoOptions = {}): Promise<TempRepo>
     GIT_AUTHOR_EMAIL: "ledger-test@example.com",
     GIT_COMMITTER_NAME: "Ledger Test",
     GIT_COMMITTER_EMAIL: "ledger-test@example.com",
-  };
+  });
   const dispose = () => rm(tmp, { recursive: true, force: true });
 
   try {
@@ -136,6 +143,7 @@ function tempRepo(
   return {
     root,
     git,
+    env,
     write,
     async writeFiles(files) {
       workTree();
