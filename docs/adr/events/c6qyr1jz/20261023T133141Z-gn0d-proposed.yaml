@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M5MFBKD5Z0PAE9NH04MNGN0D
+subject: c6qyr1jz
+type: proposed
+at: 2026-10-23T13:31:41Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Build ledger as the shared core for event-sourced records
+  template: nygard
+  template_version: 1
