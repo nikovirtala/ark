@@ -1,4 +1,4 @@
-import { type JsonValue, resolveActor, UsageError } from "@nikovirtala/ledger";
+import { type JsonValue, resolveAttribution, UsageError } from "@nikovirtala/ledger";
 import { COMMIT_OPTIONS, type CommandSpec, commitChoice } from "@nikovirtala/ledger/cli";
 import { proposeDecision } from "../write.js";
 import { editorFor } from "./editor.js";
@@ -44,7 +44,7 @@ export const newCommand: CommandSpec = {
     const title = positionals[0] ?? "";
     const given = sections(strings(values.section));
     const log = await openForCli(io, flags);
-    const actor = await resolveActor(log.git, { env: io.env });
+    const { actor, notes: attribution } = await resolveAttribution(log.git, { env: io.env });
     // Design review NIT 1: the skip notes say "not committed" only when a commit was asked for.
     const { commit: requested, message } = commitChoice(values, {
       autoCommit: log.adr.autoCommit,
@@ -73,6 +73,7 @@ export const newCommand: CommandSpec = {
       {
         commit: requested,
         message,
+        notes: attribution,
         ...(edit === undefined ? {} : { edit }),
         onNote: (note) => notes.push(requested ? `not committed: ${note}` : note),
       },

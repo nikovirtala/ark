@@ -1,4 +1,4 @@
-import { type JsonValue, resolveActor } from "@nikovirtala/ledger";
+import { type JsonValue, resolveAttribution } from "@nikovirtala/ledger";
 import { COMMIT_OPTIONS, type CommandSpec, commitChoice } from "@nikovirtala/ledger/cli";
 import { acceptDecision } from "../write.js";
 import { displayAfterWrite, openForCli } from "./open.js";
@@ -15,11 +15,11 @@ export const acceptCommand: CommandSpec = {
   async run({ io, flags, values, positionals }) {
     const input = positionals[0] ?? "";
     const log = await openForCli(io, flags);
-    const actor = await resolveActor(log.git, { env: io.env });
+    const { actor, notes: attribution } = await resolveAttribution(log.git, { env: io.env });
     const doc = await acceptDecision(
       log,
       { id: input, actor },
-      commitChoice(values, { autoCommit: log.adr.autoCommit }),
+      { ...commitChoice(values, { autoCommit: log.adr.autoCommit }), notes: attribution },
     );
     const { display } = await displayAfterWrite(log);
     const v = doc.decision;
