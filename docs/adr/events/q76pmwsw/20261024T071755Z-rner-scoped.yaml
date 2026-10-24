@@ -1,0 +1,21 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M5PCBX8VD28J7SWFQ5ZPRNER
+subject: q76pmwsw
+type: scoped
+at: 2026-10-24T07:17:55Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - .github/workflows/ci.yml
+    - AGENTS.md
+    - packages/adr/src/config.ts
+    - packages/adr/src/write.ts
+    - packages/ledger/src/git/git.ts
+    - packages/ledger/src/surfaces/commit-message.ts
