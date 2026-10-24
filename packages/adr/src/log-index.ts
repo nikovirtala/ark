@@ -122,8 +122,10 @@ export const DECISION_INDEX = (
 /**
  * The index `tree` must hold: its decisions, numbered as they will be once the commit holding
  * `tree` (which builds on `history`: HEAD, a commit, or null on an unborn HEAD) is on main
- * (design 2b D2). In a shallow clone the numbers continue from those `history`'s index recorded;
- * `null` when there are none, so the numbers can't be projected.
+ * (design 2b D2), with `[log] main_branch`'s numbers first. A tree that isn't a commit's (the work
+ * tree, the index) also merges `MERGE_HEAD` while a merge is in progress. In a shallow clone the
+ * numbers continue from those `history`'s index recorded; `null` when there are none, so the
+ * numbers can't be projected.
  */
 export async function renderDecisionIndex(
   git: Git,
@@ -135,11 +137,15 @@ export async function renderDecisionIndex(
   },
 ): Promise<string | null> {
   const { layout, history } = o;
+  const mergeHead =
+    o.tree.commit === null && history !== null ? await git.resolveCommit("MERGE_HEAD") : null;
   const numbering = await projectNumbering(git, {
     kind: adrKind,
     layout,
     history,
     tree: o.tree,
+    mainRef: o.adr.mainBranch,
+    merging: mergeHead === null ? [] : [mergeHead],
     recorded: async () =>
       history === null ? null : readIndexNumbers(await refReader(git, history), indexPath(layout)),
   });

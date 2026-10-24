@@ -5,8 +5,9 @@
 Add the Index layer: generated, committed Markdown indexes (`renderIndex`, `escapeMarkdown`,
 `INDEX_FORMAT`), their numbers line (`parseIndexNumbers`, `readIndexNumbers`), the freshness check
 (`indexCheck`: `index/missing`, `index/stale`, `index/unchecked`) and `writeIndexFile`. Add
-`projectNumbering`, which numbers a tree as its commit will be numbered on main, with
-`compareNumberingKeys`, and a `fallback` for `numberLog` in shallow clones (`reason: "index"`).
+`projectNumbering`, which numbers a tree as its commit will be numbered on main (main's numbers
+first, also on a branch that merged main), with `compareNumberingKeys`, a `not` option for
+`firstParentAdditions`, and a `fallback` for `numberLog` in shallow clones (`reason: "index"`).
 
 Add checks over code for kinds with `scope`: `scopeGlobCheck`, `anchorCheck`, and the
 `governedChanges` and `narrowedScopes` helpers, reading the repository through the new

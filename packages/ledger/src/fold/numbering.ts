@@ -163,13 +163,75 @@ export async function numberLog(
 }
 
 /**
+ * The newest commit on `main`'s first-parent line that the commit being made contains (it builds
+ * on `history` and merges `merging`); `null` when it contains none.
+ */
+async function mainBase(
+  git: Git,
+  main: string,
+  history: string,
+  merging: readonly string[],
+): Promise<string | null> {
+  const r = await git.run([
+    "rev-list",
+    "--first-parent",
+    "--parents",
+    "--end-of-options",
+    main,
+    ...[history, ...merging].map((c) => `^${c}`),
+  ]);
+  const lines = Buffer.from(r.stdout).toString("utf8").trim().split("\n").filter(Boolean);
+  const last = lines.at(-1);
+  if (last === undefined) return main;
+  return last.split(" ")[1] ?? null;
+}
+
+/**
+ * The additions `projectNumbering` numbers before the pending group: main's first-parent
+ * additions up to `mainBase`, then those of `history`'s own first-parent commits after it. So a
+ * branch that merged main numbers main's acceptances first, as main does. When that commit is on
+ * `history`'s first-parent line (main itself, a rebased branch), or there is no main ref, this
+ * numbers like `history`'s first-parent additions alone.
+ */
+async function projectedAdditions(
+  git: Git,
+  o: {
+    readonly history: string;
+    readonly merging: readonly string[];
+    readonly events: string;
+    readonly mainRef: string | null | undefined;
+  },
+): Promise<{ path: string; commit: string }[]> {
+  const own = () => firstParentAdditions(git, o.history, o.events);
+  let ref: string | null;
+  try {
+    ref = await resolveMainRef(git, o.mainRef);
+  } catch (err) {
+    // A configured ref that doesn't resolve projects as if there were no main ref.
+    if (err instanceof RefNotFoundError) return own();
+    throw err;
+  }
+  const main = ref === null ? null : await git.resolveCommit(ref);
+  if (main === null) return own();
+  const base = await mainBase(git, main, o.history, o.merging);
+  if (base === null || base === o.history) return own();
+  return [
+    ...(await firstParentAdditions(git, base, o.events)),
+    ...(await firstParentAdditions(git, o.history, o.events, { not: [base] })),
+  ];
+}
+
+/**
  * The numbers a log's subjects will have once the commit holding `tree` is on main (design D2):
- * `history`'s first-parent additions, then, as one last group sorted like any commit's, the event
- * files in `tree` that history doesn't number yet. After a fast-forward or rebase merge of an
- * up-to-date branch, main's `numberLog` equals the branch's projection. Unavailable for a kind
- * without `numbering`. In a shallow repository the history comes from `recorded` instead
- * (`reason: "index"`), with the pending subjects numbered after its highest number; without it
- * the numbers are unavailable (`reason: "shallow"`).
+ * main's first-parent additions up to the newest commit on its first-parent line that the commit
+ * contains, then those of `history`'s own first-parent commits after it, then, as one last group
+ * sorted like any commit's, the event files in `tree` that neither numbers yet. After a
+ * fast-forward, rebase or merge-commit merge of an up-to-date branch, whether it was updated by
+ * a rebase or by merging main, main's `numberLog` equals the branch's projection. Without a main
+ * ref, or on main's own first-parent line, the history part is `history`'s first-parent additions.
+ * Unavailable for a kind without `numbering`. In a shallow repository the history comes from
+ * `recorded` instead (`reason: "index"`), with the pending subjects numbered after its highest
+ * number; without it the numbers are unavailable (`reason: "shallow"`).
  */
 export async function projectNumbering(
   git: Git,
@@ -184,6 +246,10 @@ export async function projectNumbering(
     readonly tree: TreeReader;
     /** Shallow clones only: the numbers recorded at `history` (its index), or null. */
     readonly recorded?: () => Promise<ReadonlyMap<string, number> | null>;
+    /** As `numberLog`'s: a configured main ref; `undefined` or `null` resolves it automatically. */
+    readonly mainRef?: string | null;
+    /** The commit's other parents: `MERGE_HEAD` while a merge is in progress. */
+    readonly merging?: readonly string[];
   },
 ): Promise<Numbering> {
   const numbering = o.kind.def.numbering;
@@ -212,7 +278,15 @@ export async function projectNumbering(
       byNumber: byNumberOf(byId),
     };
   }
-  const additions = o.history === null ? [] : await firstParentAdditions(git, o.history, events);
+  const additions =
+    o.history === null
+      ? []
+      : await projectedAdditions(git, {
+          history: o.history,
+          merging: o.merging ?? [],
+          events,
+          mainRef: o.mainRef,
+        });
   const byId = assignNumbers(
     [...additions, ...pending.map((path) => ({ path, commit: PENDING_COMMIT }))],
     rule,
