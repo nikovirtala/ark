@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M5QFNNG6XQE0CC6DM20N5EEK
+subject: btjpf9g1
+type: proposed
+at: 2026-10-24T17:34:54Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Keep generated indexes committed and fresh in every commit
+  template: nygard
+  template_version: 1
