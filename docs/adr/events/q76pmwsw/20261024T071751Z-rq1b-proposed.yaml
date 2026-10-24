@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M5PCBSDJXXS3SY30S8EMRQ1B
+subject: q76pmwsw
+type: proposed
+at: 2026-10-24T07:17:51Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Use Conventional Commits for --commit messages and ark's history
+  template: nygard
+  template_version: 1
