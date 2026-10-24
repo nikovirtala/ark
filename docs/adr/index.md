@@ -15,4 +15,10 @@
 | ADR-0008 | [Use Conventional Commits for --commit messages and ark's history](decisions/q76pmwsw-use-conventional-commits-for-commit-messages-and-arks.md) | accepted | 2026-10-24 |
 | ADR-0009 | [Require Node 24 or newer for every ark package](decisions/5v1w33jg-require-node-24-or-newer-for-every-ark-package.md) | accepted | 2026-10-24 |
 
+## Proposed
+
+| Decision | Title | Status | Since |
+| --- | --- | --- | --- |
+| btjpf9g1 | [Keep generated indexes committed and fresh in every commit](decisions/btjpf9g1-keep-generated-indexes-committed-and-fresh-in-every-commit.md) | proposed | 2026-10-24 |
+
 <!-- ledger-index/v1 numbers: gyspf3an=1 c6qyr1jz=2 9z41kzez=3 ew1emghd=4 28dj3jdc=5 fv88cd54=6 e2ye7ng3=7 q76pmwsw=8 5v1w33jg=9 -->
