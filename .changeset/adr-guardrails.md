@@ -6,7 +6,8 @@ adr phase 2b, "Guardrails". With `[log] index = "committed"`, `adr index` writes
 `index.md` (accepted and proposed decisions, then inactive ones, with numbers, linked titles,
 status and date), every write keeps it fresh, `adr index --check` and `verify` check it, and
 `adr index --commit` commits it. Its numbers are projected: on a branch, the numbers its
-acceptances will get once it merges. In a shallow clone, display numbers come from `index.md` in
+acceptances will get once it merges. A write notes when the staged `index.md` lists another
+decision's files that aren't staged. In a shallow clone, display numbers come from `index.md` in
 the commit being read, with a note; nothing is fetched automatically.
 
 `adr hooks install|uninstall|print|run|trailers` installs adr in ledger's shared hook shims:
