@@ -1,0 +1,23 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M5PCBEK7PX91VPJPVADBHT1X
+subject: fv88cd54
+type: scoped
+at: 2026-10-24T07:17:40Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/*/package.json
+    - packages/*/src/kind.ts
+    - packages/*/tsdown.config.ts
+    - packages/adr/src/kind-isolation.test.ts
+    - packages/ledger/src/cli/**
+    - packages/ledger/src/index.ts
+    - packages/ledger/src/layers.test.ts
+    - packages/ledger/src/testing/**
