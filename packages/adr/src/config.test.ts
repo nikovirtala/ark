@@ -1,9 +1,9 @@
-import { ConfigError, parseToolConfig } from "@nikovirtala/ledger";
+import { ConfigError, parseCommitTemplate, parseToolConfig } from "@nikovirtala/ledger";
 import { describe, expect, it } from "vitest";
+import { ACTIONS, COMMIT_NAMES, COMMIT_VARS, LONGEST_ACTION } from "./commit-actions.js";
 import { DEFAULT_ADR_CONFIG, parseAdrConfig } from "./config.js";
 import { adrKind } from "./kind.js";
 
-const COMMIT_VARS = { action: 24, id: 8, display: 13, command: 9 };
 const DEFAULT_SUBJECT = { source: "docs(adr): {action} {title}", vars: COMMIT_VARS };
 
 const parse = (toml: string) =>
@@ -148,10 +148,48 @@ anchor_exclude = ["docs/**", "**/*.test.ts"]
     );
   });
 
+  it("leaves a cross-log link's name room up to its boundary", () => {
+    // "link" (4) + " " + " " + pad + "ADR-<9 digits> to a decision in another log" (42) ≤ 72.
+    const subject = (pad: number) =>
+      `[commit]\nsubject = "docs(adr): {action} {title} ${"x".repeat(pad)}"`;
+    expect(() => parse(subject(24))).not.toThrow();
+    expect(() => parse(subject(25))).toThrow(
+      "adr.toml: commit.subject leaves no room for the title",
+    );
+  });
+
   it("names the file it was given", () => {
     const config = parseToolConfig("[verify]\nfail_on = 1\n", { file: "docs/adr/adr.toml" });
     expect(() => parseAdrConfig(config, "docs/adr/adr.toml")).toThrow(
       /^docs\/adr\/adr\.toml: verify\.fail_on/,
     );
+  });
+});
+
+describe("commit name lengths", () => {
+  it("derive {action}'s longest value from the action table", () => {
+    expect(LONGEST_ACTION).toBe(24);
+    expect(LONGEST_ACTION).toBe(ACTIONS.withdrawn.action.length);
+    expect(COMMIT_VARS.action).toBe(LONGEST_ACTION);
+  });
+
+  it("pair each never-shortened name with its action's length", () => {
+    expect(COMMIT_NAMES.map((n) => n.vars.action)).toEqual([
+      ACTIONS.superseded.action.length,
+      ACTIONS.linked.action.length,
+    ]);
+  });
+
+  it("leave supersede's name room up to its boundary", () => {
+    // "supersede" (9) + " " + " " + pad + "ADR-<9 digits> with ADR-<9 digits>" (32) ≤ 72.
+    const parseSupersede = (pad: number) =>
+      parseCommitTemplate(`docs(adr): {action} {title} ${"x".repeat(pad)}`, {
+        vars: { ...COMMIT_VARS, action: ACTIONS.superseded.action.length },
+        where: "commit.subject",
+        names: COMMIT_NAMES.slice(0, 1),
+      });
+    expect(() => parseSupersede(29)).not.toThrow();
+    expect(() => parseSupersede(30)).toThrow(ConfigError);
+    expect(() => parseSupersede(30)).toThrow("commit.subject leaves no room for the title");
   });
 });
