@@ -28,7 +28,7 @@ Follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.
     [optional footer(s)]
 
 - Types: `feat`, `fix`, `build`, `chore`, `ci`, `docs`, `perf`, `refactor`, `revert`, `style`, `test`.
-- Description: imperative mood, lowercase, no trailing period, ≤72 characters.
+- Description: imperative mood, starting with a lowercase letter (the rest keeps its natural casing), no trailing period, ≤72 characters.
 - Breaking changes: add `!` after the type/scope and a `BREAKING CHANGE:` footer explaining the impact and migration.
 - The body explains *why*, not *what*.
 
