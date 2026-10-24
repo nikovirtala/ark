@@ -1,6 +1,6 @@
 {
   "name": "@nikovirtala/adr",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Architecture decision records kept as event logs in git: frozen bodies, computed status and supersession chains. CLI and library.",
   "keywords": [
     "adr",
