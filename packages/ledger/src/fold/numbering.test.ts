@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
-import { join } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import fc from "fast-check";
 import { afterEach, describe, expect, it } from "vitest";
@@ -142,8 +143,11 @@ async function publish(r: TempRepo, subject: string, at: string): Promise<string
   return r.commit(`publish ${subject}`);
 }
 
-/** Writes a `published` event for `subject` at `at` to the work tree; returns its path. */
-async function writePublished(r: TempRepo, subject: string, at: string): Promise<string> {
+/**
+ * Writes a `published` event for `subject` at `at` to the work tree of a temp repo or of the
+ * repository at a path; returns its path.
+ */
+async function writePublished(r: TempRepo | string, subject: string, at: string): Promise<string> {
   seq += 1;
   const e: EventEnvelope = {
     envelope: "ledger/v1",
@@ -157,8 +161,20 @@ async function writePublished(r: TempRepo, subject: string, at: string): Promise
     data: { body_sha256: "0".repeat(64) },
   };
   const p = eventPath(layout, e);
-  await r.write(p, serializeEvent(e));
+  if (typeof r !== "string") await r.write(p, serializeEvent(e));
+  else {
+    await mkdir(dirname(join(r, p)), { recursive: true });
+    await writeFile(join(r, p), serializeEvent(e));
+  }
   return p;
+}
+
+/** A `git clone --depth 1` of `r`, opened. */
+async function shallowClone(r: TempRepo): Promise<Git> {
+  const dest = join(r.root, "..", `shallow-${++seq}`);
+  const env = { ...process.env, ...r.git.options.env } as Record<string, string>;
+  await run("git", ["clone", "-q", "--depth", "1", `file://${r.root}`, dest], { env });
+  return Git.open(dest, r.git.options);
 }
 
 const numbersOf = async (git: Git, mainRef?: string | null) =>
@@ -341,5 +357,106 @@ describe("projectNumbering", () => {
       ...NO_NUMBERING,
       reason: "shallow",
     });
+  });
+
+  it("continues a shallow clone's recorded numbers with the pending acceptances", async () => {
+    const r = await repo();
+    const head = await publish(r, A, "2026-01-01T00:00:00Z");
+    const shallow = await shallowClone(r);
+    const root = shallow.root as string;
+    const D = "dddddddd";
+    const E = "eeeeeeee";
+    await writePublished(root, E, "2026-01-03T00:00:00Z");
+    await writePublished(root, D, "2026-01-04T00:00:00Z");
+    // A recorded subject's later acceptance keeps its number.
+    await writePublished(root, B, "2026-01-02T00:00:00Z");
+    const recorded = new Map([
+      [A, 1],
+      [B, 2],
+      [C, 5],
+    ]);
+    const n = await projectNumbering(shallow, {
+      kind,
+      layout,
+      history: head,
+      tree: worktreeReader(shallow),
+      recorded: async () => recorded,
+    });
+    expect(n).toMatchObject({ available: true, reason: "index", ref: null, commit: head });
+    expect(Object.fromEntries(n.byId)).toEqual({ [A]: 1, [B]: 2, [C]: 5, [E]: 6, [D]: 7 });
+    expect(Object.fromEntries(n.byNumber)).toEqual({ 1: A, 2: B, 5: C, 6: E, 7: D });
+    expect(recorded.size).toBe(3);
+    const none = await projectNumbering(shallow, {
+      kind,
+      layout,
+      history: head,
+      tree: worktreeReader(shallow),
+      recorded: async () => null,
+    });
+    expect(none).toEqual({ ...NO_NUMBERING, reason: "shallow" });
+  });
+
+  it("numbers pending acceptances the same way with recorded numbers as with history", async () => {
+    const r = await repo();
+    await publish(r, B, "2026-01-02T00:00:00Z");
+    const head = await publish(r, A, "2026-01-01T00:00:00Z");
+    const shallow = await shallowClone(r);
+    const pending: [string, string][] = [
+      ["dddddddd", "2026-01-05T00:00:00Z"],
+      [C, "2026-01-03T00:00:00Z"],
+      ["eeeeeeee", "2026-01-03T00:00:00Z"],
+    ];
+    for (const [subject, at] of pending) {
+      // The same file in both work trees.
+      const p = await writePublished(r, subject, at);
+      await mkdir(dirname(join(shallow.root as string, p)), { recursive: true });
+      await writeFile(join(shallow.root as string, p), await readFile(join(r.root, p)));
+    }
+    const full = await project(r.git, head, worktreeReader(r.git));
+    const fromHistory = (await numberLog(r.git, { kind, layout })).byId;
+    const fromIndex = await projectNumbering(shallow, {
+      kind,
+      layout,
+      history: head,
+      tree: worktreeReader(shallow),
+      recorded: async () => fromHistory,
+    });
+    expect(fromIndex.reason).toBe("index");
+    expect(Object.fromEntries(fromIndex.byId)).toEqual(Object.fromEntries(full.byId));
+    expect(full.byId.size).toBe(5);
+  });
+});
+
+describe("numberLog in a shallow clone", () => {
+  it("uses the fallback's numbers, and is unavailable when it has none", async () => {
+    const r = await repo();
+    await publish(r, A, "2026-01-01T00:00:00Z");
+    const shallow = await shallowClone(r);
+    const recorded = new Map([
+      [A, 1],
+      [B, 3],
+    ]);
+    const n = await numberLog(shallow, { kind, layout, fallback: async () => recorded });
+    expect(n).toMatchObject({ available: true, reason: "index", ref: null, commit: null });
+    expect(Object.fromEntries(n.byId)).toEqual({ [A]: 1, [B]: 3 });
+    expect(Object.fromEntries(n.byNumber)).toEqual({ 1: A, 3: B });
+    expect(await numberLog(shallow, { kind, layout, fallback: async () => null })).toEqual({
+      ...NO_NUMBERING,
+      reason: "shallow",
+    });
+  });
+
+  it("ignores the fallback in a full clone", async () => {
+    const r = await repo();
+    await publish(r, A, "2026-01-01T00:00:00Z");
+    let called = false;
+    const fallback = async () => {
+      called = true;
+      return new Map([[B, 1]]);
+    };
+    const n = await numberLog(r.git, { kind, layout, fallback });
+    expect(n.reason).toBeNull();
+    expect(Object.fromEntries(n.byId)).toEqual({ [A]: 1 });
+    expect(called).toBe(false);
   });
 });
