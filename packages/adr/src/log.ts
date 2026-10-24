@@ -75,7 +75,19 @@ export interface DecisionsRead {
  * copy, which may number acceptances that exist only there (design 2b D1, §4.6).
  */
 export async function readDecisions(log: DecisionLog): Promise<DecisionsRead> {
-  const numbering = await numberLog(log.git, {
+  return readDecisionsFrom(log.tree, {
+    layout: log.layout,
+    adr: log.adr,
+    numbering: await numberDecisions(log),
+    ref: log.ref,
+    commit: log.commit,
+    notes: log.notes,
+  });
+}
+
+/** The display numbers `readDecisions` uses, with its shallow-clone fallback to `index.md`. */
+export async function numberDecisions(log: DecisionLog): Promise<Numbering> {
+  return numberLog(log.git, {
     kind: adrKind,
     layout: log.layout,
     mainRef: log.adr.mainBranch,
@@ -89,14 +101,6 @@ export async function readDecisions(log: DecisionLog): Promise<DecisionsRead> {
           },
         }
       : {}),
-  });
-  return readDecisionsFrom(log.tree, {
-    layout: log.layout,
-    adr: log.adr,
-    numbering,
-    ref: log.ref,
-    commit: log.commit,
-    notes: log.notes,
   });
 }
 

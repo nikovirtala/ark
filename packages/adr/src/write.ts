@@ -1096,7 +1096,13 @@ export async function planScope(
     };
   }
   if (o.tracked !== undefined) {
-    notes.push(...unmatchedGlobs(result.set, o.tracked).map((g) => `${g} matches no tracked file`));
+    // Verify's scope/glob-unmatched applies to the statuses in activeIn (design 2b §5.2).
+    const checked = (adrKind.def.scope?.activeIn ?? []).includes(view.status)
+      ? "; verify (hooks and CI) reports scope/glob-unmatched until a file matches"
+      : "";
+    notes.push(
+      ...unmatchedGlobs(result.set, o.tracked).map((g) => `${g} matches no tracked file${checked}`),
+    );
   }
   if (result.removed.length > 0 && (view.status === "accepted" || view.status === "deprecated")) {
     notes.push(

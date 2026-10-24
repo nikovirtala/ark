@@ -19,7 +19,11 @@ const GLOBS = ["docs/it's.md", "src/orders/**", "src/payments/**"];
 
 /** ADR-0001 scoped to `GLOBS`, and a committed proposal that supersedes it; their ids. */
 async function supersedingRepo(): Promise<{ r: TempRepo; old: string; next: string }> {
-  const r = await cliRepo({ "src/orders/api.ts": "export {}\n", "src/payments/pay.ts": "x\n" });
+  const r = await cliRepo({
+    "docs/it's.md": "x\n",
+    "src/orders/api.ts": "export {}\n",
+    "src/payments/pay.ts": "x\n",
+  });
   repos.push(r);
   const old = await seedDecision(r, "Use DynamoDB for orders");
   const set = GLOBS.flatMap((g) => ["--set", g]);

@@ -29,6 +29,12 @@ export interface AdrConfig {
   readonly mcpCanDecide: boolean;
   /** `[verify] fail_on`. */
   readonly failOn: Severity;
+  /** `[verify] governed_by_inactive`: the severity of `decision/governed-by-inactive`. */
+  readonly governedByInactive: Severity;
+  /** `[hooks] scope_follow_renames`: what the pre-commit hook does with renames of covered files. */
+  readonly scopeFollowRenames: "stage" | "warn" | "off";
+  /** `[hooks] index`: whether the pre-commit hook only checks `index.md` or regenerates it. */
+  readonly hookIndex: "check" | "stage";
   /** `[commit] subject`: the template of `--commit` subjects. */
   readonly commitSubject: CommitTemplate;
   /** `[scope] anchor_keyword`: the code-anchor keyword, `adr` in `// adr:<id>`. */
@@ -45,6 +51,9 @@ export const DEFAULT_ADR_CONFIG: AdrConfig = Object.freeze({
   autoCommit: false,
   mcpCanDecide: false,
   failOn: "error",
+  governedByInactive: "warning",
+  scopeFollowRenames: "stage",
+  hookIndex: "check",
   commitSubject: parseCommitTemplate(DEFAULT_COMMIT_SUBJECT, {
     vars: COMMIT_VARS,
     where: "commit.subject",
@@ -81,6 +90,7 @@ export function parseAdrConfig(config: ToolConfig | null, file: string | null): 
   const policy = table("policy");
   const verify = table("verify");
   const scope = table("scope");
+  const hooks = table("hooks");
   const bool = (t: Record<string, unknown>, section: string, key: string, fallback: boolean) => {
     const v = t[key];
     if (v === undefined) return fallback;
@@ -139,6 +149,21 @@ export function parseAdrConfig(config: ToolConfig | null, file: string | null): 
     autoCommit: bool(policy, "policy", "auto_commit", false),
     mcpCanDecide: bool(policy, "policy", "mcp_can_decide", false),
     failOn: oneOf(verify, "verify", "fail_on", ["error", "warning"] as const, "error"),
+    governedByInactive: oneOf(
+      verify,
+      "verify",
+      "governed_by_inactive",
+      ["warning", "error"] as const,
+      "warning",
+    ),
+    scopeFollowRenames: oneOf(
+      hooks,
+      "hooks",
+      "scope_follow_renames",
+      ["stage", "warn", "off"] as const,
+      "stage",
+    ),
+    hookIndex: oneOf(hooks, "hooks", "index", ["check", "stage"] as const, "check"),
     commitSubject: readCommitTemplate(config, {
       file: where,
       vars: COMMIT_VARS,
