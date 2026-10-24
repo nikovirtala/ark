@@ -45,8 +45,8 @@ Do this once, when the work is complete and you're about to request review, not 
 
 1. Squash all `fixup!`/`squash!` commits (`git rebase -i --autosquash origin/main`).
 2. Rebase onto the latest `origin/main`.
-3. Verify every commit: `git rebase --exec "<test command>" origin/main`.
-   This runs the full test suite once per commit, so it costs *test suite duration × number of commits* (e.g. 1 minute × 15 commits = 15 minutes). That's why it runs only at this point. Running it after every fixup or push wastes that time, and any later rebase onto a newer `main` invalidates the result anyway.
+3. Verify every commit: `git rebase --exec scripts/check-commit.sh origin/main`.
+   The script runs only what each commit's changes can affect: lint only for Markdown outside `docs/adr/` and `packages/*/src/`; install, a clean build and `adr verify` without tests for `docs/adr/`; tests of the changed packages and their dependents; every test for workspace-level files. Every non-docs commit still builds from an empty `dist/`. Even so it costs up to *test suite duration × number of commits*: phase 2b's 33 commits took 29 minutes instead of 63 with the full gate. That's why it runs only at this point. Running it after every fixup or push wastes that time, and any later rebase onto a newer `main` invalidates the result anyway.
 4. Push with `--force-with-lease` and wait for CI to go green.
 5. Finalize the PR description.
 
