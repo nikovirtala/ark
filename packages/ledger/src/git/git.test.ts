@@ -729,3 +729,65 @@ describe("staged, unstaged and untracked paths", () => {
     await expect(r.git.untrackedPaths(["-x"])).rejects.toBeInstanceOf(InvalidArgumentError);
   });
 });
+
+describe("tracked and changed paths", () => {
+  it("trackedPaths lists the index, the work tree and a commit", async () => {
+    const r = await repo({ files: { "a.txt": "a\n", "b/c.txt": "c\n", "gone.txt": "g\n" } });
+    const first = await r.git.resolveCommit("HEAD");
+    await r.write("new.txt", "n\n");
+    await r.stage("new.txt");
+    await r.remove("gone.txt");
+    await r.write("untracked.txt", "u\n");
+    expect(await r.git.trackedPaths("index")).toEqual(["a.txt", "b/c.txt", "gone.txt", "new.txt"]);
+    expect(await r.git.trackedPaths("worktree")).toEqual(["a.txt", "b/c.txt", "new.txt"]);
+    expect(await r.git.trackedPaths({ commit: first ?? "" })).toEqual([
+      "a.txt",
+      "b/c.txt",
+      "gone.txt",
+    ]);
+    await expect(r.git.trackedPaths({ commit: "-x" })).rejects.toBeInstanceOf(InvalidArgumentError);
+  });
+
+  it("changedPaths diffs a base against each head, listing both paths of a rename", async () => {
+    const r = await repo({ files: { "a.txt": "a\n", "b.txt": "b\n", "c.txt": "c\n" } });
+    const base = (await r.git.resolveCommit("HEAD")) ?? "";
+    await r.git.run(["mv", "a.txt", "moved.txt"]);
+    await r.write("b.txt", "staged\n");
+    await r.stage("b.txt");
+    await r.write("c.txt", "unstaged\n");
+    expect(await r.git.changedPaths(base, "index")).toEqual(["a.txt", "b.txt", "moved.txt"]);
+    expect(await r.git.changedPaths(base, "worktree")).toEqual([
+      "a.txt",
+      "b.txt",
+      "c.txt",
+      "moved.txt",
+    ]);
+    const head = await r.commit("move", { all: true });
+    expect(await r.git.changedPaths(base, { commit: head })).toEqual([
+      "a.txt",
+      "b.txt",
+      "c.txt",
+      "moved.txt",
+    ]);
+    expect(await r.git.changedPaths(head, { commit: head })).toEqual([]);
+    // No base: every tracked path.
+    expect(await r.git.changedPaths(null, "index")).toEqual(["b.txt", "c.txt", "moved.txt"]);
+  });
+
+  it("honours GIT_INDEX_FILE", async () => {
+    const r = await repo({ files: { "a.txt": "a\n" } });
+    const alt = join(r.git.gitDir, "alt-index");
+    const other = await Git.open(r.root, {
+      ...r.git.options,
+      env: { ...r.git.options.env, GIT_INDEX_FILE: alt },
+    });
+    await other.run(["read-tree", "HEAD"]);
+    await r.write("b.txt", "b\n");
+    await other.add(["b.txt"]);
+    const head = (await r.git.resolveCommit("HEAD")) ?? "";
+    expect(await other.trackedPaths("index")).toEqual(["a.txt", "b.txt"]);
+    expect(await other.changedPaths(head, "index")).toEqual(["b.txt"]);
+    expect(await r.git.trackedPaths("index")).toEqual(["a.txt"]);
+    expect(await r.git.changedPaths(head, "index")).toEqual([]);
+  });
+});
