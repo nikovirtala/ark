@@ -37,11 +37,51 @@ function isFormat(v: unknown): v is Format {
   return typeof v === "string" && (FORMATS as readonly string[]).includes(v);
 }
 
+/** The forms of an upstream spec git accepts: `@{upstream}`, `@{u}`, `<branch>@{u}`, any case. */
+const UPSTREAM = /^[^@]*@\{(?:upstream|u)\}$/i;
+const ORIGIN_DEFAULTS = ["refs/remotes/origin/main", "refs/remotes/origin/master"];
+
+/**
+ * The fallback for a branch with no upstream (00's pre-push rule). It acts only on a `range` mode
+ * whose base is an upstream spec that doesn't resolve: the base becomes the first of
+ * `origin/HEAD`'s target, `origin/main` and `origin/master` that resolves, and with none the mode
+ * becomes `full` (keeping `head`), so a repository with no remote verifies the whole log. Any
+ * other mode or base is returned as it is, so an unresolvable base still fails in `verifyLog`.
+ * `note` says what was done, or is `null`.
+ */
+export async function resolveVerifyBase(
+  git: Git,
+  mode: VerifyMode,
+): Promise<{ readonly mode: VerifyMode; readonly note: string | null }> {
+  if (mode.type !== "range" || !UPSTREAM.test(mode.base)) return { mode, note: null };
+  if ((await git.resolveCommit(mode.base)) !== null) return { mode, note: null };
+  const originHead = await git.symbolicRef("refs/remotes/origin/HEAD");
+  for (const ref of [...(originHead === null ? [] : [originHead]), ...ORIGIN_DEFAULTS]) {
+    if ((await git.resolveCommit(ref)) === null) continue;
+    const short = ref.replace(/^refs\/remotes\//, "");
+    return {
+      mode: { ...mode, base: ref },
+      note: `no upstream for this branch; verifying against ${short}`,
+    };
+  }
+  const remotes = Buffer.from((await git.run(["remote"])).stdout)
+    .toString()
+    .trim();
+  return {
+    mode: { type: "full", ...(mode.head === undefined ? {} : { head: mode.head }) },
+    note:
+      remotes === ""
+        ? "no upstream and no remote; verifying the whole log"
+        : "no upstream, and origin has no default branch here; verifying the whole log",
+  };
+}
+
 /**
  * The shared `verify [--staged | --base <ref>] [--format text|json|github]` command. `--ref` sets
  * the head: the mode is `staged`, `range { base, head: ref }` or `full { head: ref }`. With
  * `--json` (or `--format json`) it prints the `ledger-findings/v1` report; it exits 1 when the
- * findings fail at the tool's `failOn`.
+ * findings fail at the tool's `failOn`. A `--base @{upstream}` with no upstream falls back as
+ * `resolveVerifyBase` says, with a note on stderr.
  */
 export function verifyCommand(o: VerifyCommandOptions): CommandSpec {
   return {
@@ -73,13 +113,15 @@ export function verifyCommand(o: VerifyCommandOptions): CommandSpec {
           : { type: "full", ...head };
 
       const log = await o.open({ io, flags, mode });
+      const resolved = await resolveVerifyBase(log.git, mode);
       const findings = await verifyLog({
         git: log.git,
         kind: log.kind,
         layout: log.layout,
-        mode,
+        mode: resolved.mode,
         checks: log.checks,
       });
+      const notes = [...(log.notes ?? []), ...(resolved.note === null ? [] : [resolved.note])];
       const failOn = { failOn: log.failOn };
       const text =
         format === "json"
@@ -92,7 +134,7 @@ export function verifyCommand(o: VerifyCommandOptions): CommandSpec {
         // Plain JSON data; the interface just has no index signature.
         json: findingsReport(findings, failOn) as unknown as JsonValue,
         text,
-        ...(log.notes === undefined ? {} : { notes: log.notes }),
+        ...(notes.length === 0 ? {} : { notes }),
       };
     },
   };

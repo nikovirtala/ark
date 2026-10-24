@@ -10,7 +10,7 @@ import { createTempRepo, type TempRepo } from "../testing/temp-repo.js";
 import { foldChecks } from "../verify/fold-checks.js";
 import type { VerifyMode } from "../verify/verify.js";
 import { runCli } from "./run.js";
-import { verifyCommand } from "./verify-command.js";
+import { resolveVerifyBase, verifyCommand } from "./verify-command.js";
 
 const layout = kind.layoutAt("log");
 const S = "a7c2m9xd";
@@ -193,10 +193,39 @@ describe("verifyCommand on a repository", () => {
     expect(Object.keys(JSON.parse(out.stdout))).toEqual(["format", "ok", "summary", "findings"]);
   });
 
+  it("verifies against origin's default branch without an upstream, and says so", async () => {
+    const r = await repo();
+    await r.git.run(["remote", "add", "origin", "https://example.invalid/w.git"]);
+    await r.git.run(["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    await r.checkout("topic", { create: true });
+    await r.writeFiles(file(ILLEGAL));
+    await r.stage(ILLEGAL_PATH);
+    await r.commit("illegal");
+    const out = await call(r, ["verify", "--base", "@{upstream}", "--ref", "HEAD"], {
+      notes: ["ignoring w.toml"],
+    });
+    expect(out.code).toBe(1);
+    expect(out.stdout).toContain("[transition/illegal]");
+    expect(out.stderr).toBe(
+      "w: warning: ignoring w.toml\nw: warning: no upstream for this branch; verifying against origin/main\n",
+    );
+  });
+
+  it("verifies the whole log without an upstream or a remote", async () => {
+    const r = await repo();
+    await r.writeFiles(file(ILLEGAL));
+    const out = await call(r, ["verify", "--base", "@{u}"]);
+    expect(out.code).toBe(1);
+    expect(out.stderr).toBe("w: warning: no upstream and no remote; verifying the whole log\n");
+  });
+
   it("exits 2 for a missing ref or no merge base", async () => {
     const r = await repo();
     const missing = await call(r, ["verify", "--ref", "nope"]);
     expect(missing).toMatchObject({ code: 2, stderr: "w: error: ref not found: nope\n" });
+    // Only an upstream spec falls back; another unresolvable base is still an error.
+    const base = await call(r, ["verify", "--base", "nope"]);
+    expect(base).toMatchObject({ code: 2, stderr: "w: error: ref not found: nope\n" });
     const orphan = await r.git.run([
       "commit-tree",
       "-m",
@@ -207,5 +236,69 @@ describe("verifyCommand on a repository", () => {
     const unrelated = await call(r, ["--json", "verify", "--base", sha]);
     expect(unrelated.code).toBe(2);
     expect(JSON.parse(unrelated.stdout)).toMatchObject({ error: { code: "verify-usage" } });
+  });
+});
+
+describe("resolveVerifyBase", () => {
+  const upstream: VerifyMode = { type: "range", base: "@{upstream}", head: "HEAD" };
+  const git = (r: TempRepo, ...args: string[]) => r.git.run(args);
+
+  it("keeps a resolving upstream", async () => {
+    const r = await repo();
+    await r.checkout("topic", { create: true });
+    await git(r, "config", "branch.topic.remote", ".");
+    await git(r, "config", "branch.topic.merge", "refs/heads/main");
+    expect(await resolveVerifyBase(r.git, upstream)).toEqual({ mode: upstream, note: null });
+  });
+
+  it.each([
+    [{ type: "full" }],
+    [{ type: "staged" }],
+    [{ type: "range", base: "nope" }],
+    [{ type: "range", base: "main" }],
+  ] as const)("leaves %j alone", async (mode) => {
+    const r = await repo();
+    expect(await resolveVerifyBase(r.git, mode)).toEqual({ mode, note: null });
+  });
+
+  it("prefers origin/HEAD's target", async () => {
+    const r = await repo();
+    await git(r, "remote", "add", "origin", "https://example.invalid/w.git");
+    await git(r, "update-ref", "refs/remotes/origin/trunk", "HEAD");
+    await git(r, "update-ref", "refs/remotes/origin/main", "HEAD");
+    await git(r, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk");
+    expect(await resolveVerifyBase(r.git, upstream)).toEqual({
+      mode: { type: "range", base: "refs/remotes/origin/trunk", head: "HEAD" },
+      note: "no upstream for this branch; verifying against origin/trunk",
+    });
+  });
+
+  it.each(["main", "master"])("falls back to origin/%s", async (branch) => {
+    const r = await repo();
+    await git(r, "remote", "add", "origin", "https://example.invalid/w.git");
+    await git(r, "update-ref", `refs/remotes/origin/${branch}`, "HEAD");
+    // An origin/HEAD whose target isn't fetched is skipped.
+    await git(r, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/gone");
+    expect(await resolveVerifyBase(r.git, { type: "range", base: "main@{u}" })).toEqual({
+      mode: { type: "range", base: `refs/remotes/origin/${branch}` },
+      note: `no upstream for this branch; verifying against origin/${branch}`,
+    });
+  });
+
+  it("verifies the whole log when origin has no default branch here", async () => {
+    const r = await repo();
+    await git(r, "remote", "add", "origin", "https://example.invalid/w.git");
+    expect(await resolveVerifyBase(r.git, upstream)).toEqual({
+      mode: { type: "full", head: "HEAD" },
+      note: "no upstream, and origin has no default branch here; verifying the whole log",
+    });
+  });
+
+  it("verifies the whole log without a remote", async () => {
+    const r = await repo();
+    expect(await resolveVerifyBase(r.git, { type: "range", base: "@{U}" })).toEqual({
+      mode: { type: "full" },
+      note: "no upstream and no remote; verifying the whole log",
+    });
   });
 });
