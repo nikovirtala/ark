@@ -49,7 +49,9 @@ jobs:
             pnpm -r run test
           else
             echo "testing packages changed since $base and their dependents" | tee -a "$GITHUB_STEP_SUMMARY"
-            pnpm --filter "...{./packages/**}[$base]" run test
+            # The root depends on adr for its git hooks, so "..." selects it, and its test script
+            # is the whole suite; exclude it.
+            pnpm --filter "...{./packages/**}[$base]" --filter "!ark" run test
           fi
       - name: Verify ark's decision log
         env:
