@@ -1,0 +1,21 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M5QFNS047WH6D29P5Z0B8XMD
+subject: btjpf9g1
+type: scoped
+at: 2026-10-24T17:34:58Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - docs/adr/adr.toml
+    - docs/adr/index.md
+    - packages/adr/src/cli/index-command.ts
+    - packages/adr/src/log-index.ts
+    - packages/ledger/src/fold/numbering.ts
+    - packages/ledger/src/log-index/**
