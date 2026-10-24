@@ -2,10 +2,13 @@ import type { TempRepo } from "@nikovirtala/ledger/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import { cliRepo, runAdr, seedDecision, seedSupersession } from "../test-support/cli.js";
 import { decisionEvent, eventFile } from "../test-support/events.js";
+import { INDEX, INDEX_CONFIG, shallowClone } from "../test-support/index-repo.js";
 
 const repos: TempRepo[] = [];
+const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const r of repos.splice(0)) await r.dispose();
+  for (const c of cleanups.splice(0)) await c();
 });
 async function repo(...args: Parameters<typeof cliRepo>): Promise<TempRepo> {
   const r = await cliRepo(...args);
@@ -170,5 +173,95 @@ describe("adr list", { timeout: 60_000 }, () => {
     expect(out.stderr).toBe(
       'adr: error: unexpected argument "extra"; usage: adr list [--status <status>]…\n',
     );
+  });
+});
+
+// Design 2b D1, §4.6: shallow clones read the numbers recorded in the committed index.md.
+describe("adr list in a shallow clone", { timeout: 60_000 }, () => {
+  /** Three accepted decisions and one proposed one, with a committed index (binding item 5). */
+  async function fixture(config = INDEX_CONFIG) {
+    const r = await repo({ "docs/adr/adr.toml": config });
+    const ids = [
+      await seedDecision(r, "Use DynamoDB"),
+      await seedDecision(r, "Use Aurora"),
+      await seedDecision(r, "Use Redis"),
+    ];
+    const proposed = await seedDecision(r, "Use Kafka", { accept: false });
+    return { r, ids, proposed };
+  }
+  async function clone(r: TempRepo) {
+    const c = await shallowClone(r);
+    cleanups.push(c.dispose);
+    return (args: string[]) => runAdr(r, args, { cwd: c.root });
+  }
+  type ListDoc = {
+    numbering: { available: boolean; reason: string | null };
+    decisions: { id: string; number: number | null }[];
+  };
+  const numbers = (stdout: string) =>
+    Object.fromEntries((JSON.parse(stdout) as ListDoc).decisions.map((v) => [v.id, v.number]));
+  const INDEX_NOTE = `adr: warning: numbers come from ${INDEX} (shallow clone)\n`;
+
+  it("shows the numbers the committed index recorded, with a note", async () => {
+    const { r, ids, proposed } = await fixture();
+    const adr = await clone(r);
+    const out = adr(["list"]);
+    expect(out.status).toBe(0);
+    expect(out.stderr).toBe(INDEX_NOTE);
+    expect(
+      out.stdout
+        .split("\n")
+        .slice(0, 3)
+        .map((l) => l.slice(0, 18)),
+    ).toEqual(ids.map((id, i) => `ADR-000${i + 1}  ${id}`));
+    const doc = JSON.parse(adr(["list", "--json"]).stdout) as ListDoc;
+    expect(doc.numbering).toMatchObject({ available: true, reason: "index" });
+    expect(numbers(adr(["list", "--json"]).stdout)).toEqual({
+      [ids[0] ?? ""]: 1,
+      [ids[1] ?? ""]: 2,
+      [ids[2] ?? ""]: 3,
+      [proposed]: null,
+    });
+    const show = adr(["show", "ADR-0002", "--json"]);
+    expect(show.status).toBe(0);
+    expect(JSON.parse(show.stdout).decision.id).toBe(ids[1]);
+    expect(show.stderr).toBe(INDEX_NOTE);
+    expect(adr(["for", "README.md"]).stderr).toBe(INDEX_NOTE);
+  });
+
+  it("doesn't number an acceptance that exists only in the work tree", async () => {
+    const { r, ids, proposed } = await fixture();
+    const adr = await clone(r);
+    const before = numbers(adr(["list", "--json"]).stdout);
+    expect(before[proposed]).toBeNull();
+    expect(adr(["accept", proposed, "--no-commit"]).status).toBe(0);
+    const after = numbers(adr(["list", "--json"]).stdout);
+    expect(after).toEqual(before);
+    expect(ids.map((id) => after[id])).toEqual([1, 2, 3]);
+    expect(numbers(adr(["list", "--ref", "HEAD", "--json"]).stdout)).toEqual(before);
+  });
+
+  it("displays ids without a committed index, and names both fixes", async () => {
+    const { r, ids, proposed } = await fixture("");
+    const adr = await clone(r);
+    const out = adr(["list"]);
+    expect(out.status).toBe(0);
+    // Unnumbered rows sort by proposed_at, then id, and the seeds can share a second.
+    const rows = out.stdout.trimEnd().split("\n");
+    expect(rows.every((l) => l.startsWith("-  "))).toBe(true);
+    expect(rows.map((l) => l.split("  ")[1]).sort()).toEqual([...ids, proposed].sort());
+    expect(out.stderr).toBe(
+      'adr: warning: numbers are unavailable (shallow clone); run git fetch --unshallow, or commit an index with [log] index = "committed"\n',
+    );
+  });
+
+  it("doesn't read an index.md when [log] index isn't committed", async () => {
+    const { r } = await fixture();
+    await r.write("docs/adr/adr.toml", "");
+    await r.commit("turn the index off", { all: true });
+    const adr = await clone(r);
+    const doc = JSON.parse(adr(["list", "--json"]).stdout) as ListDoc;
+    expect(doc.numbering).toMatchObject({ available: false, reason: "shallow" });
+    expect(doc.decisions.every((v) => v.number === null)).toBe(true);
   });
 });
