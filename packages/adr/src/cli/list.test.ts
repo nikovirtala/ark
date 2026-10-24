@@ -242,11 +242,14 @@ describe("adr list in a shallow clone", { timeout: 60_000 }, () => {
   });
 
   it("displays ids without a committed index, and names both fixes", async () => {
-    const { r, ids } = await fixture("");
+    const { r, ids, proposed } = await fixture("");
     const adr = await clone(r);
     const out = adr(["list"]);
     expect(out.status).toBe(0);
-    expect(out.stdout.startsWith(`-  ${ids[0]}`)).toBe(true);
+    // Unnumbered rows sort by proposed_at, then id, and the seeds can share a second.
+    const rows = out.stdout.trimEnd().split("\n");
+    expect(rows.every((l) => l.startsWith("-  "))).toBe(true);
+    expect(rows.map((l) => l.split("  ")[1]).sort()).toEqual([...ids, proposed].sort());
     expect(out.stderr).toBe(
       'adr: warning: numbers are unavailable (shallow clone); run git fetch --unshallow, or commit an index with [log] index = "committed"\n',
     );
