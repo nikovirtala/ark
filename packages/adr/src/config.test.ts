@@ -26,6 +26,9 @@ describe("parseAdrConfig", () => {
       autoCommit: false,
       mcpCanDecide: false,
       failOn: "error",
+      governedByInactive: "warning",
+      scopeFollowRenames: "stage",
+      hookIndex: "check",
       commitSubject: DEFAULT_SUBJECT,
       anchorKeyword: "adr",
       anchorExclude: [],
@@ -51,6 +54,11 @@ mcp_can_decide = true
 
 [verify]
 fail_on = "warning"
+governed_by_inactive = "error"
+
+[hooks]
+scope_follow_renames = "warn"
+index = "stage"
 
 [commit]
 subject = "docs({command}): {action} {raw_title} ({display})"
@@ -67,6 +75,9 @@ anchor_exclude = ["docs/**", "**/*.test.ts"]
       autoCommit: true,
       mcpCanDecide: true,
       failOn: "warning",
+      governedByInactive: "error",
+      scopeFollowRenames: "warn",
+      hookIndex: "stage",
       commitSubject: {
         source: "docs({command}): {action} {raw_title} ({display})",
         vars: COMMIT_VARS,
@@ -103,6 +114,16 @@ anchor_exclude = ["docs/**", "**/*.test.ts"]
     ["[policy]\nauto_commit = 1", "policy.auto_commit must be true or false"],
     ["[policy]\nmcp_can_decide = 'no'", "policy.mcp_can_decide must be true or false"],
     ["[verify]\nfail_on = 'info'", 'verify.fail_on must be "error" or "warning"'],
+    [
+      "[verify]\ngoverned_by_inactive = 'info'",
+      'verify.governed_by_inactive must be "warning" or "error"',
+    ],
+    ["hooks = 1", "adr.toml: hooks must be a table"],
+    [
+      "[hooks]\nscope_follow_renames = true",
+      'hooks.scope_follow_renames must be "stage" or "warn" or "off"',
+    ],
+    ["[hooks]\nindex = 'committed'", 'hooks.index must be "check" or "stage"'],
     ["commit = 'x'", "adr.toml: commit must be a table"],
     ["scope = 1", "adr.toml: scope must be a table"],
     ["[scope]\nanchor_keyword = 'ADR'", "scope.anchor_keyword must match ^[a-z][a-z0-9-]{0,31}$"],
