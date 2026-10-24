@@ -95,6 +95,9 @@ const isComment = (line: string) => line.startsWith("#");
  * when it has trailers and nothing else, or when it has a git-generated line and at least 25% of
  * its lines are trailers.
  *
+ * Blank and continuation lines use git's own isspace (space, \t and \r on a line; git's ctype.c),
+ * so \v and \f are content, as in git interpret-trailers.
+ *
  * Unsupported: `trailer.<token>.key`, `trailer.separators` and `core.commentChar` from the user's
  * config (with them git can read more paragraphs as trailers), and the `---` divider, which git
  * ignores for commit messages.
@@ -568,6 +571,51 @@ export class Git {
     return zPaths(r.stdout);
   }
 
+  /**
+   * Every tracked path of a tree, sorted: the index (`GIT_INDEX_FILE` honoured), the work tree
+   * (the index minus files deleted from the work tree; untracked files aren't listed) or a commit.
+   * Submodules are listed like files.
+   */
+  async trackedPaths(head: "worktree" | "index" | { readonly commit: string }): Promise<string[]> {
+    if (typeof head === "object") {
+      assertRev(head.commit);
+      const r = await this.run(["ls-tree", "-r", "-z", "--name-only", "--full-tree", head.commit]);
+      return zPaths(r.stdout);
+    }
+    requireWorkTree(this);
+    // An unmerged path has an entry per stage.
+    const cached = [...new Set(zPaths((await this.run(["ls-files", "-z", "--cached"])).stdout))];
+    if (head === "index") return cached;
+    const deleted = new Set(zPaths((await this.run(["ls-files", "-z", "--deleted"])).stdout));
+    return cached.filter((p) => !deleted.has(p));
+  }
+
+  /**
+   * The paths that differ between the commit `base` and `head`, sorted; a rename lists both its
+   * paths. `base === null` (no base, such as an unborn `HEAD`) gives every tracked path of `head`.
+   */
+  async changedPaths(
+    base: string | null,
+    head: "worktree" | "index" | { readonly commit: string },
+  ): Promise<string[]> {
+    if (base === null) return this.trackedPaths(head);
+    assertRev(base);
+    if (typeof head === "object") assertRev(head.commit);
+    else requireWorkTree(this);
+    const r = await this.run([
+      "diff",
+      "--name-only",
+      "-z",
+      "--no-renames",
+      "--no-ext-diff",
+      ...(head === "index" ? ["--cached"] : []),
+      base,
+      ...(typeof head === "object" ? [head.commit] : []),
+      "--",
+    ]);
+    return zPaths(r.stdout);
+  }
+
   /** Untracked paths under `pathspecs`, ignored files included. Sorted; `[]` for empty `pathspecs`. */
   async untrackedPaths(pathspecs: readonly string[]): Promise<string[]> {
     requireWorkTree(this);
@@ -584,8 +632,17 @@ export class Git {
     return zPaths(r.stdout);
   }
 
-  /** Adds trailers to a commit message file, skipping ones already present (for `commit-msg`). */
-  async appendTrailers(messageFile: string, trailers: readonly Trailer[]): Promise<void> {
+  /**
+   * Adds trailers to the end of a commit message file's trailer block (for `commit-msg`). By
+   * default a trailer whose key and value are already present is skipped (`addIfDifferent`);
+   * `ifExists: "add"` keeps repeats, such as `ADR: k` once per event of one decision in a commit.
+   * The options override the user's `trailer.*` config.
+   */
+  async appendTrailers(
+    messageFile: string,
+    trailers: readonly Trailer[],
+    o: { readonly ifExists?: "add" | "addIfDifferent" } = {},
+  ): Promise<void> {
     assertPath(messageFile);
     assertTrailers(trailers);
     if (trailers.length === 0) return;
@@ -593,7 +650,11 @@ export class Git {
       "interpret-trailers",
       "--in-place",
       "--if-exists",
-      "addIfDifferent",
+      o.ifExists ?? "addIfDifferent",
+      "--if-missing",
+      "add",
+      "--where",
+      "end",
       ...trailers.flatMap(([k, v]) => ["--trailer", `${k}: ${v}`]),
       "--",
       resolve(messageFile),

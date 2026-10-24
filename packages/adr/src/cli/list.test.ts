@@ -1,11 +1,28 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import type { TempRepo } from "@nikovirtala/ledger/testing";
 import { afterEach, describe, expect, it } from "vitest";
-import { cliRepo, runAdr, seedDecision, seedSupersession } from "../test-support/cli.js";
+import { openDecisionLog } from "../log.js";
+import {
+  cliRepo,
+  REPO_HUMAN,
+  runAdr,
+  seedDecision,
+  seedSupersession,
+} from "../test-support/cli.js";
+import { cliEnv } from "../test-support/decision-arbs.js";
 import { decisionEvent, eventFile } from "../test-support/events.js";
+import { acceptDecision } from "../write.js";
+
+const run = promisify(execFile);
+
+import { cloneRepo, INDEX, INDEX_CONFIG, shallowClone } from "../test-support/index-repo.js";
 
 const repos: TempRepo[] = [];
+const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const r of repos.splice(0)) await r.dispose();
+  for (const c of cleanups.splice(0)) await c();
 });
 async function repo(...args: Parameters<typeof cliRepo>): Promise<TempRepo> {
   const r = await cliRepo(...args);
@@ -57,6 +74,7 @@ describe("adr list", { timeout: 60_000 }, () => {
       "commit",
       "numbering",
       "decisions",
+      "since",
       "unreadable",
       "unfoldable",
       "findings",
@@ -68,6 +86,7 @@ describe("adr list", { timeout: 60_000 }, () => {
       ref: null,
       commit: await head(r),
       numbering: { available: true, reason: null, ref: "refs/heads/main" },
+      since: null,
       unreadable: [],
       unfoldable: [],
       findings: [],
@@ -168,7 +187,177 @@ describe("adr list", { timeout: 60_000 }, () => {
     const out = runAdr(r, ["list", "extra"]);
     expect(out.status).toBe(2);
     expect(out.stderr).toBe(
-      'adr: error: unexpected argument "extra"; usage: adr list [--status <status>]…\n',
+      'adr: error: unexpected argument "extra"; usage: adr list [--status <status>]… [--since <rev>]\n',
     );
+  });
+});
+
+// Design 2b D1, §4.6: shallow clones read the numbers recorded in the committed index.md.
+describe("adr list in a shallow clone", { timeout: 60_000 }, () => {
+  /** Three accepted decisions and one proposed one, with a committed index (binding item 5). */
+  async function fixture(config = INDEX_CONFIG) {
+    const r = await repo({ "docs/adr/adr.toml": config });
+    const ids = [
+      await seedDecision(r, "Use DynamoDB"),
+      await seedDecision(r, "Use Aurora"),
+      await seedDecision(r, "Use Redis"),
+    ];
+    const proposed = await seedDecision(r, "Use Kafka", { accept: false });
+    return { r, ids, proposed };
+  }
+  async function clone(r: TempRepo) {
+    const c = await shallowClone(r);
+    cleanups.push(c.dispose);
+    return (args: string[]) => runAdr(r, args, { cwd: c.root });
+  }
+  type ListDoc = {
+    numbering: { available: boolean; reason: string | null };
+    decisions: { id: string; number: number | null }[];
+  };
+  const numbers = (stdout: string) =>
+    Object.fromEntries((JSON.parse(stdout) as ListDoc).decisions.map((v) => [v.id, v.number]));
+  const INDEX_NOTE = `adr: warning: numbers come from ${INDEX} (shallow clone)\n`;
+
+  it("shows the numbers the committed index recorded, with a note", async () => {
+    const { r, ids, proposed } = await fixture();
+    const adr = await clone(r);
+    const out = adr(["list"]);
+    expect(out.status).toBe(0);
+    expect(out.stderr).toBe(INDEX_NOTE);
+    expect(
+      out.stdout
+        .split("\n")
+        .slice(0, 3)
+        .map((l) => l.slice(0, 18)),
+    ).toEqual(ids.map((id, i) => `ADR-000${i + 1}  ${id}`));
+    const doc = JSON.parse(adr(["list", "--json"]).stdout) as ListDoc;
+    expect(doc.numbering).toMatchObject({ available: true, reason: "index" });
+    expect(numbers(adr(["list", "--json"]).stdout)).toEqual({
+      [ids[0] ?? ""]: 1,
+      [ids[1] ?? ""]: 2,
+      [ids[2] ?? ""]: 3,
+      [proposed]: null,
+    });
+    const show = adr(["show", "ADR-0002", "--json"]);
+    expect(show.status).toBe(0);
+    expect(JSON.parse(show.stdout).decision.id).toBe(ids[1]);
+    expect(show.stderr).toBe(INDEX_NOTE);
+    expect(adr(["for", "README.md"]).stderr).toBe(INDEX_NOTE);
+  });
+
+  it("doesn't number an acceptance that exists only in the work tree", async () => {
+    const { r, ids, proposed } = await fixture();
+    const adr = await clone(r);
+    const before = numbers(adr(["list", "--json"]).stdout);
+    expect(before[proposed]).toBeNull();
+    expect(adr(["accept", proposed, "--no-commit"]).status).toBe(0);
+    const after = numbers(adr(["list", "--json"]).stdout);
+    expect(after).toEqual(before);
+    expect(ids.map((id) => after[id])).toEqual([1, 2, 3]);
+    expect(numbers(adr(["list", "--ref", "HEAD", "--json"]).stdout)).toEqual(before);
+  });
+
+  it("displays ids without a committed index, and names both fixes", async () => {
+    const { r, ids, proposed } = await fixture("");
+    const adr = await clone(r);
+    const out = adr(["list"]);
+    expect(out.status).toBe(0);
+    // Unnumbered rows sort by proposed_at, then id, and the seeds can share a second.
+    const rows = out.stdout.trimEnd().split("\n");
+    expect(rows.every((l) => l.startsWith("-  "))).toBe(true);
+    expect(rows.map((l) => l.split("  ")[1]).sort()).toEqual([...ids, proposed].sort());
+    expect(out.stderr).toBe(
+      'adr: warning: numbers are unavailable (shallow clone); run git fetch --unshallow, or commit an index with [log] index = "committed"\n',
+    );
+  });
+
+  it("doesn't read an index.md when [log] index isn't committed", async () => {
+    const { r } = await fixture();
+    await r.write("docs/adr/adr.toml", "");
+    await r.commit("turn the index off", { all: true });
+    const adr = await clone(r);
+    const doc = JSON.parse(adr(["list", "--json"]).stdout) as ListDoc;
+    expect(doc.numbering).toMatchObject({ available: false, reason: "shallow" });
+    expect(doc.decisions.every((v) => v.number === null)).toBe(true);
+  });
+});
+
+// Design 2b D7: what a pull brought, for the post-merge hook.
+describe("adr list --since", { timeout: 60_000 }, () => {
+  /** `r` with Aurora proposed, a full clone of it, and Aurora accepted in `r` after the clone. */
+  async function pulled() {
+    const r = await repo();
+    const x = await seedDecision(r, "Use Aurora", { accept: false });
+    const y = await seedDecision(r, "Use Redis", { accept: false });
+    const c = await cloneRepo(r);
+    cleanups.push(c.dispose);
+    const before = await head(r);
+    await seedDecision(r, "Use Kafka", { accept: false });
+    const log = await openDecisionLog({ cwd: r.root, gitOptions: { env: r.env } });
+    await acceptDecision(log, { id: x, actor: REPO_HUMAN }, { commit: true });
+    const pull = () =>
+      run("git", ["-C", c.root, "pull", "-q", "--ff-only"], {
+        env: cliEnv(r) as Record<string, string>,
+      });
+    await pull();
+    const adr = (args: string[]) => runAdr(r, args, { cwd: c.root });
+    return { r, x, y, before, adr, pull };
+  }
+
+  it("lists what a fast-forward pull brought, with the new event types", async () => {
+    const { x, before, adr } = await pulled();
+    const out = adr(["list", "--since", "ORIG_HEAD"]);
+    expect(out.status).toBe(0);
+    const lines = out.stdout.trimEnd().split("\n");
+    expect(lines[0]).toBe(`Changed since ORIG_HEAD (${before.slice(0, 7)}):`);
+    expect(lines.filter((l) => l.startsWith("  [new: "))).toEqual([
+      "  [new: accepted]",
+      "  [new: proposed]",
+    ]);
+    expect(lines[1]).toMatch(new RegExp(`^ADR-0001  ${x}  accepted  Use Aurora$`));
+    const doc = JSON.parse(adr(["list", "--since", "ORIG_HEAD", "--json"]).stdout);
+    expect(doc.since).toMatchObject({ rev: "ORIG_HEAD", commit: before });
+    expect(doc.since.events.map((e: { type: string }) => e.type).sort()).toEqual([
+      "accepted",
+      "proposed",
+    ]);
+    expect(Object.keys(doc.since.events[0]).sort()).toEqual(["path", "subject", "type"]);
+    expect(doc.decisions.map((v: { id: string }) => v.id)[0]).toBe(x);
+
+    const proposed = adr(["list", "--since", "ORIG_HEAD", "--status", "proposed", "--json"]);
+    const listed = JSON.parse(proposed.stdout).decisions.map((v: { status: string }) => v.status);
+    expect(listed).toEqual(["proposed"]);
+  });
+
+  it("prints nothing after a pull without log changes", async () => {
+    const { r, adr, pull } = await pulled();
+    await r.write("README.md", "changed\n");
+    await r.commit("docs: change the readme", { all: true });
+    await pull();
+    expect(adr(["list", "--since", "ORIG_HEAD"])).toEqual({ status: 0, stdout: "", stderr: "" });
+  });
+
+  it("diffs against --ref when given", async () => {
+    const { r, before } = await pulled();
+    expect(runAdr(r, ["list", "--ref", before, "--since", before]).stdout).toBe("");
+    const doc = JSON.parse(
+      runAdr(r, ["list", "--ref", "HEAD~1", "--since", before, "--json"]).stdout,
+    );
+    expect(doc.since.events.map((e: { type: string }) => e.type)).toEqual(["proposed"]);
+    expect(doc.decisions.map((v: { status: string }) => v.status)).toEqual(["proposed"]);
+  });
+
+  it("exits 2 for a revision that is missing or isn't one", async () => {
+    const r = await repo();
+    for (const [args, message] of [
+      [["list", "--since", "nope"], "ref not found: nope"],
+      [["list", "--since="], "--since must be a revision"],
+      [["list", "--since=-x"], "--since must be a revision"],
+    ] as const) {
+      const out = runAdr(r, [...args]);
+      expect(out.status, args.join(" ")).toBe(2);
+      expect(out.stderr).toBe(`adr: error: ${message}\n`);
+    }
+    expect(runAdr(r, ["list", "--since", "-x"]).status).toBe(2);
   });
 });

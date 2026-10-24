@@ -70,7 +70,7 @@ Event file names are `<UTC timestamp>-<4 random chars>-<type>.yaml`, ledger's na
 
 **Display numbers** such as ADR-0012 are derived, never stored. The projection numbers ADRs in the order their `accepted` event first landed on the main branch, read with `git log --first-parent`. Main's history is append-only, so a number is stable once assigned. Proposed, rejected and withdrawn ADRs have no number and display by id. Every command and MCP tool accepts either form.
 
-Numbering needs main's history. Shallow clones fall back to the committed `index.md`, which records the assigned numbers, or fetch history on demand.
+Numbering needs main's history. With `index = "committed"`, a shallow clone reads the numbers recorded in the committed `index.md`; without one, decisions display by id until you fetch the history (`git fetch --unshallow`). On a branch, these are the numbers the branch's committed acceptances will get once it merges (the index projects them): main's numbers up to the newest main commit the branch contains, then the branch's own acceptances. So they hold whether the branch was updated by a rebase or by merging main into it; a branch that is behind main gets `index/stale` on its merge result, and updating it and running `adr index` fixes that.
 
 **Any decision log topology.** The tool prescribes no organizational structure, and sources are a ledger feature configured the same way in every ark tool. A decision log per repository, one shared org-wide decision repository, or both together all work the same way. A decision log can reference other decision logs as read-only sources, pinned to a git ref:
 
@@ -102,6 +102,7 @@ auto_commit = false
 
 [verify]
 fail_on = "error"               # error | warning
+governed_by_inactive = "warning"   # or "error"
 
 [commit]
 subject = "docs(adr): {action} {title}"  # --message overrides it
@@ -109,6 +110,10 @@ subject = "docs(adr): {action} {title}"  # --message overrides it
 [scope]
 anchor_keyword = "adr"
 anchor_exclude = ["**/*.md"]    # files never searched for anchors
+
+[hooks]
+scope_follow_renames = "stage"  # stage, warn or off
+index = "check"                 # check, or stage to regenerate in pre-commit
 ```
 
 ## Event schema
@@ -206,7 +211,7 @@ For each ADR the fold produces:
 
 **Time travel.** Any read accepts a git ref (`--ref v4.2`). The tool then reads files with `git ls-tree` and `git show` instead of the working tree, answering "what had we decided as of release 4.2?" with no extra storage. Time travel comes from ledger's git layer and works the same in issues.
 
-**Generated index.** With `index = "committed"`, `adr index` writes `index.md`: a header marking it generated, then active decisions first and inactive ones below, each with status and links. CI checks it is current. It exists for people browsing on a forge; tools never read it.
+**Generated index.** With `index = "committed"`, `adr index` writes `index.md`: a header marking it generated, then accepted and proposed decisions, then superseded, deprecated, rejected and withdrawn ones, each with its number, linked title, status and date. Every adr write keeps it current, numbering decisions as they will be numbered once the commit is on main (during a merge, the merge commit), and CI checks it. It exists for people browsing on a forge; tools read it only for display numbers in a shallow clone.
 
 **No status in decision files, ever.** The tool never writes status into a decision file, not even as managed frontmatter, because that would break immutability. This is deliberately opinionated: people opening raw files are served by the generated index, and agents by the MCP server and the skill.
 
@@ -225,15 +230,15 @@ The CLI is the human interface and the automation entry point for hooks and CI. 
 | `adr supersede 7 --by 12` | Supersedes after the fact, when 12 is already accepted | `superseded` event |
 | `adr note 7 "…"` | Adds a clarification without touching the body | `noted` event |
 | `adr link 7 4 --rel depends-on` | Records a relation | `linked` event |
-| `adr scope 7 --set\|--add\|--remove "src/orders/**"`, `--clear` | Sets which code a decision governs. With --follow-renames, writes and stages glob updates from the staged renames (never commits) | `scoped` event |
+| `adr scope 7 --set\|--add\|--remove "src/orders/**"`, `--clear` | Sets which code a decision governs. With --follow-renames, writes and stages glob updates from the staged renames (never commits). A glob that matches no tracked file is written with a note; verify reports it for proposed and accepted decisions, so a `--commit` with hooks installed fails until a file matches | `scoped` event |
 | `adr for src/orders/api.ts …` | Lists decisions governing files, from scope globs and code anchors, with warnings for inactive ones; with --ref, as of any past commit | none |
-| `adr list [--status accepted] [--json]` | Lists decisions with computed status | none |
+| `adr list [--status accepted] [--since ORIG_HEAD] [--json]` | Lists decisions with computed status; with `--since`, only those with events added since a revision | none |
 | `adr show 7 [--history] [--json]` | Shows body, status, chain and history | none |
 | `adr search "orders" [--all]` | Full-text search, active decisions only unless `--all` | none |
-| `adr index [--check]` | Regenerates or checks `index.md` | `index.md` |
+| `adr index [--check] [--commit]` | Regenerates or checks `index.md`; writes keep it current | `index.md` |
 | `adr verify [--base origin/main] [--staged]` | Runs every invariant check | none |
 | `adr template list\|show\|new\|lint` | Template management | templates |
-| `adr hooks install\|print` | Git hook integration | hook shims |
+| `adr hooks install\|uninstall\|print\|run\|trailers` | Git hook integration through ledger's shared shims | hook shims |
 | `adr mcp` | Starts the MCP server over stdio | none |
 
 Global flags: `--ref <git-ref>` for time travel, `--json` for machine output, `--root` to override the decision log directory. These are ark's shared flags, with the same meaning and exit codes in every ark tool.
@@ -337,14 +342,14 @@ Hooks give fast local feedback; CI remains the real guard, because hooks can be 
 
 | Hook | Runs | Purpose |
 | --- | --- | --- |
-| `pre-commit` | `adr verify --staged`, then `adr index --check` or regenerate-and-stage (config) | Catches body edits, bad events and stale index before the commit exists |
-| `commit-msg` | `adr hooks trailers` | Adds `ADR:` and `ADR-Event:` trailers when event files are staged |
-| `pre-push` | `adr verify --base @{upstream}` | Full invariant check against what the remote has |
-| `post-merge` | `adr list --since ORIG_HEAD` | Prints newly accepted or superseded decisions after a pull, so people notice them |
+| `pre-commit` | `adr hooks run pre-commit`: rename following, the index check (or regenerate-and-stage with `[hooks] index = "stage"`), then `adr verify --staged` | Catches body edits, bad events and stale index before the commit exists |
+| `commit-msg` | `adr hooks trailers` | Adds `ADR:` and `ADR-Event:` trailers when event files are staged, unless the message has them already or a merge is in progress |
+| `pre-push` | `adr verify --base @{upstream} --ref HEAD` | Full invariant check of the current branch's commits against its upstream, whichever refs the push names; without an upstream, against `origin`'s default branch, and with no remote, the whole log |
+| `post-merge` | `adr list --since ORIG_HEAD` | Prints the decisions the pull brought new events for (status changes, notes, links, scope), each with the new event types, so people notice them; prints nothing when the pull didn't touch the log |
 
 `--staged` checks only ADRs touched by staged files, keeping `pre-commit` well under a second on large decision logs.
 
-When staged changes rename files covered by a scope glob, `pre-commit` also runs `adr scope --follow-renames` and stages the resulting `scoped` event in the same commit. The config key `scope_follow_renames` sets this to `stage` (default), `warn` or `off`.
+When staged changes rename files covered by a scope glob, `pre-commit` also runs `adr scope --follow-renames` and stages the resulting `scoped` event in the same commit. The config key `[hooks] scope_follow_renames` sets this to `stage` (default), `warn` or `off`. The hook stages only into the commit's own index. For `git commit <paths>`, a rename that changes a decision's scope stops the commit and names the command to run.
 
 ## CI checks
 
@@ -361,8 +366,8 @@ CI runs `adr verify --base origin/main` on every pull request, and the build fai
 | Template lint | A proposed draft is missing required sections or still contains guidance text |
 | Index freshness | `index.md` differs from what `adr index` would generate |
 | Actor policy | An `accepted` event has `actor.kind: agent` while `accept_requires_human` is on |
-| Scope globs | A scope glob of an active decision matches no tracked file |
-| Code anchors | An adr: comment anchor points to a missing ADR |
+| Scope globs | A scope glob of a proposed or accepted decision matches no tracked file, or a stored glob is invalid |
+| Code anchors | An `adr:` comment anchor points to a missing ADR; qualified anchors are checked with sources (ark step 4) |
 | Governed by inactive decision | The diff changes files governed by a superseded or deprecated decision; a warning by default, configurable to fail |
 | Scope narrowing | A scoped event removes coverage of an accepted decision from files that still exist, so it is not a move. A warning that asks the reviewer to check the change against the decision's Scope section |
 
@@ -469,7 +474,7 @@ adr is step 3 of ark's extraction plan: the first kind built on ledger, starting
 1. Core: the decision kind (events, state machine, invariants), with ledger's fold engine built alongside it; `new` / `accept` / `supersede`, `list` / `show`, `verify`.
 2. Two releases:
    - 2a. Commands and Scope: the commands `init`, `reject`, `withdraw`, `deprecate`, `note`, `link`, `scope` and `for`, `accept --copy-scope`, ledger's Scope layer with set events, Conventional Commits messages for `--commit`, and `ARK_ON_BEHALF_OF`. Phase 1's kind, fold and verify already support the events behind them.
-   - 2b. Guardrails: decision-specific checks in ark's shared CI action and hooks, generated index.
+   - 2b. Guardrails: the generated index with its freshness check and the shallow-clone number fallback; git hooks through ledger's shared shims (pre-commit, commit-msg, pre-push with the no-upstream fallback, post-merge with `list --since`); a recovery hint when `--commit` fails; and the scope-glob, anchor, governed-by-inactive and scope-narrowing checks.
 3. Agents: MCP server, SKILL.md and `init --skill`, response state headers, `search`.
 4. Adoption: template management, and import from existing adr-tools or log4brains repos, synthesizing `proposed` and `accepted` events from their status lines without rewriting the files.
 5. Later: an optional live index published as an artifact page that reloads on every new event, as decided in the ark design. Not part of the first version.

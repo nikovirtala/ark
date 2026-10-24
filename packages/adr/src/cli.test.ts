@@ -38,6 +38,8 @@ describe("the adr binary", () => {
       "note",
       "link",
       "scope",
+      "index",
+      "hooks",
       "for",
       "list",
       "show",

@@ -14,11 +14,15 @@
     "test": "pnpm -r run test",
     "check": "pnpm lint && pnpm build && pnpm test",
     "clean": "pnpm -r run clean",
-    "changeset": "changeset"
+    "changeset": "changeset",
+    "git-hooks": "node scripts/git-hooks.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.2",
     "@changesets/cli": "3.0.3",
+    "@commitlint/cli": "21.2.4",
+    "@commitlint/config-conventional": "21.2.4",
+    "@nikovirtala/adr": "workspace:*",
     "@types/node": "24.19.2",
     "fast-check": "4.10.2",
     "tsdown": "0.23.1",

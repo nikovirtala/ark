@@ -8,7 +8,7 @@ import { parseBodyFileName } from "../identity/files.js";
 import { classifyPath, type LogLayout } from "../identity/layout.js";
 import { isKind } from "../kind/define.js";
 import { loadLog } from "../log/snapshot.js";
-import { type Check, type CheckContext, mechanicalChecks } from "./checks.js";
+import { type Check, type CheckContext, mechanicalChecks, type RepoContext } from "./checks.js";
 import { type Change, diffTrees } from "./diff.js";
 import { foldChecks } from "./fold-checks.js";
 
@@ -42,6 +42,8 @@ export async function verifySnapshots(o: {
   readonly head: TreeReader;
   readonly scope: "changed" | "all";
   readonly checks?: readonly Check[];
+  /** Passed to the checks as `ctx.repo`; checks over code report nothing without it. */
+  readonly repo?: RepoContext;
 }): Promise<Finding[]> {
   const { kind, layout, scope } = o;
   if ((kind.kind.body === "none") !== (layout.bodies === null)) {
@@ -74,7 +76,17 @@ export async function verifySnapshots(o: {
           head: foldLog(defined, head),
           base: base === null ? null : foldLog(defined, base),
         };
-  const ctx: CheckContext = { kind, layout, base, head, changes, scope, inScope, folded };
+  const ctx: CheckContext = {
+    kind,
+    layout,
+    base,
+    head,
+    changes,
+    scope,
+    inScope,
+    folded,
+    ...(o.repo === undefined ? {} : { repo: o.repo }),
+  };
 
   const checks = o.checks ?? (defined === null ? mechanicalChecks : foldChecks(defined));
   const findings: Finding[] = [];
@@ -103,11 +115,13 @@ export async function verifyLog(o: {
   let base: TreeReader | null;
   let head: TreeReader;
   let scope: "changed" | "all" = "all";
+  let repo: RepoContext;
   if (mode.type === "staged") {
     head = await indexReader(git);
     const sha = await git.resolveCommit("HEAD");
     base = sha === null ? null : await refReader(git, sha);
     scope = "changed";
+    repo = { git, mode: "staged", head: "index", base: sha };
   } else if (mode.type === "range") {
     const baseSha = await commitOf(git, mode.base);
     const headSha = await commitOf(git, mode.head ?? "HEAD");
@@ -119,9 +133,21 @@ export async function verifyLog(o: {
     }
     base = await refReader(git, mergeBase);
     head = mode.head === undefined ? worktreeReader(git) : await refReader(git, mode.head);
+    repo = {
+      git,
+      mode: "range",
+      head: mode.head === undefined ? "worktree" : { commit: headSha },
+      base: mergeBase,
+    };
   } else {
     base = null;
     head = mode.head === undefined ? worktreeReader(git) : await refReader(git, mode.head);
+    repo = {
+      git,
+      mode: "full",
+      head: head.commit === null ? "worktree" : { commit: head.commit },
+      base: null,
+    };
   }
   return verifySnapshots({
     kind: compileKind(o.kind),
@@ -129,6 +155,7 @@ export async function verifyLog(o: {
     base,
     head,
     scope,
+    repo,
     ...(o.checks === undefined ? {} : { checks: o.checks }),
   });
 }

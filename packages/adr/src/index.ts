@@ -1,4 +1,13 @@
 export { type AdrConfig, DEFAULT_ADR_CONFIG, parseAdrConfig } from "./config.js";
+export {
+  addHookTrailers,
+  decisionHookCommands,
+  type HooksResultJson,
+  installDecisionHooks,
+  printDecisionHooks,
+  runPreCommitHook,
+  uninstallDecisionHooks,
+} from "./hooks.js";
 export { type InitResultJson, initDecisionLog } from "./init.js";
 export {
   type AdrOptions,
@@ -14,6 +23,8 @@ export {
   REF,
 } from "./kind.js";
 export {
+  type ChangedSince,
+  changedSince,
   type DecisionLog,
   type DecisionsRead,
   openDecisionLog,
@@ -21,6 +32,7 @@ export {
   readDecisionsFrom,
   resolveDecision,
 } from "./log.js";
+export { type IndexResultJson, indexDecisionLog, renderDecisionIndex } from "./log-index.js";
 export {
   type DecisionForJson,
   type DecisionsForJson,

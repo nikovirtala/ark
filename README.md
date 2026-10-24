@@ -5,7 +5,7 @@ ark is a monorepo of tools that keep a project's knowledge in its git repository
 | Package | Path | Status |
 |---|---|---|
 | `@nikovirtala/ledger` | [packages/ledger](packages/ledger) | Published at 0.x; internal, API unstable |
-| `@nikovirtala/adr` | [packages/adr](packages/adr) | Private skeleton |
+| `@nikovirtala/adr` | [packages/adr](packages/adr) | Published at 0.x |
 | `@nikovirtala/issues` | [packages/issues](packages/issues) | Private skeleton |
 
 ## Development
@@ -16,5 +16,14 @@ Install the toolchain with `mise install`, or use Node 24 with corepack enabled.
 pnpm install
 pnpm check   # lint, build (tsc -b + tsdown), test
 ```
+
+ark checks its own commits with its own tools. After `pnpm build`, install the git hooks:
+
+```sh
+pnpm git-hooks install     # adr's four hooks, and commitlint on commit-msg
+pnpm git-hooks uninstall   # removes both again
+```
+
+The hooks run adr from the work tree's build (`packages/adr/dist`), so rebuild after pulling; a broken build blocks commits until you rebuild or commit with `--no-verify`. CI runs the same checks either way. If a hook says a tool "is registered … but not installed", run `pnpm install && pnpm build`, or `pnpm git-hooks uninstall`.
 
 Releases: see [RELEASING.md](RELEASING.md).

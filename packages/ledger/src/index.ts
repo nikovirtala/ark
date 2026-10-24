@@ -23,12 +23,16 @@ export {
   serializeEvent,
 } from "./envelope/yaml.js";
 export {
+  CommitFailedError,
+  type CommitRecovery,
   ConfigError,
   EventExistsError,
   FileExistsError,
   GitError,
   GitNotFoundError,
   GitVersionError,
+  HookConflictError,
+  type HookConflictResult,
   HookShimError,
   InvalidArgumentError,
   type JsonValue,
@@ -60,9 +64,12 @@ export {
 export { compareEvents, foldLog, foldSubject } from "./fold/fold.js";
 export {
   assignNumbers,
+  compareNumberingKeys,
   NO_NUMBERING,
   type Numbering,
   numberLog,
+  PENDING_COMMIT,
+  projectNumbering,
   resolveMainRef,
 } from "./fold/numbering.js";
 export { kindFindings, type Projection, projectLog } from "./fold/project.js";
@@ -92,6 +99,7 @@ export {
   worktreeReader,
 } from "./git/tree.js";
 export {
+  assertNoHookConflicts,
   type HookInstallResult,
   installHooks,
   readHookRegistry,
@@ -166,7 +174,25 @@ export {
   loadLog,
 } from "./log/snapshot.js";
 export { nextEventIdentity, writeEvent, writeEvents, writeNewFile } from "./log/write.js";
+export {
+  escapeMarkdown,
+  INDEX_FORMAT,
+  type IndexSpec,
+  indexCheck,
+  parseIndexNumbers,
+  readIndexNumbers,
+  renderIndex,
+  writeIndexFile,
+} from "./log-index/index.js";
 export { type Anchor, anchorsInLine, scanAnchors } from "./scope/anchors.js";
+export {
+  anchorCheck,
+  type GovernedChange,
+  governedChanges,
+  type NarrowedScope,
+  narrowedScopes,
+  scopeGlobCheck,
+} from "./scope/checks.js";
 export {
   escapeGlob,
   type Glob,
@@ -229,6 +255,11 @@ export {
   renderCommitMessage,
   wrapParagraph,
 } from "./surfaces/commit-message.js";
+export {
+  type CommitInput,
+  commitWithRecovery,
+  saveCommitRecovery,
+} from "./surfaces/commit-recovery.js";
 export { renderStateHeader, type StateHeader } from "./surfaces/header.js";
 export { resolveSubjectInput, type SubjectInput } from "./surfaces/subject-input.js";
 export { openToolLog, type ToolLog, type ToolLogOptions } from "./surfaces/tool-log.js";
@@ -258,6 +289,7 @@ export {
   duplicates,
   loadFindings,
   mechanicalChecks,
+  type RepoContext,
 } from "./verify/checks.js";
 export { type Change, diffTrees } from "./verify/diff.js";
 export { foldChecks, invariantsCheck, relateCheck, transitions } from "./verify/fold-checks.js";

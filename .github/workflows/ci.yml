@@ -49,5 +49,32 @@ jobs:
             pnpm -r run test
           else
             echo "testing packages changed since $base and their dependents" | tee -a "$GITHUB_STEP_SUMMARY"
-            pnpm --filter "...{./packages/**}[$base]" run test
+            # The root depends on adr for its git hooks, so "..." selects it, and its test script
+            # is the whole suite; exclude it.
+            pnpm --filter "...{./packages/**}[$base]" --filter "!ark" run test
           fi
+      - name: Verify ark's decision log
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            node packages/adr/dist/cli.js verify --base "origin/$BASE_REF" --format github
+          else
+            node packages/adr/dist/cli.js verify --format github
+          fi
+      # The commit checks run last and even after a failed step, so a push with fixup! commits
+      # still gets lint, build, test and verify results (AGENTS.md: CI covers the tip of each push).
+      - name: Lint commit messages
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        # Only this PR's commits: main's history (including commits from before commitlint) is never linted.
+        run: pnpm exec commitlint --from "origin/$BASE_REF" --to "$HEAD_SHA" --verbose
+      - name: Reject fixup commits
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: sh scripts/check-fixups.sh "origin/$BASE_REF" "$HEAD_SHA"

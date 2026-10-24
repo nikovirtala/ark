@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   bodyFileName,
   type EventEnvelope,
@@ -11,6 +13,7 @@ import {
 } from "@nikovirtala/ledger";
 import {
   createTempRepo,
+  danglingAnchor,
   forkAndMerge,
   TEST_HUMAN,
   type TempRepo,
@@ -19,6 +22,7 @@ import fc from "fast-check";
 import { afterEach, describe, expect, it } from "vitest";
 import { adrKind } from "./kind.js";
 import { openDecisionLog } from "./log.js";
+import { indexDecisionLog } from "./log-index.js";
 import {
   type AdrHistory,
   adrSupersessionArbs,
@@ -137,6 +141,35 @@ describe("verifyDecisions", () => {
       ["template/section-missing", B, "required section Scope is missing"],
       ["transition/illegal", A, "rejected is not allowed while accepted"],
     ]);
+  });
+
+  it("checks index.md with [log] index = committed, in staged, range and full mode", async () => {
+    const r = await acceptedLog({ "docs/adr/adr.toml": '[log]\nindex = "committed"\n' });
+    const index = "docs/adr/index.md";
+    expect(rules(await verifyDecisions(await open(r), { type: "full" }))).toEqual([
+      "index/missing null",
+    ]);
+    await indexDecisionLog(await open(r), { commit: true });
+    const base = (await r.git.resolveCommit("HEAD")) ?? "";
+    expect(await verifyDecisions(await open(r), { type: "full", head: "HEAD" })).toEqual([]);
+
+    const text = await readFile(join(r.root, index), "utf8");
+    await r.write(index, text.replace("[Use Aurora]", "[Use Aurora!]"));
+    const stale = ["index/stale null"];
+    expect(rules(await verifyDecisions(await open(r), { type: "full" }))).toEqual(stale);
+    await r.stage(index);
+    expect(
+      rules(await verifyDecisions(await open(r, { reader: "index" }), { type: "staged" })),
+    ).toEqual(stale);
+    await r.commit("hand edit");
+    expect(rules(await verifyDecisions(await open(r), { type: "range", base }))).toEqual(stale);
+    expect(rules(await verifyDecisions(await open(r), { type: "full", head: "HEAD" }))).toEqual(
+      stale,
+    );
+    const finding = (await verifyDecisions(await open(r), { type: "full" }))[0];
+    expect(finding?.message).toBe(
+      "docs/adr/index.md is not what the tool generates; run adr index and commit it",
+    );
   });
 
   it("applies the actor policy from adr.toml", async () => {
@@ -458,6 +491,34 @@ describe("merge safety (AC 9)", () => {
             expect(rules(findings).sort()).toEqual(expectedOf(h, left, right));
           },
         ),
+        { numRuns: 10 },
+      );
+    },
+    GIT_PROPERTY_TIMEOUT,
+  );
+});
+
+// 01:387, design 2b §4.8: a dangling anchor is a verifier mutation that needs git grep, so it runs
+// on temp repos rather than the MemoryTree tamper properties.
+describe("dangling anchors", () => {
+  it(
+    "are reported exactly when a code file names a decision the log lacks",
+    async () => {
+      await fc.assert(
+        fc.asyncProperty(arbAdrHistory({ maxSteps: 8 }), fc.integer(), async (h, seed) => {
+          const r = await repo(h.files);
+          const ids = h.subjects.map((s) => s.id);
+          const live = ids.length === 0 ? "" : `// adr:${ids[0]}\n`;
+          await r.write("src/live.ts", live);
+          const missing = async () =>
+            (await verifyDecisions(await open(r), { type: "full" }))
+              .filter((f) => f.rule === "scope/anchor-missing")
+              .map((f) => [f.file, f.line, f.subject]);
+          expect(await missing()).toEqual([]);
+          const d = danglingAnchor({ keyword: "adr", taken: new Set(ids), seed });
+          await r.write(d.path, d.text);
+          expect(await missing()).toEqual([[d.path, 1, d.id]]);
+        }),
         { numRuns: 10 },
       );
     },

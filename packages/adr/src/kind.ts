@@ -57,6 +57,7 @@ export const adrKind: Kind<
     lintOn: "accepted",
     requireSections: ["scope"],
   },
-  scope: { event: "scoped", activeIn: ["proposed", "accepted", "deprecated"] },
+  // A deprecated decision's globs no longer have to match code (design 2b §4.8).
+  scope: { event: "scoped", activeIn: ["proposed", "accepted"] },
   options: Object.freeze({ acceptRequiresHuman: true }),
 });

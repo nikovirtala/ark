@@ -22,7 +22,9 @@ export type LedgerErrorCode =
   | "hook-shim"
   | "ulid-overflow"
   | "usage"
-  | "file-exists";
+  | "file-exists"
+  | "hook-conflict"
+  | "commit-failed";
 
 export type JsonValue =
   | null
@@ -198,5 +200,113 @@ export class HookShimError extends LedgerError {
   constructor(path: string, message: string, options?: ErrorOptions) {
     super("hook-shim", message, options);
     this.path = path;
+  }
+}
+
+/**
+ * The shape of an install result `HookConflictError` carries; `HookInstallResult` (hooks/install.ts)
+ * is assignable to it. Declared here so this module imports nothing.
+ */
+export interface HookConflictResult {
+  readonly written: readonly string[];
+  readonly unchanged: readonly string[];
+  readonly conflicts: readonly {
+    readonly hook: string;
+    readonly path: string;
+    readonly reason: "foreign-hook" | "hooks-path";
+    readonly argv: readonly string[];
+  }[];
+}
+
+/** `installHooks` met `core.hooksPath` or a foreign hook; the message says what to do for each. */
+export class HookConflictError extends LedgerError {
+  override name = "HookConflictError";
+  readonly result: HookConflictResult;
+
+  constructor(message: string, result: HookConflictResult, options?: ErrorOptions) {
+    super("hook-conflict", message, options);
+    this.result = result;
+  }
+}
+
+/**
+ * How to finish a commit git refused (`saveCommitRecovery` in surfaces/commit-recovery.ts builds
+ * it). Declared here so this module imports nothing.
+ */
+export interface CommitRecovery {
+  /** The commit's `only` paths, sorted. */
+  readonly staged: readonly string[];
+  /** Absolute path of the saved message, trailers included. */
+  readonly messageFile: string;
+  /** The sh command that makes the commit by hand. */
+  readonly command: string;
+  readonly trailers: readonly (readonly [string, string])[];
+}
+
+/** What `CommitFailedError` is built from. */
+export interface CommitFailedInput {
+  readonly recovery: CommitRecovery;
+  /** First line: "git commit failed (exit 1): <first stderr line>", or what failed before the commit. */
+  readonly headline: string;
+  /** Indented under the headline (git's stderr, at most 40 lines); "" for none. */
+  readonly detail: string;
+  /** The caller's sentence on what running the command again would do. */
+  readonly rerun: string;
+  /** An extra step before the commit command; null for none. */
+  readonly before: string | null;
+  /** A step after the commit command and the trailer lines; null for none. */
+  readonly after: string | null;
+  /**
+   * The command's own notes up to the failure (a write's notes, say): `runCli` prints them as
+   * warnings before the error and puts them in the error document's `notes`. Default none.
+   */
+  readonly notes?: readonly string[];
+}
+
+/**
+ * `git commit` failed after a tool wrote and staged its files: the message says what failed,
+ * what is staged, and the exact command that finishes the commit with the saved message.
+ */
+export class CommitFailedError extends LedgerError {
+  override name = "CommitFailedError";
+  readonly recovery: CommitRecovery;
+  readonly rerun: string;
+  /** The command's notes, which the hint doesn't repeat; see `CommitFailedInput.notes`. */
+  readonly notes: readonly string[];
+  readonly #input: CommitFailedInput;
+
+  constructor(o: CommitFailedInput, options?: ErrorOptions) {
+    const { recovery } = o;
+    const lines = [
+      o.headline,
+      ...(o.detail === "" ? [] : [o.detail]),
+      `The files are written and staged. ${o.rerun} Staged for this commit:`,
+      ...recovery.staged.map((p) => `  ${p}`),
+      ...(o.before === null ? [] : [o.before]),
+      `${o.before === null ? "Fix what made git fail, then commit" : "Then commit"} exactly these files with the message adr prepared:`,
+      `  ${recovery.command}`,
+      ...(recovery.trailers.length === 0
+        ? ["The message has no trailers."]
+        : [
+            "The message ends with these trailers; keep them if you edit the file:",
+            ...recovery.trailers.map(([k, v]) => `  ${k}: ${v}`),
+          ]),
+      ...(o.after === null ? [] : [o.after]),
+    ];
+    super("commit-failed", lines.join("\n"), options);
+    this.recovery = recovery;
+    this.rerun = o.rerun;
+    this.notes = o.notes ?? [];
+    this.#input = o;
+  }
+
+  /**
+   * The same error with `notes` before its own: a caller further up adds the notes it made before
+   * the step that failed, so they keep the order a successful run reports them in.
+   */
+  withNotes(notes: readonly string[]): CommitFailedError {
+    if (notes.length === 0) return this;
+    const input = { ...this.#input, notes: [...notes, ...this.notes] };
+    return new CommitFailedError(input, this.cause === undefined ? {} : { cause: this.cause });
   }
 }

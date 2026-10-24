@@ -1,10 +1,10 @@
 import { type JsonValue, UsageError } from "@nikovirtala/ledger";
 import type { CommandSpec } from "@nikovirtala/ledger/cli";
 import { DECISION_STATUSES, type DecisionStatus } from "../kind.js";
-import { readDecisions, unavailableReason } from "../log.js";
+import { changedSince, numberingNote, readDecisions } from "../log.js";
 import { listDecisions } from "../views.js";
 import { openForCli } from "./open.js";
-import { listText } from "./text.js";
+import { listText, sinceText } from "./text.js";
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? `1 ${one}` : `${n} ${many}`);
 
@@ -20,24 +20,32 @@ function statuses(values: Readonly<Record<string, unknown>>): DecisionStatus[] {
   });
 }
 
-/** `adr list [--status <status>]…` (design §5.6). */
+/** `--since`'s revision: non-empty and not an option. */
+function sinceRev(values: Readonly<Record<string, unknown>>): string | null {
+  const v = values.since;
+  if (typeof v !== "string") return null;
+  if (v.trim() === "" || v.startsWith("-")) throw new UsageError("--since must be a revision");
+  return v;
+}
+
+/** `adr list [--status <status>]… [--since <rev>]` (design §5.6, 2b D7). */
 export const listCommand: CommandSpec = {
   name: "list",
   summary: "list decisions with their computed status",
-  usage: "list [--status <status>]…",
-  options: { status: { type: "string", multiple: true } },
+  usage: "list [--status <status>]… [--since <rev>]",
+  options: { status: { type: "string", multiple: true }, since: { type: "string" } },
   positionals: { min: 0, max: 0, names: [] },
   ref: "read",
   async run({ io, flags, values }) {
     const status = statuses(values);
-    const read = await readDecisions(await openForCli(io, flags));
-    const doc = listDecisions(read, { status });
+    const rev = sinceRev(values);
+    const log = await openForCli(io, flags);
+    const since = rev === null ? null : await changedSince(log, rev);
+    const read = await readDecisions(log);
+    const doc = listDecisions(read, { status, since });
     const notes = [...doc.notes];
-    if (!read.numbering.available && doc.decisions.length > 0) {
-      notes.push(
-        `numbers are unavailable (${unavailableReason(read.numbering)}); decisions display by id`,
-      );
-    }
+    const numbering = numberingNote(read, { unavailable: true });
+    if (numbering !== null && doc.decisions.length > 0) notes.push(numbering);
     if (doc.findings.length > 0) {
       notes.push(
         `the decision log has ${plural(doc.findings.length, "problem", "problems")}; run adr verify`,
@@ -54,6 +62,7 @@ export const listCommand: CommandSpec = {
       );
     }
     const display = (id: string) => read.projection.views.get(id)?.display ?? id;
-    return { exit: 0, json: doc as unknown as JsonValue, text: listText(doc, display), notes };
+    const text = doc.since === null ? listText(doc, display) : sinceText(doc, doc.since, display);
+    return { exit: 0, json: doc as unknown as JsonValue, text, notes };
   },
 };

@@ -1,6 +1,8 @@
 /** Test-only helpers for spawning the built `adr` binary on temp repos (design §9). */
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { chmod, mkdir, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Actor } from "@nikovirtala/ledger";
 import { createTempRepo, type TempRepo } from "@nikovirtala/ledger/testing";
@@ -103,9 +105,77 @@ export async function seedDecision(
   return id;
 }
 
+/** Installs a foreign `pre-commit` hook that prints `hook says no` and exits 1; its path. */
+export async function failingPreCommit(repo: TempRepo): Promise<string> {
+  const path = join(repo.git.gitDir, "hooks", "pre-commit");
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, '#!/bin/sh\necho "hook says no" >&2\nexit 1\n');
+  await chmod(path, 0o755);
+  return path;
+}
+
+/** The manual commit command of a `commit-failed` hint (design 2b D5), from adr's stderr. */
+export function hintCommand(stderr: string): string {
+  const lines = stderr.split("\n");
+  const at = lines.findIndex((l) => / exactly these files with the message adr prepared:$/.test(l));
+  const command = at < 0 ? undefined : lines[at + 1];
+  if (command === undefined) throw new Error(`no commit command in:\n${stderr}`);
+  return command.trim();
+}
+
+/** Runs `command` with `sh -c` from `/`, in the repo's hermetic environment. */
+export function runShell(repo: TempRepo, command: string): AdrRun {
+  const r = spawnSync("sh", ["-c", command], {
+    cwd: "/",
+    env: cliEnv(repo),
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (r.error !== undefined) throw r.error;
+  return { status: r.status, stdout: r.stdout, stderr: r.stderr };
+}
+
 /** Supersedes `id` by `by` through the library, committing. */
 export async function seedSupersession(repo: TempRepo, id: string, by: string): Promise<void> {
   const log = await openDecisionLog({ cwd: repo.root, gitOptions: { env: repo.env } });
   const r = await supersedeDecision(log, { id, by, actor: REPO_HUMAN }, { commit: true });
   if (!r.ok) throw new Error(`could not supersede ${id} by ${by}`);
+}
+
+/**
+ * `<dir>/node_modules/.bin/adr`, a sh wrapper running the built CLI, where ledger's hook shims
+ * look for a tool first (design 2b §4.3 tests).
+ */
+export async function linkAdrBin(dir: string): Promise<void> {
+  const bin = join(dir, "node_modules", ".bin", "adr");
+  await mkdir(dirname(bin), { recursive: true });
+  const q = (s: string) => `'${s.replace(/'/g, "'\\''")}'`;
+  await writeFile(bin, `#!/bin/sh\nexec ${q(process.execPath)} ${q(requireBuilt(CLI))} "$@"\n`);
+  await chmod(bin, 0o755);
+}
+
+/**
+ * A `cliRepo` whose `.gitignore` (committed) ignores `node_modules`, with `linkAdrBin`, so that
+ * `adr hooks install` writes shims that find adr.
+ */
+export async function hooksRepo(files: Readonly<Record<string, string>> = {}): Promise<TempRepo> {
+  const r = await cliRepo({ ".gitignore": "node_modules/\n", ...files });
+  await linkAdrBin(r.root);
+  return r;
+}
+
+/** Runs git like a user would, hooks included, in `repo` (or `o.cwd`) with `cliEnv`. */
+export function runGit(
+  repo: TempRepo,
+  args: readonly string[],
+  o: { readonly cwd?: string; readonly env?: NodeJS.ProcessEnv } = {},
+): AdrRun {
+  const r = spawnSync("git", args, {
+    cwd: o.cwd ?? repo.root,
+    env: cliEnv(repo, o.env),
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (r.error !== undefined) throw r.error;
+  return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }

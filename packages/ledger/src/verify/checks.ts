@@ -1,10 +1,21 @@
 import type { CompiledKind } from "../envelope/kind.js";
 import { type Finding, finding } from "../findings/finding.js";
+import type { Git } from "../git/git.js";
 import { bodySha256, findDuplicates } from "../identity/hash.js";
 import { classifyPath, type LogLayout } from "../identity/layout.js";
 import type { AnyKind, FoldedLogOf, FoldedSubjectOf } from "../kind/types.js";
 import type { LoadedEvent, LoadedSubject, LogSnapshot } from "../log/snapshot.js";
 import type { Change } from "./diff.js";
+
+/** The repository a check may read beyond the log, for checks over code (scope globs, anchors). */
+export interface RepoContext {
+  readonly git: Git;
+  readonly mode: "staged" | "range" | "full";
+  /** The tree being verified, in the form `Git.trackedPaths` and `scanAnchors` take. */
+  readonly head: "worktree" | "index" | { readonly commit: string };
+  /** The base commit: HEAD for staged (null when unborn), the merge base for range, null for full. */
+  readonly base: string | null;
+}
 
 export interface CheckContext {
   readonly kind: CompiledKind;
@@ -25,6 +36,11 @@ export interface CheckContext {
     readonly head: FoldedLogOf<AnyKind>;
     readonly base: FoldedLogOf<AnyKind> | null;
   } | null;
+  /**
+   * Set by `verifyLog`; absent for `verifySnapshots` callers that pass none. Checks that need it
+   * report nothing without it.
+   */
+  readonly repo?: RepoContext;
 }
 
 /** A verify check: the mechanical checks, and the fold checks of `foldChecks`. */

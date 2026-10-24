@@ -1,6 +1,8 @@
 import {
   type CheckContext,
+  classifyPath,
   compileKind,
+  diffTrees,
   type Finding,
   type FoldedLogOf,
   foldLog,
@@ -13,7 +15,10 @@ import {
   numberLog,
   openToolLog,
   type Projection,
+  parseEventFileName,
   projectLog,
+  readIndexNumbers,
+  refReader,
   relateCheck,
   resolveSubjectInput,
   sortFindings,
@@ -63,20 +68,39 @@ export interface DecisionsRead {
   readonly notes: readonly string[];
 }
 
-/** `numberLog` on the repository, then `readDecisionsFrom(log.tree, …)`. */
+/**
+ * `numberLog` on the repository, then `readDecisionsFrom(log.tree, …)`. In a shallow clone of a
+ * log with `[log] index = "committed"`, the numbers come from `<root>/index.md` in the commit
+ * being read (`--ref`, else HEAD, resolved when the numbers are needed), never from the work tree's
+ * copy, which may number acceptances that exist only there (design 2b D1, §4.6).
+ */
 export async function readDecisions(log: DecisionLog): Promise<DecisionsRead> {
-  const numbering = await numberLog(log.git, {
-    kind: adrKind,
-    layout: log.layout,
-    mainRef: log.adr.mainBranch,
-  });
   return readDecisionsFrom(log.tree, {
     layout: log.layout,
     adr: log.adr,
-    numbering,
+    numbering: await numberDecisions(log),
     ref: log.ref,
     commit: log.commit,
     notes: log.notes,
+  });
+}
+
+/** The display numbers `readDecisions` uses, with its shallow-clone fallback to `index.md`. */
+export async function numberDecisions(log: DecisionLog): Promise<Numbering> {
+  return numberLog(log.git, {
+    kind: adrKind,
+    layout: log.layout,
+    mainRef: log.adr.mainBranch,
+    ...(log.adr.index === "committed"
+      ? {
+          fallback: async () => {
+            const c = await log.git.resolveCommit(log.ref ?? "HEAD");
+            return c === null
+              ? null
+              : readIndexNumbers(await refReader(log.git, c), `${log.layout.root}/index.md`);
+          },
+        }
+      : {}),
   });
 }
 
@@ -127,6 +151,22 @@ export async function readDecisionsFrom(
   };
 }
 
+/**
+ * The note a read command adds about where numbers come from: the shallow-clone index, or why
+ * they are unavailable (`unavailable: false` leaves that one out); `null` for none.
+ */
+export function numberingNote(
+  read: DecisionsRead,
+  o: { readonly unavailable: boolean },
+): string | null {
+  const n = read.numbering;
+  if (n.reason === "index") return `numbers come from ${read.root}/index.md (shallow clone)`;
+  if (n.available || !o.unavailable) return null;
+  return n.reason === "shallow"
+    ? 'numbers are unavailable (shallow clone); run git fetch --unshallow, or commit an index with [log] index = "committed"'
+    : `numbers are unavailable (${unavailableReason(n)}); decisions display by id`;
+}
+
 /** Why numbers are unavailable, in words: `shallow clone` or `no main branch`. */
 export function unavailableReason(n: Numbering): string {
   return n.reason === "shallow" ? "shallow clone" : "no main branch";
@@ -158,4 +198,38 @@ export function resolveDecision(read: DecisionsRead, input: string): string {
     case "not-found":
       throw new UsageError(`unknown decision ${input.trim()}`);
   }
+}
+
+/** The `since` key of `adr list --since <rev>` (design 2b D7). */
+export interface ChangedSince {
+  /** The revision as given, such as `ORIG_HEAD`. */
+  readonly rev: string;
+  readonly commit: string;
+  /** Event files added since `rev`, sorted by path. */
+  readonly events: readonly {
+    readonly subject: string;
+    readonly type: string;
+    readonly path: string;
+  }[];
+}
+
+/**
+ * The event files in `--ref`'s tree (else HEAD's) that `rev`'s tree lacks (design 2b D7). Diffing
+ * trees answers "what did this pull bring" for fast-forwards and merges (`ORIG_HEAD` is the tip
+ * before them), and lists nothing for a rebase of your own work, whose events are in both trees.
+ * Throws `RefNotFoundError` when either revision doesn't resolve.
+ */
+export async function changedSince(log: DecisionLog, rev: string): Promise<ChangedSince> {
+  const base = await refReader(log.git, rev);
+  const head = await refReader(log.git, log.ref ?? "HEAD");
+  const changes = await diffTrees(base, head, `${log.layout.root}/${log.layout.events}`);
+  const events = changes.flatMap((c) => {
+    if (c.status !== "added") return [];
+    const p = classifyPath(log.layout, c.path);
+    if (p.area !== "event" || p.subject === null || p.file.includes("/")) return [];
+    const name = parseEventFileName(p.file);
+    return name === null ? [] : [{ subject: p.subject, type: name.type, path: c.path }];
+  });
+  events.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  return { rev, commit: base.commit ?? "", events };
 }

@@ -7,22 +7,11 @@ import {
   type Severity,
   type ToolConfig,
 } from "@nikovirtala/ledger";
+import { COMMIT_NAMES, COMMIT_VARS } from "./commit-actions.js";
 import { adrKind } from "./kind.js";
 
-/** adr's commit-subject placeholders, each with its longest value (design §4.2). */
-const COMMIT_VARS = Object.freeze({ action: 24, id: 8, display: 13, command: 9 });
 /** The default `[commit] subject`. */
 export const DEFAULT_COMMIT_SUBJECT = "docs(adr): {action} {title}";
-/**
- * The names the title placeholder holds instead of a title, which are never shortened, each with
- * its action: supersede's `<display> with <display>` and a link's `<display> to <display>` or
- * `<display> to a decision in another log` (`planLink` in write.ts). The shorter names (a display,
- * at most 13 characters) always fit in the room a title gets.
- */
-const COMMIT_NAMES = Object.freeze([
-  { length: COMMIT_VARS.display * 2 + " with ".length, vars: { action: "supersede".length } },
-  { length: COMMIT_VARS.display + " to a decision in another log".length, vars: { action: 4 } },
-]);
 
 /** adr's settings from `adr.toml` (design §5.3); every key is optional. */
 export interface AdrConfig {
@@ -30,7 +19,7 @@ export interface AdrConfig {
   readonly defaultTemplate: string;
   /** `[log] main_branch`: the ref numbers come from; `null` resolves it automatically. */
   readonly mainBranch: string | null;
-  /** `[log] index`: validated now, used in phase 2. */
+  /** `[log] index`: `committed` keeps a generated `<root>/index.md` fresh and verified. */
   readonly index: "committed" | "none";
   /** `[policy] accept_requires_human`. */
   readonly acceptRequiresHuman: boolean;
@@ -40,6 +29,12 @@ export interface AdrConfig {
   readonly mcpCanDecide: boolean;
   /** `[verify] fail_on`. */
   readonly failOn: Severity;
+  /** `[verify] governed_by_inactive`: the severity of `decision/governed-by-inactive`. */
+  readonly governedByInactive: Severity;
+  /** `[hooks] scope_follow_renames`: what the pre-commit hook does with renames of covered files. */
+  readonly scopeFollowRenames: "stage" | "warn" | "off";
+  /** `[hooks] index`: whether the pre-commit hook only checks `index.md` or regenerates it. */
+  readonly hookIndex: "check" | "stage";
   /** `[commit] subject`: the template of `--commit` subjects. */
   readonly commitSubject: CommitTemplate;
   /** `[scope] anchor_keyword`: the code-anchor keyword, `adr` in `// adr:<id>`. */
@@ -56,6 +51,9 @@ export const DEFAULT_ADR_CONFIG: AdrConfig = Object.freeze({
   autoCommit: false,
   mcpCanDecide: false,
   failOn: "error",
+  governedByInactive: "warning",
+  scopeFollowRenames: "stage",
+  hookIndex: "check",
   commitSubject: parseCommitTemplate(DEFAULT_COMMIT_SUBJECT, {
     vars: COMMIT_VARS,
     where: "commit.subject",
@@ -92,6 +90,7 @@ export function parseAdrConfig(config: ToolConfig | null, file: string | null): 
   const policy = table("policy");
   const verify = table("verify");
   const scope = table("scope");
+  const hooks = table("hooks");
   const bool = (t: Record<string, unknown>, section: string, key: string, fallback: boolean) => {
     const v = t[key];
     if (v === undefined) return fallback;
@@ -150,6 +149,21 @@ export function parseAdrConfig(config: ToolConfig | null, file: string | null): 
     autoCommit: bool(policy, "policy", "auto_commit", false),
     mcpCanDecide: bool(policy, "policy", "mcp_can_decide", false),
     failOn: oneOf(verify, "verify", "fail_on", ["error", "warning"] as const, "error"),
+    governedByInactive: oneOf(
+      verify,
+      "verify",
+      "governed_by_inactive",
+      ["warning", "error"] as const,
+      "warning",
+    ),
+    scopeFollowRenames: oneOf(
+      hooks,
+      "hooks",
+      "scope_follow_renames",
+      ["stage", "warn", "off"] as const,
+      "stage",
+    ),
+    hookIndex: oneOf(hooks, "hooks", "index", ["check", "stage"] as const, "check"),
     commitSubject: readCommitTemplate(config, {
       file: where,
       vars: COMMIT_VARS,

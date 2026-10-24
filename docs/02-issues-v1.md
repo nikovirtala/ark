@@ -75,7 +75,7 @@ An issue file holds the title as its first heading and the description below it,
 
 **Display numbers** such as ?42 are derived, never stored. The ? prefix keeps forges from auto-linking them to their own issues and pull requests. The projection numbers issues in the order their `opened` event first landed on the main branch, read with `git log --first-parent`. Main's history is append-only, so a number is stable once assigned. An issue opened on a branch displays by id until it merges. Every command and MCP tool accepts the canonical id, the bare number or the prefixed number, whatever prefix is chosen.
 
-Numbering needs main's history. Shallow clones fall back to the committed `index.md`, which records the assigned numbers, or fetch history on demand.
+Numbering needs main's history. With `index = "committed"`, a shallow clone reads the numbers recorded in the committed `index.md`; without one, issues display by id until you fetch the history (`git fetch --unshallow`). On a branch, these are the numbers the issues opened in the branch's commits will get once it merges (the index projects them).
 
 **Any issue log topology.** The tool prescribes no organizational structure. An issue log per repository, one shared tracker repository, or both together all work the same way. Sources are a ledger feature, configured the same way in every ark tool. An issue log can reference other logs as read-only sources, pinned to a git ref:
 
@@ -218,7 +218,7 @@ For each issue the fold produces:
 
 **Branch view.** Without `--ref`, reads use the working tree, so a feature branch sees its own closes before they reach main. `issues list --ref origin/main` shows the shared view.
 
-**Generated index.** With `index = "committed"`, `issues index` writes `index.md`: a header marking it generated, then in-progress issues, ready issues, blocked issues, and recently closed ones, each with number, title, assignees and labels. CI checks it is current. It exists for people browsing on a forge; tools never read it.
+**Generated index.** With `index = "committed"`, `issues index` writes `index.md`: a header marking it generated, then in-progress issues, ready issues, blocked issues, and recently closed ones, each with number, title, assignees and labels. CI checks it is current. It exists for people browsing on a forge; tools read it only for display numbers in a shallow clone.
 
 **No state in issue files, ever.** The tool never writes state, labels or assignees into an issue file, not even as managed frontmatter. Descriptions change for content reasons only, so a diff of an issue file always means the work itself was redescribed.
 

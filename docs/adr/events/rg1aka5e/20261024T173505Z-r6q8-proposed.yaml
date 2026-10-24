@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M5QFNZJPK9H4EQ67QHMPR6Q8
+subject: rg1aka5e
+type: proposed
+at: 2026-10-24T17:35:05Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Run every tool's git hooks through one ledger shim per hook
+  template: nygard
+  template_version: 1

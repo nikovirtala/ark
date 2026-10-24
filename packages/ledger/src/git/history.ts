@@ -75,14 +75,17 @@ export async function firstParentHistory(
 
 /**
  * For each path under `prefix`, the first-parent commit that first added it, oldest first. A file
- * added on a merged branch is attributed to the merge commit.
+ * added on a merged branch is attributed to the merge commit. `o.not`: leave out the commits
+ * these revisions reach, as `git log ^<rev>` does.
  */
 export async function firstParentAdditions(
   git: Git,
   ref: string,
   prefix: string,
+  o: { readonly not?: readonly string[] } = {},
 ): Promise<{ path: string; commit: string }[]> {
   const sha = await resolveOrThrow(git, ref);
+  const not = await Promise.all((o.not ?? []).map((rev) => resolveOrThrow(git, rev)));
   assertPath(prefix);
   const p = prefix.replace(/\/+$/, "");
   const r = await git.run([
@@ -97,6 +100,7 @@ export async function firstParentAdditions(
     "--format=%x1e%H",
     "--end-of-options",
     sha,
+    ...not.map((n) => `^${n}`),
     "--",
     ...(p === "" ? [] : [p]),
   ]);

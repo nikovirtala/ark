@@ -1,12 +1,14 @@
-import { readFile, rm } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type Actor,
   applySetOp,
   bodyFileName,
   bodySha256,
+  CommitFailedError,
   ConfigError,
   classifyPath,
+  commitWithRecovery,
   compileKind,
   ENVELOPE_VERSION,
   type EventEnvelope,
@@ -35,6 +37,7 @@ import {
   renderCommitMessage,
   renderTemplate,
   type SetOp,
+  saveCommitRecovery,
   serializeEvent,
   slugify,
   stagedRenames,
@@ -44,9 +47,11 @@ import {
   type TreeReader,
   templateHistoryRef,
   UsageError,
+  worktreeReader,
   writeEvents,
   writeNewFile,
 } from "@nikovirtala/ledger";
+import { ACTIONS, CROSS_LOG_LINK } from "./commit-actions.js";
 import { adrKind, type DecisionView, type LinkRel } from "./kind.js";
 import {
   type DecisionLog,
@@ -55,6 +60,19 @@ import {
   readDecisionsFrom,
   resolveDecision,
 } from "./log.js";
+import {
+  firstLine,
+  headBytes,
+  headTree,
+  holdsText,
+  INDEX_AFTER,
+  INDEX_BEFORE,
+  indexPath,
+  renderDecisionIndex,
+  unstagedIndexText,
+  unstagedLogFiles,
+  writeIndexCopy,
+} from "./log-index.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
 
 /** `adr <write command> --json` (design §5.5, §6.1). */
@@ -74,7 +92,9 @@ export interface WriteResultJson {
   /**
    * The decision after the write; before it when `ok` is false (`null` for a refused `new`).
    * After a commit it is read again from the log, so an acceptance committed on the main ref
-   * carries its number; otherwise `number` is `null` until the acceptance lands on main.
+   * carries its number; otherwise `number` is `null` until the acceptance lands on main. In a
+   * shallow clone with a committed index, the number comes from HEAD's `index.md`, which on a
+   * branch is the number the decision will get once the branch merges.
    */
   readonly decision: DecisionView | null;
   /** Each decision superseded by this write, after it (read again after a commit, like `decision`). */
@@ -99,6 +119,11 @@ export interface WriteOptions {
   readonly message?: string | null;
   /** Notes to report before the write's own, such as the attribution notes. */
   readonly notes?: readonly string[];
+  /**
+   * With `[log] index = "committed"`: `"refresh"` (the default) keeps `<root>/index.md` fresh;
+   * `"skip"` leaves it alone (the pre-commit hook's rename following, design 2b D8).
+   */
+  readonly index?: "refresh" | "skip";
 }
 
 export interface ProposeInput {
@@ -776,22 +801,6 @@ export async function planSupersede(
   };
 }
 
-/**
- * `{action}` of a commit that writes one event of each type (design §4.3), and what the title slot
- * names: the decision's title for the events that change whether it is decided, else its display.
- */
-const ACTIONS = {
-  proposed: { action: "propose to", names: "title" },
-  accepted: { action: "decide to", names: "title" },
-  rejected: { action: "decide not to", names: "title" },
-  withdrawn: { action: "withdraw the proposal to", names: "title" },
-  deprecated: { action: "deprecate", names: "display" },
-  superseded: { action: "supersede", names: "display" },
-  noted: { action: "add a note to", names: "display" },
-  linked: { action: "link", names: "display" },
-  scoped: { action: "set the scope of", names: "display" },
-} as const satisfies Record<string, { action: string; names: "title" | "display" }>;
-
 const actionOf = (type: string): { action: string; names: "title" | "display" } =>
   Object.hasOwn(ACTIONS, type)
     ? ACTIONS[type as keyof typeof ACTIONS]
@@ -961,7 +970,7 @@ export async function planLink(
     to = target;
     shown = target;
     described = `${rel} ${target}.`;
-    named = `${view.display} to a decision in another log`;
+    named = `${view.display} ${CROSS_LOG_LINK}`;
   } else {
     to = resolveDecision(read, target);
     if (to === id) throw new UsageError("a decision can't link to itself");
@@ -1087,7 +1096,13 @@ export async function planScope(
     };
   }
   if (o.tracked !== undefined) {
-    notes.push(...unmatchedGlobs(result.set, o.tracked).map((g) => `${g} matches no tracked file`));
+    // Verify's scope/glob-unmatched applies to the statuses in activeIn (design 2b §5.2).
+    const checked = (adrKind.def.scope?.activeIn ?? []).includes(view.status)
+      ? "; verify (hooks and CI) reports scope/glob-unmatched until a file matches"
+      : "";
+    notes.push(
+      ...unmatchedGlobs(result.set, o.tracked).map((g) => `${g} matches no tracked file${checked}`),
+    );
   }
   if (result.removed.length > 0 && (view.status === "accepted" || view.status === "deprecated")) {
     notes.push(
@@ -1280,11 +1295,50 @@ export interface AfterStage {
 
 const isYaml = (path: string) => /\.ya?ml$/.test(path);
 
+/** What `applyPlan` did. */
+export interface AppliedPlan {
+  /** Repo-relative paths written: the plan's files, then `<root>/index.md` when it was written. */
+  readonly written: string[];
+  readonly commit: string | null;
+  readonly findings: readonly Finding[];
+  /** Notes about the index ("not updated", "may be stale"); `[]` when none. */
+  readonly notes: readonly string[];
+}
+
+/**
+ * What the recovery hint says about rerunning a write command after `git commit` failed (design
+ * 2b D5): the batch is already in the log, so a rerun is refused, writes nothing or duplicates it.
+ */
+export const WRITE_RERUN =
+  "Don't run the command again: the log already holds the change, so a rerun would be refused, do nothing, or write it a second time.";
+
 /**
  * Applies a plan (§5.4): refuses a commit whose scope has unstaged or needed untracked paths,
  * writes the files (removing them again if a write fails), stages them, runs `afterStage`, and
- * commits `plan.stage` plus the involved subjects' already-staged files with exact trailers.
+ * commits `plan.stage` plus the involved subjects' already-staged files with exact trailers. A
+ * failed `git commit` throws `CommitFailedError` with the manual command (design 2b D5) and the
+ * notes made so far.
  */
+/**
+ * A write leaves the work tree's render of `index.md` (`staged`) staged, and it lists decision
+ * files that may not be staged. When some aren't and the index's own render differs, the next
+ * plain commit's hook fails; the note says so, as its `index/stale` finding does. `null`
+ * otherwise, or when that render fails.
+ */
+async function unstagedIndexNote(
+  log: DecisionLog,
+  at: string,
+  staged: string,
+  history: string | null,
+  render: (tree: TreeReader, history: string | null) => Promise<string | null>,
+): Promise<string | null> {
+  const files = await unstagedLogFiles(log.git, log.layout);
+  if (files.length === 0) return null;
+  const own = await render(await indexReader(log.git), history).catch(() => null);
+  if (own === null || own === staged) return null;
+  return `${unstagedIndexText(at, files)}; git add them before you commit, or move them out of the work tree and run adr index`;
+}
+
 export async function applyPlan(
   log: DecisionLog,
   plan: WritePlan,
@@ -1295,8 +1349,14 @@ export async function applyPlan(
     /** `message` is the user's own: append the trailers to its own trailer block, if it ends in one. */
     readonly mergeTrailers?: boolean;
     readonly afterStage?: () => Promise<AfterStage>;
+    /**
+     * Renders the log's index for `tree`, which builds on `history` (HEAD, the new commit, or
+     * null on an unborn HEAD); `null` when the numbers can't be projected. Given only when the log
+     * keeps a committed index (design 2b D2, §4.5).
+     */
+    readonly index?: (tree: TreeReader, history: string | null) => Promise<string | null>;
   },
-): Promise<{ written: string[]; commit: string | null; findings: readonly Finding[] }> {
+): Promise<AppliedPlan> {
   const { git } = log;
   if (o.commit && o.message === undefined) {
     throw new InvalidArgumentError("applyPlan needs a message to commit");
@@ -1324,6 +1384,64 @@ export async function applyPlan(
     }
   }
 
+  // The index (design 2b §4.5) is rendered before anything is written, so a projection error
+  // leaves nothing behind. A committing write renders the tree `git commit --only` builds: HEAD
+  // (or nothing) with every `only` path's work-tree bytes, which are `plan.files`' for new files.
+  const root = log.layout.root;
+  const at = indexPath(log.layout);
+  const notes: string[] = [];
+  const head = await git.resolveCommit("HEAD");
+  const extraOf = async () =>
+    (await git.stagedPaths(plan.commitScope)).filter((p) => !stage.has(p));
+  const commitTree = async (extra: readonly string[]): Promise<TreeReader> => {
+    const work = worktreeReader(git);
+    const files: Record<string, Uint8Array> = {};
+    const gone = new Set<string>();
+    for (const p of sorted([...plan.stage, ...extra])) {
+      const bytes = plan.files[p] ?? (await work.read(p));
+      if (bytes === null) gone.add(p);
+      else files[p] = bytes;
+    }
+    return withoutPaths(overlayTree(await headTree(git, head), files), gone);
+  };
+  const extra0 = o.commit && o.index !== undefined ? await extraOf() : [];
+  let text: string | null = null;
+  if (o.index !== undefined) {
+    const tree = o.commit ? await commitTree(extra0) : overlayTree(worktreeReader(git), plan.files);
+    text = await o.index(tree, head);
+    if (text === null) {
+      notes.push(
+        `${at} not updated: numbers need history in this shallow clone; run git fetch --unshallow, then adr index`,
+      );
+    }
+  }
+
+  const toStage: string[] = [];
+  // Assigned in the closures below, so typed without narrowing.
+  let indexWritten = false as boolean;
+  let indexOld = null as Uint8Array | null;
+  let indexInCommit = false as boolean;
+  /** Brings the work-tree copy to `t` and stages it (now, or with the batch) where they differ. */
+  const refresh = async (t: string, now: boolean): Promise<boolean> => {
+    const r = await writeIndexCopy(git, at, t);
+    if (r.wrote && !indexWritten) indexOld = r.old;
+    indexWritten ||= r.wrote;
+    if (r.stage) {
+      if (now) await git.add([at]);
+      else toStage.push(at);
+    }
+    return r.wrote || r.stage;
+  };
+  /** Step 3's rules: committing, HEAD's copy decides; otherwise the work tree and the index. */
+  const place = async (t: string, committing: boolean, now: boolean): Promise<void> => {
+    if (!committing) {
+      await refresh(t, now);
+      return;
+    }
+    indexInCommit = !holdsText(await headBytes(git, at), t);
+    if (indexInCommit) await refresh(t, now);
+  };
+
   const eventPaths = new Set(plan.events.map((e) => eventPath(log.layout, e)));
   const written: string[] = [];
   try {
@@ -1332,13 +1450,21 @@ export async function applyPlan(
       await writeNewFile(git, path, bytes, { stage: false });
       written.push(path);
     }
+    if (text !== null) await place(text, o.commit, false);
     await writeEvents(git, log.layout, plan.events, { kind: log.compiled, stage: false });
   } catch (err) {
-    const root = git.root ?? "";
-    for (const path of written) await rm(join(root, path), { force: true });
+    const top = git.root ?? "";
+    if (indexWritten) {
+      if (indexOld === null) await rm(join(top, at), { force: true });
+      else await writeFile(join(top, at), indexOld);
+    }
+    for (const path of written) await rm(join(top, path), { force: true });
     throw err;
   }
-  await git.add(plan.stage);
+  await git.add([...plan.stage, ...toStage]);
+  /** The work tree's render that ends up staged, and the commit it builds on. */
+  let stagedIndex: { readonly text: string; readonly history: string | null } | null =
+    !o.commit && text !== null ? { text, history: head } : null;
 
   let findings = plan.findings;
   let commit = o.commit;
@@ -1348,9 +1474,10 @@ export async function applyPlan(
     commit = commit && after.commit;
   }
 
+  const stale = (err: unknown) => `${at} may be stale: ${firstLine(err)}; run adr index`;
   let sha: string | null = null;
   if (commit) {
-    const extra = (await git.stagedPaths(plan.commitScope)).filter((p) => !stage.has(p));
+    const extra = await extraOf();
     const staged: Trailer[] = extra.filter(isYaml).flatMap((p): Trailer[] => {
       const c = classifyPath(log.layout, p);
       const name = c.area === "event" && !c.file.includes("/") ? parseEventFileName(c.file) : null;
@@ -1361,14 +1488,98 @@ export async function applyPlan(
           ]
         : [];
     });
-    sha = await git.commit({
-      message: o.message ?? "",
-      mergeTrailers: o.mergeTrailers === true,
-      trailers: [...staged, ...plan.trailers],
-      only: sorted([...plan.stage, ...extra]),
-    });
+    const message = o.message ?? "";
+    const mergeTrailers = o.mergeTrailers === true;
+    const trailers = [...staged, ...plan.trailers];
+    const sameEvents =
+      sorted(extra.filter(isYaml)).join("\0") === sorted(extra0.filter(isYaml)).join("\0");
+    if (text !== null && o.index !== undefined && o.afterStage !== undefined && !sameEvents) {
+      // Step 4: the editor step ran while other events were staged; render the new tree.
+      try {
+        const again = await o.index(await commitTree(extra), head);
+        if (again !== null) await place(again, true, true);
+      } catch (err) {
+        const recovery = await saveCommitRecovery(git, {
+          message,
+          mergeTrailers,
+          trailers,
+          only: sorted([...plan.stage, ...extra, at]),
+        });
+        throw new CommitFailedError(
+          {
+            recovery,
+            headline: `${at} couldn't be refreshed: ${firstLine(err)}`,
+            detail: "",
+            rerun: WRITE_RERUN,
+            before: INDEX_BEFORE(root),
+            after: null,
+            notes,
+          },
+          { cause: err },
+        );
+      }
+    }
+    try {
+      sha = await commitWithRecovery(git, {
+        message,
+        mergeTrailers,
+        trailers,
+        only: sorted([...plan.stage, ...extra, ...(indexInCommit ? [at] : [])]),
+        rerun: WRITE_RERUN,
+        after: indexInCommit ? INDEX_AFTER(root) : null,
+      });
+    } catch (err) {
+      // The notes made so far (an index not updated, say) explain the state the hint describes.
+      throw err instanceof CommitFailedError ? err.withNotes(notes) : err;
+    }
+    // Step 5: the commit's render leaves out other decisions' uncommitted entries; the work tree
+    // and the index get them back.
+    if (text !== null && o.index !== undefined) {
+      try {
+        const again = await o.index(worktreeReader(git), sha);
+        if (again !== null) {
+          await refresh(again, true);
+          stagedIndex = { text: again, history: sha };
+        }
+      } catch (err) {
+        notes.push(stale(err));
+      }
+    }
+  } else if (o.commit && text !== null && o.index !== undefined) {
+    // Step 4: the editor step turned the commit off, so the index must match the work tree.
+    try {
+      const again = await o.index(worktreeReader(git), head);
+      if (again !== null) {
+        await refresh(again, true);
+        stagedIndex = { text: again, history: head };
+      }
+    } catch (err) {
+      notes.push(stale(err));
+    }
   }
-  return { written: Object.keys(plan.files), commit: sha, findings };
+  if (stagedIndex !== null && o.index !== undefined) {
+    const { text: t, history } = stagedIndex;
+    const note = await unstagedIndexNote(log, at, t, history, o.index);
+    if (note !== null) notes.push(note);
+  }
+  return {
+    written: [...Object.keys(plan.files), ...(indexWritten ? [at] : [])],
+    commit: sha,
+    findings,
+    notes,
+  };
+}
+
+/** `tree` without the paths in `gone` (a staged deletion in a commit's `only` list). */
+function withoutPaths(tree: TreeReader, gone: ReadonlySet<string>): TreeReader {
+  if (gone.size === 0) return tree;
+  return {
+    label: tree.label,
+    commit: null,
+    list: async (prefix) => (await tree.list(prefix)).filter((e) => !gone.has(e.path)),
+    read: async (path) => (gone.has(path) ? null : tree.read(path)),
+    readMany: (paths) => tree.readMany(paths.filter((p) => !gone.has(p))),
+  };
 }
 
 /**
@@ -1502,10 +1713,17 @@ async function write(
           ? {}
           : { message: given ?? rendered.message, mergeTrailers: given !== null }),
         ...(afterStage === undefined ? {} : { afterStage: afterStage(r.plan, commit) }),
+        ...(log.adr.index === "committed" && o.index !== "skip"
+          ? {
+              index: (tree: TreeReader, history: string | null) =>
+                renderDecisionIndex(log.git, { layout: log.layout, adr: log.adr, tree, history }),
+            }
+          : {}),
       });
       const views = await viewsAfter(log, r.plan, applied.commit);
       const own = [
         ...(r.plan.notes ?? []),
+        ...applied.notes,
         ...(applied.commit !== null && given === null && rendered?.shortened === true
           ? [SHORTENED_NOTE]
           : []),
@@ -1522,6 +1740,9 @@ async function write(
         notes: [...notes, ...own],
       };
     } catch (err) {
+      // A refused commit keeps the notes a successful write would report, before applyPlan's.
+      if (err instanceof CommitFailedError)
+        throw err.withNotes([...notes, ...(r.plan.notes ?? [])]);
       // Another process wrote the same event path in the same instant: writeEvents removed this
       // batch and applyPlan the new body and template, so plan again with a fresh clock, once.
       if (!(err instanceof EventExistsError) || attempt > 0) throw err;

@@ -6,12 +6,12 @@ import {
   UsageError,
 } from "@nikovirtala/ledger";
 import type { DecisionStatus, DecisionView } from "./kind.js";
-import type { DecisionsRead } from "./log.js";
+import type { ChangedSince, DecisionsRead } from "./log.js";
 
 /** The `numbering` key of the read documents. */
 export interface NumberingJson {
   readonly available: boolean;
-  readonly reason: "shallow" | "no-main-ref" | null;
+  readonly reason: "shallow" | "no-main-ref" | "index" | null;
   readonly ref: string | null;
 }
 
@@ -23,6 +23,8 @@ export interface DecisionListJson {
   readonly commit: string | null;
   readonly numbering: NumberingJson;
   readonly decisions: readonly DecisionView[];
+  /** With `--since <rev>`: the event files added since `rev`; `null` without it. */
+  readonly since: ChangedSince | null;
   /** Newer envelope or schema versions; upgrade adr. */
   readonly unreadable: readonly string[];
   /** First event not `proposed`, or a body with no events; run adr verify. */
@@ -66,16 +68,24 @@ function compareViews(a: DecisionView, b: DecisionView): number {
 }
 
 /**
- * The `adr-list/v1` document: decisions in list order, filtered by `status` and truncated to
+ * The `adr-list/v1` document: decisions in list order, filtered by `status` and by `since` (only
+ * the decisions with event files added since its revision, from `changedSince`), and truncated to
  * `limit` after ordering. `findings` are those of the listed decisions and of the log as a whole.
  */
 export function listDecisions(
   read: DecisionsRead,
-  o: { readonly status?: readonly DecisionStatus[]; readonly limit?: number } = {},
+  o: {
+    readonly status?: readonly DecisionStatus[];
+    readonly since?: ChangedSince | null;
+    readonly limit?: number;
+  } = {},
 ): DecisionListJson {
   const statuses = o.status === undefined || o.status.length === 0 ? null : new Set(o.status);
+  const since = o.since ?? null;
+  const changed = since === null ? null : new Set(since.events.map((e) => e.subject));
   const decisions = [...read.projection.views.values()]
     .filter((v) => statuses === null || statuses.has(v.status))
+    .filter((v) => changed === null || changed.has(v.id))
     .sort(compareViews)
     .slice(0, o.limit ?? Number.POSITIVE_INFINITY);
   const listed = new Set(decisions.map((v) => v.id));
@@ -86,6 +96,7 @@ export function listDecisions(
     commit: read.commit,
     numbering: numberingJson(read),
     decisions,
+    since,
     unreadable: read.projection.unreadable,
     unfoldable: read.projection.unfoldable,
     findings: read.findings.filter((f) => f.subject === null || listed.has(f.subject)),

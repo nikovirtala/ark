@@ -1,9 +1,10 @@
-import { readFile } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { TempRepo } from "@nikovirtala/ledger/testing";
 import { afterEach, describe, expect, it } from "vitest";
+import { INIT_RERUN } from "../init.js";
 import { BUILTIN_TEMPLATES } from "../templates/builtin.js";
-import { cliRepo, runAdr } from "../test-support/cli.js";
+import { cliRepo, failingPreCommit, hintCommand, runAdr } from "../test-support/cli.js";
 
 const repos: TempRepo[] = [];
 afterEach(async () => {
@@ -172,6 +173,29 @@ describe("adr init", { timeout: 60_000 }, () => {
     });
     expect(await read(r, "adr.toml")).toBe('[log]\nroot = "docs/adr"\n');
     expect(await read(r, "lib/decisions/adr.toml")).toBe(config(['default_template = "nygard"']));
+  });
+
+  it("prints the recovery hint when git refuses the commit, and a rerun commits nothing", async () => {
+    const r = await repo();
+    const hook = await failingPreCommit(r);
+    const before = await git(r, "rev-parse", "HEAD");
+    const out = runAdr(r, ["init", "--commit"]);
+    expect(out.status).toBe(2);
+    expect(out.stderr.split("\n").slice(0, 2)).toEqual([
+      "adr: error: git commit failed (exit 1): hook says no",
+      "  hook says no",
+    ]);
+    expect(out.stderr).toContain(`The files are written and staged. ${INIT_RERUN} Staged for`);
+    expect(out.stderr).toContain("  docs/adr/adr.toml\n  docs/adr/templates/nygard.md\n");
+    expect(hintCommand(out.stderr)).toMatch(
+      / commit --cleanup=whitespace -F \S+COMMIT_MSG --only -- docs\/adr\/adr\.toml docs\/adr\/templates\/nygard\.md$/,
+    );
+    expect(out.stderr).toMatch(/\nThe message has no trailers\.\n$/);
+
+    await rm(hook);
+    const again = runAdr(r, ["init", "--commit"]);
+    expect(again.status).toBe(0);
+    expect(await git(r, "rev-parse", "HEAD")).toBe(before);
   });
 
   it("exits 2 for an unknown template and for --ref, writing nothing", async () => {

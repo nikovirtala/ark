@@ -338,6 +338,35 @@ describe("commit, trailers and blobs", () => {
     );
   });
 
+  it("appendTrailers keeps repeated trailers with ifExists add, whatever trailer.* says", async () => {
+    const r = await repo();
+    for (const [k, v] of [
+      ["trailer.ifexists", "replace"],
+      ["trailer.ifmissing", "doNothing"],
+      ["trailer.where", "start"],
+    ] as const) {
+      await r.git.run(["config", k, v]);
+    }
+    const file = join(r.root, ".git", "COMMIT_EDITMSG");
+    const pairs: [string, string][] = [
+      ["ADR", "k3f9q8a1"],
+      ["ADR-Event", "accepted"],
+      ["ADR", "k3f9q8a1"],
+      ["ADR-Event", "noted"],
+    ];
+    await writeFile(file, "feat: x\n\nRefs: 1\n");
+    await r.git.appendTrailers(file, pairs, { ifExists: "add" });
+    expect(await readFile(file, "utf8")).toBe(
+      "feat: x\n\nRefs: 1\nADR: k3f9q8a1\nADR-Event: accepted\nADR: k3f9q8a1\nADR-Event: noted\n",
+    );
+    // The default still drops a repeat of the same key and value.
+    await writeFile(file, "feat: x\n");
+    await r.git.appendTrailers(file, pairs);
+    expect(await readFile(file, "utf8")).toBe(
+      "feat: x\n\nADR: k3f9q8a1\nADR-Event: accepted\nADR-Event: noted\n",
+    );
+  });
+
   it("symbolicRef reads a symbolic ref's target and is null otherwise", async () => {
     const r = await repo({ files: { "a.txt": "a\n" } });
     expect(await r.git.symbolicRef("HEAD")).toBe("refs/heads/main");
@@ -432,6 +461,13 @@ describe("trailer blocks as git reads them", () => {
     ["s\nmore title\n\nRefs: 1", true],
     ["s\n\nbody\n\nRefs: 1\n\n", true],
     ["s\n\nRefs: 1\n\nbody", false],
+    // git's isspace (sane_ctype) is space, \t, \n and \r: \v and \f are content.
+    ["s\n\nRefs: 1\n\v\nKey: v", false],
+    ["s\n\nRefs: 1\n\f\nKey: v", false],
+    ["s\n\nRefs: 1\n\r\nKey: v", true],
+    ["s\n\nKey: v\n\vcont", false],
+    ["s\n\nKey: v\n\fcont", false],
+    ["s\n\nKey: v\n\rcont", true],
   ])("reads %j as a trailer block: %s", async (message, expected) => {
     const r = await repo();
     expect(await gitReadsBlock(r, message)).toBe(expected);
@@ -448,6 +484,10 @@ describe("trailer blocks as git reads them", () => {
       "(cherry picked from commit abc)",
       "  continued",
       "\tcontinued",
+      "\v",
+      "\f",
+      "\vcontinued",
+      "\fcontinued",
       "we paired on this",
       "See https://example.com/x",
       "We decided: use X.",
@@ -687,5 +727,67 @@ describe("staged, unstaged and untracked paths", () => {
     expect(await r.git.untrackedPaths(["log"])).toEqual(["log/.DS_Store", "log/sub/notes.txt"]);
     expect(await r.git.untrackedPaths([])).toEqual([]);
     await expect(r.git.untrackedPaths(["-x"])).rejects.toBeInstanceOf(InvalidArgumentError);
+  });
+});
+
+describe("tracked and changed paths", () => {
+  it("trackedPaths lists the index, the work tree and a commit", async () => {
+    const r = await repo({ files: { "a.txt": "a\n", "b/c.txt": "c\n", "gone.txt": "g\n" } });
+    const first = await r.git.resolveCommit("HEAD");
+    await r.write("new.txt", "n\n");
+    await r.stage("new.txt");
+    await r.remove("gone.txt");
+    await r.write("untracked.txt", "u\n");
+    expect(await r.git.trackedPaths("index")).toEqual(["a.txt", "b/c.txt", "gone.txt", "new.txt"]);
+    expect(await r.git.trackedPaths("worktree")).toEqual(["a.txt", "b/c.txt", "new.txt"]);
+    expect(await r.git.trackedPaths({ commit: first ?? "" })).toEqual([
+      "a.txt",
+      "b/c.txt",
+      "gone.txt",
+    ]);
+    await expect(r.git.trackedPaths({ commit: "-x" })).rejects.toBeInstanceOf(InvalidArgumentError);
+  });
+
+  it("changedPaths diffs a base against each head, listing both paths of a rename", async () => {
+    const r = await repo({ files: { "a.txt": "a\n", "b.txt": "b\n", "c.txt": "c\n" } });
+    const base = (await r.git.resolveCommit("HEAD")) ?? "";
+    await r.git.run(["mv", "a.txt", "moved.txt"]);
+    await r.write("b.txt", "staged\n");
+    await r.stage("b.txt");
+    await r.write("c.txt", "unstaged\n");
+    expect(await r.git.changedPaths(base, "index")).toEqual(["a.txt", "b.txt", "moved.txt"]);
+    expect(await r.git.changedPaths(base, "worktree")).toEqual([
+      "a.txt",
+      "b.txt",
+      "c.txt",
+      "moved.txt",
+    ]);
+    const head = await r.commit("move", { all: true });
+    expect(await r.git.changedPaths(base, { commit: head })).toEqual([
+      "a.txt",
+      "b.txt",
+      "c.txt",
+      "moved.txt",
+    ]);
+    expect(await r.git.changedPaths(head, { commit: head })).toEqual([]);
+    // No base: every tracked path.
+    expect(await r.git.changedPaths(null, "index")).toEqual(["b.txt", "c.txt", "moved.txt"]);
+  });
+
+  it("honours GIT_INDEX_FILE", async () => {
+    const r = await repo({ files: { "a.txt": "a\n" } });
+    const alt = join(r.git.gitDir, "alt-index");
+    const other = await Git.open(r.root, {
+      ...r.git.options,
+      env: { ...r.git.options.env, GIT_INDEX_FILE: alt },
+    });
+    await other.run(["read-tree", "HEAD"]);
+    await r.write("b.txt", "b\n");
+    await other.add(["b.txt"]);
+    const head = (await r.git.resolveCommit("HEAD")) ?? "";
+    expect(await other.trackedPaths("index")).toEqual(["a.txt", "b.txt"]);
+    expect(await other.changedPaths(head, "index")).toEqual(["b.txt"]);
+    expect(await r.git.trackedPaths("index")).toEqual(["a.txt"]);
+    expect(await r.git.changedPaths(head, "index")).toEqual([]);
   });
 });

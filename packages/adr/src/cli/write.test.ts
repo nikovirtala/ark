@@ -1,8 +1,22 @@
-import { chmod, readFile, writeFile } from "node:fs/promises";
+import { chmod, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { TempRepo } from "@nikovirtala/ledger/testing";
 import { afterEach, describe, expect, it } from "vitest";
-import { cliRepo, NYGARD_SECTIONS, runAdr, seedDecision, WRITE_KEYS } from "../test-support/cli.js";
+import { openDecisionLog } from "../log.js";
+import { INDEX_AFTER, INDEX_RERUN } from "../log-index.js";
+import {
+  cliRepo,
+  failingPreCommit,
+  hintCommand,
+  NYGARD_SECTIONS,
+  REPO_HUMAN,
+  runAdr,
+  runShell,
+  seedDecision,
+  WRITE_KEYS,
+} from "../test-support/cli.js";
+import { freshIndex, INDEX, INDEX_CONFIG, indexCopies } from "../test-support/index-repo.js";
+import { proposeDecision, WRITE_RERUN } from "../write.js";
 
 const repos: TempRepo[] = [];
 afterEach(async () => {
@@ -643,3 +657,201 @@ describe("adr new --edit", { timeout: 60_000 }, () => {
     expect(none.stderr).toBe("adr: warning: no editor: set VISUAL or EDITOR\n");
   });
 });
+
+// Design 2b D5: a failed `git commit` during --commit leaves the batch staged with a manual command.
+describe("a commit git refuses", { timeout: 60_000 }, () => {
+  it("prints the hint for accept --commit, and its command makes the commit", async () => {
+    const r = await repo();
+    const id = await seedDecision(r, "Use Aurora", { accept: false });
+    const hook = await failingPreCommit(r);
+    const before = await head(r);
+    const out = runAdr(r, ["accept", id, "--commit"]);
+    expect(out.status).toBe(2);
+    expect(out.stdout).toBe("");
+    const lines = out.stderr.split("\n");
+    expect(lines.slice(0, 2)).toEqual([
+      "adr: error: git commit failed (exit 1): hook says no",
+      "  hook says no",
+    ]);
+    expect(out.stderr).toContain(`The files are written and staged. ${WRITE_RERUN} Staged for`);
+    const body = `docs/adr/decisions/${id}-use-aurora.md`;
+    const event = (await staged(r)).find((p) => p.endsWith("-accepted.yaml")) ?? "";
+    expect(event).toMatch(new RegExp(`^docs/adr/events/${id}/\\S+-accepted\\.yaml$`));
+    expect(lines).toContain(`  ${body}`);
+    expect(lines).toContain(`  ${event}`);
+    expect(lines.slice(-3)).toEqual([`  ADR: ${id}`, "  ADR-Event: accepted", ""]);
+    expect(await head(r)).toBe(before);
+
+    await rm(hook);
+    const command = hintCommand(out.stderr);
+    expect(command).toContain(`--only -- ${body} ${event}`);
+    expect(runShell(r, command).status).toBe(0);
+    expect(await head(r)).not.toBe(before);
+    // The body is listed but unchanged by accept, so the commit adds the event only.
+    expect(await git(r, "show", "--name-only", "--format=", "HEAD")).toBe(`${event}\n`);
+    expect(await git(r, "log", "-1", "--format=%(trailers:only,unfold)")).toBe(
+      `ADR: ${id}\nADR-Event: accepted\n\n`,
+    );
+    expect(runAdr(r, ["verify"]).status).toBe(0);
+    expect(await git(r, "status", "--porcelain")).toBe("");
+  });
+
+  it("gives new --commit the same rerun sentence, and --json a commit-failed error", async () => {
+    const r = await repo();
+    await failingPreCommit(r);
+    const out = runAdr(r, ["new", "Use Aurora", ...FULL, "--no-edit", "--commit"]);
+    expect(out.status).toBe(2);
+    expect(out.stderr).toContain(WRITE_RERUN);
+    expect(out.stderr).toContain("  ADR-Event: proposed\n");
+
+    const doc = runAdr(r, ["new", "Use DynamoDB", ...FULL, "--no-edit", "--commit", "--json"]);
+    expect(doc.status).toBe(2);
+    const error = JSON.parse(doc.stdout) as {
+      format: string;
+      error: { code: string; message: string };
+    };
+    expect(error.format).toBe("ark-error/v1");
+    expect(error.error.code).toBe("commit-failed");
+    expect(error.error.message).toContain(WRITE_RERUN);
+  });
+});
+
+// A refused commit keeps the write's notes: they come before the hint, and in --json's notes.
+describe("a write whose commit git refuses", { timeout: 60_000 }, () => {
+  it("prints the write's notes as warnings before the hint", async () => {
+    const r = await repo();
+    const x = await seedDecision(r, "Use Aurora", { accept: false });
+    await failingPreCommit(r);
+    const env = { ARK_ON_BEHALF_OF: "niko@example.org" };
+    const args = ["scope", x, "--set", "nothing/**", "--commit"];
+    const ignored =
+      "ARK_ON_BEHALF_OF is ignored without ARK_AGENT; events are recorded as Ledger Test <ledger-test@example.com>";
+    const out = runAdr(r, args, { env });
+    expect(out.status).toBe(2);
+    const lines = out.stderr.split("\n");
+    expect(lines[0]).toBe(`adr: warning: ${ignored}`);
+    expect(lines[1]).toMatch(/^adr: warning: nothing\/\*\* matches no tracked file/);
+    expect(lines[2]).toMatch(/^adr: error: git commit failed \(exit 1\): hook says no$/);
+    expect(out.stderr).toContain(WRITE_RERUN);
+
+    const json = runAdr(r, ["--json", "note", x, "A note.", "--commit"], { env });
+    expect(json.status).toBe(2);
+    const doc = JSON.parse(json.stdout) as { error: { code: string }; notes: string[] };
+    expect(doc.error.code).toBe("commit-failed");
+    expect(doc.notes).toEqual([ignored]);
+  });
+});
+
+// Design 2b §4.5 and D5 with [log] index = "committed".
+describe("writes with a committed index", { timeout: 60_000 }, () => {
+  /** A log with the index on and committed, and `x` proposed and committed. */
+  async function indexedRepo(): Promise<{ r: TempRepo; x: string }> {
+    const r = await repo({ "docs/adr/adr.toml": INDEX_CONFIG });
+    const x = await seedDecision(r, "Use Aurora", { accept: false });
+    return { r, x };
+  }
+  const verify = (r: TempRepo, ...args: string[]) => runAdr(r, ["verify", ...args]).status;
+
+  it("commits X's index after an uncommitted adr new X, then adr accept X --commit", async () => {
+    const r = await repo({ "docs/adr/adr.toml": INDEX_CONFIG });
+    const created = json(runAdr(r, ["new", "Use Aurora", ...FULL, "--no-edit", "--json"]).stdout);
+    const x = created.decision?.id ?? "";
+    expect(runAdr(r, ["accept", x, "--commit"]).status).toBe(0);
+    const { head: index } = await indexCopies(r);
+    expect(index).toBe(await freshIndex(r.git, "HEAD"));
+    expect(index).toContain(`| ADR-0001 | [Use Aurora](decisions/${x}-use-aurora.md) | accepted |`);
+    expect(verify(r, "--ref", "HEAD")).toBe(0);
+    expect(await git(r, "status", "--porcelain")).toBe("");
+  });
+
+  for (const [name, args] of [
+    ["scope", (x: string) => ["scope", x, "--set", "README.md"]],
+    ["note", (x: string) => ["note", x, "A note."]],
+    ["link", (x: string) => ["link", x, "ZZ"]],
+  ] as const) {
+    it(`commits the index with X's earlier uncommitted proposal for ${name} --commit`, async () => {
+      const r = await repo({ "docs/adr/adr.toml": INDEX_CONFIG });
+      const z = await seedDecision(r, "Use Redis");
+      const created = json(runAdr(r, ["new", "Use Aurora", ...FULL, "--no-edit", "--json"]).stdout);
+      const x = created.decision?.id ?? "";
+      const out = runAdr(r, [...args(x).map((a) => (a === "ZZ" ? z : a)), "--commit"]);
+      expect(out.status).toBe(0);
+      const { head: index } = await indexCopies(r);
+      expect(index).toBe(await freshIndex(r.git, "HEAD"));
+      expect(index).toMatch(new RegExp(`## Proposed\n\n.*\n.*\n\\| ${x} \\| \\[Use Aurora\\]`));
+      expect(verify(r, "--ref", "HEAD")).toBe(0);
+      expect(await git(r, "status", "--porcelain")).toBe("");
+    });
+  }
+
+  it("lists index.md in accept's hint and ends with INDEX_AFTER; scope's hint has neither", async () => {
+    const { r, x } = await indexedRepo();
+    await failingPreCommit(r);
+    const out = runAdr(r, ["accept", x, "--commit"]);
+    expect(out.status).toBe(2);
+    expect(out.stderr.split("\n")).toContain(`  ${INDEX}`);
+    expect(hintCommand(out.stderr)).toMatch(/ docs\/adr\/index\.md$/);
+    expect(out.stderr).toMatch(new RegExp(`\n${escapeRegExp(INDEX_AFTER("docs/adr"))}\n$`));
+
+    const { r: s, x: y } = await indexedRepo();
+    await failingPreCommit(s);
+    const scoped = runAdr(s, ["scope", y, "--set", "README.md", "--commit"]);
+    expect(scoped.status).toBe(2);
+    expect(scoped.stderr.split("\n")).not.toContain(`  ${INDEX}`);
+    expect(scoped.stderr).not.toContain(INDEX_AFTER("docs/adr"));
+  });
+
+  it("gives a commit verify passes when the hint is followed with another decision pending", async () => {
+    const { r, x } = await indexedRepo();
+    const y = await seedDecision(r, "Use Redis", { accept: false, commit: false });
+    const hook = await failingPreCommit(r);
+    const out = runAdr(r, ["accept", x, "--commit"]);
+    expect(out.status).toBe(2);
+    await rm(hook);
+    expect(runShell(r, hintCommand(out.stderr)).status).toBe(0);
+    expect((await indexCopies(r)).head).not.toContain(y);
+    expect(verify(r, "--ref", "HEAD")).toBe(0);
+    expect(runAdr(r, ["index", "--no-commit"]).status).toBe(0);
+    const copies = await indexCopies(r);
+    expect(copies.worktree).toContain(y);
+    expect(copies.staged).toBe(copies.worktree);
+    expect(verify(r, "--staged")).toBe(0);
+  });
+
+  for (const how of ["rerun", "command"] as const) {
+    it(`finishes a refused index --commit by ${how === "rerun" ? "running it again" : "the printed command"}`, async () => {
+      const { r } = await indexedRepo();
+      const text = await readFile(join(r.root, INDEX), "utf8");
+      await r.write(INDEX, text.replace("[Use Aurora]", "[Use Aurora, edited]"));
+      await r.commit("hand edit", { all: true });
+      const hook = await failingPreCommit(r);
+      const before = await head(r);
+      const out = runAdr(r, ["index", "--commit"]);
+      expect(out.status).toBe(2);
+      expect(out.stderr).toContain(INDEX_RERUN);
+      expect(out.stderr).toContain(`Staged for this commit:\n  ${INDEX}\n`);
+      expect(hintCommand(out.stderr)).toMatch(/ --only -- docs\/adr\/index\.md$/);
+      await rm(hook);
+      if (how === "rerun") expect(runAdr(r, ["index", "--commit"]).status).toBe(0);
+      else expect(runShell(r, hintCommand(out.stderr)).status).toBe(0);
+      expect(await head(r)).not.toBe(before);
+      expect((await indexCopies(r)).head).toBe(await freshIndex(r.git, "HEAD"));
+      expect(verify(r, "--ref", "HEAD")).toBe(0);
+    });
+  }
+
+  it("leaves index.md alone with index: skip, and refreshes it by default", async () => {
+    const { r } = await indexedRepo();
+    const log = await openDecisionLog({ cwd: r.root, gitOptions: { env: r.env } });
+    const before = await indexCopies(r);
+    const input = { title: "Use Redis", sections: NYGARD_SECTIONS, actor: REPO_HUMAN };
+    const skipped = await proposeDecision(log, input, { index: "skip" });
+    expect(skipped.written).not.toContain(INDEX);
+    expect(await indexCopies(r)).toEqual(before);
+    const refreshed = await proposeDecision(log, { ...input, title: "Use Kafka" });
+    expect(refreshed.written).toContain(INDEX);
+    expect((await indexCopies(r)).worktree).toBe(await freshIndex(r.git, "worktree"));
+  });
+});
+
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

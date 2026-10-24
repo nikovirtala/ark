@@ -28,3 +28,7 @@ export async function displayAfterWrite(log: DecisionLog): Promise<{ readonly di
   const read = await readDecisions(log);
   return { display: (id) => read.projection.views.get(id)?.display ?? id };
 }
+
+/** `notes` with `note` appended when there is one. */
+export const notesWith = (notes: readonly string[], note: string | null): readonly string[] =>
+  note === null ? notes : [...notes, note];
