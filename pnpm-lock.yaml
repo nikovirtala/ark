@@ -178,6 +178,9 @@ importers:
       '@commitlint/config-conventional':
         specifier: 21.2.4
         version: 21.2.4
+      '@nikovirtala/adr':
+        specifier: workspace:*
+        version: link:packages/adr
       '@types/node':
         specifier: 24.19.2
         version: 24.19.2
