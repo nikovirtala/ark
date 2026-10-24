@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M5PCC0XJ5TNTH16HQQC8E06A
+subject: 5v1w33jg
+type: proposed
+at: 2026-10-24T07:17:58Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Require Node 24 or newer for every ark package
+  template: nygard
+  template_version: 1
