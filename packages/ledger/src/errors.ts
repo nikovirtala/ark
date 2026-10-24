@@ -300,10 +300,13 @@ export class CommitFailedError extends LedgerError {
     this.#input = o;
   }
 
-  /** The same error with `notes` added after its own, such as the notes of the command that failed. */
+  /**
+   * The same error with `notes` before its own: a caller further up adds the notes it made before
+   * the step that failed, so they keep the order a successful run reports them in.
+   */
   withNotes(notes: readonly string[]): CommitFailedError {
     if (notes.length === 0) return this;
-    const input = { ...this.#input, notes: [...this.notes, ...notes] };
+    const input = { ...this.#input, notes: [...notes, ...this.notes] };
     return new CommitFailedError(input, this.cause === undefined ? {} : { cause: this.cause });
   }
 }

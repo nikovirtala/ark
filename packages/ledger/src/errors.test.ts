@@ -224,21 +224,21 @@ describe("commit-failed through runCli", () => {
     expect(e).toBeInstanceOf(CommitFailedError);
     expect(e.message).toBe(failed.message);
     expect(e.notes).toEqual([
-      "attributed to agent x",
       "glob matches nothing",
       "Don't run it again.",
+      "attributed to agent x",
     ]);
     expect(failed.withNotes([])).toBe(failed);
     const out = await run(e, ["add"]);
     expect(out.code).toBe(2);
     expect(out.stderr).toBe(
-      `w: warning: attributed to agent x\nw: warning: glob matches nothing\nw: error: ${e.message}\n`,
+      `w: warning: glob matches nothing\nw: warning: attributed to agent x\nw: error: ${e.message}\n`,
     );
     const json = await run(e, ["--json", "add"]);
     expect(JSON.parse(json.stdout)).toEqual({
       format: "ark-error/v1",
       error: { code: "commit-failed", message: e.message },
-      notes: ["attributed to agent x", "glob matches nothing"],
+      notes: ["glob matches nothing", "attributed to agent x"],
     });
   });
 });
