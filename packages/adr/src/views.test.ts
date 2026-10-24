@@ -197,6 +197,7 @@ describe("listDecisions", () => {
       "commit",
       "numbering",
       "decisions",
+      "since",
       "unreadable",
       "unfoldable",
       "findings",

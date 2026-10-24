@@ -6,6 +6,7 @@ import {
 } from "@nikovirtala/ledger";
 import type { InitResultJson } from "../init.js";
 import { adrKind, type DecisionView } from "../kind.js";
+import type { ChangedSince } from "../log.js";
 import type { DecisionsForJson } from "../scope.js";
 import type { DecisionListJson, DecisionShowJson } from "../views.js";
 import type { ScopeOffer, WriteResultJson } from "../write.js";
@@ -34,6 +35,26 @@ function columns(rows: readonly (readonly string[])[]): string {
 /** `adr list`: one row per decision, `→ <effective>` when it differs from the decision. */
 export function listText(doc: DecisionListJson, display: Display): string {
   if (doc.decisions.length === 0) return "No decisions.";
+  return listRows(doc, display).join("\n");
+}
+
+/**
+ * `adr list --since <rev>` (design 2b D7): a heading, then each row followed by the event types
+ * added since `rev`; nothing at all when no decision changed, so the post-merge hook stays quiet.
+ */
+export function sinceText(doc: DecisionListJson, since: ChangedSince, display: Display): string {
+  if (doc.decisions.length === 0) return "";
+  const rows = listRows(doc, display);
+  return [
+    `Changed since ${since.rev} (${since.commit.slice(0, 7)}):`,
+    ...doc.decisions.flatMap((v, i) => {
+      const types = [...new Set(since.events.filter((e) => e.subject === v.id).map((e) => e.type))];
+      return [rows[i] ?? "", `  [new: ${types.join(", ")}]`];
+    }),
+  ].join("\n");
+}
+
+function listRows(doc: DecisionListJson, display: Display): string[] {
   return columns(
     doc.decisions.map((v) => {
       const arrow =
@@ -44,7 +65,7 @@ export function listText(doc: DecisionListJson, display: Display): string {
             : `→ ${display(v.effective)}`;
       return [v.number === null ? "-" : v.display, v.id, v.status, v.title, arrow];
     }),
-  );
+  ).split("\n");
 }
 
 /** `ADR-0003 (m2x7p4d2)`, or the id alone when it has no number. */
