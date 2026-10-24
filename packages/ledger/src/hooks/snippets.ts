@@ -11,7 +11,8 @@ export type HookManager = "lefthook" | "husky" | "pre-commit";
 const SH_SAFE = /^[A-Za-z0-9_@%+=:,./-]+$/;
 const YAML_PLAIN = /^[A-Za-z0-9_./][A-Za-z0-9 _@%+=:,./-]*$/;
 
-function shWord(token: string): string {
+/** `token` as one sh word: as it is when every character is safe, else single-quoted. */
+export function shWord(token: string): string {
   return SH_SAFE.test(token) ? token : `'${token.replace(/'/g, "'\\''")}'`;
 }
 
