@@ -18,6 +18,7 @@ import {
 } from "../test-support/cli.js";
 import { decisionEvent, eventFile } from "../test-support/events.js";
 import {
+  cloneRepo,
   freshIndex,
   INDEX,
   INDEX_CONFIG,
@@ -217,6 +218,44 @@ describe("adr index", { timeout: 60_000 }, () => {
     expect(copies.staged).toBe(copies.worktree);
     expect(verify(r, "--ref", "HEAD")).toBe(0);
     expect(verify(r, "--staged")).toBe(0);
+  });
+
+  it("numbers main's acceptance first on a branch that merged main, so its merges verify", async () => {
+    const { r } = await indexed();
+    const ok = (args: string[], cwd?: string) => {
+      const out = runGit(r, args, cwd === undefined ? {} : { cwd });
+      expect(out.status, `git ${args.join(" ")}\n${out.stderr}`).toBe(0);
+    };
+    ok(["switch", "-q", "-c", "topic"]);
+    await seedDecision(r, "Use Kafka");
+    ok(["switch", "-q", "main"]);
+    await seedDecision(r, "Use Redis");
+    ok(["switch", "-q", "topic"]);
+    // Both sides changed index.md, so the merge conflicts there; adr index resolves it.
+    runGit(r, ["merge", "-q", "--no-ff", "--no-commit", "main"]);
+    expect(runAdr(r, ["index", "--no-commit"]).status).toBe(0);
+    ok(["commit", "-q", "--no-edit"]);
+    expect(runAdr(r, ["index", "--check"]).status).toBe(0);
+    const branch = (await indexCopies(r)).head ?? "";
+    expect(branch).toContain("| ADR-0002 | [Use Redis]");
+    expect(branch).toContain("| ADR-0003 | [Use Kafka]");
+    expect(verify(r, "--base", "main")).toBe(0);
+
+    // CI on GitHub's merge result: a merge of the branch into origin/main's tip, detached.
+    const clone = await cloneRepo(r);
+    cleanups.push(clone.dispose);
+    // The clone was made from topic; on GitHub, origin/HEAD is main.
+    ok(["remote", "set-head", "origin", "main"], clone.root);
+    ok(["checkout", "-q", "--detach", "origin/main"], clone.root);
+    ok(["merge", "-q", "--no-ff", "--no-edit", "origin/topic"], clone.root);
+    const ci = runAdr(r, ["verify", "--base", "origin/main"], { cwd: clone.root });
+    expect(ci.status, ci.stdout).toBe(0);
+
+    // The --no-ff merge into main keeps the branch's numbers and index.md.
+    ok(["switch", "-q", "main"]);
+    ok(["merge", "-q", "--no-ff", "--no-edit", "topic"]);
+    expect(verify(r)).toBe(0);
+    expect((await indexCopies(r)).head).toBe(branch);
   });
 
   it("notes on a write when the staged index.md lists another decision's untracked or unstaged files", async () => {

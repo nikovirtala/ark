@@ -8,6 +8,7 @@ import type { EventEnvelope } from "../envelope/types.js";
 import { serializeEvent } from "../envelope/yaml.js";
 import { RefNotFoundError } from "../errors.js";
 import { Git } from "../git/git.js";
+import { firstParentAdditions } from "../git/history.js";
 import { indexReader, refReader, type TreeReader, worktreeReader } from "../git/tree.js";
 import { eventPath } from "../identity/layout.js";
 import { createUlidFactory } from "../identity/ulid.js";
@@ -21,6 +22,7 @@ import {
   compareNumberingKeys,
   NO_NUMBERING,
   numberLog,
+  PENDING_COMMIT,
   projectNumbering,
   resolveMainRef,
 } from "./numbering.js";
@@ -310,6 +312,119 @@ describe("projectNumbering", () => {
     expect(Object.fromEntries((await numberLog(r.git, { kind, layout })).byId)).toEqual(
       Object.fromEntries(projected.byId),
     );
+  });
+
+  it("numbers main's acceptances first on a branch that merged main, as its merge does", async () => {
+    const r = await repo();
+    await publish(r, A, "2026-01-01T00:00:00Z");
+    await r.checkout("feature", { create: true });
+    await publish(r, B, "2026-01-02T00:00:00Z");
+    await r.checkout("main");
+    await publish(r, C, "2026-01-03T00:00:00Z");
+    await r.checkout("feature");
+    // GitHub's "Update branch": main merged into the branch.
+    const updated = await r.merge("main", { noFf: true });
+    const projected = await project(r.git, updated, await refReader(r.git, updated));
+    expect(Object.fromEntries(projected.byId)).toEqual({ [A]: 1, [C]: 2, [B]: 3 });
+    await r.checkout("main");
+    const merged = await r.merge("feature", { noFf: true });
+    expect(await numbersOf(r.git)).toEqual(Object.fromEntries(projected.byId));
+    const result = await project(r.git, merged, await refReader(r.git, merged));
+    expect(Object.fromEntries(result.byId)).toEqual(Object.fromEntries(projected.byId));
+  });
+
+  it("numbers a merge of main in progress like its result, given MERGE_HEAD", async () => {
+    const r = await repo();
+    await publish(r, A, "2026-01-01T00:00:00Z");
+    await r.checkout("feature", { create: true });
+    const tip = await publish(r, B, "2026-01-02T00:00:00Z");
+    await r.checkout("main");
+    const main = await publish(r, C, "2026-01-03T00:00:00Z");
+    await r.checkout("feature");
+    await r.git.run(["merge", "-q", "--no-ff", "--no-commit", "main"]);
+    const staged = await indexReader(r.git);
+    const merging = await projectNumbering(r.git, {
+      kind,
+      layout,
+      history: tip,
+      tree: staged,
+      merging: [main],
+    });
+    expect(Object.fromEntries(merging.byId)).toEqual({ [A]: 1, [C]: 2, [B]: 3 });
+    // Without it, main's acceptance is pending, after the branch's.
+    expect(Object.fromEntries((await project(r.git, tip, staged)).byId)).toEqual({
+      [A]: 1,
+      [B]: 2,
+      [C]: 3,
+    });
+  });
+
+  it("numbers as history's first-parent line alone on main, a rebased branch and without a main ref", async () => {
+    const r = await repo();
+    const first = await publish(r, A, "2026-01-01T00:00:00Z");
+    await r.checkout("feature", { create: true });
+    await publish(r, B, "2026-01-02T00:00:00Z");
+    await r.checkout("main");
+    await publish(r, C, "2026-01-03T00:00:00Z");
+    await writePublished(r, "dddddddd", "2026-01-04T00:00:00Z");
+    /** The projection numbering `history`'s first-parent additions only. */
+    const alone = async (history: string, tree: TreeReader) => {
+      const additions = await firstParentAdditions(r.git, history, "log/events");
+      const pending = (await tree.list("log/events")).map((e) => ({
+        path: e.path,
+        commit: PENDING_COMMIT,
+      }));
+      const byId = assignNumbers([...additions, ...pending], { layout, on });
+      return { ...(await project(r.git, history, tree)), byId };
+    };
+    const check = async (history: string, mainRef?: string) => {
+      const tree = worktreeReader(r.git);
+      const n = await projectNumbering(r.git, {
+        kind,
+        layout,
+        history,
+        tree,
+        ...(mainRef === undefined ? {} : { mainRef }),
+      });
+      const expected = await alone(history, tree);
+      expect(Object.fromEntries(n.byId)).toEqual(Object.fromEntries(expected.byId));
+      expect([...n.byId]).toEqual([...expected.byId]);
+      return n;
+    };
+    const head = (await r.git.resolveCommit("HEAD")) as string;
+    // On main, also ahead of and behind origin/main.
+    expect(Object.fromEntries((await check(head)).byId)).toEqual({
+      [A]: 1,
+      [C]: 2,
+      dddddddd: 3,
+    });
+    await r.git.run(["update-ref", "refs/remotes/origin/main", first]);
+    await check(head);
+    await r.git.run(["update-ref", "refs/remotes/origin/main", head]);
+    await check(first);
+    await r.git.run(["update-ref", "-d", "refs/remotes/origin/main"]);
+    // A branch rebased onto main.
+    await r.checkout("feature");
+    await r.git.run(["rebase", "-q", "main"]);
+    const rebased = (await r.git.resolveCommit("HEAD")) as string;
+    expect(Object.fromEntries((await check(rebased)).byId)).toEqual({
+      [A]: 1,
+      [C]: 2,
+      [B]: 3,
+      dddddddd: 4,
+    });
+    // A branch that merged main, without a main ref and with a configured ref that is missing.
+    await r.git.run(["reset", "-q", "--hard", first]);
+    await publish(r, B, "2026-01-02T00:00:00Z");
+    const updated = await r.merge("main", { noFf: true });
+    await r.git.run(["branch", "-m", "main", "trunk"]);
+    expect(Object.fromEntries((await check(updated)).byId)).toEqual({
+      [A]: 1,
+      [B]: 2,
+      [C]: 3,
+      dddddddd: 4,
+    });
+    await check(updated, "nope");
   });
 
   it("numbers the tree's pending acceptances after history, sorted like one commit", async () => {

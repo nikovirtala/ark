@@ -70,7 +70,7 @@ Event file names are `<UTC timestamp>-<4 random chars>-<type>.yaml`, ledger's na
 
 **Display numbers** such as ADR-0012 are derived, never stored. The projection numbers ADRs in the order their `accepted` event first landed on the main branch, read with `git log --first-parent`. Main's history is append-only, so a number is stable once assigned. Proposed, rejected and withdrawn ADRs have no number and display by id. Every command and MCP tool accepts either form.
 
-Numbering needs main's history. With `index = "committed"`, a shallow clone reads the numbers recorded in the committed `index.md`; without one, decisions display by id until you fetch the history (`git fetch --unshallow`). On a branch, these are the numbers the branch's committed acceptances will get once it merges (the index projects them).
+Numbering needs main's history. With `index = "committed"`, a shallow clone reads the numbers recorded in the committed `index.md`; without one, decisions display by id until you fetch the history (`git fetch --unshallow`). On a branch, these are the numbers the branch's committed acceptances will get once it merges (the index projects them): main's numbers up to the newest main commit the branch contains, then the branch's own acceptances. So they hold whether the branch was updated by a rebase or by merging main into it; a branch that is behind main gets `index/stale` on its merge result, and updating it and running `adr index` fixes that.
 
 **Any decision log topology.** The tool prescribes no organizational structure, and sources are a ledger feature configured the same way in every ark tool. A decision log per repository, one shared org-wide decision repository, or both together all work the same way. A decision log can reference other decision logs as read-only sources, pinned to a git ref:
 
@@ -211,7 +211,7 @@ For each ADR the fold produces:
 
 **Time travel.** Any read accepts a git ref (`--ref v4.2`). The tool then reads files with `git ls-tree` and `git show` instead of the working tree, answering "what had we decided as of release 4.2?" with no extra storage. Time travel comes from ledger's git layer and works the same in issues.
 
-**Generated index.** With `index = "committed"`, `adr index` writes `index.md`: a header marking it generated, then accepted and proposed decisions, then superseded, deprecated, rejected and withdrawn ones, each with its number, linked title, status and date. Every adr write keeps it current, numbering decisions as they will be numbered once the commit is on main, and CI checks it. It exists for people browsing on a forge; tools read it only for display numbers in a shallow clone.
+**Generated index.** With `index = "committed"`, `adr index` writes `index.md`: a header marking it generated, then accepted and proposed decisions, then superseded, deprecated, rejected and withdrawn ones, each with its number, linked title, status and date. Every adr write keeps it current, numbering decisions as they will be numbered once the commit is on main (during a merge, the merge commit), and CI checks it. It exists for people browsing on a forge; tools read it only for display numbers in a shallow clone.
 
 **No status in decision files, ever.** The tool never writes status into a decision file, not even as managed frontmatter, because that would break immutability. This is deliberately opinionated: people opening raw files are served by the generated index, and agents by the MCP server and the skill.
 
