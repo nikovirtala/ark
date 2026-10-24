@@ -201,6 +201,23 @@ describe("adr link", { timeout: 90_000 }, () => {
     expect(doc(out.stdout).notes).toEqual([]);
   });
 
+  it("fits a cross-log link's name uncut at the longest [commit] subject pad", async () => {
+    const pad = "x".repeat(24);
+    const r = await repo({
+      "docs/adr/adr.toml": `[commit]\nsubject = "docs(adr): {action} {title} ${pad}"\n[[sources]]\nname = "platform"\nkind = "decision"\nurl = "https://example.com/platform.git"\nref = "main"\n`,
+    });
+    const a = await seedDecision(r, "Use Aurora");
+    const out = runAdr(r, ["link", "ADR-0001", "platform:k3f9q8a1", "--commit", "--json"]);
+    expect(out.status).toBe(0);
+    const description = `link ADR-0001 to a decision in another log ${pad}`;
+    expect(description).toHaveLength(67);
+    expect(await git(r, "log", "-1", "--format=%s")).toBe(`docs(adr): ${description}\n`);
+    expect(await git(r, "log", "-1", "--format=%b")).toBe(
+      `relates-to platform:k3f9q8a1.\n\nADR: ${a}\nADR-Event: linked\n\n`,
+    );
+    expect(doc(out.stdout).notes).toEqual([]);
+  });
+
   it("exits 2 for a self link, an unknown rel and an unknown source", async () => {
     const r = await repo();
     const a = await seedDecision(r, "Use Aurora");

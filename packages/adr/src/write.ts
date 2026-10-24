@@ -47,6 +47,7 @@ import {
   writeEvents,
   writeNewFile,
 } from "@nikovirtala/ledger";
+import { ACTIONS, CROSS_LOG_LINK } from "./commit-actions.js";
 import { adrKind, type DecisionView, type LinkRel } from "./kind.js";
 import {
   type DecisionLog,
@@ -776,22 +777,6 @@ export async function planSupersede(
   };
 }
 
-/**
- * `{action}` of a commit that writes one event of each type (design §4.3), and what the title slot
- * names: the decision's title for the events that change whether it is decided, else its display.
- */
-const ACTIONS = {
-  proposed: { action: "propose to", names: "title" },
-  accepted: { action: "decide to", names: "title" },
-  rejected: { action: "decide not to", names: "title" },
-  withdrawn: { action: "withdraw the proposal to", names: "title" },
-  deprecated: { action: "deprecate", names: "display" },
-  superseded: { action: "supersede", names: "display" },
-  noted: { action: "add a note to", names: "display" },
-  linked: { action: "link", names: "display" },
-  scoped: { action: "set the scope of", names: "display" },
-} as const satisfies Record<string, { action: string; names: "title" | "display" }>;
-
 const actionOf = (type: string): { action: string; names: "title" | "display" } =>
   Object.hasOwn(ACTIONS, type)
     ? ACTIONS[type as keyof typeof ACTIONS]
@@ -961,7 +946,7 @@ export async function planLink(
     to = target;
     shown = target;
     described = `${rel} ${target}.`;
-    named = `${view.display} to a decision in another log`;
+    named = `${view.display} ${CROSS_LOG_LINK}`;
   } else {
     to = resolveDecision(read, target);
     if (to === id) throw new UsageError("a decision can't link to itself");
