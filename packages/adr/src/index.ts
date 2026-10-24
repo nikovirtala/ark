@@ -14,6 +14,8 @@ export {
   REF,
 } from "./kind.js";
 export {
+  type ChangedSince,
+  changedSince,
   type DecisionLog,
   type DecisionsRead,
   openDecisionLog,
