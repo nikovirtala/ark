@@ -51,6 +51,16 @@ jobs:
             echo "testing packages changed since $base and their dependents" | tee -a "$GITHUB_STEP_SUMMARY"
             pnpm --filter "...{./packages/**}[$base]" run test
           fi
+      - name: Verify ark's decision log
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            node packages/adr/dist/cli.js verify --base "origin/$BASE_REF" --format github
+          else
+            node packages/adr/dist/cli.js verify --format github
+          fi
       # The commit checks run last and even after a failed step, so a push with fixup! commits
       # still gets lint, build, test and verify results (AGENTS.md: CI covers the tip of each push).
       - name: Lint commit messages
