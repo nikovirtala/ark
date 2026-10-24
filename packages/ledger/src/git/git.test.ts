@@ -432,6 +432,13 @@ describe("trailer blocks as git reads them", () => {
     ["s\nmore title\n\nRefs: 1", true],
     ["s\n\nbody\n\nRefs: 1\n\n", true],
     ["s\n\nRefs: 1\n\nbody", false],
+    // git's isspace (sane_ctype) is space, \t, \n and \r: \v and \f are content.
+    ["s\n\nRefs: 1\n\v\nKey: v", false],
+    ["s\n\nRefs: 1\n\f\nKey: v", false],
+    ["s\n\nRefs: 1\n\r\nKey: v", true],
+    ["s\n\nKey: v\n\vcont", false],
+    ["s\n\nKey: v\n\fcont", false],
+    ["s\n\nKey: v\n\rcont", true],
   ])("reads %j as a trailer block: %s", async (message, expected) => {
     const r = await repo();
     expect(await gitReadsBlock(r, message)).toBe(expected);
@@ -448,6 +455,10 @@ describe("trailer blocks as git reads them", () => {
       "(cherry picked from commit abc)",
       "  continued",
       "\tcontinued",
+      "\v",
+      "\f",
+      "\vcontinued",
+      "\fcontinued",
       "we paired on this",
       "See https://example.com/x",
       "We decided: use X.",
