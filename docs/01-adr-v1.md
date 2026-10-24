@@ -344,7 +344,7 @@ Hooks give fast local feedback; CI remains the real guard, because hooks can be 
 | --- | --- | --- |
 | `pre-commit` | `adr hooks run pre-commit`: rename following, the index check (or regenerate-and-stage with `[hooks] index = "stage"`), then `adr verify --staged` | Catches body edits, bad events and stale index before the commit exists |
 | `commit-msg` | `adr hooks trailers` | Adds `ADR:` and `ADR-Event:` trailers when event files are staged, unless the message has them already or a merge is in progress |
-| `pre-push` | `adr verify --base @{upstream} --ref HEAD` | Full invariant check against what the remote has; without an upstream, against `origin`'s default branch, and with no remote, the whole log |
+| `pre-push` | `adr verify --base @{upstream} --ref HEAD` | Full invariant check of the current branch's commits against its upstream, whichever refs the push names; without an upstream, against `origin`'s default branch, and with no remote, the whole log |
 | `post-merge` | `adr list --since ORIG_HEAD` | Prints the decisions the pull brought new events for (status changes, notes, links, scope), each with the new event types, so people notice them; prints nothing when the pull didn't touch the log |
 
 `--staged` checks only ADRs touched by staged files, keeping `pre-commit` well under a second on large decision logs.
