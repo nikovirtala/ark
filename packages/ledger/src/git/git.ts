@@ -95,6 +95,9 @@ const isComment = (line: string) => line.startsWith("#");
  * when it has trailers and nothing else, or when it has a git-generated line and at least 25% of
  * its lines are trailers.
  *
+ * Blank and continuation lines use git's own isspace (space, \t and \r on a line; git's ctype.c),
+ * so \v and \f are content, as in git interpret-trailers.
+ *
  * Unsupported: `trailer.<token>.key`, `trailer.separators` and `core.commentChar` from the user's
  * config (with them git can read more paragraphs as trailers), and the `---` divider, which git
  * ignores for commit messages.
