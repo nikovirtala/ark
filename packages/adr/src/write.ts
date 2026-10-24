@@ -1314,7 +1314,8 @@ export const WRITE_RERUN =
  * Applies a plan (§5.4): refuses a commit whose scope has unstaged or needed untracked paths,
  * writes the files (removing them again if a write fails), stages them, runs `afterStage`, and
  * commits `plan.stage` plus the involved subjects' already-staged files with exact trailers. A
- * failed `git commit` throws `CommitFailedError` with the manual command (design 2b D5).
+ * failed `git commit` throws `CommitFailedError` with the manual command (design 2b D5) and the
+ * notes made so far.
  */
 export async function applyPlan(
   log: DecisionLog,
@@ -1487,19 +1488,25 @@ export async function applyPlan(
             rerun: WRITE_RERUN,
             before: INDEX_BEFORE(root),
             after: null,
+            notes,
           },
           { cause: err },
         );
       }
     }
-    sha = await commitWithRecovery(git, {
-      message,
-      mergeTrailers,
-      trailers,
-      only: sorted([...plan.stage, ...extra, ...(indexInCommit ? [at] : [])]),
-      rerun: WRITE_RERUN,
-      after: indexInCommit ? INDEX_AFTER(root) : null,
-    });
+    try {
+      sha = await commitWithRecovery(git, {
+        message,
+        mergeTrailers,
+        trailers,
+        only: sorted([...plan.stage, ...extra, ...(indexInCommit ? [at] : [])]),
+        rerun: WRITE_RERUN,
+        after: indexInCommit ? INDEX_AFTER(root) : null,
+      });
+    } catch (err) {
+      // The notes made so far (an index not updated, say) explain the state the hint describes.
+      throw err instanceof CommitFailedError ? err.withNotes(notes) : err;
+    }
     // Step 5: the commit's render leaves out other decisions' uncommitted entries; the work tree
     // and the index get them back.
     if (text !== null && o.index !== undefined) {
@@ -1697,6 +1704,9 @@ async function write(
         notes: [...notes, ...own],
       };
     } catch (err) {
+      // A refused commit keeps the notes a successful write would report, before applyPlan's.
+      if (err instanceof CommitFailedError)
+        throw err.withNotes([...notes, ...(r.plan.notes ?? [])]);
       // Another process wrote the same event path in the same instant: writeEvents removed this
       // batch and applyPlan the new body and template, so plan again with a fresh clock, once.
       if (!(err instanceof EventExistsError) || attempt > 0) throw err;

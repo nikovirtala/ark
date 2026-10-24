@@ -2,6 +2,7 @@ import { posix } from "node:path";
 import {
   type Check,
   ConfigError,
+  classifyPath,
   commitWithRecovery,
   escapeMarkdown,
   type Finding,
@@ -148,10 +149,36 @@ export async function renderDecisionIndex(
   return renderIndex(DECISION_INDEX(layout.root, views), [...views.values()], numbering);
 }
 
-/** The verify check that `<root>/index.md` is current (design 2b §4.5, "Freshness in verify"). */
+/** At most this many paths are named in the unstaged-files `index/stale` message. */
+const UNSTAGED_NAMED = 5;
+
+/**
+ * The log's event and body files whose work-tree content isn't staged (untracked or modified),
+ * sorted: the cause of a staged `index.md` that only the work tree's render matches.
+ */
+async function unstagedLogFiles(git: Git, layout: LogLayout): Promise<string[]> {
+  const paths = [
+    ...(await git.unstagedPaths([layout.root])),
+    ...(await git.untrackedPaths([layout.root])),
+  ];
+  return [...new Set(paths)]
+    .filter((p) => {
+      const area = classifyPath(layout, p).area;
+      return area === "event" || area === "body";
+    })
+    .sort();
+}
+
+/**
+ * The verify check that `<root>/index.md` is current (design 2b §4.5, "Freshness in verify"). In
+ * staged mode (the pre-commit hook), a stale staged copy that equals the work tree's render
+ * means another decision's files aren't staged: writes stage the work tree's render (D2), and
+ * `adr index` would change nothing. The finding then names those files and says to stage them.
+ */
 export function decisionIndexCheck(log: DecisionLog): Check {
-  return indexCheck({
-    path: indexPath(log.layout),
+  const path = indexPath(log.layout);
+  const check = indexCheck({
+    path,
     fix: "run adr index",
     async expected(ctx) {
       const head = ctx.repo?.head;
@@ -169,6 +196,29 @@ export function decisionIndexCheck(log: DecisionLog): Check {
       });
     },
   });
+  return {
+    id: check.id,
+    async run(ctx) {
+      const findings = await check.run(ctx);
+      const stale = findings.find((f) => f.rule === "index/stale");
+      if (stale === undefined || ctx.repo?.head !== "index") return findings;
+      const files = await unstagedLogFiles(log.git, log.layout);
+      if (files.length === 0) return findings;
+      const worktree = await renderDecisionIndex(log.git, {
+        layout: log.layout,
+        adr: log.adr,
+        tree: worktreeReader(log.git),
+        history: await log.git.resolveCommit("HEAD"),
+      });
+      if (worktree === null || !holdsText(await ctx.head.tree.read(path), worktree)) {
+        return findings;
+      }
+      const named = files.slice(0, UNSTAGED_NAMED).join(", ");
+      const more = files.length > UNSTAGED_NAMED ? ", …" : "";
+      const message = `${path} lists decision files that aren't staged (${named}${more}); git add them and commit again, or move them out of the work tree and run adr index`;
+      return findings.map((f) => (f === stale ? { ...f, message } : f));
+    },
+  };
 }
 
 const encoder = new TextEncoder();

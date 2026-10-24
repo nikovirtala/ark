@@ -716,6 +716,32 @@ describe("a commit git refuses", { timeout: 60_000 }, () => {
   });
 });
 
+// A refused commit keeps the write's notes: they come before the hint, and in --json's notes.
+describe("a write whose commit git refuses", { timeout: 60_000 }, () => {
+  it("prints the write's notes as warnings before the hint", async () => {
+    const r = await repo();
+    const x = await seedDecision(r, "Use Aurora", { accept: false });
+    await failingPreCommit(r);
+    const env = { ARK_ON_BEHALF_OF: "niko@example.org" };
+    const args = ["scope", x, "--set", "nothing/**", "--commit"];
+    const ignored =
+      "ARK_ON_BEHALF_OF is ignored without ARK_AGENT; events are recorded as Ledger Test <ledger-test@example.com>";
+    const out = runAdr(r, args, { env });
+    expect(out.status).toBe(2);
+    const lines = out.stderr.split("\n");
+    expect(lines[0]).toBe(`adr: warning: ${ignored}`);
+    expect(lines[1]).toMatch(/^adr: warning: nothing\/\*\* matches no tracked file/);
+    expect(lines[2]).toMatch(/^adr: error: git commit failed \(exit 1\): hook says no$/);
+    expect(out.stderr).toContain(WRITE_RERUN);
+
+    const json = runAdr(r, ["--json", "note", x, "A note.", "--commit"], { env });
+    expect(json.status).toBe(2);
+    const doc = JSON.parse(json.stdout) as { error: { code: string }; notes: string[] };
+    expect(doc.error.code).toBe("commit-failed");
+    expect(doc.notes).toEqual([ignored]);
+  });
+});
+
 // Design 2b §4.5 and D5 with [log] index = "committed".
 describe("writes with a committed index", { timeout: 60_000 }, () => {
   /** A log with the index on and committed, and `x` proposed and committed. */

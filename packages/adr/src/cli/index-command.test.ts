@@ -234,8 +234,9 @@ describe("adr index", { timeout: 60_000 }, () => {
     await seedDecision(r, "Use Redis", { accept: false, commit: false });
     const commit = () =>
       r.git.run(["commit", "-q", "-m", "docs: propose redis"], { okCodes: [0, 1] });
-    const stale =
-      "docs/adr/index.md: error: docs/adr/index.md is not what the tool generates; run adr index and commit it [index/stale]";
+    // The finding names W's files: staging them is the fix, and adr index changes nothing.
+    const files = (await git(r, "ls-files", "--others", "--", ...wPaths)).trim().split("\n").sort();
+    const stale = `docs/adr/index.md: error: docs/adr/index.md lists decision files that aren't staged (${files.join(", ")}); git add them and commit again, or move them out of the work tree and run adr index [index/stale]`;
     const first = await commit();
     expect(first.code).toBe(1);
     expect(Buffer.from(first.stderr).toString()).toContain(stale);
@@ -250,6 +251,16 @@ describe("adr index", { timeout: 60_000 }, () => {
     expect((await commit()).code).toBe(0);
     expect(verify(r, "--ref", "HEAD")).toBe(0);
     expect(await porcelain(r)).toBe("");
+
+    // A hand edit, with nothing unstaged, keeps the finding's usual fix.
+    const text = await readFile(join(r.root, INDEX), "utf8");
+    await writeFile(join(r.root, INDEX), text.replace("[Use Kafka]", "[Use Pulsar]"));
+    await r.stage(INDEX);
+    const edited = await commit();
+    expect(edited.code).toBe(1);
+    expect(Buffer.from(edited.stderr).toString()).toContain(
+      "docs/adr/index.md: error: docs/adr/index.md is not what the tool generates; run adr index and commit it [index/stale]",
+    );
   });
 
   it("exits 2 for a log without a committed index and for conflicting flags", async () => {
