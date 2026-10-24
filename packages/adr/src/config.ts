@@ -19,7 +19,7 @@ export interface AdrConfig {
   readonly defaultTemplate: string;
   /** `[log] main_branch`: the ref numbers come from; `null` resolves it automatically. */
   readonly mainBranch: string | null;
-  /** `[log] index`: validated now, used in phase 2. */
+  /** `[log] index`: `committed` keeps a generated `<root>/index.md` fresh and verified. */
   readonly index: "committed" | "none";
   /** `[policy] accept_requires_human`. */
   readonly acceptRequiresHuman: boolean;

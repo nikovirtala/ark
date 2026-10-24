@@ -9,17 +9,21 @@ import {
 } from "@nikovirtala/ledger";
 import { adrKind } from "./kind.js";
 import type { DecisionLog } from "./log.js";
+import { decisionIndexCheck } from "./log-index.js";
 
 /**
  * Every phase-1 check for the log: ledger's mechanical and fold checks with adr's actor policy,
  * and template lint against the templates in the head tree and, for older versions, the history
- * of `historyRef`.
+ * of `historyRef`. With `[log] index = "committed"`, also the freshness of `<root>/index.md`.
  */
 export function adrChecks(log: DecisionLog, historyRef: string | null): readonly Check[] {
-  return foldChecks(adrKind, {
-    options: { acceptRequiresHuman: log.adr.acceptRequiresHuman },
-    templates: gitTemplates(log.git, { historyRef }),
-  });
+  return [
+    ...foldChecks(adrKind, {
+      options: { acceptRequiresHuman: log.adr.acceptRequiresHuman },
+      templates: gitTemplates(log.git, { historyRef }),
+    }),
+    ...(log.adr.index === "committed" ? [decisionIndexCheck(log)] : []),
+  ];
 }
 
 /** Verifies the decision log in `mode` (staged, range or full) with `adrChecks`. */

@@ -14,9 +14,16 @@ export const ACTIONS = {
   scoped: { action: "set the scope of", names: "display" },
 } as const satisfies Record<string, { action: string; names: "title" | "display" }>;
 
+/** `{action}` of `adr index --commit`, whose title slot holds `the decision index`. */
+export const INDEX_ACTION = "regenerate";
+
+/** What `adr index --commit`'s title slot holds. */
+export const INDEX_TITLE = "the decision index";
+
 /** The longest `{action}`, which `[commit] subject` must leave room for. */
 export const LONGEST_ACTION: number = Math.max(
   ...Object.values(ACTIONS).map((a) => a.action.length),
+  INDEX_ACTION.length,
 );
 
 /** The longest display: `ADR-` and up to 9 digits (`formatDecisionNumber`, kind/project.ts). */
@@ -36,8 +43,9 @@ export const COMMIT_VARS = Object.freeze({
 /**
  * The names the title placeholder holds instead of a title, which are never shortened, each with
  * its action: supersede's `<display> with <display>` and a link's `<display> to <display>` or
- * `<display> to a decision in another log` (`planLink` in write.ts). The shorter names (a display,
- * at most 13 characters) always fit in the room a title gets.
+ * `<display> to a decision in another log` (`planLink` in write.ts), and `adr index`'s
+ * `the decision index`. The shorter names (a display, at most 13 characters) always fit in the
+ * room a title gets.
  */
 export const COMMIT_NAMES = Object.freeze([
   {
@@ -48,4 +56,5 @@ export const COMMIT_NAMES = Object.freeze([
     length: DISPLAY_LENGTH + 1 + CROSS_LOG_LINK.length,
     vars: { action: ACTIONS.linked.action.length },
   },
+  { length: INDEX_TITLE.length, vars: { action: INDEX_ACTION.length } },
 ]);
