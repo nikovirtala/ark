@@ -1,6 +1,8 @@
 import {
   type CheckContext,
+  classifyPath,
   compileKind,
+  diffTrees,
   type Finding,
   type FoldedLogOf,
   foldLog,
@@ -13,6 +15,7 @@ import {
   numberLog,
   openToolLog,
   type Projection,
+  parseEventFileName,
   projectLog,
   readIndexNumbers,
   refReader,
@@ -191,4 +194,38 @@ export function resolveDecision(read: DecisionsRead, input: string): string {
     case "not-found":
       throw new UsageError(`unknown decision ${input.trim()}`);
   }
+}
+
+/** The `since` key of `adr list --since <rev>` (design 2b D7). */
+export interface ChangedSince {
+  /** The revision as given, such as `ORIG_HEAD`. */
+  readonly rev: string;
+  readonly commit: string;
+  /** Event files added since `rev`, sorted by path. */
+  readonly events: readonly {
+    readonly subject: string;
+    readonly type: string;
+    readonly path: string;
+  }[];
+}
+
+/**
+ * The event files in `--ref`'s tree (else HEAD's) that `rev`'s tree lacks (design 2b D7). Diffing
+ * trees answers "what did this pull bring" for fast-forwards and merges (`ORIG_HEAD` is the tip
+ * before them), and lists nothing for a rebase of your own work, whose events are in both trees.
+ * Throws `RefNotFoundError` when either revision doesn't resolve.
+ */
+export async function changedSince(log: DecisionLog, rev: string): Promise<ChangedSince> {
+  const base = await refReader(log.git, rev);
+  const head = await refReader(log.git, log.ref ?? "HEAD");
+  const changes = await diffTrees(base, head, `${log.layout.root}/${log.layout.events}`);
+  const events = changes.flatMap((c) => {
+    if (c.status !== "added") return [];
+    const p = classifyPath(log.layout, c.path);
+    if (p.area !== "event" || p.subject === null || p.file.includes("/")) return [];
+    const name = parseEventFileName(p.file);
+    return name === null ? [] : [{ subject: p.subject, type: name.type, path: c.path }];
+  });
+  events.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  return { rev, commit: base.commit ?? "", events };
 }

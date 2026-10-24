@@ -54,13 +54,22 @@ export async function indexCopies(
 }
 
 /** A `git clone --depth 1` of `r` in a new temp directory; the caller disposes it. */
-export async function shallowClone(
+export function shallowClone(
   r: TempRepo,
 ): Promise<{ root: string; git: Git; dispose: () => Promise<void> }> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), "adr-shallow-")));
+  return cloneRepo(r, { depth: 1 });
+}
+
+/** A `git clone` of `r` (with `depth`, shallow) in a new temp directory; the caller disposes it. */
+export async function cloneRepo(
+  r: TempRepo,
+  o: { readonly depth?: number } = {},
+): Promise<{ root: string; git: Git; dispose: () => Promise<void> }> {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), "adr-clone-")));
   const root = join(dir, "clone");
   const env = cliEnv(r) as Record<string, string>;
-  await run("git", ["clone", "-q", "--depth", "1", `file://${r.root}`, root], { env });
+  const depth = o.depth === undefined ? [] : ["--depth", String(o.depth)];
+  await run("git", ["clone", "-q", ...depth, `file://${r.root}`, root], { env });
   return {
     root,
     git: await Git.open(root, { env: r.env }),
