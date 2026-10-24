@@ -10,7 +10,7 @@ Packages are versioned independently with [Changesets](https://github.com/change
 
 Only packages with changesets are bumped; there are no fixed or linked groups. Private packages (currently `@nikovirtala/issues`) are never versioned or published.
 
-The version PR is opened with `GITHUB_TOKEN`, so it doesn't start CI by itself. Re-run CI from the Actions tab, or push an empty commit to the version branch, if a run is needed before merging.
+The version PR is opened with `GITHUB_TOKEN`, so it doesn't start CI by itself. Re-run CI from the Actions tab, or push an empty commit to the version branch, if a run is needed before merging. CI lints commit messages, so give that commit a Conventional subject, such as `git commit --allow-empty -m "ci: run checks on the version pull request"`.
 
 ## One-time setup
 
