@@ -2,6 +2,7 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
   ConfigError,
+  commitWithRecovery,
   InvalidArgumentError,
   readToolConfig,
   renderCommitMessage,
@@ -25,6 +26,13 @@ export interface InitResultJson {
   readonly commit: string | null;
   readonly notes: readonly string[];
 }
+
+/**
+ * What the recovery hint says about rerunning `adr init` after `git commit` failed (design 2b D5):
+ * init keeps existing files, so it would commit nothing.
+ */
+export const INIT_RERUN =
+  "Running adr init again won't commit them: the files exist now, so it keeps them and commits nothing.";
 
 const CONFIG = "adr.toml";
 const DEFAULT_ROOT = adrKind.def.defaultRoot;
@@ -128,7 +136,7 @@ export async function initDecisionLog(
         title: "the decision log",
         vars: { action: "set up", id: "", display: "", command: "init" },
       }).message;
-    sha = await log.git.commit({ message, only: written });
+    sha = await commitWithRecovery(log.git, { message, only: written, rerun: INIT_RERUN });
   }
   return { format: "adr-init/v1", root, config, written, kept, commit: sha, notes };
 }

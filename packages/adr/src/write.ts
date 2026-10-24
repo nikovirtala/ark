@@ -7,6 +7,7 @@ import {
   bodySha256,
   ConfigError,
   classifyPath,
+  commitWithRecovery,
   compileKind,
   ENVELOPE_VERSION,
   type EventEnvelope,
@@ -1266,9 +1267,17 @@ export interface AfterStage {
 const isYaml = (path: string) => /\.ya?ml$/.test(path);
 
 /**
+ * What the recovery hint says about rerunning a write command after `git commit` failed (design
+ * 2b D5): the batch is already in the log, so a rerun is refused, writes nothing or duplicates it.
+ */
+export const WRITE_RERUN =
+  "Don't run the command again: the log already holds the change, so a rerun would be refused, do nothing, or write it a second time.";
+
+/**
  * Applies a plan (§5.4): refuses a commit whose scope has unstaged or needed untracked paths,
  * writes the files (removing them again if a write fails), stages them, runs `afterStage`, and
- * commits `plan.stage` plus the involved subjects' already-staged files with exact trailers.
+ * commits `plan.stage` plus the involved subjects' already-staged files with exact trailers. A
+ * failed `git commit` throws `CommitFailedError` with the manual command (design 2b D5).
  */
 export async function applyPlan(
   log: DecisionLog,
@@ -1346,11 +1355,12 @@ export async function applyPlan(
           ]
         : [];
     });
-    sha = await git.commit({
+    sha = await commitWithRecovery(git, {
       message: o.message ?? "",
       mergeTrailers: o.mergeTrailers === true,
       trailers: [...staged, ...plan.trailers],
       only: sorted([...plan.stage, ...extra]),
+      rerun: WRITE_RERUN,
     });
   }
   return { written: Object.keys(plan.files), commit: sha, findings };
