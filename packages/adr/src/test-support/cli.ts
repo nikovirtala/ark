@@ -1,6 +1,8 @@
 /** Test-only helpers for spawning the built `adr` binary on temp repos (design §9). */
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { chmod, mkdir, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Actor } from "@nikovirtala/ledger";
 import { createTempRepo, type TempRepo } from "@nikovirtala/ledger/testing";
@@ -101,6 +103,36 @@ export async function seedDecision(
   const accepted = await acceptDecision(log, { id, actor: REPO_HUMAN }, { commit });
   if (!accepted.ok) throw new Error(`could not accept ${title}`);
   return id;
+}
+
+/** Installs a foreign `pre-commit` hook that prints `hook says no` and exits 1; its path. */
+export async function failingPreCommit(repo: TempRepo): Promise<string> {
+  const path = join(repo.git.gitDir, "hooks", "pre-commit");
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, '#!/bin/sh\necho "hook says no" >&2\nexit 1\n');
+  await chmod(path, 0o755);
+  return path;
+}
+
+/** The manual commit command of a `commit-failed` hint (design 2b D5), from adr's stderr. */
+export function hintCommand(stderr: string): string {
+  const lines = stderr.split("\n");
+  const at = lines.findIndex((l) => / exactly these files with the message adr prepared:$/.test(l));
+  const command = at < 0 ? undefined : lines[at + 1];
+  if (command === undefined) throw new Error(`no commit command in:\n${stderr}`);
+  return command.trim();
+}
+
+/** Runs `command` with `sh -c` from `/`, in the repo's hermetic environment. */
+export function runShell(repo: TempRepo, command: string): AdrRun {
+  const r = spawnSync("sh", ["-c", command], {
+    cwd: "/",
+    env: cliEnv(repo),
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (r.error !== undefined) throw r.error;
+  return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
 /** Supersedes `id` by `by` through the library, committing. */
