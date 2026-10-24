@@ -1,8 +1,18 @@
-import { chmod, readFile, writeFile } from "node:fs/promises";
+import { chmod, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { TempRepo } from "@nikovirtala/ledger/testing";
 import { afterEach, describe, expect, it } from "vitest";
-import { cliRepo, NYGARD_SECTIONS, runAdr, seedDecision, WRITE_KEYS } from "../test-support/cli.js";
+import {
+  cliRepo,
+  failingPreCommit,
+  hintCommand,
+  NYGARD_SECTIONS,
+  runAdr,
+  runShell,
+  seedDecision,
+  WRITE_KEYS,
+} from "../test-support/cli.js";
+import { WRITE_RERUN } from "../write.js";
 
 const repos: TempRepo[] = [];
 afterEach(async () => {
@@ -641,5 +651,63 @@ describe("adr new --edit", { timeout: 60_000 }, () => {
     const none = runAdr(r, ["new", "No editor", ...FULL, "--edit"]);
     expect(none.status).toBe(0);
     expect(none.stderr).toBe("adr: warning: no editor: set VISUAL or EDITOR\n");
+  });
+});
+
+// Design 2b D5: a failed `git commit` during --commit leaves the batch staged with a manual command.
+describe("a commit git refuses", { timeout: 60_000 }, () => {
+  it("prints the hint for accept --commit, and its command makes the commit", async () => {
+    const r = await repo();
+    const id = await seedDecision(r, "Use Aurora", { accept: false });
+    const hook = await failingPreCommit(r);
+    const before = await head(r);
+    const out = runAdr(r, ["accept", id, "--commit"]);
+    expect(out.status).toBe(2);
+    expect(out.stdout).toBe("");
+    const lines = out.stderr.split("\n");
+    expect(lines.slice(0, 2)).toEqual([
+      "adr: error: git commit failed (exit 1): hook says no",
+      "  hook says no",
+    ]);
+    expect(out.stderr).toContain(`The files are written and staged. ${WRITE_RERUN} Staged for`);
+    const body = `docs/adr/decisions/${id}-use-aurora.md`;
+    const event = (await staged(r)).find((p) => p.endsWith("-accepted.yaml")) ?? "";
+    expect(event).toMatch(new RegExp(`^docs/adr/events/${id}/\\S+-accepted\\.yaml$`));
+    expect(lines).toContain(`  ${body}`);
+    expect(lines).toContain(`  ${event}`);
+    expect(lines.slice(-3)).toEqual([`  ADR: ${id}`, "  ADR-Event: accepted", ""]);
+    expect(await head(r)).toBe(before);
+
+    await rm(hook);
+    const command = hintCommand(out.stderr);
+    expect(command).toContain(`--only -- ${body} ${event}`);
+    expect(runShell(r, command).status).toBe(0);
+    expect(await head(r)).not.toBe(before);
+    // The body is listed but unchanged by accept, so the commit adds the event only.
+    expect(await git(r, "show", "--name-only", "--format=", "HEAD")).toBe(`${event}\n`);
+    expect(await git(r, "log", "-1", "--format=%(trailers:only,unfold)")).toBe(
+      `ADR: ${id}\nADR-Event: accepted\n\n`,
+    );
+    expect(runAdr(r, ["verify"]).status).toBe(0);
+    expect(await git(r, "status", "--porcelain")).toBe("");
+  });
+
+  it("gives new --commit the same rerun sentence, and --json a commit-failed error", async () => {
+    const r = await repo();
+    await failingPreCommit(r);
+    const out = runAdr(r, ["new", "Use Aurora", ...FULL, "--no-edit", "--commit"]);
+    expect(out.status).toBe(2);
+    expect(out.stderr).toContain(WRITE_RERUN);
+    expect(out.stderr).toContain("  ADR-Event: proposed\n");
+
+    const doc = runAdr(r, ["new", "Use DynamoDB", ...FULL, "--no-edit", "--commit", "--json"]);
+    expect(doc.status).toBe(2);
+    const error = JSON.parse(doc.stdout) as {
+      format: string;
+      error: { code: string; message: string };
+    };
+    expect(error.format).toBe("ark-error/v1");
+    expect(error.error.code).toBe("commit-failed");
+    expect(error.error.message).toContain(WRITE_RERUN);
   });
 });
