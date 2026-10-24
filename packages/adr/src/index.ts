@@ -1,4 +1,13 @@
 export { type AdrConfig, DEFAULT_ADR_CONFIG, parseAdrConfig } from "./config.js";
+export {
+  addHookTrailers,
+  decisionHookCommands,
+  type HooksResultJson,
+  installDecisionHooks,
+  printDecisionHooks,
+  runPreCommitHook,
+  uninstallDecisionHooks,
+} from "./hooks.js";
 export { type InitResultJson, initDecisionLog } from "./init.js";
 export {
   type AdrOptions,

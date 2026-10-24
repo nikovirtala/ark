@@ -142,6 +142,28 @@ export async function seedSupersession(repo: TempRepo, id: string, by: string): 
   if (!r.ok) throw new Error(`could not supersede ${id} by ${by}`);
 }
 
+/**
+ * `<dir>/node_modules/.bin/adr`, a sh wrapper running the built CLI, where ledger's hook shims
+ * look for a tool first (design 2b §4.3 tests).
+ */
+export async function linkAdrBin(dir: string): Promise<void> {
+  const bin = join(dir, "node_modules", ".bin", "adr");
+  await mkdir(dirname(bin), { recursive: true });
+  const q = (s: string) => `'${s.replace(/'/g, "'\\''")}'`;
+  await writeFile(bin, `#!/bin/sh\nexec ${q(process.execPath)} ${q(requireBuilt(CLI))} "$@"\n`);
+  await chmod(bin, 0o755);
+}
+
+/**
+ * A `cliRepo` whose `.gitignore` (committed) ignores `node_modules`, with `linkAdrBin`, so that
+ * `adr hooks install` writes shims that find adr.
+ */
+export async function hooksRepo(files: Readonly<Record<string, string>> = {}): Promise<TempRepo> {
+  const r = await cliRepo({ ".gitignore": "node_modules/\n", ...files });
+  await linkAdrBin(r.root);
+  return r;
+}
+
 /** Runs git like a user would, hooks included, in `repo` (or `o.cwd`) with `cliEnv`. */
 export function runGit(
   repo: TempRepo,
