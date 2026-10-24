@@ -1,8 +1,8 @@
 import type { JsonValue } from "@nikovirtala/ledger";
 import type { CommandSpec } from "@nikovirtala/ledger/cli";
-import { readDecisions } from "../log.js";
+import { numberingNote, readDecisions } from "../log.js";
 import { decisionsFor } from "../scope.js";
-import { openForCli } from "./open.js";
+import { notesWith, openForCli } from "./open.js";
 import { forText } from "./text.js";
 
 /** `adr for <path>… [--ref <ref>]` (design §6.9): the decisions that govern each file. */
@@ -22,7 +22,7 @@ export const forCommand: CommandSpec = {
       exit: 0,
       json: doc as unknown as JsonValue,
       text: forText(doc, display, read.adr.anchorKeyword),
-      notes: doc.notes,
+      notes: notesWith(doc.notes, numberingNote(read, { unavailable: false })),
     };
   },
 };

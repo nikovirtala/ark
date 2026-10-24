@@ -14,6 +14,8 @@ import {
   openToolLog,
   type Projection,
   projectLog,
+  readIndexNumbers,
+  refReader,
   relateCheck,
   resolveSubjectInput,
   sortFindings,
@@ -63,12 +65,27 @@ export interface DecisionsRead {
   readonly notes: readonly string[];
 }
 
-/** `numberLog` on the repository, then `readDecisionsFrom(log.tree, …)`. */
+/**
+ * `numberLog` on the repository, then `readDecisionsFrom(log.tree, …)`. In a shallow clone of a
+ * log with `[log] index = "committed"`, the numbers come from `<root>/index.md` in the commit
+ * being read (`--ref`, else HEAD, resolved when the numbers are needed), never from the work tree's
+ * copy, which may number acceptances that exist only there (design 2b D1, §4.6).
+ */
 export async function readDecisions(log: DecisionLog): Promise<DecisionsRead> {
   const numbering = await numberLog(log.git, {
     kind: adrKind,
     layout: log.layout,
     mainRef: log.adr.mainBranch,
+    ...(log.adr.index === "committed"
+      ? {
+          fallback: async () => {
+            const c = await log.git.resolveCommit(log.ref ?? "HEAD");
+            return c === null
+              ? null
+              : readIndexNumbers(await refReader(log.git, c), `${log.layout.root}/index.md`);
+          },
+        }
+      : {}),
   });
   return readDecisionsFrom(log.tree, {
     layout: log.layout,
@@ -125,6 +142,22 @@ export async function readDecisionsFrom(
     findings: sortFindings(findings.map((f) => ({ ...f, kind: adrKind.name }))),
     notes: o.notes ?? [],
   };
+}
+
+/**
+ * The note a read command adds about where numbers come from: the shallow-clone index, or why
+ * they are unavailable (`unavailable: false` leaves that one out); `null` for none.
+ */
+export function numberingNote(
+  read: DecisionsRead,
+  o: { readonly unavailable: boolean },
+): string | null {
+  const n = read.numbering;
+  if (n.reason === "index") return `numbers come from ${read.root}/index.md (shallow clone)`;
+  if (n.available || !o.unavailable) return null;
+  return n.reason === "shallow"
+    ? 'numbers are unavailable (shallow clone); run git fetch --unshallow, or commit an index with [log] index = "committed"'
+    : `numbers are unavailable (${unavailableReason(n)}); decisions display by id`;
 }
 
 /** Why numbers are unavailable, in words: `shallow clone` or `no main branch`. */
