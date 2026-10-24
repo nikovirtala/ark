@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { runCli } from "./cli/run.js";
 import {
+  CommitFailedError,
   ConfigError,
   EventExistsError,
   FileExistsError,
@@ -153,6 +154,91 @@ describe("hook-conflict through runCli", () => {
     expect(JSON.parse(stdout)).toEqual({
       format: "ark-error/v1",
       error: { code: "hook-conflict", message },
+    });
+  });
+});
+
+describe("commit-failed through runCli", () => {
+  const recovery = {
+    staged: ["log/a.yaml"],
+    messageFile: "/r/.git/ark/COMMIT_MSG",
+    command: "git -C /r commit --cleanup=whitespace -F /r/.git/ark/COMMIT_MSG --only -- log/a.yaml",
+    trailers: [],
+  };
+  const failed = new CommitFailedError({
+    recovery,
+    headline: "git commit failed (exit 1): hook says no",
+    detail: "",
+    rerun: "Don't run it again.",
+    before: null,
+    after: null,
+    notes: ["attributed to agent x"],
+  });
+
+  async function run(error: CommitFailedError, argv: string[]) {
+    let stdout = "";
+    let stderr = "";
+    const code = await runCli(
+      {
+        name: "w",
+        version: "0.0.0",
+        summary: "widgets",
+        commands: [
+          {
+            name: "add",
+            summary: "add a widget",
+            usage: "add",
+            options: {},
+            positionals: { min: 0, max: 0, names: [] },
+            ref: "reject",
+            run: () => {
+              throw error;
+            },
+          },
+        ],
+      },
+      {
+        argv,
+        cwd: "/",
+        env: {},
+        stdout: {
+          write: (s) => {
+            stdout += s;
+          },
+        },
+        stderr: {
+          write: (s) => {
+            stderr += s;
+          },
+        },
+        interactive: false,
+        stdoutIsTTY: false,
+      },
+    );
+    return { code, stdout, stderr };
+  }
+
+  it("prints the command's notes as warnings before the error, once each", async () => {
+    // "Don't run it again." is already in the hint, so it isn't printed a second time.
+    const e = failed.withNotes(["glob matches nothing", "Don't run it again."]);
+    expect(e).toBeInstanceOf(CommitFailedError);
+    expect(e.message).toBe(failed.message);
+    expect(e.notes).toEqual([
+      "glob matches nothing",
+      "Don't run it again.",
+      "attributed to agent x",
+    ]);
+    expect(failed.withNotes([])).toBe(failed);
+    const out = await run(e, ["add"]);
+    expect(out.code).toBe(2);
+    expect(out.stderr).toBe(
+      `w: warning: glob matches nothing\nw: warning: attributed to agent x\nw: error: ${e.message}\n`,
+    );
+    const json = await run(e, ["--json", "add"]);
+    expect(JSON.parse(json.stdout)).toEqual({
+      format: "ark-error/v1",
+      error: { code: "commit-failed", message: e.message },
+      notes: ["glob matches nothing", "attributed to agent x"],
     });
   });
 });

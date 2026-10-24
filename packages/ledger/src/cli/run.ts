@@ -1,5 +1,11 @@
 import { type ParseArgsOptionsConfig, parseArgs } from "node:util";
-import { InvalidArgumentError, type JsonValue, LedgerError, UsageError } from "../errors.js";
+import {
+  CommitFailedError,
+  InvalidArgumentError,
+  type JsonValue,
+  LedgerError,
+  UsageError,
+} from "../errors.js";
 import {
   GLOBAL_OPTIONS,
   type GlobalFlags,
@@ -159,13 +165,19 @@ function globalString(values: Record<string, unknown>, key: "root" | "ref"): str
  * Runs one invocation of a tool (design §4.9): globals before or after the command, help and
  * version, usage checks, dispatch, output and exit code. Never throws: a `LedgerError` exits 2
  * with `<tool>: error: …`, anything else exits 2 with `<tool>: internal error: …` and the stack;
- * with `--json`, stdout also gets an `ark-error/v1` document.
+ * with `--json`, stdout also gets an `ark-error/v1` document. A `CommitFailedError`'s notes that
+ * its message doesn't already hold are printed as warnings before the error, and are the
+ * document's `notes`.
  */
 export async function runCli(tool: ToolCli, io: CliIO): Promise<0 | 1 | 2> {
   let json = wantsJson(io.argv);
   const fail = (e: unknown, internal: boolean): 2 => {
     const known = !internal && e instanceof LedgerError;
     const message = e instanceof Error ? e.message : String(e);
+    // A failed commit's command notes come first, as on success; the hint already says some.
+    const notes =
+      known && e instanceof CommitFailedError ? e.notes.filter((n) => !message.includes(n)) : null;
+    for (const note of notes ?? []) io.stderr.write(`${tool.name}: warning: ${note}\n`);
     if (known) {
       io.stderr.write(`${tool.name}: error: ${message}\n`);
     } else {
@@ -174,7 +186,8 @@ export async function runCli(tool: ToolCli, io: CliIO): Promise<0 | 1 | 2> {
     }
     if (json) {
       const error = { code: known ? e.code : "internal", message };
-      io.stdout.write(`${JSON.stringify({ format: "ark-error/v1", error }, null, 2)}\n`);
+      const doc = { format: "ark-error/v1", error, ...(notes === null ? {} : { notes }) };
+      io.stdout.write(`${JSON.stringify(doc, null, 2)}\n`);
     }
     return 2;
   };

@@ -23,6 +23,8 @@ export {
   serializeEvent,
 } from "./envelope/yaml.js";
 export {
+  CommitFailedError,
+  type CommitRecovery,
   ConfigError,
   EventExistsError,
   FileExistsError,
@@ -253,6 +255,11 @@ export {
   renderCommitMessage,
   wrapParagraph,
 } from "./surfaces/commit-message.js";
+export {
+  type CommitInput,
+  commitWithRecovery,
+  saveCommitRecovery,
+} from "./surfaces/commit-recovery.js";
 export { renderStateHeader, type StateHeader } from "./surfaces/header.js";
 export { resolveSubjectInput, type SubjectInput } from "./surfaces/subject-input.js";
 export { openToolLog, type ToolLog, type ToolLogOptions } from "./surfaces/tool-log.js";
