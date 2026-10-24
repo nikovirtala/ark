@@ -4,13 +4,23 @@ import {
   ConfigError,
   commitWithRecovery,
   InvalidArgumentError,
+  overlayTree,
   readToolConfig,
   renderCommitMessage,
   UsageError,
+  worktreeReader,
   writeNewFile,
 } from "@nikovirtala/ledger";
 import { adrKind } from "./kind.js";
 import type { DecisionLog } from "./log.js";
+import {
+  firstLine,
+  headTree,
+  INDEX_AFTER,
+  indexPath,
+  renderDecisionIndex,
+  writeIndexCopy,
+} from "./log-index.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
 
 /** `adr init --json` (design §6.2). */
@@ -57,7 +67,8 @@ function configText(o: { readonly root: string | null; readonly template: string
  * template in `o.templates` (default `nygard`) to `<root>/templates/`, never overwriting a file.
  * A `--root` other than `docs/adr` gets a repo-level `adr.toml` naming it, so later commands find
  * the log without `--root`; when that file exists for another log, the config goes in the root.
- * With `commit` (default `[policy] auto_commit`) the written files are committed on their own;
+ * With `[log] index = "committed"` it also writes `<root>/index.md` unless one exists. With
+ * `commit` (default `[policy] auto_commit`) the written files are committed on their own;
  * nothing written means nothing committed. No events are written.
  */
 export async function initDecisionLog(
@@ -108,8 +119,35 @@ export async function initDecisionLog(
     if ((await log.tree.read(path)) !== null) kept.push(path);
     else files.push([path, BUILTIN_TEMPLATES[name] ?? ""]);
   }
+  const commitRequested = o.commit ?? log.adr.autoCommit;
+  const at = indexPath(log.layout);
+  let indexed = false;
+  if (log.adr.index === "committed") {
+    // Rendered before anything is written, from the tree the commit (or the work tree) will hold.
+    if ((await log.tree.read(at)) !== null) {
+      kept.push(at);
+    } else {
+      const head = await log.git.resolveCommit("HEAD");
+      const added = Object.fromEntries(files.map(([p, t]) => [p, encoder.encode(t)]));
+      const base = commitRequested ? await headTree(log.git, head) : log.tree;
+      const text = await renderDecisionIndex(log.git, {
+        layout: log.layout,
+        adr: log.adr,
+        tree: overlayTree(base, added),
+        history: head,
+      });
+      if (text === null) {
+        notes.push(
+          `${at} not updated: numbers need history in this shallow clone; run git fetch --unshallow, then adr index`,
+        );
+      } else {
+        files.push([at, text]);
+        indexed = true;
+      }
+    }
+  }
 
-  const commit = files.length > 0 && (o.commit ?? log.adr.autoCommit);
+  const commit = files.length > 0 && commitRequested;
   if (
     commit &&
     ((await log.git.identity()) === null || (await log.git.committerIdentity()) === null)
@@ -136,7 +174,30 @@ export async function initDecisionLog(
         title: "the decision log",
         vars: { action: "set up", id: "", display: "", command: "init" },
       }).message;
-    sha = await commitWithRecovery(log.git, { message, only: written, rerun: INIT_RERUN });
+    sha = await commitWithRecovery(log.git, {
+      message,
+      only: written,
+      rerun: INIT_RERUN,
+      after: indexed ? INDEX_AFTER(root) : null,
+    });
+    if (indexed) {
+      // The commit's index leaves out uncommitted log changes; the work tree and the index get
+      // them back (design 2b §4.5 step 5).
+      try {
+        const again = await renderDecisionIndex(log.git, {
+          layout: log.layout,
+          adr: log.adr,
+          tree: worktreeReader(log.git),
+          history: sha,
+        });
+        if (again !== null) {
+          const r = await writeIndexCopy(log.git, at, again);
+          if (r.stage) await log.git.add([at]);
+        }
+      } catch (err) {
+        notes.push(`${at} may be stale: ${firstLine(err)}; run adr index`);
+      }
+    }
   }
   return { format: "adr-init/v1", root, config, written, kept, commit: sha, notes };
 }

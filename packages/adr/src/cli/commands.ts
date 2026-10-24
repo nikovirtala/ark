@@ -5,6 +5,7 @@ import { adrChecks } from "../verify.js";
 import { acceptCommand } from "./accept.js";
 import { deprecateCommand } from "./deprecate.js";
 import { forCommand } from "./for.js";
+import { indexCommand } from "./index-command.js";
 import { initCommand } from "./init.js";
 import { linkCommand } from "./link.js";
 import { listCommand } from "./list.js";
@@ -54,6 +55,7 @@ export function adrCli(version: string): ToolCli {
       noteCommand,
       linkCommand,
       scopeCommand,
+      indexCommand,
       forCommand,
       listCommand,
       showCommand,
