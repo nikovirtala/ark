@@ -1,0 +1,15 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M5PCCWHMRGV4H6XF94G276ZY
+subject: c6qyr1jz
+type: noted
+at: 2026-10-24T07:18:27Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  text: Set events live in ledger's Scope layer, because adr's `scoped` needs them as well as issues' `assigned` and `labeled`. Relations still start in the tools.
