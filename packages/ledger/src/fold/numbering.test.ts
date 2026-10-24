@@ -7,6 +7,7 @@ import type { EventEnvelope } from "../envelope/types.js";
 import { serializeEvent } from "../envelope/yaml.js";
 import { RefNotFoundError } from "../errors.js";
 import { Git } from "../git/git.js";
+import { indexReader, refReader, type TreeReader, worktreeReader } from "../git/tree.js";
 import { eventPath } from "../identity/layout.js";
 import { createUlidFactory } from "../identity/ulid.js";
 import { defineKind } from "../kind/define.js";
@@ -14,7 +15,14 @@ import { arbSubjectId } from "../testing/arbitraries.js";
 import { exampleMachineKind as kind } from "../testing/example-machine-kind.js";
 import { TEST_HUMAN } from "../testing/history.js";
 import { createTempRepo, type TempRepo } from "../testing/temp-repo.js";
-import { assignNumbers, NO_NUMBERING, numberLog, resolveMainRef } from "./numbering.js";
+import {
+  assignNumbers,
+  compareNumberingKeys,
+  NO_NUMBERING,
+  numberLog,
+  projectNumbering,
+  resolveMainRef,
+} from "./numbering.js";
 
 const run = promisify(execFile);
 const layout = kind.layoutAt("log");
@@ -102,6 +110,21 @@ describe("assignNumbers", () => {
   });
 });
 
+describe("compareNumberingKeys", () => {
+  const key = (stamp: string, rand: string, subject: string) => ({ stamp, rand, subject });
+
+  it("orders by stamp, then rand, then subject", () => {
+    const keys = [
+      key("20260102T000000Z", "0000", A),
+      key("20260101T000000Z", "zzzz", A),
+      key("20260101T000000Z", "0001", C),
+      key("20260101T000000Z", "0001", B),
+    ];
+    expect([...keys].sort(compareNumberingKeys)).toEqual([keys[3], keys[2], keys[1], keys[0]]);
+    expect(compareNumberingKeys(keys[0] as never, keys[0] as never)).toBe(0);
+  });
+});
+
 const repos: TempRepo[] = [];
 afterEach(async () => {
   for (const r of repos.splice(0)) await r.dispose();
@@ -115,6 +138,12 @@ async function repo(): Promise<TempRepo> {
 let seq = 0;
 /** Writes and commits a `published` event for `subject` at `at`. */
 async function publish(r: TempRepo, subject: string, at: string): Promise<string> {
+  await r.stage(await writePublished(r, subject, at));
+  return r.commit(`publish ${subject}`);
+}
+
+/** Writes a `published` event for `subject` at `at` to the work tree; returns its path. */
+async function writePublished(r: TempRepo, subject: string, at: string): Promise<string> {
   seq += 1;
   const e: EventEnvelope = {
     envelope: "ledger/v1",
@@ -129,8 +158,7 @@ async function publish(r: TempRepo, subject: string, at: string): Promise<string
   };
   const p = eventPath(layout, e);
   await r.write(p, serializeEvent(e));
-  await r.stage(p);
-  return r.commit(`publish ${subject}`);
+  return p;
 }
 
 const numbersOf = async (git: Git, mainRef?: string | null) =>
@@ -242,5 +270,76 @@ describe("numberLog", () => {
     const { numbering: _, ...def } = kind.def;
     const plain = defineKind(def as never);
     expect(await numberLog(r.git, { kind: plain, layout })).toBe(NO_NUMBERING);
+  });
+});
+
+describe("projectNumbering", () => {
+  const project = async (git: Git, history: string | null, tree: TreeReader) =>
+    projectNumbering(git, { kind, layout, history, tree });
+
+  it("projects a branch's numbers to what main gives after a fast-forward", async () => {
+    const r = await repo();
+    await publish(r, A, "2026-01-01T00:00:00Z");
+    await r.checkout("feature", { create: true });
+    // Two commits, the later one with the older stamp: commit order decides.
+    await publish(r, C, "2026-01-03T00:00:00Z");
+    const tip = await publish(r, B, "2026-01-02T00:00:00Z");
+    expect(await numbersOf(r.git)).toEqual({ [A]: 1 });
+    const projected = await project(r.git, tip, await refReader(r.git, tip));
+    expect(projected).toMatchObject({ available: true, reason: null, ref: null, commit: tip });
+    expect(Object.fromEntries(projected.byId)).toEqual({ [A]: 1, [C]: 2, [B]: 3 });
+    expect(Object.fromEntries(projected.byNumber)).toEqual({ 1: A, 2: C, 3: B });
+    await r.checkout("main");
+    await r.git.run(["merge", "-q", "--ff-only", "feature"]);
+    expect(Object.fromEntries((await numberLog(r.git, { kind, layout })).byId)).toEqual(
+      Object.fromEntries(projected.byId),
+    );
+  });
+
+  it("numbers the tree's pending acceptances after history, sorted like one commit", async () => {
+    const r = await repo();
+    const head = await publish(r, A, "2026-01-02T00:00:00Z");
+    await writePublished(r, C, "2026-01-01T00:00:00Z");
+    await r.stage(await writePublished(r, B, "2026-01-03T00:00:00Z"));
+    // A second acceptance of a numbered subject doesn't renumber it.
+    await writePublished(r, A, "2026-01-04T00:00:00Z");
+    const work = await project(r.git, head, worktreeReader(r.git));
+    expect(work.commit).toBe(head);
+    expect(Object.fromEntries(work.byId)).toEqual({ [A]: 1, [C]: 2, [B]: 3 });
+    const staged = await project(r.git, head, await indexReader(r.git));
+    expect(Object.fromEntries(staged.byId)).toEqual({ [A]: 1, [B]: 2 });
+  });
+
+  it("numbers only the pending acceptances on an unborn HEAD", async () => {
+    const r = await createTempRepo();
+    repos.push(r);
+    await writePublished(r, B, "2026-01-01T00:00:00Z");
+    await writePublished(r, A, "2026-01-02T00:00:00Z");
+    const n = await project(r.git, null, worktreeReader(r.git));
+    expect(n).toMatchObject({ available: true, reason: null, ref: null, commit: null });
+    expect(Object.fromEntries(n.byId)).toEqual({ [B]: 1, [A]: 2 });
+  });
+
+  it("is unavailable without numbering and in a shallow clone", async () => {
+    const r = await repo();
+    const head = await publish(r, A, "2026-01-01T00:00:00Z");
+    const { numbering: _, ...def } = kind.def;
+    const plain = defineKind(def as never);
+    expect(
+      await projectNumbering(r.git, {
+        kind: plain,
+        layout,
+        history: head,
+        tree: worktreeReader(r.git),
+      }),
+    ).toBe(NO_NUMBERING);
+    const dest = join(r.root, "..", "shallow");
+    const env = { ...process.env, ...r.git.options.env } as Record<string, string>;
+    await run("git", ["clone", "-q", "--depth", "1", `file://${r.root}`, dest], { env });
+    const shallow = await Git.open(dest, r.git.options);
+    expect(await project(shallow, head, worktreeReader(shallow))).toEqual({
+      ...NO_NUMBERING,
+      reason: "shallow",
+    });
   });
 });

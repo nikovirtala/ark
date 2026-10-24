@@ -60,9 +60,12 @@ export {
 export { compareEvents, foldLog, foldSubject } from "./fold/fold.js";
 export {
   assignNumbers,
+  compareNumberingKeys,
   NO_NUMBERING,
   type Numbering,
   numberLog,
+  PENDING_COMMIT,
+  projectNumbering,
   resolveMainRef,
 } from "./fold/numbering.js";
 export { kindFindings, type Projection, projectLog } from "./fold/project.js";
