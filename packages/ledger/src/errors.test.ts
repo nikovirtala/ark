@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { runCli } from "./cli/run.js";
 import {
   ConfigError,
   EventExistsError,
@@ -6,6 +7,7 @@ import {
   GitError,
   GitNotFoundError,
   GitVersionError,
+  HookConflictError,
   HookShimError,
   InvalidArgumentError,
   KindDefinitionError,
@@ -44,6 +46,11 @@ describe("error classes", () => {
     [new HookShimError(".git/hooks/pre-commit", "bad"), "HookShimError", "hook-shim"],
     [new UsageError("unknown command"), "UsageError", "usage"],
     [new FileExistsError("docs/adr/a.md"), "FileExistsError", "file-exists"],
+    [
+      new HookConflictError("h exists", { written: [], unchanged: [], conflicts: [] }),
+      "HookConflictError",
+      "hook-conflict",
+    ],
   ];
 
   it.each(cases)("%s has its name and code and is a LedgerError", (error, name, code) => {
@@ -88,5 +95,64 @@ describe("error classes", () => {
 
   it("distinguishes subclasses", () => {
     expect(new InvalidArgumentError("bad")).not.toBeInstanceOf(ConfigError);
+  });
+});
+
+describe("hook-conflict through runCli", () => {
+  it("exits 2 with the whole message and the code in ark-error/v1", async () => {
+    const result = {
+      written: ["/r/.git/hooks/pre-push"],
+      unchanged: [],
+      conflicts: [
+        { hook: "pre-commit", path: "/r/.git/hooks/pre-commit", reason: "foreign-hook", argv: [] },
+      ],
+    } as const;
+    const message =
+      "/r/.git/hooks/pre-commit exists and isn't an ark hook\nwrote: /r/.git/hooks/pre-push";
+    let stdout = "";
+    let stderr = "";
+    const code = await runCli(
+      {
+        name: "w",
+        version: "0.0.0",
+        summary: "widgets",
+        commands: [
+          {
+            name: "hooks",
+            summary: "install hooks",
+            usage: "hooks",
+            options: {},
+            positionals: { min: 0, max: 0, names: [] },
+            ref: "reject",
+            run: () => {
+              throw new HookConflictError(message, result);
+            },
+          },
+        ],
+      },
+      {
+        argv: ["--json", "hooks"],
+        cwd: "/",
+        env: {},
+        stdout: {
+          write: (s) => {
+            stdout += s;
+          },
+        },
+        stderr: {
+          write: (s) => {
+            stderr += s;
+          },
+        },
+        interactive: false,
+        stdoutIsTTY: false,
+      },
+    );
+    expect(code).toBe(2);
+    expect(stderr).toBe(`w: error: ${message}\n`);
+    expect(JSON.parse(stdout)).toEqual({
+      format: "ark-error/v1",
+      error: { code: "hook-conflict", message },
+    });
   });
 });

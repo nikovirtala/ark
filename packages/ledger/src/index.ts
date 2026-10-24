@@ -29,6 +29,8 @@ export {
   GitError,
   GitNotFoundError,
   GitVersionError,
+  HookConflictError,
+  type HookConflictResult,
   HookShimError,
   InvalidArgumentError,
   type JsonValue,
@@ -95,6 +97,7 @@ export {
   worktreeReader,
 } from "./git/tree.js";
 export {
+  assertNoHookConflicts,
   type HookInstallResult,
   installHooks,
   readHookRegistry,

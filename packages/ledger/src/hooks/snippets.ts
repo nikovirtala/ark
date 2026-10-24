@@ -21,7 +21,8 @@ function yamlValue(s: string): string {
   return plain ? s : JSON.stringify(s);
 }
 
-function commandLine(r: HookRegistration, args: string | null): string {
+/** A tool's sh command line for one hook; `{args}` becomes `args`, or is dropped for `null`. */
+export function commandLine(r: HookRegistration, args: string | null): string {
   return [r.tool, ...r.argv]
     .flatMap((t) => (t === "{args}" ? (args === null ? [] : [args]) : [shWord(t)]))
     .join(" ");

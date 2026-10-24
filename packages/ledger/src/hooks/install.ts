@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { InvalidArgumentError } from "../errors.js";
+import { HookConflictError, InvalidArgumentError } from "../errors.js";
 import { type Git, requireWorkTree } from "../git/git.js";
 import {
   assertRegistration,
@@ -13,6 +13,7 @@ import {
   parseShim,
   renderShim,
 } from "./shim.js";
+import { commandLine } from "./snippets.js";
 
 export interface HookInstallResult {
   /** Shims written or deleted. */
@@ -22,6 +23,8 @@ export interface HookInstallResult {
     readonly hook: HookName;
     readonly path: string;
     readonly reason: "foreign-hook" | "hooks-path";
+    /** The tool's command for this hook, which wasn't installed. */
+    readonly argv: readonly string[];
   }[];
 }
 
@@ -113,8 +116,14 @@ export async function installHooks(
   const dir = await hooksDir(git);
   if (await hooksPathSet(git)) {
     for (const hook of HOOK_NAMES) {
-      if (wanted.has(hook))
-        result.conflicts.push({ hook, path: join(dir, hook), reason: "hooks-path" });
+      const reg = wanted.get(hook);
+      if (reg !== undefined)
+        result.conflicts.push({
+          hook,
+          path: join(dir, hook),
+          reason: "hooks-path",
+          argv: reg.argv,
+        });
     }
     return result;
   }
@@ -123,7 +132,12 @@ export async function installHooks(
     const reg = wanted.get(s.hook);
     if (s.text !== null && s.regs === null) {
       if (reg !== undefined)
-        result.conflicts.push({ hook: s.hook, path: s.path, reason: "foreign-hook" });
+        result.conflicts.push({
+          hook: s.hook,
+          path: s.path,
+          reason: "foreign-hook",
+          argv: reg.argv,
+        });
       continue;
     }
     const current = s.regs ?? [];
@@ -132,6 +146,33 @@ export async function installHooks(
     await apply(s, reg === undefined ? others : [...others, reg], result);
   }
   return result;
+}
+
+/**
+ * Throws `HookConflictError` (exit 2 through `runCli`) when `installHooks` reported conflicts, so
+ * every tool's `hooks install` explains them the same way: one line per conflict (an identical
+ * `core.hooksPath` line once), then `wrote: <paths>` when anything was written.
+ */
+export function assertNoHookConflicts(
+  result: HookInstallResult,
+  o: { readonly tool: string },
+): void {
+  if (result.conflicts.length === 0) return;
+  const lines = new Set<string>();
+  for (const c of result.conflicts) {
+    if (c.reason === "hooks-path") {
+      lines.add(
+        `core.hooksPath is set, so another tool manages git hooks; add the commands from '${o.tool} hooks print --manager lefthook|husky|pre-commit' to it`,
+      );
+    } else {
+      const line = commandLine({ tool: o.tool, hook: c.hook, argv: c.argv }, '"$@"');
+      lines.add(
+        `${c.path} exists and isn't an ark hook; add '${line}' to it, or move it away and run ${o.tool} hooks install again`,
+      );
+    }
+  }
+  if (result.written.length > 0) lines.add(`wrote: ${result.written.join(", ")}`);
+  throw new HookConflictError([...lines].join("\n"), result);
 }
 
 /** Removes `tool` from every shim, deleting shims left without registrations. */

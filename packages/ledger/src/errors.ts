@@ -22,7 +22,8 @@ export type LedgerErrorCode =
   | "hook-shim"
   | "ulid-overflow"
   | "usage"
-  | "file-exists";
+  | "file-exists"
+  | "hook-conflict";
 
 export type JsonValue =
   | null
@@ -198,5 +199,31 @@ export class HookShimError extends LedgerError {
   constructor(path: string, message: string, options?: ErrorOptions) {
     super("hook-shim", message, options);
     this.path = path;
+  }
+}
+
+/**
+ * The shape of an install result `HookConflictError` carries; `HookInstallResult` (hooks/install.ts)
+ * is assignable to it. Declared here so this module imports nothing.
+ */
+export interface HookConflictResult {
+  readonly written: readonly string[];
+  readonly unchanged: readonly string[];
+  readonly conflicts: readonly {
+    readonly hook: string;
+    readonly path: string;
+    readonly reason: "foreign-hook" | "hooks-path";
+    readonly argv: readonly string[];
+  }[];
+}
+
+/** `installHooks` met `core.hooksPath` or a foreign hook; the message says what to do for each. */
+export class HookConflictError extends LedgerError {
+  override name = "HookConflictError";
+  readonly result: HookConflictResult;
+
+  constructor(message: string, result: HookConflictResult, options?: ErrorOptions) {
+    super("hook-conflict", message, options);
+    this.result = result;
   }
 }
