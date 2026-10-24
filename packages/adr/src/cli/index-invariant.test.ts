@@ -142,9 +142,13 @@ async function runCase(c: Case): Promise<void> {
       case "link":
         args = ["link", await seed(r, "Use Aurora", { commit: own }), z ?? ""];
         break;
-      case "scope":
-        args = ["scope", await seed(r, "Use Aurora", { commit: own }), "--set", "src/**"];
+      case "scope": {
+        // On an unborn HEAD, src/a.ts is only staged, so the commit (--only) leaves it out and
+        // src/** would fail verify's scope/glob-unmatched; the log's own files are committed.
+        const glob = has("unborn") ? "docs/adr/**" : "src/**";
+        args = ["scope", await seed(r, "Use Aurora", { commit: own }), "--set", glob];
         break;
+      }
       case "init":
         args = ["init"];
         break;

@@ -161,7 +161,9 @@ describe("adr scope", { timeout: 90_000 }, () => {
       "--json",
     ]);
     expect(out.status).toBe(0);
-    expect(doc(out.stdout).notes).toEqual(["src/shared/** matches no tracked file"]);
+    expect(doc(out.stdout).notes).toEqual([
+      "src/shared/** matches no tracked file; verify (hooks and CI) reports scope/glob-unmatched until a file matches",
+    ]);
     const narrowed = runAdr(r, ["scope", a, "--remove", "src/shared/**"]);
     expect(narrowed.status).toBe(0);
     expect(narrowed.stderr).toBe(
@@ -176,6 +178,15 @@ describe("adr scope", { timeout: 90_000 }, () => {
         "",
       ].join("\n"),
     );
+  });
+
+  it("leaves verify out of the note for a deprecated decision, whose globs aren't checked", async () => {
+    const r = await repo();
+    const a = await seedDecision(r, "Use Aurora for orders");
+    expect(runAdr(r, ["deprecate", a, "--reason", "Old.", "--commit"]).status).toBe(0);
+    const out = runAdr(r, ["scope", a, "--set", "src/shared/**", "--json"]);
+    expect(out.status).toBe(0);
+    expect(doc(out.stdout).notes).toEqual(["src/shared/** matches no tracked file"]);
   });
 
   it("exits 1 for a superseded decision, with nothing written", async () => {

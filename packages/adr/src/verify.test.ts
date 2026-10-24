@@ -13,6 +13,7 @@ import {
 } from "@nikovirtala/ledger";
 import {
   createTempRepo,
+  danglingAnchor,
   forkAndMerge,
   TEST_HUMAN,
   type TempRepo,
@@ -490,6 +491,34 @@ describe("merge safety (AC 9)", () => {
             expect(rules(findings).sort()).toEqual(expectedOf(h, left, right));
           },
         ),
+        { numRuns: 10 },
+      );
+    },
+    GIT_PROPERTY_TIMEOUT,
+  );
+});
+
+// 01:387, design 2b §4.8: a dangling anchor is a verifier mutation that needs git grep, so it runs
+// on temp repos rather than the MemoryTree tamper properties.
+describe("dangling anchors", () => {
+  it(
+    "are reported exactly when a code file names a decision the log lacks",
+    async () => {
+      await fc.assert(
+        fc.asyncProperty(arbAdrHistory({ maxSteps: 8 }), fc.integer(), async (h, seed) => {
+          const r = await repo(h.files);
+          const ids = h.subjects.map((s) => s.id);
+          const live = ids.length === 0 ? "" : `// adr:${ids[0]}\n`;
+          await r.write("src/live.ts", live);
+          const missing = async () =>
+            (await verifyDecisions(await open(r), { type: "full" }))
+              .filter((f) => f.rule === "scope/anchor-missing")
+              .map((f) => [f.file, f.line, f.subject]);
+          expect(await missing()).toEqual([]);
+          const d = danglingAnchor({ keyword: "adr", taken: new Set(ids), seed });
+          await r.write(d.path, d.text);
+          expect(await missing()).toEqual([[d.path, 1, d.id]]);
+        }),
         { numRuns: 10 },
       );
     },
