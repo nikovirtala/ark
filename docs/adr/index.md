@@ -20,5 +20,6 @@
 | Decision | Title | Status | Since |
 | --- | --- | --- | --- |
 | btjpf9g1 | [Keep generated indexes committed and fresh in every commit](decisions/btjpf9g1-keep-generated-indexes-committed-and-fresh-in-every-commit.md) | proposed | 2026-10-24 |
+| rg1aka5e | [Run every tool's git hooks through one ledger shim per hook](decisions/rg1aka5e-run-every-tools-git-hooks-through-one-ledger-shim-per-hook.md) | proposed | 2026-10-24 |
 
 <!-- ledger-index/v1 numbers: gyspf3an=1 c6qyr1jz=2 9z41kzez=3 ew1emghd=4 28dj3jdc=5 fv88cd54=6 e2ye7ng3=7 q76pmwsw=8 5v1w33jg=9 -->
