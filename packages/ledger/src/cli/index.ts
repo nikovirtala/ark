@@ -11,4 +11,8 @@ export type { GlobalFlags } from "./flags.js";
 export { type CliIO, processIO } from "./output.js";
 export { confirm } from "./prompt.js";
 export { type CommandSpec, type Outcome, runCli, type ToolCli } from "./run.js";
-export { type VerifyCommandOptions, verifyCommand } from "./verify-command.js";
+export {
+  resolveVerifyBase,
+  type VerifyCommandOptions,
+  verifyCommand,
+} from "./verify-command.js";
