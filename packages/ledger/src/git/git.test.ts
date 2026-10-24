@@ -338,6 +338,35 @@ describe("commit, trailers and blobs", () => {
     );
   });
 
+  it("appendTrailers keeps repeated trailers with ifExists add, whatever trailer.* says", async () => {
+    const r = await repo();
+    for (const [k, v] of [
+      ["trailer.ifexists", "replace"],
+      ["trailer.ifmissing", "doNothing"],
+      ["trailer.where", "start"],
+    ] as const) {
+      await r.git.run(["config", k, v]);
+    }
+    const file = join(r.root, ".git", "COMMIT_EDITMSG");
+    const pairs: [string, string][] = [
+      ["ADR", "k3f9q8a1"],
+      ["ADR-Event", "accepted"],
+      ["ADR", "k3f9q8a1"],
+      ["ADR-Event", "noted"],
+    ];
+    await writeFile(file, "feat: x\n\nRefs: 1\n");
+    await r.git.appendTrailers(file, pairs, { ifExists: "add" });
+    expect(await readFile(file, "utf8")).toBe(
+      "feat: x\n\nRefs: 1\nADR: k3f9q8a1\nADR-Event: accepted\nADR: k3f9q8a1\nADR-Event: noted\n",
+    );
+    // The default still drops a repeat of the same key and value.
+    await writeFile(file, "feat: x\n");
+    await r.git.appendTrailers(file, pairs);
+    expect(await readFile(file, "utf8")).toBe(
+      "feat: x\n\nADR: k3f9q8a1\nADR-Event: accepted\nADR-Event: noted\n",
+    );
+  });
+
   it("symbolicRef reads a symbolic ref's target and is null otherwise", async () => {
     const r = await repo({ files: { "a.txt": "a\n" } });
     expect(await r.git.symbolicRef("HEAD")).toBe("refs/heads/main");

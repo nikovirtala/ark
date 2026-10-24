@@ -587,8 +587,17 @@ export class Git {
     return zPaths(r.stdout);
   }
 
-  /** Adds trailers to a commit message file, skipping ones already present (for `commit-msg`). */
-  async appendTrailers(messageFile: string, trailers: readonly Trailer[]): Promise<void> {
+  /**
+   * Adds trailers to the end of a commit message file's trailer block (for `commit-msg`). By
+   * default a trailer whose key and value are already present is skipped (`addIfDifferent`);
+   * `ifExists: "add"` keeps repeats, such as `ADR: k` once per event of one decision in a commit.
+   * The options override the user's `trailer.*` config.
+   */
+  async appendTrailers(
+    messageFile: string,
+    trailers: readonly Trailer[],
+    o: { readonly ifExists?: "add" | "addIfDifferent" } = {},
+  ): Promise<void> {
     assertPath(messageFile);
     assertTrailers(trailers);
     if (trailers.length === 0) return;
@@ -596,7 +605,11 @@ export class Git {
       "interpret-trailers",
       "--in-place",
       "--if-exists",
-      "addIfDifferent",
+      o.ifExists ?? "addIfDifferent",
+      "--if-missing",
+      "add",
+      "--where",
+      "end",
       ...trailers.flatMap(([k, v]) => ["--trailer", `${k}: ${v}`]),
       "--",
       resolve(messageFile),

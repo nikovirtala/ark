@@ -2,10 +2,15 @@ import { existsSync } from "node:fs";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { HookShimError, InvalidArgumentError } from "../errors.js";
+import { HookConflictError, HookShimError, InvalidArgumentError } from "../errors.js";
 import { Git } from "../git/git.js";
 import { createTempRepo, type TempRepo } from "../testing/temp-repo.js";
-import { installHooks, readHookRegistry, uninstallHooks } from "./install.js";
+import {
+  assertNoHookConflicts,
+  installHooks,
+  readHookRegistry,
+  uninstallHooks,
+} from "./install.js";
 import { renderShim } from "./shim.js";
 
 const repos: TempRepo[] = [];
@@ -102,7 +107,7 @@ describe("installHooks", () => {
     expect(await installHooks(r.git, { tool: "adr" })).toEqual({
       written: [hookPath(r, "pre-push")],
       unchanged: [],
-      conflicts: [{ hook: "pre-commit", path, reason: "foreign-hook" }],
+      conflicts: [{ hook: "pre-commit", path, reason: "foreign-hook", argv: verify }],
     });
     expect(await readFile(path, "utf8")).toBe("#!/bin/sh\nexec lint-staged\n");
     expect(await readHookRegistry(r.git)).toEqual([{ tool: "adr", hook: "pre-push", argv: push }]);
@@ -116,8 +121,18 @@ describe("installHooks", () => {
       written: [],
       unchanged: [],
       conflicts: [
-        { hook: "pre-commit", path: join(r.root, ".husky", "pre-commit"), reason: "hooks-path" },
-        { hook: "pre-push", path: join(r.root, ".husky", "pre-push"), reason: "hooks-path" },
+        {
+          hook: "pre-commit",
+          path: join(r.root, ".husky", "pre-commit"),
+          reason: "hooks-path",
+          argv: verify,
+        },
+        {
+          hook: "pre-push",
+          path: join(r.root, ".husky", "pre-push"),
+          reason: "hooks-path",
+          argv: push,
+        },
       ],
     });
     expect(existsSync(join(r.root, ".husky"))).toBe(false);
@@ -164,6 +179,68 @@ describe("installHooks", () => {
       "operation needs a work tree",
     );
     expect(existsSync(hookPath(r, "pre-commit"))).toBe(false);
+  });
+});
+
+describe("assertNoHookConflicts", () => {
+  const conflictOf = (f: () => void): HookConflictError => {
+    try {
+      f();
+    } catch (e) {
+      expect(e).toBeInstanceOf(HookConflictError);
+      return e as HookConflictError;
+    }
+    throw new Error("no HookConflictError");
+  };
+
+  it("is quiet without conflicts", async () => {
+    const r = await repo();
+    const result = await installHooks(r.git, { tool: "adr" });
+    expect(() => assertNoHookConflicts(result, { tool: "adr" })).not.toThrow();
+  });
+
+  it("names a foreign hook, the line to add to it, and what was written", async () => {
+    const r = await repo();
+    const path = hookPath(r, "pre-commit");
+    await writeFile(path, "#!/bin/sh\nexec lint-staged\n");
+    const result = await installHooks(r.git, {
+      tool: "adr",
+      commands: { "pre-commit": ["verify", "--staged"], "commit-msg": ["trailers", "{args}"] },
+    });
+    const e = conflictOf(() => assertNoHookConflicts(result, { tool: "adr" }));
+    expect(e.code).toBe("hook-conflict");
+    expect(e.result).toBe(result);
+    expect(e.message).toBe(
+      [
+        `${path} exists and isn't an ark hook; add 'adr verify --staged' to it, or move it away and run adr hooks install again`,
+        `wrote: ${hookPath(r, "commit-msg")}`,
+      ].join("\n"),
+    );
+  });
+
+  it("passes the hook's arguments in the foreign-hook line", async () => {
+    const r = await repo();
+    const path = hookPath(r, "commit-msg");
+    await writeFile(path, "#!/bin/sh\n");
+    const result = await installHooks(r.git, {
+      tool: "commitlint",
+      commands: { "commit-msg": ["--edit", "{args}"] },
+    });
+    const e = conflictOf(() => assertNoHookConflicts(result, { tool: "commitlint" }));
+    expect(e.message).toBe(
+      `${path} exists and isn't an ark hook; add 'commitlint --edit "$@"' to it, or move it away and run commitlint hooks install again`,
+    );
+  });
+
+  it("says once that core.hooksPath is set, with nothing written", async () => {
+    const r = await repo();
+    await r.git.run(["config", "core.hooksPath", ".husky"]);
+    const result = await installHooks(r.git, { tool: "adr" });
+    expect(result.conflicts).toHaveLength(2);
+    const e = conflictOf(() => assertNoHookConflicts(result, { tool: "adr" }));
+    expect(e.message).toBe(
+      "core.hooksPath is set, so another tool manages git hooks; add the commands from 'adr hooks print --manager lefthook|husky|pre-commit' to it",
+    );
   });
 });
 
