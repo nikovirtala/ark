@@ -184,6 +184,14 @@ export {
 } from "./log-index/index.js";
 export { type Anchor, anchorsInLine, scanAnchors } from "./scope/anchors.js";
 export {
+  anchorCheck,
+  type GovernedChange,
+  governedChanges,
+  type NarrowedScope,
+  narrowedScopes,
+  scopeGlobCheck,
+} from "./scope/checks.js";
+export {
   escapeGlob,
   type Glob,
   type GlobProblem,
@@ -274,6 +282,7 @@ export {
   duplicates,
   loadFindings,
   mechanicalChecks,
+  type RepoContext,
 } from "./verify/checks.js";
 export { type Change, diffTrees } from "./verify/diff.js";
 export { foldChecks, invariantsCheck, relateCheck, transitions } from "./verify/fold-checks.js";

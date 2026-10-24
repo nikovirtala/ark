@@ -1,13 +1,16 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { compileKind } from "../envelope/kind.js";
 import type { EventEnvelope } from "../envelope/types.js";
 import { serializeEvent } from "../envelope/yaml.js";
 import { InvalidArgumentError, RefNotFoundError, VerifyUsageError } from "../errors.js";
 import type { Finding } from "../findings/finding.js";
+import { MemoryTree } from "../git/tree.js";
 import { bodySha256 } from "../identity/hash.js";
 import { eventPath } from "../identity/layout.js";
 import { exampleKind, exampleLayout as layout } from "../testing/example-kind.js";
 import { createTempRepo, type TempRepo } from "../testing/temp-repo.js";
-import { type VerifyMode, verifyLog } from "./verify.js";
+import type { CheckContext, RepoContext } from "./checks.js";
+import { type VerifyMode, verifyLog, verifySnapshots } from "./verify.js";
 
 const S = "a7c2m9xd";
 const BODY = "# Widget\n\nBody text.\n";
@@ -157,6 +160,58 @@ describe("verifyLog", () => {
     expect(await verify(r, { type: "staged" })).toEqual([
       expect.objectContaining({ rule: "identity/stray-file", severity: "warning" }),
     ]);
+  });
+
+  it("gives the checks the repository context of each mode", async () => {
+    const r = await repo(log);
+    const main = (await r.git.resolveCommit("HEAD")) ?? "";
+    await r.checkout("topic", { create: true });
+    const topic = await r.commit("empty", { allowEmpty: true });
+    const seen: (RepoContext | undefined)[] = [];
+    const probe = {
+      id: "probe",
+      run: (ctx: CheckContext) => {
+        seen.push(ctx.repo);
+        return [];
+      },
+    };
+    const run = (mode: VerifyMode) =>
+      verifyLog({ git: r.git, kind: exampleKind, layout, mode, checks: [probe] });
+    await run({ type: "staged" });
+    await run({ type: "range", base: "main" });
+    await run({ type: "range", base: "main", head: "topic" });
+    await run({ type: "full" });
+    await run({ type: "full", head: "main" });
+    expect(seen).toEqual([
+      { git: r.git, mode: "staged", head: "index", base: topic },
+      { git: r.git, mode: "range", head: "worktree", base: main },
+      { git: r.git, mode: "range", head: { commit: topic }, base: main },
+      { git: r.git, mode: "full", head: "worktree", base: null },
+      { git: r.git, mode: "full", head: { commit: main }, base: null },
+    ]);
+
+    const unborn = await repo();
+    seen.length = 0;
+    await verifyLog({
+      git: unborn.git,
+      kind: exampleKind,
+      layout,
+      mode: { type: "staged" },
+      checks: [probe],
+    });
+    expect(seen).toEqual([{ git: unborn.git, mode: "staged", head: "index", base: null }]);
+
+    // verifySnapshots leaves it unset unless given.
+    seen.length = 0;
+    await verifySnapshots({
+      kind: compileKind(exampleKind),
+      layout,
+      base: null,
+      head: new MemoryTree(log),
+      scope: "all",
+      checks: [probe],
+    });
+    expect(seen).toEqual([undefined]);
   });
 
   it("rejects a layout that doesn't match the kind", async () => {
