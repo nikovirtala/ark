@@ -1,8 +1,8 @@
 import type { JsonValue } from "@nikovirtala/ledger";
 import type { CommandSpec } from "@nikovirtala/ledger/cli";
-import { readDecisions, resolveDecision } from "../log.js";
+import { numberingNote, readDecisions, resolveDecision } from "../log.js";
 import { showDecision } from "../views.js";
-import { openForCli } from "./open.js";
+import { notesWith, openForCli } from "./open.js";
 import { showText } from "./text.js";
 
 /** `adr show <decision> [--history]` (design §5.6). */
@@ -22,7 +22,7 @@ export const showCommand: CommandSpec = {
       exit: 0,
       json: doc as unknown as JsonValue,
       text: showText(doc, display),
-      notes: doc.notes,
+      notes: notesWith(doc.notes, numberingNote(read, { unavailable: false })),
     };
   },
 };

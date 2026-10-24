@@ -90,7 +90,9 @@ export interface WriteResultJson {
   /**
    * The decision after the write; before it when `ok` is false (`null` for a refused `new`).
    * After a commit it is read again from the log, so an acceptance committed on the main ref
-   * carries its number; otherwise `number` is `null` until the acceptance lands on main.
+   * carries its number; otherwise `number` is `null` until the acceptance lands on main. In a
+   * shallow clone with a committed index, the number comes from HEAD's `index.md`, which on a
+   * branch is the number the decision will get once the branch merges.
    */
   readonly decision: DecisionView | null;
   /** Each decision superseded by this write, after it (read again after a commit, like `decision`). */

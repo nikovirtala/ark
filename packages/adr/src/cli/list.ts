@@ -1,7 +1,7 @@
 import { type JsonValue, UsageError } from "@nikovirtala/ledger";
 import type { CommandSpec } from "@nikovirtala/ledger/cli";
 import { DECISION_STATUSES, type DecisionStatus } from "../kind.js";
-import { readDecisions, unavailableReason } from "../log.js";
+import { numberingNote, readDecisions } from "../log.js";
 import { listDecisions } from "../views.js";
 import { openForCli } from "./open.js";
 import { listText } from "./text.js";
@@ -33,11 +33,8 @@ export const listCommand: CommandSpec = {
     const read = await readDecisions(await openForCli(io, flags));
     const doc = listDecisions(read, { status });
     const notes = [...doc.notes];
-    if (!read.numbering.available && doc.decisions.length > 0) {
-      notes.push(
-        `numbers are unavailable (${unavailableReason(read.numbering)}); decisions display by id`,
-      );
-    }
+    const numbering = numberingNote(read, { unavailable: true });
+    if (numbering !== null && doc.decisions.length > 0) notes.push(numbering);
     if (doc.findings.length > 0) {
       notes.push(
         `the decision log has ${plural(doc.findings.length, "problem", "problems")}; run adr verify`,
