@@ -169,6 +169,16 @@ export {
   loadLog,
 } from "./log/snapshot.js";
 export { nextEventIdentity, writeEvent, writeEvents, writeNewFile } from "./log/write.js";
+export {
+  escapeMarkdown,
+  INDEX_FORMAT,
+  type IndexSpec,
+  indexCheck,
+  parseIndexNumbers,
+  readIndexNumbers,
+  renderIndex,
+  writeIndexFile,
+} from "./log-index/index.js";
 export { type Anchor, anchorsInLine, scanAnchors } from "./scope/anchors.js";
 export {
   escapeGlob,
