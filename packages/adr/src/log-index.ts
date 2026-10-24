@@ -153,10 +153,20 @@ export async function renderDecisionIndex(
 const UNSTAGED_NAMED = 5;
 
 /**
+ * What the unstaged-files `index/stale` finding and the matching write note both start with:
+ * `path` lists `files` (some of them), which aren't staged.
+ */
+export function unstagedIndexText(path: string, files: readonly string[]): string {
+  const named = files.slice(0, UNSTAGED_NAMED).join(", ");
+  const more = files.length > UNSTAGED_NAMED ? ", …" : "";
+  return `${path} lists decision files that aren't staged (${named}${more})`;
+}
+
+/**
  * The log's event and body files whose work-tree content isn't staged (untracked or modified),
  * sorted: the cause of a staged `index.md` that only the work tree's render matches.
  */
-async function unstagedLogFiles(git: Git, layout: LogLayout): Promise<string[]> {
+export async function unstagedLogFiles(git: Git, layout: LogLayout): Promise<string[]> {
   const paths = [
     ...(await git.unstagedPaths([layout.root])),
     ...(await git.untrackedPaths([layout.root])),
@@ -213,9 +223,7 @@ export function decisionIndexCheck(log: DecisionLog): Check {
       if (worktree === null || !holdsText(await ctx.head.tree.read(path), worktree)) {
         return findings;
       }
-      const named = files.slice(0, UNSTAGED_NAMED).join(", ");
-      const more = files.length > UNSTAGED_NAMED ? ", …" : "";
-      const message = `${path} lists decision files that aren't staged (${named}${more}); git add them and commit again, or move them out of the work tree and run adr index`;
+      const message = `${unstagedIndexText(path, files)}; git add them and commit again, or move them out of the work tree and run adr index`;
       return findings.map((f) => (f === stale ? { ...f, message } : f));
     },
   };

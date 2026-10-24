@@ -69,6 +69,8 @@ import {
   INDEX_BEFORE,
   indexPath,
   renderDecisionIndex,
+  unstagedIndexText,
+  unstagedLogFiles,
   writeIndexCopy,
 } from "./log-index.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
@@ -1317,6 +1319,26 @@ export const WRITE_RERUN =
  * failed `git commit` throws `CommitFailedError` with the manual command (design 2b D5) and the
  * notes made so far.
  */
+/**
+ * A write leaves the work tree's render of `index.md` (`staged`) staged, and it lists decision
+ * files that may not be staged. When some aren't and the index's own render differs, the next
+ * plain commit's hook fails; the note says so, as its `index/stale` finding does. `null`
+ * otherwise, or when that render fails.
+ */
+async function unstagedIndexNote(
+  log: DecisionLog,
+  at: string,
+  staged: string,
+  history: string | null,
+  render: (tree: TreeReader, history: string | null) => Promise<string | null>,
+): Promise<string | null> {
+  const files = await unstagedLogFiles(log.git, log.layout);
+  if (files.length === 0) return null;
+  const own = await render(await indexReader(log.git), history).catch(() => null);
+  if (own === null || own === staged) return null;
+  return `${unstagedIndexText(at, files)}; git add them before you commit, or move them out of the work tree and run adr index`;
+}
+
 export async function applyPlan(
   log: DecisionLog,
   plan: WritePlan,
@@ -1440,6 +1462,9 @@ export async function applyPlan(
     throw err;
   }
   await git.add([...plan.stage, ...toStage]);
+  /** The work tree's render that ends up staged, and the commit it builds on. */
+  let stagedIndex: { readonly text: string; readonly history: string | null } | null =
+    !o.commit && text !== null ? { text, history: head } : null;
 
   let findings = plan.findings;
   let commit = o.commit;
@@ -1512,7 +1537,10 @@ export async function applyPlan(
     if (text !== null && o.index !== undefined) {
       try {
         const again = await o.index(worktreeReader(git), sha);
-        if (again !== null) await refresh(again, true);
+        if (again !== null) {
+          await refresh(again, true);
+          stagedIndex = { text: again, history: sha };
+        }
       } catch (err) {
         notes.push(stale(err));
       }
@@ -1521,10 +1549,18 @@ export async function applyPlan(
     // Step 4: the editor step turned the commit off, so the index must match the work tree.
     try {
       const again = await o.index(worktreeReader(git), head);
-      if (again !== null) await refresh(again, true);
+      if (again !== null) {
+        await refresh(again, true);
+        stagedIndex = { text: again, history: head };
+      }
     } catch (err) {
       notes.push(stale(err));
     }
+  }
+  if (stagedIndex !== null && o.index !== undefined) {
+    const { text: t, history } = stagedIndex;
+    const note = await unstagedIndexNote(log, at, t, history, o.index);
+    if (note !== null) notes.push(note);
   }
   return {
     written: [...Object.keys(plan.files), ...(indexWritten ? [at] : [])],

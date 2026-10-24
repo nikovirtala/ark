@@ -198,6 +198,13 @@ async function runCase(c: Case): Promise<void> {
       const worktree = await freshIndex(r.git, "worktree");
       expect(copies.worktree, "the work tree's index.md").toBe(worktree);
       expect(copies.staged, "the staged index.md").toBe(worktree);
+      // So a write says that the staged copy lists the untracked decision's files, which the
+      // next plain commit's hook reports as index/stale.
+      if (has("others") && c.path !== "init" && c.path !== "index --commit") {
+        expect(notes).toContain(
+          "docs/adr/index.md lists decision files that aren't staged (docs/adr/decisions/",
+        );
+      }
     }
   } finally {
     await r.dispose();

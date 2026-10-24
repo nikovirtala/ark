@@ -12,6 +12,7 @@ import {
   NYGARD_SECTIONS,
   REPO_HUMAN,
   runAdr,
+  runGit,
   runShell,
   seedDecision,
 } from "../test-support/cli.js";
@@ -215,6 +216,48 @@ describe("adr index", { timeout: 60_000 }, () => {
     expect(copies.worktree).toContain("| ADR-0003 | [Use Redis]");
     expect(copies.staged).toBe(copies.worktree);
     expect(verify(r, "--ref", "HEAD")).toBe(0);
+    expect(verify(r, "--staged")).toBe(0);
+  });
+
+  it("notes on a write when the staged index.md lists another decision's untracked or unstaged files", async () => {
+    const { r, x } = await indexed();
+    const full = Object.entries(NYGARD_SECTIONS).flatMap(([k, v]) => ["--section", `${k}=${v}`]);
+    const notesOf = (args: string[]) => {
+      const out = runAdr(r, [...args, "--json"]);
+      expect(out.status, out.stderr).toBe(0);
+      return (JSON.parse(out.stdout) as { notes: string[] }).notes;
+    };
+    const note = (files: readonly string[]) =>
+      `docs/adr/index.md lists decision files that aren't staged (${files.join(", ")}); git add them before you commit, or move them out of the work tree and run adr index`;
+    const unstagedNotes = (notes: readonly string[]) =>
+      notes.filter((n) => n.includes("aren't staged"));
+
+    // A new decision whose files git doesn't track.
+    const w = await seedDecision(r, "Use Kafka", { accept: false, commit: false });
+    const wPaths = [`docs/adr/events/${w}`, `docs/adr/decisions/${w}-use-kafka.md`];
+    await git(r, "rm", "-q", "-r", "--cached", "--", ...wPaths);
+    const files = (await git(r, "ls-files", "--others", "--", ...wPaths)).trim().split("\n").sort();
+    expect(notesOf(["new", "Use Redis", ...full, "--no-edit"])).toContain(note(files));
+    // The text output prints it too, and so does a committing write, whose step 5 stages the
+    // work tree's render again.
+    const text = runAdr(r, ["note", x, "Checked.", "--commit"]);
+    expect(text.status, text.stderr).toBe(0);
+    expect(text.stderr).toContain(note(files));
+    await r.stage(...wPaths);
+    expect(unstagedNotes(notesOf(["note", x, "Checked again."]))).toEqual([]);
+    const committed = runGit(r, ["commit", "-q", "-m", "docs(adr): propose kafka and redis"]);
+    expect(committed.status, committed.stderr).toBe(0);
+
+    // A tracked decision with an unstaged acceptance.
+    expect(runAdr(r, ["accept", w]).status).toBe(0);
+    const accepted = (await git(r, "diff", "--cached", "--name-only", "--", `docs/adr/events/${w}`))
+      .trim()
+      .split("\n");
+    await git(r, "rm", "-q", "--cached", "--", ...accepted);
+    expect(notesOf(["note", x, "A third note."])).toContain(note(accepted));
+    // Nothing to name: an index.md whose own render matches gets no note.
+    await r.stage(...accepted);
+    expect(unstagedNotes(notesOf(["note", x, "A fourth note."]))).toEqual([]);
     expect(verify(r, "--staged")).toBe(0);
   });
 
