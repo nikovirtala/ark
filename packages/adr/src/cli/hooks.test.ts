@@ -200,6 +200,18 @@ describe("adr hooks", { timeout: 120_000 }, () => {
     expect(await git(r, "status", "--porcelain")).toBe("");
   });
 
+  it("stages the scoped event of a git mv in a git commit -a, which hooks see as index.lock", async () => {
+    const { r, a } = await scopedRepo();
+    await git(r, "mv", "src/orders", "src/billing");
+    await writeFile(join(r.root, "README.md"), "changed\n");
+    const out = runGit(r, ["commit", "-am", "refactor: move orders to billing"]);
+    expect(out.status, out.stderr).toBe(0);
+    const files = await git(r, "show", "--name-only", "--format=", "HEAD");
+    expect(files).toMatch(new RegExp(`^docs/adr/events/${a}/\\S+-scoped\\.yaml$`, "m"));
+    expect(files).toMatch(/^README\.md$/m);
+    expect(await git(r, "status", "--porcelain")).toBe("");
+  });
+
   it("refuses git commit <paths> with covered renames, leaving the index as it was", async () => {
     const { r } = await scopedRepo();
     await git(r, "mv", "src/orders", "src/billing");
