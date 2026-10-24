@@ -4,6 +4,7 @@
  * The error classes are re-exported so users of this entry share the root entry's classes.
  */
 export { InvalidArgumentError, LedgerError } from "../errors.js";
+export { danglingAnchor } from "./anchors.js";
 export {
   arbActor,
   arbAt,

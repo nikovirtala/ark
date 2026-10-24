@@ -571,6 +571,51 @@ export class Git {
     return zPaths(r.stdout);
   }
 
+  /**
+   * Every tracked path of a tree, sorted: the index (`GIT_INDEX_FILE` honoured), the work tree
+   * (the index minus files deleted from the work tree; untracked files aren't listed) or a commit.
+   * Submodules are listed like files.
+   */
+  async trackedPaths(head: "worktree" | "index" | { readonly commit: string }): Promise<string[]> {
+    if (typeof head === "object") {
+      assertRev(head.commit);
+      const r = await this.run(["ls-tree", "-r", "-z", "--name-only", "--full-tree", head.commit]);
+      return zPaths(r.stdout);
+    }
+    requireWorkTree(this);
+    // An unmerged path has an entry per stage.
+    const cached = [...new Set(zPaths((await this.run(["ls-files", "-z", "--cached"])).stdout))];
+    if (head === "index") return cached;
+    const deleted = new Set(zPaths((await this.run(["ls-files", "-z", "--deleted"])).stdout));
+    return cached.filter((p) => !deleted.has(p));
+  }
+
+  /**
+   * The paths that differ between the commit `base` and `head`, sorted; a rename lists both its
+   * paths. `base === null` (no base, such as an unborn `HEAD`) gives every tracked path of `head`.
+   */
+  async changedPaths(
+    base: string | null,
+    head: "worktree" | "index" | { readonly commit: string },
+  ): Promise<string[]> {
+    if (base === null) return this.trackedPaths(head);
+    assertRev(base);
+    if (typeof head === "object") assertRev(head.commit);
+    else requireWorkTree(this);
+    const r = await this.run([
+      "diff",
+      "--name-only",
+      "-z",
+      "--no-renames",
+      "--no-ext-diff",
+      ...(head === "index" ? ["--cached"] : []),
+      base,
+      ...(typeof head === "object" ? [head.commit] : []),
+      "--",
+    ]);
+    return zPaths(r.stdout);
+  }
+
   /** Untracked paths under `pathspecs`, ignored files included. Sorted; `[]` for empty `pathspecs`. */
   async untrackedPaths(pathspecs: readonly string[]): Promise<string[]> {
     requireWorkTree(this);
