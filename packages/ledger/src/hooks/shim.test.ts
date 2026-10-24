@@ -6,7 +6,13 @@ import fc from "fast-check";
 import { afterEach, describe, expect, it } from "vitest";
 import { HookShimError, InvalidArgumentError } from "../errors.js";
 import { createTempRepo, type TempRepo } from "../testing/temp-repo.js";
-import { type HookRegistration, normalizeRegistrations, parseShim, renderShim } from "./shim.js";
+import {
+  DEFAULT_HOOK_COMMANDS,
+  type HookRegistration,
+  normalizeRegistrations,
+  parseShim,
+  renderShim,
+} from "./shim.js";
 
 const run = promisify(execFile);
 
@@ -48,6 +54,16 @@ function envOf(r: TempRepo): Record<string, string> {
 const repos: TempRepo[] = [];
 afterEach(async () => {
   for (const r of repos.splice(0)) await r.dispose();
+});
+
+describe("DEFAULT_HOOK_COMMANDS", () => {
+  it("verifies staged changes before a commit and the pushed commits before a push", () => {
+    expect(DEFAULT_HOOK_COMMANDS).toEqual({
+      "pre-commit": ["verify", "--staged"],
+      "pre-push": ["verify", "--base", "@{upstream}", "--ref", "HEAD"],
+    });
+    expect(Object.isFrozen(DEFAULT_HOOK_COMMANDS["pre-push"])).toBe(true);
+  });
 });
 
 describe("renderShim", () => {

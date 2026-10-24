@@ -19,18 +19,23 @@ async function repo(o?: Parameters<typeof createTempRepo>[0]): Promise<TempRepo>
 }
 
 const verify = ["verify", "--staged"];
+const push = ["verify", "--base", "@{upstream}", "--ref", "HEAD"];
 const hookPath = (r: TempRepo, hook: string) => join(r.root, ".git", "hooks", hook);
+/** The shims the default commands write, in `HOOK_NAMES` order. */
+const defaults = (r: TempRepo) => [hookPath(r, "pre-commit"), hookPath(r, "pre-push")];
 
 describe("installHooks", () => {
   it("writes one shim for every tool, with an absolute path and mode 0755", async () => {
     const r = await repo();
     const a = await installHooks(r.git, { tool: "adr" });
-    expect(a).toEqual({ written: [hookPath(r, "pre-commit")], unchanged: [], conflicts: [] });
+    expect(a).toEqual({ written: defaults(r), unchanged: [], conflicts: [] });
     const b = await installHooks(r.git, { tool: "issues" });
-    expect(b.written).toEqual([hookPath(r, "pre-commit")]);
+    expect(b.written).toEqual(defaults(r));
     expect(await readHookRegistry(r.git)).toEqual([
       { tool: "adr", hook: "pre-commit", argv: verify },
       { tool: "issues", hook: "pre-commit", argv: verify },
+      { tool: "adr", hook: "pre-push", argv: push },
+      { tool: "issues", hook: "pre-push", argv: push },
     ]);
     const path = hookPath(r, "pre-commit");
     expect(await readFile(path, "utf8")).toBe(
@@ -39,8 +44,15 @@ describe("installHooks", () => {
         { tool: "issues", hook: "pre-commit", argv: verify },
       ]),
     );
-    expect((await stat(path)).mode & 0o777).toBe(0o755);
-    expect(existsSync(hookPath(r, "pre-push"))).toBe(false);
+    expect(await readFile(hookPath(r, "pre-push"), "utf8")).toBe(
+      renderShim("pre-push", [
+        { tool: "adr", hook: "pre-push", argv: push },
+        { tool: "issues", hook: "pre-push", argv: push },
+      ]),
+    );
+    for (const p of defaults(r)) expect((await stat(p)).mode & 0o777).toBe(0o755);
+    expect(existsSync(hookPath(r, "commit-msg"))).toBe(false);
+    expect(existsSync(hookPath(r, "post-merge"))).toBe(false);
   });
 
   it("is idempotent", async () => {
@@ -49,7 +61,7 @@ describe("installHooks", () => {
     await installHooks(r.git, { tool: "issues" });
     expect(await installHooks(r.git, { tool: "adr" })).toEqual({
       written: [],
-      unchanged: [hookPath(r, "pre-commit")],
+      unchanged: defaults(r),
       conflicts: [],
     });
   });
@@ -62,15 +74,21 @@ describe("installHooks", () => {
       tool: "adr",
       commands: { "commit-msg": ["trailers", "{args}"] },
     });
-    expect(moved.written).toEqual([hookPath(r, "pre-commit"), hookPath(r, "commit-msg")]);
+    expect(moved.written).toEqual([
+      hookPath(r, "pre-commit"),
+      hookPath(r, "commit-msg"),
+      hookPath(r, "pre-push"),
+    ]);
     expect(await readHookRegistry(r.git)).toEqual([
       { tool: "issues", hook: "pre-commit", argv: verify },
       { tool: "adr", hook: "commit-msg", argv: ["trailers", "{args}"] },
+      { tool: "issues", hook: "pre-push", argv: push },
     ]);
 
     // A shim left without registrations is deleted.
     await installHooks(r.git, { tool: "issues", commands: { "post-merge": ["list"] } });
     expect(existsSync(hookPath(r, "pre-commit"))).toBe(false);
+    expect(existsSync(hookPath(r, "pre-push"))).toBe(false);
     expect((await readHookRegistry(r.git)).map((x) => `${x.hook}:${x.tool}`)).toEqual([
       "commit-msg:adr",
       "post-merge:issues",
@@ -82,12 +100,12 @@ describe("installHooks", () => {
     const path = hookPath(r, "pre-commit");
     await writeFile(path, "#!/bin/sh\nexec lint-staged\n");
     expect(await installHooks(r.git, { tool: "adr" })).toEqual({
-      written: [],
+      written: [hookPath(r, "pre-push")],
       unchanged: [],
       conflicts: [{ hook: "pre-commit", path, reason: "foreign-hook" }],
     });
     expect(await readFile(path, "utf8")).toBe("#!/bin/sh\nexec lint-staged\n");
-    expect(await readHookRegistry(r.git)).toEqual([]);
+    expect(await readHookRegistry(r.git)).toEqual([{ tool: "adr", hook: "pre-push", argv: push }]);
   });
 
   it("writes nothing when core.hooksPath is set", async () => {
@@ -99,6 +117,7 @@ describe("installHooks", () => {
       unchanged: [],
       conflicts: [
         { hook: "pre-commit", path: join(r.root, ".husky", "pre-commit"), reason: "hooks-path" },
+        { hook: "pre-push", path: join(r.root, ".husky", "pre-push"), reason: "hooks-path" },
       ],
     });
     expect(existsSync(join(r.root, ".husky"))).toBe(false);
@@ -122,13 +141,12 @@ describe("installHooks", () => {
     const wt = join(r.root, "..", "wt");
     await r.git.run(["worktree", "add", "-q", wt]);
     const linked = await Git.open(wt, r.git.options);
-    expect((await installHooks(linked, { tool: "adr" })).written).toEqual([
-      hookPath(r, "pre-commit"),
-    ]);
+    expect((await installHooks(linked, { tool: "adr" })).written).toEqual(defaults(r));
     // A git-directory-only handle reads the same registry.
     const gitDirOnly = await Git.openGitDir(r.git.gitDir, r.git.options);
     expect(await readHookRegistry(gitDirOnly)).toEqual([
       { tool: "adr", hook: "pre-commit", argv: verify },
+      { tool: "adr", hook: "pre-push", argv: push },
     ]);
   });
 
@@ -154,18 +172,18 @@ describe("uninstallHooks", () => {
     const r = await repo();
     await installHooks(r.git, { tool: "adr" });
     await installHooks(r.git, { tool: "issues" });
-    const path = hookPath(r, "pre-commit");
     expect(await uninstallHooks(r.git, { tool: "adr" })).toEqual({
-      written: [path],
+      written: defaults(r),
       unchanged: [],
       conflicts: [],
     });
     expect(await readHookRegistry(r.git)).toEqual([
       { tool: "issues", hook: "pre-commit", argv: verify },
+      { tool: "issues", hook: "pre-push", argv: push },
     ]);
     expect((await uninstallHooks(r.git, { tool: "adr" })).written).toEqual([]);
-    expect((await uninstallHooks(r.git, { tool: "issues" })).written).toEqual([path]);
-    expect(existsSync(path)).toBe(false);
+    expect((await uninstallHooks(r.git, { tool: "issues" })).written).toEqual(defaults(r));
+    for (const p of defaults(r)) expect(existsSync(p)).toBe(false);
   });
 
   it("leaves foreign hooks alone", async () => {
