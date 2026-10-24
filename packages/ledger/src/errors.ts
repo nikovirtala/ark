@@ -23,7 +23,8 @@ export type LedgerErrorCode =
   | "ulid-overflow"
   | "usage"
   | "file-exists"
-  | "hook-conflict";
+  | "hook-conflict"
+  | "commit-failed";
 
 export type JsonValue =
   | null
@@ -225,5 +226,67 @@ export class HookConflictError extends LedgerError {
   constructor(message: string, result: HookConflictResult, options?: ErrorOptions) {
     super("hook-conflict", message, options);
     this.result = result;
+  }
+}
+
+/**
+ * How to finish a commit git refused (`saveCommitRecovery` in surfaces/commit-recovery.ts builds
+ * it). Declared here so this module imports nothing.
+ */
+export interface CommitRecovery {
+  /** The commit's `only` paths, sorted. */
+  readonly staged: readonly string[];
+  /** Absolute path of the saved message, trailers included. */
+  readonly messageFile: string;
+  /** The sh command that makes the commit by hand. */
+  readonly command: string;
+  readonly trailers: readonly (readonly [string, string])[];
+}
+
+/**
+ * `git commit` failed after a tool wrote and staged its files: the message says what failed,
+ * what is staged, and the exact command that finishes the commit with the saved message.
+ */
+export class CommitFailedError extends LedgerError {
+  override name = "CommitFailedError";
+  readonly recovery: CommitRecovery;
+  readonly rerun: string;
+
+  constructor(
+    o: {
+      readonly recovery: CommitRecovery;
+      /** First line: "git commit failed (exit 1): <first stderr line>", or what failed before the commit. */
+      readonly headline: string;
+      /** Indented under the headline (git's stderr, at most 40 lines); "" for none. */
+      readonly detail: string;
+      /** The caller's sentence on what running the command again would do. */
+      readonly rerun: string;
+      /** An extra step before the commit command; null for none. */
+      readonly before: string | null;
+      /** A step after the commit command and the trailer lines; null for none. */
+      readonly after: string | null;
+    },
+    options?: ErrorOptions,
+  ) {
+    const { recovery } = o;
+    const lines = [
+      o.headline,
+      ...(o.detail === "" ? [] : [o.detail]),
+      `The files are written and staged. ${o.rerun} Staged for this commit:`,
+      ...recovery.staged.map((p) => `  ${p}`),
+      ...(o.before === null ? [] : [o.before]),
+      `${o.before === null ? "Fix what made git fail, then commit" : "Then commit"} exactly these files with the message adr prepared:`,
+      `  ${recovery.command}`,
+      ...(recovery.trailers.length === 0
+        ? ["The message has no trailers."]
+        : [
+            "The message ends with these trailers; keep them if you edit the file:",
+            ...recovery.trailers.map(([k, v]) => `  ${k}: ${v}`),
+          ]),
+      ...(o.after === null ? [] : [o.after]),
+    ];
+    super("commit-failed", lines.join("\n"), options);
+    this.recovery = recovery;
+    this.rerun = o.rerun;
   }
 }
