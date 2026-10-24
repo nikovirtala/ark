@@ -1,6 +1,13 @@
 import { ConfigError, parseCommitTemplate, parseToolConfig } from "@nikovirtala/ledger";
 import { describe, expect, it } from "vitest";
-import { ACTIONS, COMMIT_NAMES, COMMIT_VARS, LONGEST_ACTION } from "./commit-actions.js";
+import {
+  ACTIONS,
+  COMMIT_NAMES,
+  COMMIT_VARS,
+  INDEX_ACTION,
+  INDEX_TITLE,
+  LONGEST_ACTION,
+} from "./commit-actions.js";
 import { DEFAULT_ADR_CONFIG, parseAdrConfig } from "./config.js";
 import { adrKind } from "./kind.js";
 
@@ -177,7 +184,10 @@ describe("commit name lengths", () => {
     expect(COMMIT_NAMES.map((n) => n.vars.action)).toEqual([
       ACTIONS.superseded.action.length,
       ACTIONS.linked.action.length,
+      INDEX_ACTION.length,
     ]);
+    expect(COMMIT_NAMES[2]?.length).toBe(INDEX_TITLE.length);
+    expect(LONGEST_ACTION).toBeGreaterThanOrEqual(INDEX_ACTION.length);
   });
 
   it("leave supersede's name room up to its boundary", () => {

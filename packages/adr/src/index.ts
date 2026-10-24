@@ -21,6 +21,7 @@ export {
   readDecisionsFrom,
   resolveDecision,
 } from "./log.js";
+export { type IndexResultJson, indexDecisionLog, renderDecisionIndex } from "./log-index.js";
 export {
   type DecisionForJson,
   type DecisionsForJson,

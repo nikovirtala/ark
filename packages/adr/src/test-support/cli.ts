@@ -141,3 +141,19 @@ export async function seedSupersession(repo: TempRepo, id: string, by: string): 
   const r = await supersedeDecision(log, { id, by, actor: REPO_HUMAN }, { commit: true });
   if (!r.ok) throw new Error(`could not supersede ${id} by ${by}`);
 }
+
+/** Runs git like a user would, hooks included, in `repo` (or `o.cwd`) with `cliEnv`. */
+export function runGit(
+  repo: TempRepo,
+  args: readonly string[],
+  o: { readonly cwd?: string; readonly env?: NodeJS.ProcessEnv } = {},
+): AdrRun {
+  const r = spawnSync("git", args, {
+    cwd: o.cwd ?? repo.root,
+    env: cliEnv(repo, o.env),
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (r.error !== undefined) throw r.error;
+  return { status: r.status, stdout: r.stdout, stderr: r.stderr };
+}
