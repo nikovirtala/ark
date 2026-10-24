@@ -1,6 +1,7 @@
 import { RefNotFoundError } from "../errors.js";
 import type { Git } from "../git/git.js";
 import { firstParentAdditions } from "../git/history.js";
+import type { TreeReader } from "../git/tree.js";
 import { parseEventFileName } from "../identity/files.js";
 import { classifyPath, type LogLayout } from "../identity/layout.js";
 import type { AnyKind } from "../kind/types.js";
@@ -53,6 +54,17 @@ export async function resolveMainRef(git: Git, configured?: string | null): Prom
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
+/** The order of one commit's `on` files: stamp, then rand, then subject. assignNumbers sorts with it. */
+export function compareNumberingKeys(
+  a: { readonly stamp: string; readonly rand: string; readonly subject: string },
+  b: { readonly stamp: string; readonly rand: string; readonly subject: string },
+): number {
+  return cmp(a.stamp, b.stamp) || cmp(a.rand, b.rand) || cmp(a.subject, b.subject);
+}
+
+/** The commit key of the files `projectNumbering` numbers last; no commit sha can equal it. */
+export const PENDING_COMMIT = "\0pending";
+
 /**
  * Pure: D7's rule over `firstParentAdditions` output. Additions are grouped by `commit` in input
  * order (first-parent order, oldest first); within a commit, qualifying paths are sorted by
@@ -79,7 +91,7 @@ export function assignNumbers(
   }
   const numbers = new Map<string, number>();
   for (const group of commits.values()) {
-    group.sort((a, b) => cmp(a.stamp, b.stamp) || cmp(a.rand, b.rand) || cmp(a.subject, b.subject));
+    group.sort(compareNumberingKeys);
     for (const { subject } of group) {
       if (!numbers.has(subject)) numbers.set(subject, numbers.size + 1);
     }
@@ -110,6 +122,49 @@ export async function numberLog(
     reason: null,
     ref,
     commit,
+    byId,
+    byNumber: new Map([...byId].map(([id, n]) => [n, id])),
+  };
+}
+
+/**
+ * The numbers a log's subjects will have once the commit holding `tree` is on main (design D2):
+ * `history`'s first-parent additions, then, as one last group sorted like any commit's, the event
+ * files in `tree` that history doesn't number yet. After a fast-forward or rebase merge of an
+ * up-to-date branch, main's `numberLog` equals the branch's projection. Unavailable for a kind
+ * without `numbering` and in a shallow repository.
+ */
+export async function projectNumbering(
+  git: Git,
+  o: {
+    readonly kind: AnyKind;
+    readonly layout: LogLayout;
+    /**
+     * The commit `tree` builds on: HEAD for the work tree and the index, the commit itself for a
+     * ref; null on an unborn HEAD.
+     */
+    readonly history: string | null;
+    readonly tree: TreeReader;
+  },
+): Promise<Numbering> {
+  const numbering = o.kind.def.numbering;
+  if (numbering === undefined) return NO_NUMBERING;
+  if (await git.isShallow()) return { ...NO_NUMBERING, reason: "shallow" };
+  const events = `${o.layout.root}/${o.layout.events}`;
+  const pending = (await o.tree.list(events)).map((e) => ({
+    path: e.path,
+    commit: PENDING_COMMIT,
+  }));
+  const additions = o.history === null ? [] : await firstParentAdditions(git, o.history, events);
+  const byId = assignNumbers([...additions, ...pending], {
+    layout: o.layout,
+    on: numbering.on,
+  });
+  return {
+    available: true,
+    reason: null,
+    ref: null,
+    commit: o.history,
     byId,
     byNumber: new Map([...byId].map(([id, n]) => [n, id])),
   };
