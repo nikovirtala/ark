@@ -3,3 +3,7 @@
 [scope]
 # Docs, tests and the test harness show anchor examples that name no decision in this log.
 anchor_exclude = ["**/*.md", "**/*.test.ts", "**/test-support/**", "packages/ledger/src/testing/**"]
+
+[log]
+# Every adr write keeps index.md fresh; verify (hooks and CI) checks it.
+index = "committed"
