@@ -1313,13 +1313,6 @@ export const WRITE_RERUN =
   "Don't run the command again: the log already holds the change, so a rerun would be refused, do nothing, or write it a second time.";
 
 /**
- * Applies a plan (§5.4): refuses a commit whose scope has unstaged or needed untracked paths,
- * writes the files (removing them again if a write fails), stages them, runs `afterStage`, and
- * commits `plan.stage` plus the involved subjects' already-staged files with exact trailers. A
- * failed `git commit` throws `CommitFailedError` with the manual command (design 2b D5) and the
- * notes made so far.
- */
-/**
  * A write leaves the work tree's render of `index.md` (`staged`) staged, and it lists decision
  * files that may not be staged. When some aren't and the index's own render differs, the next
  * plain commit's hook fails; the note says so, as its `index/stale` finding does. `null`
@@ -1339,6 +1332,13 @@ async function unstagedIndexNote(
   return `${unstagedIndexText(at, files)}; git add them before you commit, or move them out of the work tree and run adr index`;
 }
 
+/**
+ * Applies a plan (§5.4): refuses a commit whose scope has unstaged or needed untracked paths,
+ * writes the files (removing them again if a write fails), stages them, runs `afterStage`, and
+ * commits `plan.stage` plus the involved subjects' already-staged files with exact trailers. A
+ * failed `git commit` throws `CommitFailedError` with the manual command (design 2b D5) and the
+ * notes made so far.
+ */
 export async function applyPlan(
   log: DecisionLog,
   plan: WritePlan,
