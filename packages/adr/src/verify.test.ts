@@ -306,7 +306,8 @@ interface Branch {
  * A legal continuation of `h` by the reference table on this branch alone: 1–6 events on existing
  * or new decisions, superseding only decisions accepted on this branch's view. `side` sets the
  * lowest bit of every random byte string's last byte, so ids and file names of the two sides
- * never collide.
+ * never collide. Events whose id the base or this branch already uses are skipped: generated
+ * bytes repeat, and a duplicate id makes the branch illegal.
  */
 function branch(g: fc.GeneratorValue, h: AdrHistory, side: 0 | 1): Branch {
   {
@@ -325,6 +326,7 @@ function branch(g: fc.GeneratorValue, h: AdrHistory, side: 0 | 1): Branch {
     );
     const files: Record<string, string> = {};
     const steps: Step[] = [];
+    const ids = new Set(h.steps.map((s) => s.event.id));
     let clock = Date.parse(h.steps.at(-1)?.event.at ?? "2001-01-01T00:00:00Z") / 1000;
     const count = g(fc.integer, { min: 1, max: 6 });
     for (let i = 0; i < count; i++) {
@@ -389,7 +391,7 @@ function branch(g: fc.GeneratorValue, h: AdrHistory, side: 0 | 1): Branch {
         data,
       };
       const [path, content] = eventFile(event);
-      if (Object.hasOwn(files, path) || Object.hasOwn(h.files, path)) continue;
+      if (Object.hasOwn(files, path) || Object.hasOwn(h.files, path) || ids.has(id)) continue;
       const next = refStep(state.get(subject), event);
       if (next === null) throw new Error(`generated an illegal ${type}`);
       state.set(subject, next);
@@ -399,6 +401,7 @@ function branch(g: fc.GeneratorValue, h: AdrHistory, side: 0 | 1): Branch {
         files[body.path] = body.text;
       }
       files[path] = content;
+      ids.add(id);
       steps.push({ path, event });
     }
     return { files, steps };
@@ -411,6 +414,54 @@ function branch(g: fc.GeneratorValue, h: AdrHistory, side: 0 | 1): Branch {
  */
 const arbBranches = (h: AdrHistory): fc.Arbitrary<[Branch, Branch]> =>
   fc.gen().map((g) => [branch(g, h, 0), branch(g, h, 1)]);
+
+/**
+ * A `GeneratorValue` that replays `script`, one `[arbitrary, value]` pair per call in order, so a
+ * test can drive `branch()` through a known counterexample.
+ */
+function scripted(script: readonly (readonly [unknown, unknown])[]) {
+  let i = 0;
+  const g = (arb: unknown) => {
+    const step = script[i++];
+    if (step === undefined || step[0] !== arb) {
+      throw new Error(`branch() call ${i} does not match the script`);
+    }
+    return step[1] instanceof Uint8Array ? step[1].slice() : step[1];
+  };
+  return { g: g as unknown as fc.GeneratorValue, done: () => i === script.length };
+}
+
+/** The base of the AC 9 counterexample found with seed -1819156104: three proposals. */
+function counterexampleBase(): AdrHistory {
+  const proposed = (id: string, subject: string, at: string, supersedes?: string[]) => ({
+    ...decisionEvent(subject, "proposed", { at, data: proposedData("t", supersedes) }),
+    id,
+  });
+  const events = [
+    proposed("01AS7PAQ0G00G7BFYH63QR407H", "p02zy1g3", "2016-08-03T07:54:18Z"),
+    proposed("01ASA0W03R08R0A1ZRBEXXA0QX", "e3vzhyg4", "2016-08-04T05:36:59Z", ["p02zy1g3"]),
+    proposed("01ASA0W03R0HZFY1010T80A7ZZ", "pwj03s05", "2016-08-04T05:36:59Z", ["p02zy1g3"]),
+  ];
+  const steps = events.map((event) => ({
+    subject: event.subject,
+    path: eventFile(event)[0],
+    event,
+  }));
+  return {
+    kind: adrKind,
+    layout: LAYOUT,
+    files: decisionFiles(events.map((e) => ({ id: e.subject, events: [e] }))),
+    subjects: steps.map(({ subject, path, event }) => ({
+      id: subject,
+      bodyPath: null,
+      frozen: false,
+      events: [{ path, event }],
+    })),
+    steps,
+  };
+}
+
+const eventIds = (h: AdrHistory, b: Branch) => [...h.steps, ...b.steps].map((s) => s.event.id);
 
 /** Bases with several accepted decisions, so both branches can supersede one of them. */
 const proposeAndAccept = {
@@ -465,6 +516,48 @@ describe("merge safety (AC 9)", () => {
     expect(samples.some(([h, l, r]) => expectedOf(h, l, r).length === 0)).toBe(true);
     expect(lines.some((x) => x.startsWith("transition/illegal "))).toBe(true);
     expect(lines.some((x) => x.startsWith("decision/supersession-cycle "))).toBe(true);
+  });
+
+  it("never reuses a base event id on a branch (seed -1819156104, run 45)", () => {
+    // The right side notes p02zy1g3 in the base's last second with the random bytes of the
+    // base's pwj03s05 proposal, so the note's id was 01ASA0W03R0HZFY1010T80A7ZZ too.
+    const h = counterexampleBase();
+    const { g, done } = scripted([
+      [fc.integer, 1], // events
+      [fc.integer, 0], // clock step
+      [fc.integer, 1], // an existing decision
+      [fc.constantFrom, "p02zy1g3"],
+      [fc.constantFrom, "noted"],
+      [fc.uint8Array, Uint8Array.of(4, 126, 255, 4, 1, 6, 144, 5, 31, 255)],
+    ]);
+    const right = branch(g, h, 1);
+    expect(done()).toBe(true);
+    const ids = eventIds(h, right);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("never reuses an event id within a branch (seed -1819156104, shrunk)", () => {
+    // Two new decisions in the same second from all-zero bytes: both ids were
+    // 01ASA0W03R0000000000000000, under subjects 00000000 and 00000002.
+    const h = counterexampleBase();
+    const zeros = new Uint8Array(10);
+    const { g, done } = scripted([
+      [fc.integer, 2], // events
+      [fc.integer, 0], // clock step
+      [fc.integer, 0], // a new decision
+      [fc.uint8Array, Uint8Array.of(0, 0, 0, 0, 0)],
+      [fc.string, ""],
+      [fc.uint8Array, zeros],
+      [fc.integer, 0],
+      [fc.integer, 0],
+      [fc.uint8Array, Uint8Array.of(0, 0, 0, 0, 2)],
+      [fc.string, ""],
+      [fc.uint8Array, zeros],
+    ]);
+    const left = branch(g, h, 0);
+    expect(done()).toBe(true);
+    const ids = eventIds(h, left);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it(
