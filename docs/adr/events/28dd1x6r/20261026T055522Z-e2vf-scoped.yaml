@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M5VCE6PWT05NZK7JR5G4E2VF
+subject: 28dd1x6r
+type: scoped
+at: 2026-10-26T05:55:22Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/*/src/mcp/**
+    - packages/ledger/src/mcp/**
