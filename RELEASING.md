@@ -8,7 +8,7 @@ Packages are versioned independently with [Changesets](https://github.com/change
 2. When that reaches `main`, the release workflow opens or updates the **"chore: version packages"** PR, which bumps versions, writes changelogs and deletes the consumed changesets.
 3. Merging the version PR publishes the bumped public packages to npm with provenance and creates their git tags and GitHub releases.
 
-Only packages with changesets are bumped; there are no fixed or linked groups. Private packages (currently `@nikovirtala/issues`) are never versioned or published.
+Only packages with changesets are bumped; there are no fixed or linked groups. A package marked `"private": true` would never be versioned or published; none is now.
 
 The version PR is opened with `GITHUB_TOKEN`, so it doesn't start CI by itself. Re-run CI from the Actions tab, or push an empty commit to the version branch, if a run is needed before merging. CI lints commit messages, so give that commit a Conventional subject, such as `git commit --allow-empty -m "ci: run checks on the version pull request"`.
 
