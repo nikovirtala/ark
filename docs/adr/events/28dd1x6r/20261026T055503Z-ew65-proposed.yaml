@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M5VCDMBTQ58V55NTMA0DEW65
+subject: 28dd1x6r
+type: proposed
+at: 2026-10-26T05:55:03Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Return the CLI's JSON documents from MCP tools
+  template: nygard
+  template_version: 1
