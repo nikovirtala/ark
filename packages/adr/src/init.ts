@@ -7,6 +7,7 @@ import {
   overlayTree,
   readToolConfig,
   renderCommitMessage,
+  replaceFile,
   UsageError,
   worktreeReader,
   writeNewFile,
@@ -21,6 +22,7 @@ import {
   renderDecisionIndex,
   writeIndexCopy,
 } from "./log-index.js";
+import { SKILL_MD } from "./skill.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
 
 /** `adr init --json` (design §6.2). */
@@ -33,6 +35,8 @@ export interface InitResultJson {
   readonly written: readonly string[];
   /** Files that were already there and were left as they are. */
   readonly kept: readonly string[];
+  /** With `--skill`, the SKILL.md path (written or kept); else `null`. */
+  readonly skill: string | null;
   readonly commit: string | null;
   readonly notes: readonly string[];
 }
@@ -47,6 +51,19 @@ export const INIT_RERUN =
 const CONFIG = "adr.toml";
 const DEFAULT_ROOT = adrKind.def.defaultRoot;
 const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+const AGENTS = "AGENTS.md";
+
+/** The line `adr init --skill` adds to AGENTS.md for tools that don't load skills. */
+export const agentsPointer = (skill: string): string =>
+  `Architecture decisions in this repository are managed by adr: read ${skill} before changing architecture, and follow it.`;
+
+/** `text` with `line` appended after one blank line, ending with a newline. */
+function appendLine(text: string, line: string): string {
+  if (text === "") return `${line}\n`;
+  const ended = text.endsWith("\n") ? text : `${text}\n`;
+  return `${ended.endsWith("\n\n") ? ended : `${ended}\n`}${line}\n`;
+}
 
 /** The starter config; `root` only for a repo-level file naming a log elsewhere. */
 function configText(o: { readonly root: string | null; readonly template: string }): string {
@@ -69,7 +86,10 @@ function configText(o: { readonly root: string | null; readonly template: string
  * the log without `--root`; when that file exists for another log, the config goes in the root.
  * With `[log] index = "committed"` it also writes `<root>/index.md` unless one exists. With
  * `commit` (default `[policy] auto_commit`) the written files are committed on their own;
- * nothing written means nothing committed. No events are written.
+ * nothing written means nothing committed. No events are written. With `o.skill` it also writes
+ * the agent skill, unless a SKILL.md is there, and adds the pointer line to `AGENTS.md`, unless a
+ * line already names the skill; an AGENTS.md with unstaged changes or not tracked is refused
+ * with a commit and left unstaged without one.
  */
 export async function initDecisionLog(
   log: DecisionLog,
@@ -77,6 +97,11 @@ export async function initDecisionLog(
     readonly templates?: readonly string[];
     readonly commit?: boolean;
     readonly message?: string | null;
+    /**
+     * Also write `<dir>/SKILL.md` (`dir` repo-relative, `""` for the root) and the AGENTS.md
+     * pointer (design §9); `version` is adr's, for the note on a SKILL.md that differs.
+     */
+    readonly skill?: { readonly dir: string; readonly version: string };
   } = {},
 ): Promise<InitResultJson> {
   if (log.ref !== null || log.tree.label !== "worktree") {
@@ -120,6 +145,62 @@ export async function initDecisionLog(
     else files.push([path, BUILTIN_TEMPLATES[name] ?? ""]);
   }
   const commitRequested = o.commit ?? log.adr.autoCommit;
+  const logFiles = files.length;
+
+  // The skill (design §9.1): SKILL.md is never overwritten; AGENTS.md gets one pointer line.
+  // Checked before anything is written.
+  const skill =
+    o.skill === undefined ? null : o.skill.dir === "" ? "SKILL.md" : `${o.skill.dir}/SKILL.md`;
+  let agents: {
+    readonly bytes: Uint8Array;
+    readonly expected: Uint8Array | null;
+    readonly stage: boolean;
+  } | null = null;
+  if (skill !== null) {
+    const current = await log.tree.read(skill);
+    if (current === null) {
+      files.push([skill, SKILL_MD]);
+    } else {
+      kept.push(skill);
+      if (decoder.decode(current) !== SKILL_MD) {
+        notes.push(
+          `${skill} differs from adr ${o.skill?.version ?? ""}'s skill; delete it and run adr init --skill again to replace it`,
+        );
+      }
+    }
+    const old = await log.tree.read(AGENTS);
+    const text = old === null ? null : decoder.decode(old);
+    if ((text ?? "").split("\n").some((l) => l.includes(skill))) {
+      kept.push(AGENTS);
+    } else {
+      let stage = true;
+      if (old !== null) {
+        const unstaged = (await log.git.unstagedPaths([AGENTS])).length > 0;
+        const untracked = (await log.git.untrackedPaths([AGENTS])).length > 0;
+        if (commitRequested && unstaged) {
+          throw new UsageError(
+            `${AGENTS} has unstaged changes; stage or discard them, or run without --commit`,
+          );
+        }
+        if (commitRequested && untracked) {
+          throw new UsageError(`${AGENTS} is not tracked; git add it, or run without --commit`);
+        }
+        if (unstaged || untracked) {
+          stage = false;
+          notes.push(
+            untracked
+              ? `${AGENTS} is not tracked, so the pointer is added but not staged; review it and git add it`
+              : `${AGENTS} had unstaged changes, so the pointer is added but not staged; review it and git add it`,
+          );
+        }
+      }
+      agents = {
+        bytes: encoder.encode(appendLine(text ?? "", agentsPointer(skill))),
+        expected: old,
+        stage,
+      };
+    }
+  }
   const at = indexPath(log.layout);
   let indexed = false;
   if (log.adr.index === "committed") {
@@ -147,7 +228,7 @@ export async function initDecisionLog(
     }
   }
 
-  const commit = files.length > 0 && commitRequested;
+  const commit = (files.length > 0 || agents !== null) && commitRequested;
   if (
     commit &&
     ((await log.git.identity()) === null || (await log.git.committerIdentity()) === null)
@@ -155,28 +236,43 @@ export async function initDecisionLog(
     throw new ConfigError("--commit needs a git identity; set git user.name and user.email");
   }
   const written: string[] = [];
+  let replaced = false;
   try {
     for (const [path, text] of files) {
       await writeNewFile(log.git, path, encoder.encode(text));
       written.push(path);
     }
+    if (agents !== null) {
+      if (agents.expected === null) await writeNewFile(log.git, AGENTS, agents.bytes);
+      else await replaceFile(log.git, AGENTS, agents.bytes, { expected: agents.expected });
+      replaced = agents.expected !== null;
+      written.push(AGENTS);
+    }
   } catch (err) {
     const top = log.git.root ?? "";
-    for (const path of written) await rm(join(top, path), { force: true });
+    const restore = replaced ? (agents?.expected ?? null) : null;
+    for (const path of written) {
+      if (path === AGENTS && restore !== null && agents !== null) {
+        await replaceFile(log.git, AGENTS, restore, { expected: agents.bytes }).catch(() => {});
+      } else {
+        await rm(join(top, path), { force: true });
+      }
+    }
     throw err;
   }
-  if (written.length > 0) await log.git.add(written);
+  const staged = written.filter((p) => p !== AGENTS || agents?.stage === true);
+  if (staged.length > 0) await log.git.add(staged);
   let sha: string | null = null;
   if (commit) {
     const message =
       o.message ??
       renderCommitMessage(log.adr.commitSubject, {
-        title: "the decision log",
+        title: logFiles > 0 ? "the decision log" : "the adr agent skill",
         vars: { action: "set up", id: "", display: "", command: "init" },
       }).message;
     sha = await commitWithRecovery(log.git, {
       message,
-      only: written,
+      only: staged,
       rerun: INIT_RERUN,
       after: indexed ? INDEX_AFTER(root) : null,
     });
@@ -199,5 +295,5 @@ export async function initDecisionLog(
       }
     }
   }
-  return { format: "adr-init/v1", root, config, written, kept, commit: sha, notes };
+  return { format: "adr-init/v1", root, config, written, kept, skill, commit: sha, notes };
 }

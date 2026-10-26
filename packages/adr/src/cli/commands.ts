@@ -48,7 +48,7 @@ export function adrCli(version: string): ToolCli {
     version,
     summary: "Architecture decision records kept as event logs in git.",
     commands: [
-      initCommand,
+      initCommand(version),
       newCommand,
       acceptCommand,
       rejectCommand,

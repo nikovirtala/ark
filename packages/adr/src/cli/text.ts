@@ -425,11 +425,13 @@ export function initText(doc: InitResultJson): string {
   if (doc.written.length === 0) {
     return `Already initialized: ${doc.root} (kept ${doc.kept.join(", ")})`;
   }
+  const skill = doc.skill !== null && doc.written.includes(doc.skill);
+  const onlySkill = doc.written.every((p) => p === doc.skill || p === "AGENTS.md");
   return [
-    `Initialized ${doc.root}`,
+    onlySkill ? "Set up the adr agent skill" : `Initialized ${doc.root}`,
     ...doc.written.map((p) => `  ${p}`),
     ...doc.kept.map((p) => `Kept ${p}`),
     ...(doc.commit === null ? [] : [`Committed ${short(doc.commit)}.`]),
-    'Next: adr new "<title>"',
+    skill ? "Next: adr mcp, from your MCP client's config" : 'Next: adr new "<title>"',
   ].join("\n");
 }

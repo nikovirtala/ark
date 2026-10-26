@@ -1,24 +1,64 @@
-import type { JsonValue } from "@nikovirtala/ledger";
+import { realpath } from "node:fs/promises";
+import { isAbsolute, relative, resolve, sep } from "node:path";
+import { type JsonValue, UsageError } from "@nikovirtala/ledger";
 import { COMMIT_OPTIONS, type CommandSpec, commitChoice } from "@nikovirtala/ledger/cli";
 import { initDecisionLog } from "../init.js";
 import { openForCli } from "./open.js";
 import { initText } from "./text.js";
 
-/** `adr init [--template <name>]… [--commit | --no-commit] [-m <message>]` (design §6.2). */
-export const initCommand: CommandSpec = {
-  name: "init",
-  summary: "set up a decision log: a config file and starter templates",
-  usage: "init [--template <name>]… [--commit | --no-commit] [-m <message>]",
-  options: { template: { type: "string", multiple: true }, ...COMMIT_OPTIONS },
-  positionals: { min: 0, max: 0, names: [] },
-  ref: "reject",
-  async run({ io, flags, values }) {
-    const templates = Array.isArray(values.template) ? (values.template as string[]) : undefined;
-    const log = await openForCli(io, flags);
-    const doc = await initDecisionLog(log, {
-      ...(templates === undefined ? {} : { templates }),
-      ...commitChoice(values, { autoCommit: log.adr.autoCommit }),
-    });
-    return { exit: 0, json: doc as unknown as JsonValue, text: initText(doc), notes: doc.notes };
-  },
-};
+const DEFAULT_SKILL_DIR = ".claude/skills/adr";
+const MAX_DIR = 1024;
+
+/** `--skill-dir` as a repo-relative directory inside the work tree and outside `.git`. */
+async function skillDir(root: string, cwd: string, given: string): Promise<string> {
+  const dir = given.trim();
+  const bad = () => new UsageError("--skill-dir must be a directory inside the repository");
+  if (dir === "" || dir.length > MAX_DIR || dir.includes("\0")) throw bad();
+  const base = await realpath(cwd).catch(() => cwd);
+  const rel = relative(root, resolve(base, dir));
+  if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) throw bad();
+  const segments = rel.split(sep).filter((s) => s !== "");
+  if (segments[0] === ".git") throw bad();
+  return segments.join("/");
+}
+
+/**
+ * `adr init [--template <name>]… [--skill [--skill-dir <path>]] [--commit | --no-commit]
+ * [-m <message>]` (design §6.2, phase 3 §9).
+ */
+export function initCommand(version: string): CommandSpec {
+  return {
+    name: "init",
+    summary: "set up a decision log: a config file and starter templates",
+    usage:
+      "init [--template <name>]… [--skill [--skill-dir <path>]] [--commit | --no-commit] [-m <message>]",
+    options: {
+      template: { type: "string", multiple: true },
+      skill: { type: "boolean" },
+      "skill-dir": { type: "string" },
+      ...COMMIT_OPTIONS,
+    },
+    positionals: { min: 0, max: 0, names: [] },
+    ref: "reject",
+    async run({ io, flags, values }) {
+      const templates = Array.isArray(values.template) ? (values.template as string[]) : undefined;
+      const given = typeof values["skill-dir"] === "string" ? values["skill-dir"] : null;
+      if (given !== null && values.skill !== true)
+        throw new UsageError("--skill-dir needs --skill");
+      const log = await openForCli(io, flags);
+      const root = log.git.root ?? io.cwd;
+      const dir =
+        values.skill !== true
+          ? null
+          : given === null
+            ? DEFAULT_SKILL_DIR
+            : await skillDir(root, io.cwd, given);
+      const doc = await initDecisionLog(log, {
+        ...(templates === undefined ? {} : { templates }),
+        ...(dir === null ? {} : { skill: { dir, version } }),
+        ...commitChoice(values, { autoCommit: log.adr.autoCommit }),
+      });
+      return { exit: 0, json: doc as unknown as JsonValue, text: initText(doc), notes: doc.notes };
+    },
+  };
+}
