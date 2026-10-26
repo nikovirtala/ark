@@ -129,3 +129,59 @@ export function extractWith(
     at,
   };
 }
+
+/**
+ * Replaces the content of the given sections in `doc`, a document written from `t`, and keeps
+ * every other line as it is. A section's content runs from the line after its heading to the next
+ * template heading line present, or the end; the new content is normalized like
+ * `renderTemplate`'s and followed by one blank line, except at the end of the document, which gets
+ * a final newline. CRLF input is read as LF and written as LF.
+ */
+export function replaceSections(
+  t: Template,
+  doc: string,
+  sections: Readonly<Record<string, string>>,
+): { ok: true; text: string } | { ok: false; findings: Finding[] } {
+  const s = lintCleanStructure(t);
+  const findings: Finding[] = [];
+  const add = (rule: string, message: string) =>
+    findings.push(finding({ severity: "error", rule, message }));
+  const { at } = extractWith(s, t, doc);
+  const known = new Set(t.sections.map((sec) => sec.id));
+  const headings = new Set(s.headingLines.values());
+  const content = new Map<string, string>();
+  for (const [id, given] of Object.entries(sections)) {
+    if (!known.has(id)) {
+      add("render/unknown-section", `template ${t.name} has no section ${id}`);
+      continue;
+    }
+    if (!at.has(id)) {
+      add(
+        "render/section-missing",
+        `the document has no '${s.headingLines.get(id)}' heading for section ${id}`,
+      );
+      continue;
+    }
+    const value = normalizeSection(given);
+    if (value.split("\n").some((l) => headings.has(l))) {
+      add(
+        "render/heading-in-content",
+        `section ${id} contains a section heading line, which would make extraction ambiguous`,
+      );
+    }
+    content.set(id, value);
+  }
+  if (findings.length > 0) return { ok: false, findings };
+
+  const lines = doc.replace(/\r\n/g, "\n").split("\n");
+  const starts = [...at.values()].sort((a, b) => a - b);
+  // Replace from the last section up, so earlier line indexes stay valid.
+  const order = [...content.keys()].sort((a, b) => (at.get(b) ?? 0) - (at.get(a) ?? 0));
+  for (const id of order) {
+    const i = at.get(id) ?? 0;
+    const next = starts.find((x) => x > i) ?? lines.length;
+    const value = content.get(id) ?? "";
+    lines.splice(i + 1, next - (i + 1), ...(value === "" ? [] : value.split("\n")), "");
+  }
+  return { ok: true, text: lines.join("\n") };
+}

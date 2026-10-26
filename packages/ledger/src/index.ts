@@ -279,7 +279,12 @@ export {
   type Template,
   type TemplateParse,
 } from "./templates/parse.js";
-export { extractSections, normalizeSection, renderTemplate } from "./templates/render.js";
+export {
+  extractSections,
+  normalizeSection,
+  renderTemplate,
+  replaceSections,
+} from "./templates/render.js";
 export {
   gitTemplates,
   historyTemplates,
