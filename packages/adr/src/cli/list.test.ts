@@ -361,3 +361,20 @@ describe("adr list --since", { timeout: 60_000 }, () => {
     expect(runAdr(r, ["list", "--since", "-x"]).status).toBe(2);
   });
 });
+
+const SOURCES =
+  '[[sources]]\nname = "platform"\nkind = "adr"\nurl = "https://example.com/p.git"\nref = "main"\n';
+const SOURCES_NOTE =
+  "adr: warning: only this repository's decision log is read; the logs in [[sources]] (platform) aren't listed or searched until ark's step 4\n";
+
+describe("adr list with [[sources]]", () => {
+  it("notes that only the local log is read", async () => {
+    const r = await repo({ "adr.toml": SOURCES });
+    const out = runAdr(r, ["list"]);
+    expect(out.status).toBe(0);
+    expect(out.stderr).toBe(SOURCES_NOTE);
+    expect(JSON.parse(runAdr(r, ["list", "--json"]).stdout).notes).toEqual([
+      SOURCES_NOTE.slice(14, -1),
+    ]);
+  });
+});

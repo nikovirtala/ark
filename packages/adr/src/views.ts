@@ -6,7 +6,7 @@ import {
   UsageError,
 } from "@nikovirtala/ledger";
 import type { DecisionStatus, DecisionView } from "./kind.js";
-import type { ChangedSince, DecisionsRead } from "./log.js";
+import { type ChangedSince, type DecisionsRead, listingNotes } from "./log.js";
 
 /** The `numbering` key of the read documents. */
 export interface NumberingJson {
@@ -100,7 +100,7 @@ export function listDecisions(
     unreadable: read.projection.unreadable,
     unfoldable: read.projection.unfoldable,
     findings: read.findings.filter((f) => f.subject === null || listed.has(f.subject)),
-    notes: read.notes,
+    notes: listingNotes(read),
   };
 }
 

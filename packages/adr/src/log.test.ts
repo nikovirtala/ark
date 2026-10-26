@@ -12,7 +12,8 @@ import fc from "fast-check";
 import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_ADR_CONFIG } from "./config.js";
 import { adrKind, type DecisionView } from "./kind.js";
-import { openDecisionLog, readDecisions, readDecisionsFrom } from "./log.js";
+import { openDecisionLog, readDecisions, readDecisionsFrom, sourcesNote } from "./log.js";
+import { decisionsFor } from "./scope.js";
 import { arbAdrHistory } from "./test-support/decision-arbs.js";
 import {
   COMPILED,
@@ -178,4 +179,29 @@ describe("time travel (AC 10)", () => {
     },
     GIT_PROPERTY_TIMEOUT,
   );
+});
+
+describe("sourcesNote", () => {
+  const SOURCES =
+    '[[sources]]\nname = "platform"\nkind = "adr"\nurl = "https://example.com/p.git"\nref = "main"\n' +
+    '[[sources]]\nname = "web"\nkind = "adr"\nurl = "https://example.com/w.git"\nref = "main"\n';
+  const NOTE =
+    "only this repository's decision log is read; the logs in [[sources]] (platform, web) aren't listed or searched until ark's step 4";
+
+  it("is null without [[sources]], and names them otherwise", async () => {
+    const plain = await readDecisions(await open(await repo({ "README.md": "x\n" })));
+    expect(plain.sources).toEqual([]);
+    expect(sourcesNote(plain)).toBeNull();
+    const r = await repo({ "adr.toml": SOURCES, "src/a.ts": "a\n" });
+    const log = await open(r);
+    const read = await readDecisions(log);
+    expect(read.sources).toEqual(["platform", "web"]);
+    expect(sourcesNote(read)).toBe(NOTE);
+    expect(listDecisions(read).notes).toEqual([...read.notes, NOTE]);
+    expect((await decisionsFor(read, log, { paths: ["src/a.ts"] })).notes).toEqual([
+      ...read.notes,
+      NOTE,
+    ]);
+    expect(listDecisions(plain).notes).toEqual(plain.notes);
+  });
 });

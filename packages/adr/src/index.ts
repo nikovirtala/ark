@@ -31,6 +31,7 @@ export {
   readDecisions,
   readDecisionsFrom,
   resolveDecision,
+  sourcesNote,
 } from "./log.js";
 export { type IndexResultJson, indexDecisionLog, renderDecisionIndex } from "./log-index.js";
 export {
