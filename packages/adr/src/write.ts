@@ -15,6 +15,7 @@ import {
   EventExistsError,
   eventDir,
   eventPath,
+  extractSections,
   FileExistsError,
   type Finding,
   finding,
@@ -36,6 +37,8 @@ import {
   refReader,
   renderCommitMessage,
   renderTemplate,
+  replaceFile,
+  replaceSections,
   type SetOp,
   saveCommitRecovery,
   serializeEvent,
@@ -51,7 +54,7 @@ import {
   writeEvents,
   writeNewFile,
 } from "@nikovirtala/ledger";
-import { ACTIONS, CROSS_LOG_LINK } from "./commit-actions.js";
+import { ACTIONS, CROSS_LOG_LINK, DRAFT_ACTION } from "./commit-actions.js";
 import { adrKind, type DecisionView, type LinkRel } from "./kind.js";
 import {
   type DecisionLog,
@@ -87,7 +90,8 @@ export interface WriteResultJson {
     | "deprecate"
     | "note"
     | "link"
-    | "scope";
+    | "scope"
+    | "update";
   readonly ok: boolean;
   /**
    * The decision after the write; before it when `ok` is false (`null` for a refused `new`).
@@ -155,6 +159,13 @@ export interface WritePlan {
   readonly subject: string;
   /** New files, repo-relative path → bytes, in write order: body, materialized template, events. */
   readonly files: Readonly<Record<string, Uint8Array>>;
+  /**
+   * Existing files to replace, path → the new bytes and the bytes the plan read; written only if
+   * the file still holds `expected` (a draft update).
+   */
+  readonly replace?: Readonly<
+    Record<string, { readonly bytes: Uint8Array; readonly expected: Uint8Array }>
+  >;
   readonly events: readonly EventEnvelope[];
   /** Paths to stage: every new file, plus the existing body for accept. */
   readonly stage: readonly string[];
@@ -328,14 +339,16 @@ const findingKey = (f: Finding) => [f.rule, f.subject ?? "", f.file ?? "", f.mes
 async function precheck(
   read: DecisionsRead,
   files: Readonly<Record<string, Uint8Array>>,
+  replace: Readonly<Record<string, Uint8Array>> = {},
 ): Promise<{ after: DecisionsRead; added: Finding[] }> {
-  const after = await readDecisionsFrom(overlayTree(read.tree, files), {
+  const after = await readDecisionsFrom(overlayTree(read.tree, { ...files, ...replace }), {
     layout: read.layout,
     adr: read.adr,
     numbering: read.numbering,
     ref: read.ref,
     commit: read.commit,
     notes: read.notes,
+    sources: read.sources,
   });
   const before = new Set(read.findings.map(findingKey));
   return { after, added: after.findings.filter((f) => !before.has(findingKey(f))) };
@@ -516,6 +529,153 @@ async function acceptLint(
   }
   const lint = lintDocument(found.template, text, { file: body.path, subject: view.id });
   return { findings: lint.map((f) => ({ ...f, kind: adrKind.name })), bytes: body.bytes };
+}
+
+/** Input of a draft update: the decision and the sections to replace (section id → markdown). */
+export interface UpdateDraftInput {
+  readonly id: string;
+  readonly sections: Readonly<Record<string, string>>;
+}
+
+const MAX_SECTIONS = 50;
+
+/**
+ * Plans a draft update (design §6.6): the given sections of a proposed decision's body replaced in
+ * place, every other line kept, written only if the body still holds the bytes read. Refused
+ * (`ok: false`) when the decision isn't proposed or its body or template version is missing or
+ * unreadable, and with `refuseIncomplete` when the new draft fails its template lint. An unknown
+ * section, a missing heading or a heading in the content is a `UsageError`.
+ */
+export async function planUpdateDraft(
+  read: DecisionsRead,
+  input: UpdateDraftInput,
+  c: PlanContext,
+  o: { readonly refuseIncomplete?: boolean } = {},
+): Promise<PlanResult> {
+  const id = resolveDecision(read, input.id);
+  const view = viewOf(read, id);
+  const refused = (fs: readonly Finding[]): PlanResult => ({
+    ok: false,
+    decision: view,
+    findings: fs,
+  });
+  if (view.status !== "proposed") {
+    return refused([
+      refusal(
+        read,
+        "decision/not-a-draft",
+        `${namedView(view)} is ${view.status}; only a proposed decision's draft can change`,
+        id,
+      ),
+    ]);
+  }
+  const ids = Object.keys(input.sections);
+  if (ids.length === 0 || ids.length > MAX_SECTIONS) {
+    throw new UsageError(`a draft update takes 1 to ${MAX_SECTIONS} sections`);
+  }
+  for (const [section, text] of Object.entries(input.sections))
+    checkText(`section ${section}`, text);
+  const { findings: problems, template, text, body } = await draftOf(read, view, c);
+  if (problems.length > 0 || template === null || text === null || body === null) {
+    return refused(problems);
+  }
+  const r = replaceSections(template, text, input.sections);
+  if (!r.ok) {
+    const [first] = r.findings;
+    if (first?.rule === "render/unknown-section") {
+      const known = template.sections.map((s) => s.id).join(", ");
+      const unknown = ids.find((s) => !template.sections.some((t) => t.id === s)) ?? "";
+      throw new UsageError(
+        `template ${template.name} has no section ${unknown}; its sections are ${known}`,
+      );
+    }
+    if (first?.rule === "render/section-missing") {
+      const gone = new Set(extractSections(template, text).missing);
+      const missing = template.sections.find((s) => ids.includes(s.id) && gone.has(s.id));
+      throw new UsageError(
+        `${body.path} has no '${missing?.heading ?? ""}' heading; edit the file by hand`,
+      );
+    }
+    throw new UsageError(r.findings.map((f) => f.message).join("; "));
+  }
+  if (r.text === text) {
+    return emptyPlan(id, view, ["the draft already has this content; nothing written"]);
+  }
+  const bytes = encoder.encode(r.text);
+  const lint = lintDocument(template, r.text, { file: body.path, subject: id }).map((f) => ({
+    ...f,
+    kind: adrKind.name,
+  }));
+  if (o.refuseIncomplete === true && lint.length > 0) return refused(lint);
+  const { after, added } = await precheck(read, {}, { [body.path]: bytes });
+  if (added.length > 0) return refused(added);
+  const { scope, eventDirs } = commitScope(read, [id]);
+  const order = template.sections.map((s) => s.id).filter((s) => ids.includes(s));
+  return {
+    ok: true,
+    plan: {
+      command: "event",
+      subject: id,
+      files: {},
+      replace: { [body.path]: { bytes, expected: body.bytes } },
+      events: [],
+      stage: [body.path],
+      involved: [id],
+      commitScope: scope,
+      eventDirs,
+      draft: null,
+      commit: {
+        action: DRAFT_ACTION,
+        title: view.display,
+        id,
+        display: view.display,
+        body: [`Sections: ${order.join(", ")}.`],
+      },
+      trailers: [["ADR", id]],
+      decision: after.projection.views.get(id) ?? view,
+      affected: [],
+      findings: lint,
+    },
+  };
+}
+
+/**
+ * A proposed decision's body, its text and the template version its proposal recorded, or the
+ * refusal findings when one of them is missing or the body isn't UTF-8.
+ */
+async function draftOf(
+  read: DecisionsRead,
+  view: DecisionView,
+  c: PlanContext,
+): Promise<{
+  findings: Finding[];
+  template: Template | null;
+  text: string | null;
+  body: { readonly path: string; readonly bytes: Uint8Array } | null;
+}> {
+  const none = { template: null, text: null, body: null };
+  const body = read.folded.subjects.get(view.id)?.loaded.body ?? null;
+  if (body === null) {
+    return { findings: [refusal(read, "body/missing", "body file is missing", view.id)], ...none };
+  }
+  const { name, version } = view.template;
+  const found = await c.templates.get(name, version);
+  if (!found.ok) {
+    const message =
+      found.reason === "not-found"
+        ? `template ${name} not found at ${found.path}`
+        : `template ${name} has no version ${version} at ${found.path}`;
+    return { findings: [refusal(read, `template/${found.reason}`, message, view.id)], ...none };
+  }
+  try {
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(body.bytes);
+    return { findings: [], template: found.template, text, body };
+  } catch {
+    return {
+      findings: [refusal(read, "body/not-utf8", "body is not valid UTF-8", view.id)],
+      ...none,
+    };
+  }
 }
 
 /** Plans `adr accept`: `accepted` with the body hash, and `superseded` on each declared target. */
@@ -1398,7 +1558,7 @@ export async function applyPlan(
     const files: Record<string, Uint8Array> = {};
     const gone = new Set<string>();
     for (const p of sorted([...plan.stage, ...extra])) {
-      const bytes = plan.files[p] ?? (await work.read(p));
+      const bytes = plan.files[p] ?? plan.replace?.[p]?.bytes ?? (await work.read(p));
       if (bytes === null) gone.add(p);
       else files[p] = bytes;
     }
@@ -1407,7 +1567,9 @@ export async function applyPlan(
   const extra0 = o.commit && o.index !== undefined ? await extraOf() : [];
   let text: string | null = null;
   if (o.index !== undefined) {
-    const tree = o.commit ? await commitTree(extra0) : overlayTree(worktreeReader(git), plan.files);
+    const tree = o.commit
+      ? await commitTree(extra0)
+      : overlayTree(worktreeReader(git), { ...plan.files, ...replaceBytes(plan) });
     text = await o.index(tree, head);
     if (text === null) {
       notes.push(
@@ -1444,7 +1606,12 @@ export async function applyPlan(
 
   const eventPaths = new Set(plan.events.map((e) => eventPath(log.layout, e)));
   const written: string[] = [];
+  const replaced: string[] = [];
   try {
+    for (const [path, r] of Object.entries(plan.replace ?? {})) {
+      await replaceFile(git, path, r.bytes, { expected: r.expected });
+      replaced.push(path);
+    }
     for (const [path, bytes] of Object.entries(plan.files)) {
       if (eventPaths.has(path)) continue;
       await writeNewFile(git, path, bytes, { stage: false });
@@ -1459,6 +1626,11 @@ export async function applyPlan(
       else await writeFile(join(top, at), indexOld);
     }
     for (const path of written) await rm(join(top, path), { force: true });
+    for (const path of replaced) {
+      const r = plan.replace?.[path];
+      if (r !== undefined)
+        await replaceFile(git, path, r.expected, { expected: r.bytes }).catch(() => {});
+    }
     throw err;
   }
   await git.add([...plan.stage, ...toStage]);
@@ -1563,12 +1735,20 @@ export async function applyPlan(
     if (note !== null) notes.push(note);
   }
   return {
-    written: [...Object.keys(plan.files), ...(indexWritten ? [at] : [])],
+    written: [
+      ...Object.keys(plan.replace ?? {}),
+      ...Object.keys(plan.files),
+      ...(indexWritten ? [at] : []),
+    ],
     commit: sha,
     findings,
     notes,
   };
 }
+
+/** The new bytes of each file a plan replaces. */
+const replaceBytes = (plan: WritePlan): Record<string, Uint8Array> =>
+  Object.fromEntries(Object.entries(plan.replace ?? {}).map(([p, r]) => [p, r.bytes]));
 
 /** `tree` without the paths in `gone` (a staged deletion in a commit's `only` list). */
 function withoutPaths(tree: TreeReader, gone: ReadonlySet<string>): TreeReader {
@@ -1690,7 +1870,10 @@ async function write(
         notes,
       };
     }
-    const empty = r.plan.events.length === 0 && Object.keys(r.plan.files).length === 0;
+    const empty =
+      r.plan.events.length === 0 &&
+      Object.keys(r.plan.files).length === 0 &&
+      Object.keys(r.plan.replace ?? {}).length === 0;
     if (empty || o.dryRun === true) {
       return {
         format: "adr-write/v1",
@@ -1978,6 +2161,36 @@ export async function scopeDecision(
 ): Promise<WriteResultJson> {
   const tracked = await trackedFiles(log);
   return write(log, "scope", (read, c) => planScope(read, input, c, { tracked }), o, deps);
+}
+
+/**
+ * Replaces sections of a proposed decision's draft (design §6.6), stages the body, and commits
+ * with `commit` (default `[policy] auto_commit`). A body with unstaged changes is a `UsageError`,
+ * so nobody's unsaved edit is folded into this write; a body changed between plan and write is
+ * `FileChangedError`. A commit is never made of a draft that fails its template lint: it is
+ * refused (`ok: false`, nothing written), as for `proposeDecision` without an editor.
+ */
+export async function updateDraft(
+  log: DecisionLog,
+  input: UpdateDraftInput,
+  o: WriteOptions = {},
+  deps: WriteDeps = DEFAULT_DEPS,
+): Promise<WriteResultJson> {
+  const read = await readDecisions(log);
+  const view = viewOf(read, resolveDecision(read, input.id));
+  if (view.body_path !== null && (await log.git.unstagedPaths([view.body_path])).length > 0) {
+    throw new UsageError(
+      `${view.body_path} has unstaged changes; stage or discard them, or edit the draft by hand`,
+    );
+  }
+  return write(
+    log,
+    "update",
+    (read, c) =>
+      planUpdateDraft(read, input, c, { refuseIncomplete: o.commit ?? log.adr.autoCommit }),
+    o,
+    deps,
+  );
 }
 
 const FOLLOW_NO_COMMIT_NOTE =

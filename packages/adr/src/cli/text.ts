@@ -212,6 +212,7 @@ const VERBS: Readonly<Record<WriteResultJson["command"], string>> = {
   note: "noted",
   link: "linked",
   scope: "scoped",
+  update: "updated",
 };
 
 /**
@@ -320,6 +321,9 @@ export function writeText(
         recorded,
       ].join("\n");
     }
+    case "update":
+      if (doc.written.length === 0) return `Draft of ${named(v.id, display)} unchanged`;
+      return [`Updated the draft of ${named(v.id, display)}: ${v.title}`, recorded].join("\n");
   }
 }
 
