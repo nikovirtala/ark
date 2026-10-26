@@ -1,0 +1,20 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M5WYFDRDQZG1A82ZB1Q4SFF8
+subject: 6930v8w9
+type: scoped
+at: 2026-10-26T20:29:51Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/issues/package.json
+    - packages/issues/src/cli/**
+    - packages/issues/src/init.ts
+    - packages/issues/src/views.ts
+    - packages/ledger/src/mcp/**
