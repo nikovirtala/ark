@@ -6,14 +6,17 @@ import { readSourceLogs } from "../sources.js";
 import { issuesChecks } from "../verify.js";
 import { commentCommand } from "./comment.js";
 import { editCommand } from "./edit.js";
+import { forCommand } from "./for.js";
 import { initCommand } from "./init.js";
 import { closeCommand, reopenCommand, startCommand, stopCommand } from "./lifecycle.js";
 import { linkCommand, unlinkCommand } from "./link.js";
 import { listCommand } from "./list.js";
 import { newCommand } from "./new.js";
 import { openForCli } from "./open.js";
+import { readyCommand } from "./ready.js";
 import { assignCommand, labelCommand, scopeCommand } from "./sets.js";
 import { showCommand } from "./show.js";
+import { workCommand } from "./work.js";
 
 /**
  * ledger's shared `verify`: the issue log and the local decision log as the mode reads them (the
@@ -58,6 +61,9 @@ export function issuesCli(version: string): ToolCli {
       linkCommand,
       unlinkCommand,
       scopeCommand,
+      forCommand,
+      readyCommand,
+      workCommand,
       listCommand,
       showCommand,
       verify,
