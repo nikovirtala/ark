@@ -63,6 +63,17 @@ jobs:
           else
             node packages/adr/dist/cli.js verify --format github
           fi
+      # The workspace build, like adr's step: it checks the log with the issues code at this commit.
+      - name: Verify ark's issue log
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            node packages/issues/dist/cli.js verify --base "origin/$BASE_REF" --format github
+          else
+            node packages/issues/dist/cli.js verify --format github
+          fi
       # The commit checks run last and even after a failed step, so a push with fixup! commits
       # still gets lint, build, test and verify results (AGENTS.md: CI covers the tip of each push).
       - name: Lint commit messages
