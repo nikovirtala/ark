@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M5WYE7MQNRT7SJEG2SNH67YC
+subject: 6930v8w9
+type: opened
+at: 2026-10-26T20:29:12Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Add the MCP server, agent skill and search to issues
+  template: feature
+  template_version: 1
