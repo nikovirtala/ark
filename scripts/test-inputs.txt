@@ -1,0 +1,10 @@
+# Repository files that tests read from disk outside the reading package (scripts/check-commit.sh).
+# <path> <package>...   A change to <path> runs the tests of each <package> (a directory under
+# packages/) and of its dependents. A path ending in / covers every file under it.
+# `pnpm lint` (scripts/check-test-inputs.mjs) fails when a file under packages/<p>/src/ has a "../"
+# string literal that resolves outside packages/<p>/ and its workspace dependencies and is not
+# listed here for <p>, or when an entry below names a missing path or package. It can't see paths
+# built from segments (join(dir, "..", "docs")), absolute paths, paths found at run time
+# (process.cwd(), git rev-parse, env vars), or a CLI spawned without cwd that reads the enclosing
+# repository; list such reads here by hand.
+docs/01-adr-v1.md adr
