@@ -224,3 +224,20 @@ describe("adr for", { timeout: 120_000 }, () => {
     usage(["for", "src/a.ts"], "adr.toml: scope.anchor_exclude[0]: invalid glob", "config");
   });
 });
+
+const SOURCES =
+  '[[sources]]\nname = "platform"\nkind = "adr"\nurl = "https://example.com/p.git"\nref = "main"\n';
+const SOURCES_NOTE =
+  "adr: warning: only this repository's decision log is read; the logs in [[sources]] (platform) aren't listed or searched until ark's step 4\n";
+
+describe("adr for with [[sources]]", () => {
+  it("notes that only the local log is read", async () => {
+    const r = await cliRepo({ "adr.toml": SOURCES, "src/a.ts": "a\n" });
+    repos.push(r);
+    const out = runAdr(r, ["for", "src/a.ts"]);
+    expect(out.status).toBe(0);
+    expect(out.stderr).toBe(SOURCES_NOTE);
+    const json = runAdr(r, ["for", "src/a.ts", "--json"]);
+    expect(JSON.parse(json.stdout).notes).toEqual([SOURCES_NOTE.slice(14, -1)]);
+  });
+});

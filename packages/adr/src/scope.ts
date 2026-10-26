@@ -10,7 +10,7 @@ import {
   UsageError,
 } from "@nikovirtala/ledger";
 import type { DecisionStatus, DecisionView } from "./kind.js";
-import type { DecisionLog, DecisionsRead } from "./log.js";
+import { type DecisionLog, type DecisionsRead, listingNotes } from "./log.js";
 import { type NumberingJson, numberingJson, stateHeader } from "./views.js";
 
 /** One decision that governs a path in `adr-for/v1` (design §6.9). */
@@ -208,6 +208,6 @@ export async function decisionsFor(
     numbering: numberingJson(read),
     paths: out,
     findings: read.findings.filter((f) => f.subject === null || listed.has(f.subject)),
-    notes: read.notes,
+    notes: listingNotes(read),
   };
 }

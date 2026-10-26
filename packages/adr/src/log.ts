@@ -66,6 +66,8 @@ export interface DecisionsRead {
   readonly findings: readonly Finding[];
   /** How the log was located (`ToolLog.notes`); `[]` for a MemoryTree read. */
   readonly notes: readonly string[];
+  /** The `[[sources]]` names in the config; their logs aren't read yet (ark's step 4). */
+  readonly sources: readonly string[];
 }
 
 /**
@@ -82,6 +84,7 @@ export async function readDecisions(log: DecisionLog): Promise<DecisionsRead> {
     ref: log.ref,
     commit: log.commit,
     notes: log.notes,
+    sources: (log.config?.sources ?? []).map((s) => s.name),
   });
 }
 
@@ -116,6 +119,7 @@ export async function readDecisionsFrom(
     readonly ref?: string | null;
     readonly commit?: string | null;
     readonly notes?: readonly string[];
+    readonly sources?: readonly string[];
   },
 ): Promise<DecisionsRead> {
   const { layout, adr, numbering } = o;
@@ -148,7 +152,23 @@ export async function readDecisionsFrom(
     numbering,
     findings: sortFindings(findings.map((f) => ({ ...f, kind: adrKind.name }))),
     notes: o.notes ?? [],
+    sources: o.sources ?? [],
   };
+}
+
+/**
+ * The note listing reads add while only the local log is read: the logs of `[[sources]]` aren't
+ * listed or searched until ark's step 4. `null` without sources.
+ */
+export function sourcesNote(read: DecisionsRead): string | null {
+  if (read.sources.length === 0) return null;
+  return `only this repository's decision log is read; the logs in [[sources]] (${read.sources.join(", ")}) aren't listed or searched until ark's step 4`;
+}
+
+/** `read.notes`, then the sources note when there is one. */
+export function listingNotes(read: DecisionsRead): readonly string[] {
+  const note = sourcesNote(read);
+  return note === null ? read.notes : [...read.notes, note];
 }
 
 /**
