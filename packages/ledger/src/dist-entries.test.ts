@@ -1,14 +1,41 @@
+import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 
 // Loads the built entries, as a consumer of the package would.
 const dist = (f: string) => new URL(`../dist/${f}`, import.meta.url);
-for (const f of ["index.js", "testing.js", "cli.js"]) {
+for (const f of ["index.js", "testing.js", "cli.js", "mcp.js"]) {
   if (!existsSync(dist(f))) throw new Error(`dist/${f} is missing; run \`pnpm build\` first`);
 }
 const root = (await import(dist("index.js").href)) as typeof import("./index.js");
 const testing = (await import(dist("testing.js").href)) as typeof import("./testing/index.js");
 const cli = (await import(dist("cli.js").href)) as typeof import("./cli/index.js");
+const mcp = (await import(dist("mcp.js").href)) as typeof import("./mcp/index.js");
+
+// A resolve hook records every module the import resolves, then prints them.
+const CHILD = `
+import { registerHooks } from "node:module";
+const urls = [];
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    const r = nextResolve(specifier, context);
+    urls.push(r.url);
+    return r;
+  },
+});
+await import(process.env.ENTRY_URL);
+process.stdout.write(JSON.stringify(urls));
+`;
+
+/** Every URL importing the built entry `f` resolves, in a fresh process. */
+function resolvedBy(f: string): string[] {
+  const out = spawnSync(process.execPath, ["--input-type=module", "-e", CHILD], {
+    encoding: "utf8",
+    env: { ...process.env, ENTRY_URL: dist(f).href },
+  });
+  expect(out.status, out.stderr).toBe(0);
+  return JSON.parse(out.stdout) as string[];
+}
 
 const cleanup: (() => Promise<void>)[] = [];
 
@@ -75,5 +102,29 @@ describe("built entries", () => {
     out.length = 0;
     expect(await cli.runCli(tool, { ...io, argv: ["--json", "nope"] })).toBe(2);
     expect(JSON.parse(out.join("")).error.code).toBe("usage");
+  });
+});
+
+describe("the mcp entry", () => {
+  it("shares the error classes with the root entry", () => {
+    expect(mcp.LedgerError).toBe(root.LedgerError);
+    expect(mcp.UsageError).toBe(root.UsageError);
+  });
+
+  it.each(["index.js", "cli.js", "testing.js"])(
+    "isn't loaded by dist/%s, nor is the MCP SDK",
+    (f) => {
+      const urls = resolvedBy(f);
+      expect(urls).toContain(dist(f).href);
+      expect(urls).not.toContain(dist("mcp.js").href);
+      expect(urls.filter((u) => u.includes("/@modelcontextprotocol/"))).toEqual([]);
+    },
+  );
+
+  it("loads neither the cli nor the testing entry", () => {
+    const urls = resolvedBy("mcp.js");
+    expect(urls.some((u) => u.includes("/@modelcontextprotocol/"))).toBe(true);
+    expect(urls).not.toContain(dist("cli.js").href);
+    expect(urls).not.toContain(dist("testing.js").href);
   });
 });
