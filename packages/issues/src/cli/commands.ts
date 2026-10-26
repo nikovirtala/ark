@@ -8,6 +8,7 @@ import { commentCommand } from "./comment.js";
 import { editCommand } from "./edit.js";
 import { initCommand } from "./init.js";
 import { closeCommand, reopenCommand, startCommand, stopCommand } from "./lifecycle.js";
+import { linkCommand, unlinkCommand } from "./link.js";
 import { listCommand } from "./list.js";
 import { newCommand } from "./new.js";
 import { openForCli } from "./open.js";
@@ -54,6 +55,8 @@ export function issuesCli(version: string): ToolCli {
       assignCommand,
       labelCommand,
       commentCommand,
+      linkCommand,
+      unlinkCommand,
       scopeCommand,
       listCommand,
       showCommand,
