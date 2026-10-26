@@ -2,6 +2,7 @@ import { parseOnBehalfOf } from "@nikovirtala/ledger";
 import { type McpServeOptions, serveMcp } from "@nikovirtala/ledger/mcp";
 import { openDecisionLog } from "../log.js";
 import { DECISION_TOOLS, decisionToolsAvailable } from "./policy.js";
+import { draftPrompt } from "./prompt.js";
 import { decisionResource, indexResource } from "./resources.js";
 import { type AdrMcpEnv, alwaysOnTools, decisionTools } from "./tools.js";
 
@@ -47,6 +48,7 @@ export async function serveAdrMcp(o: {
       unavailable,
       resources: [indexResource(e)],
       resourceTemplates: [decisionResource(e)],
+      prompts: [draftPrompt(e)],
     },
     {
       env: o.env,
