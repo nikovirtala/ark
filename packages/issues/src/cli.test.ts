@@ -32,10 +32,27 @@ describe("the issues binary", () => {
       .slice(r.stdout.split("\n").indexOf("Commands:") + 1)
       .filter((l) => l.startsWith("  "))
       .map((l) => l.trim().split(/\s+/)[0]);
-    const commands = names.slice(0, names.indexOf("help"));
-    expect(commands).toEqual(expect.arrayContaining(["init", "list", "show", "verify"]));
-    expect(commands[0]).toBe("init");
-    expect(commands.at(-1)).toBe("verify");
+    expect(names.slice(0, names.indexOf("help"))).toEqual([
+      "init",
+      "new",
+      "edit",
+      "start",
+      "stop",
+      "close",
+      "reopen",
+      "assign",
+      "label",
+      "comment",
+      "link",
+      "unlink",
+      "scope",
+      "for",
+      "ready",
+      "work",
+      "list",
+      "show",
+      "verify",
+    ]);
   });
 
   it("is an executable node script", () => {
