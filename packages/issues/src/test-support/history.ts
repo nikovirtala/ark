@@ -5,8 +5,11 @@
  */
 import {
   type Check,
+  ENVELOPE_VERSION,
   type EventEnvelope,
+  eventPath,
   foldChecks,
+  nextEventIdentity,
   parseTemplate,
   renderTemplate,
   serializeEvent,
@@ -15,6 +18,7 @@ import {
 } from "@nikovirtala/ledger";
 import {
   arbLegalHistory,
+  arbSubjectId,
   type DataArbs,
   type HistoryContext,
   type LegalHistory,
@@ -29,6 +33,7 @@ import {
   GLOB_POOL,
   ISSUE_TEST_OPTIONS,
   LABEL_POOL,
+  TEST_AGENT,
 } from "./arbitraries.js";
 
 export type IssueKind = typeof issueKind;
@@ -385,4 +390,176 @@ export function finalGraphs(h: IssueHistory): Graphs {
     status: (id) => status.get(id) ?? null,
     state: (id) => state.get(id) ?? null,
   };
+}
+
+/** One issue-specific mutation of a legal history: one file rewritten or added. */
+export interface IssueMutation {
+  readonly type: IssueMutationType;
+  readonly path: string;
+  readonly content: string;
+}
+
+/** The rules verify may report for each mutation; at least one fires, as an error. */
+export const MUTATION_RULES = Object.freeze({
+  "dangling-link": ["issue/reference-missing"],
+  "of-at-duplicate": ["issue/duplicate-of-duplicate"],
+  "cycle-edge": ["issue/cycle"],
+  "second-parent": ["issue/multiple-parents"],
+  "agent-close": ["issue/agent-closed"],
+  "wontfix-without-reason": ["issue/reason-required"],
+  "exclusive-labels": ["issue/label-exclusive"],
+} as const);
+
+export type IssueMutationType = keyof typeof MUTATION_RULES;
+export const MUTATION_TYPES = Object.keys(MUTATION_RULES) as IssueMutationType[];
+
+const fill = (bytes: Uint8Array) => (buf: Uint8Array) => buf.set(bytes.subarray(0, buf.length));
+
+/** The largest `at` of the history, in milliseconds. */
+const latestAt = (h: IssueHistory) => Math.max(...h.steps.map((s) => Date.parse(s.event.at)));
+
+/**
+ * One issue mutation of `h` among the types in `o.only` (default all) that have a candidate, or
+ * `null` when none has one (design `arbIssueMutation` table). An appended event sorts after every
+ * event of the history, one second after the latest, so its id and file name are fresh.
+ */
+export function arbIssueMutation(
+  h: IssueHistory,
+  o: { readonly only?: readonly IssueMutationType[] } = {},
+): fc.Arbitrary<IssueMutation> | null {
+  const g = finalGraphs(h);
+  const ids = new Set(g.subjects);
+  const now = latestAt(h) + 1000;
+  const append = (
+    type: IssueMutationType,
+    subject: string,
+    event: {
+      readonly type: string;
+      readonly data: Record<string, unknown>;
+      readonly reason?: string;
+    },
+  ): fc.Arbitrary<IssueMutation> =>
+    fc.uint8Array({ minLength: 10, maxLength: 10 }).map((bytes) => {
+      const previous = h.steps.filter((s) => s.subject === subject).map((s) => s.event);
+      const { at, id } = nextEventIdentity(previous, { now: () => now, random: fill(bytes) });
+      const e: EventEnvelope = {
+        envelope: ENVELOPE_VERSION,
+        kind: issueKind.name,
+        schema: issueKind.schema,
+        id,
+        subject,
+        type: event.type,
+        at,
+        actor: h.steps[0]?.event.actor ?? TEST_AGENT,
+        ...(event.reason === undefined ? {} : { reason: event.reason }),
+        data: event.data,
+      };
+      return { type, path: eventPath(h.layout, e), content: serializeEvent(e) };
+    });
+  const rewrite = (
+    type: IssueMutationType,
+    step: IssueHistory["steps"][number],
+    change: (e: EventEnvelope) => EventEnvelope,
+  ): IssueMutation => ({ type, path: step.path, content: serializeEvent(change(step.event)) });
+
+  const closings = h.steps.filter((s) => s.event.type === "closed");
+  const open = g.subjects.filter((id) => g.status(id) === "open" || g.status(id) === "in-progress");
+  const duplicates = g.subjects.filter((id) => isDuplicate(g, id));
+  const depEdges = g.subjects.flatMap((y) =>
+    (g.state(y)?.links ?? [])
+      .filter((l) => l.rel === "depends-on" && l.to !== y && ids.has(l.to))
+      .map((l) => ({ y, x: l.to })),
+  );
+  const parts = (id: string) => partOfEdges(g, id);
+  const parented = g.subjects.flatMap((s) => {
+    const p = (g.state(s)?.links ?? []).find((l) => l.rel === "part-of")?.to;
+    if (p === undefined) return [];
+    return g.subjects
+      .filter((q) => q !== s && q !== p && !reaches(parts, q, s))
+      .map((q) => ({ s, q }));
+  });
+
+  const candidates: Record<IssueMutationType, (() => fc.Arbitrary<IssueMutation>) | null> = {
+    "dangling-link":
+      g.subjects.length === 0
+        ? null
+        : () =>
+            fc
+              .record({
+                subject: fc.constantFrom(...g.subjects),
+                to: arbSubjectId().filter((id) => !ids.has(id)),
+                rel: fc.constantFrom("depends-on", "relates-to"),
+              })
+              .chain(({ subject, to, rel }) =>
+                append("dangling-link", subject, { type: "linked", data: { to, rel } }),
+              ),
+    "of-at-duplicate":
+      open.length === 0 || duplicates.length === 0
+        ? null
+        : (() => {
+            const pairs = open.flatMap((a) =>
+              duplicates.filter((b) => b !== a).map((b) => ({ a, b })),
+            );
+            return pairs.length === 0
+              ? null
+              : () =>
+                  fc.constantFrom(...pairs).chain(({ a, b }) =>
+                    append("of-at-duplicate", a, {
+                      type: "closed",
+                      data: { resolution: "duplicate", of: b },
+                      reason: "the same work",
+                    }),
+                  );
+          })(),
+    "cycle-edge":
+      depEdges.length === 0
+        ? null
+        : () =>
+            fc
+              .constantFrom(...depEdges)
+              .chain(({ x, y }) =>
+                append("cycle-edge", x, { type: "linked", data: { to: y, rel: "depends-on" } }),
+              ),
+    "second-parent":
+      parented.length === 0
+        ? null
+        : () =>
+            fc
+              .constantFrom(...parented)
+              .chain(({ s, q }) =>
+                append("second-parent", s, { type: "linked", data: { to: q, rel: "part-of" } }),
+              ),
+    "agent-close":
+      closings.length === 0
+        ? null
+        : () =>
+            fc
+              .constantFrom(...closings)
+              .map((s) => rewrite("agent-close", s, (e) => ({ ...e, actor: TEST_AGENT }))),
+    "wontfix-without-reason":
+      closings.length === 0
+        ? null
+        : () =>
+            fc.constantFrom(...closings).map((s) =>
+              rewrite("wontfix-without-reason", s, ({ reason: _, ...e }) => ({
+                ...e,
+                data: { resolution: "wontfix" },
+              })),
+            ),
+    "exclusive-labels":
+      g.subjects.length === 0
+        ? null
+        : () =>
+            fc.constantFrom(...g.subjects).chain((subject) =>
+              append("exclusive-labels", subject, {
+                type: "labeled",
+                data: { set: ["priority:high", "priority:low"] },
+              }),
+            ),
+  };
+  const allowed = (o.only ?? MUTATION_TYPES).filter((t) => candidates[t] !== null);
+  if (allowed.length === 0) return null;
+  return fc
+    .constantFrom(...allowed)
+    .chain((t) => (candidates[t] as () => fc.Arbitrary<IssueMutation>)());
 }

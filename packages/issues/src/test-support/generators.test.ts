@@ -13,11 +13,13 @@ import { TASK_V1 } from "../templates/builtin.js";
 import { arbTitle, ISSUE_TEST_OPTIONS } from "./arbitraries.js";
 import {
   arbIssueHistory,
+  arbIssueMutation,
   dependsOnEdges,
   finalGraphs,
   HISTORY_LAYOUT,
   type IssueHistory,
   issueChecks,
+  MUTATION_TYPES,
   partOfEdges,
   reaches,
   TASK_TEMPLATE,
@@ -140,6 +142,47 @@ describe("arbTitle", () => {
         expect(t).toBe(t.trim());
         expect(t).not.toMatch(/[\r\n]/);
         expect(t.startsWith("#")).toBe(false);
+      }),
+      RUNS,
+    );
+  });
+});
+
+describe("arbIssueMutation", () => {
+  const weighted = arbIssueHistory({ subjects: { min: 2, max: 8 }, links: true, duplicates: true });
+  for (const type of MUTATION_TYPES) {
+    it(`${type}: has a candidate in at least 20% of histories, and appends fresh events`, () => {
+      let found = 0;
+      const base = ["cycle-edge", "of-at-duplicate", "second-parent"].includes(type)
+        ? weighted
+        : arbIssueHistory();
+      fc.assert(
+        fc.property(base, fc.gen(), (h, g) => {
+          const arb = arbIssueMutation(h, { only: [type] });
+          if (arb === null) return;
+          found++;
+          const m = g(() => arb);
+          expect(m.type).toBe(type);
+          if (Object.hasOwn(h.files, m.path)) return;
+          const parsed = parseEventYaml(m.content, { file: m.path });
+          if (!parsed.ok) throw new Error(m.content);
+          const e = parsed.doc as { id: string; at: string };
+          expect(h.steps.some((s) => s.event.id === e.id)).toBe(false);
+          for (const s of h.steps) expect(Date.parse(e.at)).toBeGreaterThan(Date.parse(s.event.at));
+        }),
+        RUNS,
+      );
+      expect(found).toBeGreaterThanOrEqual(60);
+    });
+  }
+
+  it("is null exactly when no type has a candidate", () => {
+    fc.assert(
+      fc.property(arbIssueHistory({ subjects: { min: 1, max: 1 }, maxSteps: 1 }), (h) => {
+        expect(
+          arbIssueMutation(h, { only: ["cycle-edge", "second-parent", "agent-close"] }),
+        ).toBeNull();
+        expect(arbIssueMutation(h)).not.toBeNull();
       }),
       RUNS,
     );
