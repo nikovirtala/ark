@@ -10,7 +10,13 @@ import {
   UsageError,
 } from "../errors.js";
 import { serveMcp } from "./serve.js";
-import type { McpServerSpec, McpTool } from "./types.js";
+import type {
+  McpPrompt,
+  McpResource,
+  McpResourceTemplate,
+  McpServerSpec,
+  McpTool,
+} from "./types.js";
 
 const open: (() => Promise<void>)[] = [];
 afterEach(async () => {
@@ -47,6 +53,46 @@ const thrower = (name: string, err: unknown): McpTool => ({
     throw err;
   },
 });
+
+const index: McpResource = {
+  uri: "t://index",
+  name: "index",
+  description: "All items.",
+  mimeType: "text/markdown",
+  read: async () => ({ header: null, text: "# Index\n" }),
+};
+
+const item: McpResourceTemplate = {
+  uriTemplate: "t://item/{id}",
+  name: "item",
+  title: "Item",
+  description: "One item.",
+  mimeType: "text/markdown",
+  read: async ({ id }) => {
+    if (id === "gone") return null;
+    if (id === "bad") throw new UsageError("invalid item bad");
+    if (id === "cfg") throw new ConfigError("bad config");
+    if (id === "bug") throw new Error("oops");
+    return {
+      header: { line: `T-1 (${id}) · superseded`, warning: "Read t://item/T-2." },
+      text: "body\n",
+    };
+  },
+};
+
+const prompt: McpPrompt = {
+  name: "t_draft",
+  title: "Draft",
+  description: "Drafts something.",
+  arguments: [
+    { name: "title", description: "The title", required: true },
+    { name: "note", description: "A note", required: false },
+  ],
+  get: async (args) => {
+    if (args.title === "bad") throw new UsageError("unknown template bad");
+    return `Draft ${args.title}${args.note === undefined ? "" : ` (${args.note})`}.`;
+  },
+};
 
 async function connect(
   spec: Partial<McpServerSpec>,
@@ -99,6 +145,13 @@ describe("serveMcp spec checks", () => {
     ],
     ["a schema that isn't an object", { tools: [{ ...echo, inputSchema: { type: "string" } }] }],
     ["an inputHint over two lines", { tools: [{ ...echo, inputHint: "a\nb" }] }],
+    ["a prompt without the prefix", { prompts: [{ ...prompt, name: "draft" }] }],
+    ["a prompt named like a tool", { tools: [echo], prompts: [{ ...prompt, name: "t_echo" }] }],
+    ["a duplicate resource", { resources: [index, index] }],
+    [
+      "a bad resource template",
+      { resourceTemplates: [{ ...item, uriTemplate: "t://item/x{id}" }] },
+    ],
   ])("rejects %s", async (_, spec) => {
     await expect(bad(spec)).rejects.toBeInstanceOf(InvalidArgumentError);
   });
@@ -285,5 +338,95 @@ describe("serveMcp tools", () => {
     open.length = 0;
     await client.close();
     await expect(served).resolves.toBeUndefined();
+  });
+});
+
+describe("serveMcp resources", () => {
+  it("advertises resources and prompts only when the spec has them", async () => {
+    const { client } = await connect({ tools: [echo] });
+    expect(client.getServerCapabilities()).toEqual({ tools: {} });
+    const both = await connect({ resources: [index], prompts: [prompt] });
+    expect(both.client.getServerCapabilities()).toEqual({ tools: {}, resources: {}, prompts: {} });
+  });
+
+  it("lists resources and templates", async () => {
+    const { client } = await connect({ resources: [index], resourceTemplates: [item] });
+    expect((await client.listResources()).resources).toEqual([
+      { uri: "t://index", name: "index", description: "All items.", mimeType: "text/markdown" },
+    ]);
+    expect((await client.listResourceTemplates()).resourceTemplates).toEqual([
+      {
+        uriTemplate: "t://item/{id}",
+        name: "item",
+        title: "Item",
+        description: "One item.",
+        mimeType: "text/markdown",
+      },
+    ]);
+  });
+
+  it("reads an exact URI and a template match, header first", async () => {
+    const { client } = await connect({ resources: [index], resourceTemplates: [item] });
+    expect(await client.readResource({ uri: "t://index" })).toEqual({
+      contents: [{ uri: "t://index", mimeType: "text/markdown", text: "# Index\n" }],
+    });
+    expect(await client.readResource({ uri: "t://item/a%20b" })).toEqual({
+      contents: [
+        {
+          uri: "t://item/a%20b",
+          mimeType: "text/markdown",
+          text: "T-1 (a b) · superseded\nRead t://item/T-2.\n\nbody\n",
+        },
+      ],
+    });
+  });
+
+  it.each<[string, number, string]>([
+    ["t://item/gone", -32002, "resource not found: t://item/gone"],
+    ["t://other", -32002, "resource not found: t://other"],
+    ["t://item/bad", -32602, "invalid item bad"],
+    ["t://item/%E0%A4%A", -32602, "malformed resource URI"],
+    ["t://item/cfg", -32603, "config: bad config"],
+    ["t://item/bug", -32603, "internal error: oops"],
+  ])("answers %s with %d", async (uri, code, message) => {
+    const { client, stderr } = await connect({ resources: [index], resourceTemplates: [item] });
+    const err = await mcpError(client.readResource({ uri }));
+    expect(err.code).toBe(code);
+    expect(err.message).toContain(message);
+    expect(stderr.join("") !== "").toBe(uri === "t://item/bug");
+  });
+});
+
+describe("serveMcp prompts", () => {
+  it("lists prompts and returns one user message", async () => {
+    const { client } = await connect({ prompts: [prompt] });
+    expect((await client.listPrompts()).prompts).toEqual([
+      {
+        name: "t_draft",
+        title: "Draft",
+        description: "Drafts something.",
+        arguments: prompt.arguments,
+      },
+    ]);
+    expect(
+      await client.getPrompt({ name: "t_draft", arguments: { title: "X", note: "n" } }),
+    ).toEqual({
+      description: "Drafts something.",
+      messages: [{ role: "user", content: { type: "text", text: "Draft X (n)." } }],
+    });
+  });
+
+  it.each<[string, string, Record<string, string>, string]>([
+    ["an unknown prompt", "t_nope", { title: "X" }, "unknown prompt t_nope"],
+    ["an undeclared argument", "t_draft", { title: "X", other: "y" }, "unknown argument other"],
+    ["a missing required argument", "t_draft", {}, "missing argument title"],
+    ["a long argument", "t_draft", { title: "x".repeat(1001) }, "longer than 1000 characters"],
+    ["a NUL", "t_draft", { title: "a\0b" }, "contains a NUL character"],
+    ["a usage error from get", "t_draft", { title: "bad" }, "unknown template bad"],
+  ])("answers %s with -32602", async (_, name, args, message) => {
+    const { client } = await connect({ prompts: [prompt] });
+    const err = await mcpError(client.getPrompt({ name, arguments: args }));
+    expect(err.code).toBe(-32602);
+    expect(err.message).toContain(message);
   });
 });

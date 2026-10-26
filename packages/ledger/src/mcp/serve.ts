@@ -4,14 +4,32 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
   CallToolRequestSchema,
   ErrorCode,
+  GetPromptRequestSchema,
+  ListPromptsRequestSchema,
+  ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
   ListToolsRequestSchema,
   McpError,
+  ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { ValidateFunction } from "ajv/dist/2020.js";
-import { InvalidArgumentError, type JsonValue, UsageError } from "../errors.js";
+import { InvalidArgumentError, type JsonValue, LedgerError, UsageError } from "../errors.js";
+import { renderStateHeader } from "../surfaces/header.js";
 import { errorResult, toolResult } from "./results.js";
-import type { McpContext, McpServeOptions, McpServerSpec, McpTool } from "./types.js";
+import type {
+  McpContext,
+  McpPrompt,
+  McpResourceContent,
+  McpServeOptions,
+  McpServerSpec,
+  McpTool,
+} from "./types.js";
+import { compileUriTemplate, type UriTemplate } from "./uri.js";
 import { compileInputSchema, formatInputErrors } from "./validate.js";
+
+/** MCP's code for a resource that doesn't exist. */
+const RESOURCE_NOT_FOUND = -32002;
+const MAX_PROMPT_ARGUMENT = 1000;
 
 const SERVER_NAME = /^[a-z][a-z0-9-]{0,31}$/;
 
@@ -21,16 +39,12 @@ function namePattern(server: string): RegExp {
 }
 
 /** The spec checks: a bad spec is a bug in the tool, reported at startup. */
-function checkSpec(spec: McpServerSpec): Map<string, ValidateFunction> {
+function checkSpec(spec: McpServerSpec): {
+  validators: Map<string, ValidateFunction>;
+  templates: UriTemplate[];
+} {
   if (!SERVER_NAME.test(spec.name)) {
     throw new InvalidArgumentError(`MCP server name ${JSON.stringify(spec.name)} is invalid`);
-  }
-  if (
-    (spec.resources?.length ?? 0) > 0 ||
-    (spec.resourceTemplates?.length ?? 0) > 0 ||
-    (spec.prompts?.length ?? 0) > 0
-  ) {
-    throw new InvalidArgumentError(`${spec.name}: MCP resources and prompts are not supported yet`);
   }
   const pattern = namePattern(spec.name);
   const names = new Set<string>();
@@ -57,7 +71,62 @@ function checkSpec(spec: McpServerSpec): Map<string, ValidateFunction> {
     validators.set(tool.name, compileInputSchema(tool.name, tool.inputSchema));
   }
   for (const name of Object.keys(spec.unavailable ?? {})) claim("tool", name);
-  return validators;
+  for (const prompt of spec.prompts ?? []) claim("prompt", prompt.name);
+  const uris = new Set<string>();
+  for (const uri of [
+    ...(spec.resources ?? []).map((r) => r.uri),
+    ...(spec.resourceTemplates ?? []).map((r) => r.uriTemplate),
+  ]) {
+    if (uris.has(uri))
+      throw new InvalidArgumentError(`${spec.name}: resource ${uri} is defined twice`);
+    uris.add(uri);
+  }
+  const templates = (spec.resourceTemplates ?? []).map((r) => compileUriTemplate(r.uriTemplate));
+  return { validators, templates };
+}
+
+/**
+ * How a resource read's or prompt get's exception reaches the client: a usage error is the
+ * caller's (−32602), another ledger error or a bug is the server's (−32603), a bug also on stderr.
+ */
+function requestError(
+  err: unknown,
+  o: { readonly server: string; readonly stderr: { write(s: string): void } },
+): McpError {
+  if (err instanceof McpError) return err;
+  if (err instanceof UsageError) return new McpError(ErrorCode.InvalidParams, err.message);
+  if (err instanceof LedgerError) {
+    return new McpError(ErrorCode.InternalError, `${err.code}: ${err.message}`);
+  }
+  const message = err instanceof Error ? err.message : String(err);
+  const stack = err instanceof Error && err.stack !== undefined ? `${err.stack}\n` : "";
+  o.stderr.write(`${o.server}: internal error: ${message}\n${stack}`);
+  return new McpError(ErrorCode.InternalError, `internal error: ${message}`);
+}
+
+const resourceText = (c: McpResourceContent) =>
+  c.header === null ? c.text : `${renderStateHeader(c.header)}\n${c.text}`;
+
+/** The prompt's arguments, checked: declared names only, required ones present, short, no NUL. */
+function promptArguments(
+  prompt: McpPrompt,
+  given: Readonly<Record<string, string>> | undefined,
+): Record<string, string> {
+  const args = { ...(given ?? {}) };
+  const declared = new Set(prompt.arguments.map((a) => a.name));
+  const invalid = (why: string) => new McpError(ErrorCode.InvalidParams, `${prompt.name}: ${why}`);
+  for (const [name, value] of Object.entries(args)) {
+    if (!declared.has(name)) throw invalid(`unknown argument ${name}`);
+    if (typeof value !== "string") throw invalid(`argument ${name} must be a string`);
+    if (value.length > MAX_PROMPT_ARGUMENT) {
+      throw invalid(`argument ${name} is longer than ${MAX_PROMPT_ARGUMENT} characters`);
+    }
+    if (value.includes("\0")) throw invalid(`argument ${name} contains a NUL character`);
+  }
+  for (const a of prompt.arguments) {
+    if (a.required && !Object.hasOwn(args, a.name)) throw invalid(`missing argument ${a.name}`);
+  }
+  return args;
 }
 
 /** Runs tasks one at a time, in the order they were queued. */
@@ -96,17 +165,25 @@ function listedTool(t: McpTool): Record<string, unknown> {
  * `InvalidArgumentError` for a bad spec before serving.
  */
 export async function serveMcp(spec: McpServerSpec, o: McpServeOptions = {}): Promise<void> {
-  const validators = checkSpec(spec);
+  const { validators, templates } = checkSpec(spec);
   const env = o.env ?? process.env;
   const stderr = o.stderr ?? process.stderr;
   const tools = new Map(spec.tools.map((t) => [t.name, t]));
   const unavailable = spec.unavailable ?? {};
   const queue = serialQueue();
+  const resources = spec.resources ?? [];
+  const resourceTemplates = spec.resourceTemplates ?? [];
+  const prompts = spec.prompts ?? [];
+  const fail = { server: spec.name, stderr };
 
   const server = new Server(
     { name: spec.name, version: spec.version },
     {
-      capabilities: { tools: {} },
+      capabilities: {
+        tools: {},
+        ...(resources.length > 0 || resourceTemplates.length > 0 ? { resources: {} } : {}),
+        ...(prompts.length > 0 ? { prompts: {} } : {}),
+      },
       ...(spec.instructions === undefined ? {} : { instructions: spec.instructions }),
     },
   );
@@ -136,15 +213,90 @@ export async function serveMcp(spec: McpServerSpec, o: McpServeOptions = {}): Pr
       const validate = validators.get(name);
       if (validate !== undefined && !validate(input)) {
         const message = formatInputErrors(tool, validate.errors ?? []);
-        return errorResult(new UsageError(message), { server: spec.name, stderr });
+        return errorResult(new UsageError(message), fail);
       }
       try {
         return toolResult(name, await tool.run(input, context()));
       } catch (err) {
-        return errorResult(err, { server: spec.name, stderr });
+        return errorResult(err, fail);
       }
     }),
   );
+
+  if (resources.length > 0 || resourceTemplates.length > 0) {
+    server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+      resources: resources.map((r) => ({
+        uri: r.uri,
+        name: r.name,
+        ...(r.title === undefined ? {} : { title: r.title }),
+        description: r.description,
+        mimeType: r.mimeType,
+      })),
+    }));
+    server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({
+      resourceTemplates: resourceTemplates.map((r) => ({
+        uriTemplate: r.uriTemplate,
+        name: r.name,
+        ...(r.title === undefined ? {} : { title: r.title }),
+        description: r.description,
+        mimeType: r.mimeType,
+      })),
+    }));
+    server.setRequestHandler(ReadResourceRequestSchema, (req) =>
+      queue.run(async () => {
+        const { uri } = req.params;
+        const notFound = () => new McpError(RESOURCE_NOT_FOUND, `resource not found: ${uri}`);
+        let content: McpResourceContent | null = null;
+        let mimeType = "";
+        try {
+          const exact = resources.find((r) => r.uri === uri);
+          if (exact !== undefined) {
+            mimeType = exact.mimeType;
+            content = await exact.read(context());
+          } else {
+            const i = templates.findIndex((t) => t.match(uri) !== null);
+            const template = resourceTemplates[i];
+            if (template === undefined) throw notFound();
+            mimeType = template.mimeType;
+            content = await template.read(templates[i]?.match(uri) ?? {}, context());
+          }
+        } catch (err) {
+          throw requestError(err, fail);
+        }
+        if (content === null) throw notFound();
+        return { contents: [{ uri, mimeType, text: resourceText(content) }] };
+      }),
+    );
+  }
+  if (prompts.length > 0) {
+    server.setRequestHandler(ListPromptsRequestSchema, async () => ({
+      prompts: prompts.map((p) => ({
+        name: p.name,
+        ...(p.title === undefined ? {} : { title: p.title }),
+        description: p.description,
+        arguments: p.arguments.map((a) => ({ ...a })),
+      })),
+    }));
+    server.setRequestHandler(GetPromptRequestSchema, (req) =>
+      queue.run(async () => {
+        const prompt = prompts.find((p) => p.name === req.params.name);
+        if (prompt === undefined) {
+          throw new McpError(ErrorCode.InvalidParams, `unknown prompt ${req.params.name}`);
+        }
+        const args = promptArguments(prompt, req.params.arguments);
+        let text: string;
+        try {
+          text = await prompt.get(args, context());
+        } catch (err) {
+          throw requestError(err, fail);
+        }
+        return {
+          description: prompt.description,
+          messages: [{ role: "user" as const, content: { type: "text" as const, text } }],
+        };
+      }),
+    );
+  }
 
   await serve(server, queue, { stderr, name: spec.name, transport: o.transport });
 }
