@@ -1,3 +1,5 @@
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
@@ -434,5 +436,130 @@ describe("adr mcp tools", { timeout: 60_000 }, () => {
     expect(text(note)).toContain(
       "Note: on_behalf_of taken from the git identity ledger-test@example.com",
     );
+  });
+});
+
+describe("adr mcp decision tools", { timeout: 60_000 }, () => {
+  const DECIDE = "[policy]\nmcp_can_decide = true\n";
+
+  it("lists all fifteen with mcp_can_decide, and warns about accept_requires_human", async () => {
+    const r = await repo({ "adr.toml": DECIDE });
+    const { client, stderr } = await connect(r);
+    expect((await client.listTools()).tools.map((t) => t.name).slice(11)).toEqual([
+      "adr_accept",
+      "adr_reject",
+      "adr_deprecate",
+      "adr_supersede",
+    ]);
+    expect(stderr).toEqual([
+      "adr: warning: adr_accept refuses agents while [policy] accept_requires_human is true\n",
+    ]);
+    const quiet = await repo({ "adr.toml": `${DECIDE}accept_requires_human = false\n` });
+    expect((await connect(quiet)).stderr).toEqual([]);
+  });
+
+  it("refuses agents' acceptance under accept_requires_human, with every finding", async () => {
+    const r = await repo({ "adr.toml": DECIDE });
+    const { b } = await fixture(r);
+    const { client } = await connect(r);
+    const p = await client.callTool({
+      name: "adr_propose",
+      arguments: { title: "Shard orders", sections: NYGARD_SECTIONS },
+    });
+    const id = (structured(p).decision as { id: string }).id;
+    const own = await client.callTool({ name: "adr_accept", arguments: { id } });
+    expect(structured(own)).toMatchObject({ command: "accept", ok: false });
+    expect(rules(own)).toContain("decision/agent-accepted");
+    const accepted = await client.callTool({ name: "adr_accept", arguments: { id: b } });
+    expect(rules(accepted)).toEqual(
+      expect.arrayContaining(["transition/illegal", "decision/agent-accepted"]),
+    );
+  });
+
+  it("decides as the CLI does, with the policy lifted", async () => {
+    const r = await repo({ "adr.toml": `${DECIDE}accept_requires_human = false\n` });
+    const { a, b, c } = await fixture(r);
+    const { client } = await connect(r);
+    const scoped = await client.callTool({
+      name: "adr_scope",
+      arguments: { id: b, add: ["src/orders/**"] },
+    });
+    expect(structured(scoped)).toMatchObject({ ok: true });
+    const others = await client.callTool({
+      name: "adr_update_draft",
+      arguments: { id: c, sections: { context: "Edited." } },
+    });
+    expect(structured(others)).toMatchObject({ ok: true });
+    const reject = await client.callTool({
+      name: "adr_reject",
+      arguments: { id: c, reason: "Not needed." },
+    });
+    expect(structured(reject)).toMatchObject({ command: "reject", ok: true });
+    expect(text(reject)).toContain(`Rejected ${c}`);
+    const again = await client.callTool({ name: "adr_reject", arguments: { id: c, reason: "x" } });
+    expect(rules(again)).toEqual(["transition/illegal"]);
+    const p = await client.callTool({
+      name: "adr_propose",
+      arguments: { title: "Use Aurora with replicas", sections: NYGARD_SECTIONS },
+    });
+    const e = (structured(p).decision as { id: string }).id;
+    expect(text(p)).toContain(`Next: adr_accept or adr accept ${e}`);
+    const accept = await client.callTool({
+      name: "adr_accept",
+      arguments: { id: e, copy_scope: true },
+    });
+    expect(structured(accept)).toMatchObject({ command: "accept", ok: true, affected: [] });
+    const supersede = await client.callTool({
+      name: "adr_supersede",
+      arguments: { id: b, by: e },
+    });
+    expect(structured(supersede)).toMatchObject({ command: "supersede", ok: true });
+    expect(text(supersede).split("\n")[0]).toBe(`ADR-0002 (${b}) · superseded`);
+    expect(text(supersede)).toContain(`Superseded ADR-0002 (${b}) by ${e}`);
+    const deprecate = await client.callTool({
+      name: "adr_deprecate",
+      arguments: { id: e, reason: "Moving off Aurora." },
+    });
+    expect(structured(deprecate)).toMatchObject({ command: "deprecate", ok: true });
+    const illegal = await client.callTool({
+      name: "adr_deprecate",
+      arguments: { id: a, reason: "x" },
+    });
+    expect(rules(illegal)).toEqual(["transition/illegal"]);
+    const unaccepted = await client.callTool({
+      name: "adr_supersede",
+      arguments: { id: e, by: c },
+    });
+    expect(rules(unaccepted)).toContain("decision/superseded-by-unaccepted");
+  });
+
+  it("withdraws another person's proposal with mcp_can_decide", async () => {
+    const r = await repo({ "adr.toml": DECIDE });
+    const { b, c } = await fixture(r);
+    const { client } = await connect(r);
+    const others = await client.callTool({ name: "adr_withdraw", arguments: { id: c } });
+    expect(structured(others)).toMatchObject({
+      command: "withdraw",
+      ok: true,
+      decision: { status: "withdrawn" },
+    });
+    const accepted = await client.callTool({ name: "adr_withdraw", arguments: { id: b } });
+    expect(rules(accepted)).toEqual(["transition/illegal"]);
+  });
+
+  it("tells the user to restart when mcp_can_decide was turned off", async () => {
+    const r = await repo({ "adr.toml": DECIDE });
+    const { c } = await fixture(r);
+    const { client } = await connect(r);
+    await writeFile(join(r.root, "adr.toml"), "[policy]\nmcp_can_decide = false\n");
+    const call = await client.callTool({ name: "adr_reject", arguments: { id: c, reason: "x" } });
+    expect(call.isError).toBe(true);
+    expect(structured(call)).toMatchObject({
+      error: {
+        code: "usage",
+        message:
+          "[policy] mcp_can_decide is now false in adr.toml; restart adr mcp to update its tool list",
+      },
+    });
   });
 });

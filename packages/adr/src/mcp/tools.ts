@@ -1,4 +1,10 @@
-import { type Attribution, eventDir, type JsonValue, MAX_GLOB_LENGTH } from "@nikovirtala/ledger";
+import {
+  type Attribution,
+  eventDir,
+  type JsonValue,
+  MAX_GLOB_LENGTH,
+  UsageError,
+} from "@nikovirtala/ledger";
 import { type McpTool, type McpToolResult, mcpAttribution } from "@nikovirtala/ledger/mcp";
 import { DECISION_STATUSES, type DecisionStatus } from "../kind.js";
 import {
@@ -13,10 +19,14 @@ import { searchDecisions } from "../search.js";
 import { listTemplates } from "../templates/list.js";
 import { listDecisions, showDecision } from "../views.js";
 import {
+  acceptDecision,
+  deprecateDecision,
   linkDecision,
   noteDecision,
   proposeDecision,
+  rejectDecision,
   scopeDecision,
+  supersedeDecision,
   updateDraft,
   type WriteResultJson,
   withdrawDecision,
@@ -412,6 +422,103 @@ export function alwaysOnTools(e: AdrMcpEnv): McpTool[] {
           { notes: attribution.notes },
         );
         return writeResult(log, d, o);
+      },
+    },
+  ];
+}
+
+/**
+ * The log for a decision tool's call. The tool list was fixed at startup, so a call after
+ * `mcp_can_decide` was turned off is a usage error telling the user to restart (design §7.3).
+ */
+async function decidingLog(e: AdrMcpEnv): Promise<DecisionLog> {
+  const log = await openLog(e);
+  if (!log.adr.mcpCanDecide) {
+    throw new UsageError(
+      `[policy] mcp_can_decide is now false in ${log.configPath ?? "adr.toml (not present)"}; restart adr mcp to update its tool list`,
+    );
+  }
+  return log;
+}
+
+/** The four tools `adr mcp` lists only with `[policy] mcp_can_decide = true` (design §7.4). */
+export function decisionTools(e: AdrMcpEnv): McpTool[] {
+  return [
+    {
+      name: "adr_accept",
+      title: "Accept a decision",
+      description:
+        "Accept a proposed decision (lints it, freezes the body, supersedes what it declares). Refused for agents while accept_requires_human is on.",
+      inputSchema: object({ id: ID, copy_scope: { type: "boolean" } }, ["id"]),
+      annotations: WRITE,
+      async run(input, ctx) {
+        const log = await decidingLog(e);
+        const { actor, notes } = await mcpAttribution(log.git, ctx);
+        const copyScope =
+          input.copy_scope === true ? "copy" : input.copy_scope === false ? "skip" : "suggest";
+        const d = await acceptDecision(
+          log,
+          { id: str(input.id) ?? "", actor },
+          { notes, copyScope },
+        );
+        return writeResult(log, d, { tool: "adr_accept" });
+      },
+    },
+    {
+      name: "adr_reject",
+      title: "Reject a decision",
+      description: "Reject a proposed decision, with a reason.",
+      inputSchema: object({ id: ID, reason: TEXT }, ["id", "reason"]),
+      annotations: WRITE,
+      async run(input, ctx) {
+        const log = await decidingLog(e);
+        const { actor, notes } = await mcpAttribution(log.git, ctx);
+        const d = await rejectDecision(
+          log,
+          { id: str(input.id) ?? "", reason: str(input.reason) ?? "", actor },
+          { notes },
+        );
+        return writeResult(log, d, { tool: "adr_reject" });
+      },
+    },
+    {
+      name: "adr_deprecate",
+      title: "Deprecate a decision",
+      description: "Deprecate an accepted decision that nothing replaces, with a reason.",
+      inputSchema: object({ id: ID, reason: TEXT }, ["id", "reason"]),
+      annotations: WRITE,
+      async run(input, ctx) {
+        const log = await decidingLog(e);
+        const { actor, notes } = await mcpAttribution(log.git, ctx);
+        const d = await deprecateDecision(
+          log,
+          { id: str(input.id) ?? "", reason: str(input.reason) ?? "", actor },
+          { notes },
+        );
+        return writeResult(log, d, { tool: "adr_deprecate" });
+      },
+    },
+    {
+      name: "adr_supersede",
+      title: "Supersede a decision",
+      description: "Mark an accepted or deprecated decision superseded by an accepted one.",
+      inputSchema: object({ id: ID, by: ID, reason: TEXT }, ["id", "by"]),
+      annotations: WRITE,
+      async run(input, ctx) {
+        const log = await decidingLog(e);
+        const { actor, notes } = await mcpAttribution(log.git, ctx);
+        const reason = str(input.reason);
+        const d = await supersedeDecision(
+          log,
+          {
+            id: str(input.id) ?? "",
+            by: str(input.by) ?? "",
+            actor,
+            ...(reason === undefined ? {} : { reason }),
+          },
+          { notes },
+        );
+        return writeResult(log, d, { tool: "adr_supersede" });
       },
     },
   ];

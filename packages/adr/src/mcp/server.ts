@@ -2,7 +2,7 @@ import { parseOnBehalfOf } from "@nikovirtala/ledger";
 import { type McpServeOptions, serveMcp } from "@nikovirtala/ledger/mcp";
 import { openDecisionLog } from "../log.js";
 import { DECISION_TOOLS, decisionToolsAvailable } from "./policy.js";
-import { type AdrMcpEnv, alwaysOnTools } from "./tools.js";
+import { type AdrMcpEnv, alwaysOnTools, decisionTools } from "./tools.js";
 
 export const INSTRUCTIONS =
   "Architecture decisions in this repository are managed by adr. Decision files don't show their status: read decisions with adr_get or adr://decision/{id}, check adr_for_path and adr_search before changing architecture, and propose changes with adr_propose; a human accepts them.";
@@ -22,9 +22,15 @@ export async function serveAdrMcp(o: {
   parseOnBehalfOf(o.env.ARK_ON_BEHALF_OF);
   const log = await openDecisionLog({ cwd: o.cwd, root: o.root, gitOptions: { env: o.env } });
   const e: AdrMcpEnv = { cwd: o.cwd, root: o.root, env: o.env };
-  const tools = alwaysOnTools(e);
+  const decide = decisionToolsAvailable(log.adr);
+  const tools = [...alwaysOnTools(e), ...(decide ? decisionTools(e) : [])];
   const unavailable: Record<string, string> = {};
-  if (!decisionToolsAvailable(log.adr)) {
+  if (decide && log.adr.acceptRequiresHuman) {
+    o.stderr.write(
+      "adr: warning: adr_accept refuses agents while [policy] accept_requires_human is true\n",
+    );
+  }
+  if (!decide) {
     const where = log.configPath ?? "adr.toml (not present)";
     for (const name of DECISION_TOOLS) {
       unavailable[name] =

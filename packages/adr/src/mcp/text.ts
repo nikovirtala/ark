@@ -179,7 +179,7 @@ export function writeText(doc: WriteResultJson, o: WriteTextOptions): Text {
   const { read } = o;
   const view =
     doc.decision === null ? null : (read.projection.views.get(doc.decision.id) ?? doc.decision);
-  const headers = view === null ? [] : [mcpHeader(view, read)];
+  const headers = view === null ? [] : [mcpHeader(view, read), ...affectedHeaders(doc, read)];
   if (!doc.ok) {
     const lint =
       doc.findings.length > 0 && doc.findings.every((f) => f.rule.startsWith("template/"));
@@ -262,8 +262,8 @@ function bodyLines(doc: WriteResultJson, v: DecisionView, o: WriteTextOptions): 
   }
 }
 
-/** The headers of a supersede's decision and of each decision it affected. */
-export function affectedHeaders(doc: WriteResultJson, read: DecisionsRead): StateHeader[] {
+/** The headers of the decisions a write affected (superseded), other than its own. */
+function affectedHeaders(doc: WriteResultJson, read: DecisionsRead): StateHeader[] {
   return doc.affected
     .filter((a) => a.id !== doc.decision?.id)
     .map((a) => mcpHeader(read.projection.views.get(a.id) ?? a, read));
