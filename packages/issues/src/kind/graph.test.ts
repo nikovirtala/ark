@@ -1,7 +1,17 @@
-import type { EventEnvelope, FoldedLogOf } from "@nikovirtala/ledger";
-import { describe, expect, it } from "vitest";
-import { issueGraph, type issueKind } from "../kind.js";
 import {
+  type EventEnvelope,
+  type FoldedLogOf,
+  foldLog,
+  loadLog,
+  MemoryTree,
+  NO_NUMBERING,
+  projectLog,
+} from "@nikovirtala/ledger";
+import fc from "fast-check";
+import { describe, expect, it } from "vitest";
+import { issueGraph, issueKind } from "../kind.js";
+import {
+  COMPILED,
   foldFiles,
   IDS,
   issueEvent,
@@ -9,6 +19,7 @@ import {
   opened,
   type SubjectSpec,
 } from "../test-support/events.js";
+import { arbIssueHistory, HISTORY_LAYOUT } from "../test-support/history.js";
 
 const { A, B, C, D, Z } = IDS;
 
@@ -222,4 +233,47 @@ describe("blocked_by_open", () => {
 it("builds the graph once per folded log", async () => {
   const log = await logOf(subject(A, opened(A)));
   expect(issueGraph(log)).toBe(issueGraph(log));
+});
+
+describe("derived relations (property)", () => {
+  const arb = arbIssueHistory({ subjects: { min: 2, max: 8 }, links: true, duplicates: true });
+
+  it("blocked, blocks, children and ready follow their definitions", async () => {
+    await fc.assert(
+      fc.asyncProperty(arb, async (h) => {
+        const snap = await loadLog(new MemoryTree(h.files), {
+          kind: COMPILED,
+          layout: HISTORY_LAYOUT,
+        });
+        const log = foldLog(issueKind, snap);
+        const views = projectLog(issueKind, log, { numbering: NO_NUMBERING }).views;
+        const state = (id: string) => views.get(id)?.state;
+        const canonical = (id: string) => views.get(id)?.canonical ?? id;
+        for (const v of views.values()) {
+          const localDeps = v.depends_on.filter((t) => views.has(t));
+          const blocked =
+            v.state !== "closed" &&
+            localDeps.some((t) => canonical(t) !== v.id && state(canonical(t)) !== "closed");
+          expect(v.blocked).toBe(blocked);
+          const blocks = [...views.values()]
+            .filter((o) => o.id !== v.id && o.depends_on.includes(v.id))
+            .map((o) => o.id)
+            .sort();
+          expect(v.blocks).toEqual(blocks);
+          const children = [...views.values()]
+            .filter((o) => o.id !== v.id && o.parent === v.id)
+            .map((o) => o.id)
+            .sort();
+          expect(v.children).toEqual(children);
+          if (v.ready) {
+            expect(v.state).toBe("open");
+            expect(v.blocked).toBe(false);
+            expect(v.assignees).toEqual([]);
+            expect(v.children.every((c) => state(c) === "closed")).toBe(true);
+          }
+        }
+      }),
+      { numRuns: 200, endOnFailure: true },
+    );
+  });
 });
