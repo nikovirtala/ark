@@ -32,6 +32,8 @@ Each decision has a canonical id (`k3f9q8a1`). Accepted decisions also get a num
 ```sh
 # Set up: write adr.toml and starter templates; never overwrites a file.
 adr init --template nygard --template madr --commit
+adr init --skill                                     # also the agent skill and an AGENTS.md pointer
+adr init --skill --skill-dir .kiro/skills/adr
 
 # Propose: render a draft from a template, write the body and the proposed event, and stage them.
 adr new "Use Aurora for orders" --section context="We need SQL." --section scope=services/orders
@@ -67,6 +69,10 @@ adr list --since ORIG_HEAD                 # only decisions with events added si
 adr show ADR-0001 --history
 adr list --ref v1.2.0                      # time travel: the log as of any ref
 
+# Search ids, titles, bodies and notes: every word must match; active decisions unless --all.
+adr search orders aurora
+adr search dynamodb --all
+
 # Verify the log: the whole tree, a range, or the staged changes (for a pre-commit hook).
 adr verify
 adr verify --base origin/main --format github
@@ -79,6 +85,9 @@ adr index --check
 # Git hooks: install adr in ledger's shared hook shims, or print the config for a hook manager.
 adr hooks install
 adr hooks print --manager lefthook
+
+# The MCP server for agents, over stdio; start it from an MCP client (see "MCP server").
+adr mcp
 ```
 
 - `new` takes `--template <name>` (default `nygard`; built-ins `nygard`, `madr`, `y-statement`, or your own `<root>/templates/<name>.md`), `--section <id>=<markdown>` (repeatable), `--supersedes <decision>` (repeatable), and `--edit`/`--no-edit`. It opens `$VISUAL` or `$EDITOR` with `--edit`, or by default in an interactive terminal; an editor failure never loses your edits and never commits content you didn't confirm.
@@ -93,6 +102,8 @@ adr hooks print --manager lefthook
 - `list --since <rev>` lists only the decisions with event files added between `<rev>` and HEAD (or `--ref`), each with the new event types, such as `[new: accepted]`; it prints nothing when the log didn't change.
 - In a shallow clone, numbers need history the clone lacks. With a committed index, adr reads them from `index.md` in the commit being read (`--ref`, else HEAD) and notes `numbers come from docs/adr/index.md (shallow clone)`; without one, decisions display by id until you run `git fetch --unshallow`. Nothing is fetched automatically.
 - `hooks install` registers adr in ledger's shims, one per hook and shared with other ark tools: `pre-commit` runs `adr hooks run pre-commit`, `commit-msg` runs `adr hooks trailers` (adds `ADR:` and `ADR-Event:` trailers when event files are staged, unless the message has them or a merge is in progress), `pre-push` runs `adr verify --base @{upstream} --ref HEAD`, which checks the current branch's commits against its upstream whichever refs the push names (without an upstream, against `origin`'s default branch; with no remote, the whole log), and `post-merge` runs `adr list --since ORIG_HEAD`. It never overwrites a foreign hook (it writes the other hooks, exits 2 and names the line to add to that hook) and writes nothing when `core.hooksPath` is set (exit 2, pointing to `adr hooks print --manager lefthook|husky|pre-commit` for the hook manager in use). `hooks uninstall` removes adr from the shims. The pre-commit steps are rename following (`[hooks] scope_follow_renames`), the index (checked, or regenerated and staged with `[hooks] index = "stage"`), then `verify --staged`. The hook stages only into the commit's own index: for `git commit <paths>`, a rename that changes a decision's scope stops the commit and names the command to run. When the staged `index.md` lists decision files that aren't staged, the `index/stale` finding names them; stage them, or move them out of the work tree and run `adr index`.
+- `search <query>…` joins its words and lists the decisions whose id, number, title, body or notes contain every one, case- and accent-insensitively (`Café` finds `cafe`), as substrings (`order` finds `orders`). Only proposed and accepted decisions are listed unless `--all`; a note counts the others that match. Each result has the best matching line of the body or a note. It reads the local log only; with `[[sources]]` configured, a note says so (as `list` and `for` do) until ark's step 4.
+- `init --skill` writes the agent skill to `.claude/skills/adr/SKILL.md`, or to `<dir>/SKILL.md` with `--skill-dir <dir>` (a directory inside the repository), and adds one line pointing at it to `AGENTS.md`, creating the file if needed. It never overwrites a SKILL.md (one that differs is kept, with a note), and a second run changes nothing. An `AGENTS.md` with unstaged changes, or not tracked, gets the line but isn't staged; with `--commit` it is refused (exit 2).
 - `show` leads with a state header. A decision that isn't in force says so and names what to read instead, for example `SUPERSEDED by ADR-0002 (accepted 2026-10-18). Do not apply this decision; read ADR-0002 instead.`
 
 Every command takes `--json`, `--root <dir>` (the log directory) and `--help`; reads also take `--ref <ref>`, and writes refuse it.
@@ -103,7 +114,7 @@ Every command takes `--json`, `--root <dir>` (the log directory) and `--help`; r
 - **1**: failing findings from `verify` (or `index --check`, or a hook), or a write the log's rules forbid (an illegal transition, a draft that fails its template lint, an agent's acceptance, an unaccepted successor). Nothing is written, and the findings are in the output.
 - **2**: the tool can't run: bad usage (unknown command, flag or decision, a missing argument, `--ref` on a write), config, environment or internal errors. Nothing is written, except when git refuses a `--commit` (`commit-failed`): the write is then staged and the error says how to finish the commit.
 
-With `--json`, stdout carries exactly one JSON document: `adr-list/v1` (with `since`, `null` without `--since`), `adr-show/v1`, `adr-write/v1` (for every write command), `adr-for/v1`, `adr-init/v1`, `adr-index/v1`, `adr-hooks/v1`, ledger's `ledger-findings/v1` for `verify`, or `ark-error/v1` (`{ "format": "ark-error/v1", "error": { "code", "message" } }`) when the command exits 2; a `commit-failed` error also has the write's `notes`. Every key is always present, with `null` where a value is unknown. A `numbering` object's `reason` is `"index"` when a shallow clone's numbers come from `index.md`. In a shallow clone with a committed index, `adr-write/v1`'s `decision.number` comes from the index in HEAD, which on a branch is the number the acceptance will get once the branch merges. Warnings and notes go to stderr.
+With `--json`, stdout carries exactly one JSON document: `adr-list/v1` (with `since`, `null` without `--since`), `adr-show/v1`, `adr-search/v1`, `adr-write/v1` (for every write command), `adr-for/v1`, `adr-init/v1`, `adr-index/v1`, `adr-hooks/v1`, ledger's `ledger-findings/v1` for `verify`, or `ark-error/v1` (`{ "format": "ark-error/v1", "error": { "code", "message" } }`) when the command exits 2; a `commit-failed` error also has the write's `notes`. Every key is always present, with `null` where a value is unknown. A `numbering` object's `reason` is `"index"` when a shallow clone's numbers come from `index.md`. In a shallow clone with a committed index, `adr-write/v1`'s `decision.number` comes from the index in HEAD, which on a branch is the number the acceptance will get once the branch merges. Warnings and notes go to stderr.
 
 ## Config (`adr.toml`)
 
@@ -119,7 +130,7 @@ index = "none"                  # or "committed": adr index, fresh on every writ
 [policy]
 accept_requires_human = true    # refuse acceptances by an agent
 auto_commit = false             # commit writes without --commit
-mcp_can_decide = false          # validated now, used in phase 3
+mcp_can_decide = false          # agents propose, humans decide; true adds adr_accept, adr_reject, adr_deprecate and adr_supersede to adr mcp
 
 [verify]
 fail_on = "error"               # or "warning"
@@ -149,9 +160,41 @@ An agent using the CLI sets `ARK_AGENT=<agent-id>`, and `ARK_ON_BEHALF_OF=<email
 
 The git identity is git's author identity (`git var GIT_AUTHOR_IDENT` with `user.useConfigOnly`): `GIT_AUTHOR_NAME` and `GIT_AUTHOR_EMAIL` when set, else `user.name` and `user.email`; it is never guessed. Setting `GIT_AUTHOR_*` also changes the author of `--commit` commits, which is why agents should use `ARK_ON_BEHALF_OF` instead. `--commit` also needs a committer identity, and exits 2 before writing without one.
 
+Agents with an MCP client use `adr mcp` instead (below), and `adr init --skill` gives them the skill: when to check the decisions, how to read them, and that they propose and a human accepts.
+
+## MCP server
+
+`adr mcp` serves the decision log to agents over stdio, in the repository it starts in (`--root` works as for every command). Add it to your MCP client's server config:
+
+```json
+{
+  "mcpServers": {
+    "adr": {
+      "command": "npx",
+      "args": ["-y", "@nikovirtala/adr", "mcp"],
+      "env": { "ARK_ON_BEHALF_OF": "you@example.com" }
+    }
+  }
+}
+```
+
+Set `ARK_ON_BEHALF_OF` in that `env`: stdio clients pass only a few environment variables (`HOME`, `PATH` and the like) to the server, so a value exported in your shell doesn't reach it. Writes are recorded as an agent named by the MCP client (`actor.agent`), on behalf of `ARK_ON_BEHALF_OF`, or of the git user, with a note. An invalid `ARK_ON_BEHALF_OF` makes `adr mcp` exit 2 before serving.
+
+| Tools | Listed |
+| --- | --- |
+| `adr_search`, `adr_get`, `adr_list`, `adr_templates`, `adr_for_path` (reads) | always |
+| `adr_propose`, `adr_update_draft`, `adr_note`, `adr_link`, `adr_scope`, `adr_withdraw` (writes) | always |
+| `adr_accept`, `adr_reject`, `adr_deprecate`, `adr_supersede` | with `[policy] mcp_can_decide = true` |
+
+- Every tool returns the JSON document its CLI command prints under `--json` (`adr-search/v1`, `adr-show/v1`, `adr-list/v1`, `adr-for/v1`, `adr-write/v1`, and `adr-templates/v1` for `adr_templates`) as `structuredContent`, with a readable text whose state headers come first and point at `adr://decision/<number>`. Errors are `isError` results with `ark-error/v1`; a write the log or the MCP policy refuses is a document with `ok: false` and the findings.
+- Resources: `adr://index` (the index table) and `adr://decision/{id}`, one decision's state header and body, where `{id}` is the id, the number or `ADR-NNNN`. The prompt `adr_draft_from_discussion` (optional `title`, `template`, `supersedes`) walks an agent from a conversation to a proposal.
+- `adr_propose` takes a `sections` map (section id to markdown); template lint findings come back as data, and `adr_update_draft` replaces sections of a draft in place, writing only if nobody changed the file meanwhile. With `auto_commit`, an incomplete draft is refused instead of committed.
+- Without `mcp_can_decide`, an agent may update, scope and withdraw only proposals made on behalf of the same person, and never rescope an accepted or deprecated decision (`decision/mcp-cannot-decide`). `accept_requires_human` still refuses an agent's `adr_accept`.
+- MCP writes stage their files and commit only with `[policy] auto_commit`; there is no commit input. Each call reads the log again, but the tool list is fixed at startup: restart `adr mcp` after changing `mcp_can_decide`.
+
 ## Library
 
-The CLI is a thin layer over the library, and phase 3's MCP server uses the same functions and returns the same JSON documents.
+The CLI is a thin layer over the library, and the MCP server uses the same functions and returns the same JSON documents.
 
 ```ts
 import { listDecisions, openDecisionLog, readDecisions, showDecision, verifyDecisions } from "@nikovirtala/adr";
@@ -162,7 +205,7 @@ const { decisions } = listDecisions(read, { status: ["accepted"] });
 const findings = await verifyDecisions(log, { type: "full" });
 ```
 
-`initDecisionLog`, `proposeDecision`, `acceptDecision`, `rejectDecision`, `withdrawDecision`, `deprecateDecision`, `supersedeDecision`, `noteDecision`, `linkDecision`, `scopeDecision` and `followScopeRenames` write, `decisionsFor` answers `adr for`, `resolveDecision` turns an id or number into an id, and `stateHeader` gives the header `show` prints. `indexDecisionLog` and `renderDecisionIndex` regenerate or render the index, and `installDecisionHooks`, `uninstallDecisionHooks`, `printDecisionHooks`, `runPreCommitHook` and `addHookTrailers` are the hook commands.
+`initDecisionLog`, `proposeDecision`, `acceptDecision`, `rejectDecision`, `withdrawDecision`, `deprecateDecision`, `supersedeDecision`, `noteDecision`, `linkDecision`, `scopeDecision` and `followScopeRenames` write, `decisionsFor` answers `adr for`, `resolveDecision` turns an id or number into an id, and `stateHeader` gives the header `show` prints. `searchDecisions` answers `adr search`, `listTemplates` lists the usable templates (`adr-templates/v1`), `updateDraft` replaces sections of a proposed draft, `sourcesNote` gives the local-only note, and `SKILL_MD` is the agent skill. `indexDecisionLog` and `renderDecisionIndex` regenerate or render the index, and `installDecisionHooks`, `uninstallDecisionHooks`, `printDecisionHooks`, `runPreCommitHook` and `addHookTrailers` are the hook commands.
 
 `@nikovirtala/adr/kind` exports only the decision kind (`adrKind`, made with ledger's `defineKind`) and its types, without any CLI code, for tools that fold decision logs themselves, such as issues linking to decisions:
 
@@ -173,5 +216,5 @@ import { adrKind } from "@nikovirtala/adr/kind";
 ## Not yet included
 
 - **Reference checks are local.** `verify` checks that `supersedes`, `superseded.by` and `linked.to` name decisions in the same log. Qualified references to other logs (`<source>:<id>`, written by `adr link`) and qualified anchors are skipped until ark's step 4.
-- **Phase 3:** an MCP server, a SKILL.md for agents, and search.
-- **ark's step 4, with issues:** cross-log reference checks at the pinned ref and listing across sources; until then `link` stores a qualified target unchecked.
+- **Search limits.** `adr search` matches substrings without stemming (`orders` doesn't find `order`) and without phrases, and folds accents but not `ß` (`strasse` doesn't find `Straße`).
+- **ark's step 4, with issues:** cross-log reference checks at the pinned ref, and listing and searching across sources; until then `link` stores a qualified target unchecked.
