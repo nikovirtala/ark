@@ -72,6 +72,8 @@ export {
   scopeDecision,
   scopeToCopy,
   supersedeDecision,
+  type UpdateDraftInput,
+  updateDraft,
   type WriteOptions,
   type WriteResultJson,
   withdrawDecision,

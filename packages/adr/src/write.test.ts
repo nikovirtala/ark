@@ -3,28 +3,45 @@ import { join } from "node:path";
 import {
   type Actor,
   EventExistsError,
+  FileChangedError,
   firstParentHistory,
   InvalidArgumentError,
   lintDocument,
+  MemoryTree,
+  NO_NUMBERING,
   parseTemplate,
+  renderTemplate,
   type Trailer,
+  treeTemplates,
   UsageError,
 } from "@nikovirtala/ledger";
 import { createTempRepo, type TempRepo } from "@nikovirtala/ledger/testing";
 import { afterEach, describe, expect, it } from "vitest";
-import { openDecisionLog, readDecisions } from "./log.js";
+import { DEFAULT_ADR_CONFIG } from "./config.js";
+import { openDecisionLog, readDecisions, readDecisionsFrom } from "./log.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
+import { runAdr } from "./test-support/cli.js";
 import { TEST_AGENT } from "./test-support/decision-arbs.js";
-import { decisionEvent, eventFile, proposedData } from "./test-support/events.js";
+import {
+  decisionEvent,
+  decisionFiles,
+  eventFile,
+  LAYOUT,
+  proposedData,
+} from "./test-support/events.js";
+import { INDEX, INDEX_CONFIG } from "./test-support/index-repo.js";
 import { verifyDecisions } from "./verify.js";
 import {
   acceptDecision,
   applyPlan,
   followScopeRenames,
+  type PlanContext,
   type ProposeInput,
+  planUpdateDraft,
   proposeDecision,
   scopeDecision,
   supersedeDecision,
+  updateDraft,
   type WriteDeps,
   type WriteResultJson,
 } from "./write.js";
@@ -787,5 +804,248 @@ describe("the editor step", () => {
     expect(notes).toEqual([
       `${TEMPLATE} changed while the editor was open; review it, then git add it and commit`,
     ]);
+  });
+});
+
+describe("planUpdateDraft", () => {
+  const A = "a7c2m9xd";
+  const parsed = parseTemplate(BUILTIN_TEMPLATES.nygard ?? "");
+  if (!parsed.ok) throw new Error("nygard doesn't parse");
+  const nygard = parsed.template;
+  const draft = (sections: Record<string, string>) => {
+    const r = renderTemplate(nygard, { title: "Use Aurora", sections }, { missing: "guidance" });
+    if (!r.ok) throw new Error("render failed");
+    return r.text;
+  };
+  const BODY = draft({ context: "Old.", decision: "D.", scope: "S.", consequences: "C." });
+  const BODY_PATH = `docs/adr/decisions/${A}-use-aurora.md`;
+
+  async function memoryRead(o: { body?: string | null; status?: string } = {}) {
+    const events = [decisionEvent(A, "proposed", { data: proposedData("Use Aurora") })];
+    if (o.status === "rejected") events.push(decisionEvent(A, "rejected", { reason: "no" }));
+    const files = {
+      ...decisionFiles([
+        {
+          id: A,
+          events,
+          ...(o.body === null ? {} : { body: o.body ?? BODY, slug: "use-aurora" }),
+        },
+      ]),
+      [TEMPLATE]: BUILTIN_TEMPLATES.nygard ?? "",
+    };
+    const tree = new MemoryTree(files);
+    const read = await readDecisionsFrom(tree, {
+      layout: LAYOUT,
+      adr: DEFAULT_ADR_CONFIG,
+      numbering: NO_NUMBERING,
+    });
+    const c: PlanContext = {
+      now: () => Date.parse("2026-06-01T00:00:00Z"),
+      templates: treeTemplates(tree, "docs/adr/templates"),
+      builtins: BUILTIN_TEMPLATES,
+    };
+    return { read, c };
+  }
+
+  it("plans the replaced body and nothing else", async () => {
+    const { read, c } = await memoryRead();
+    const r = await planUpdateDraft(read, { id: A, sections: { context: "New." } }, c);
+    if (!r.ok) throw new Error(JSON.stringify(r.findings));
+    const p = r.plan;
+    const bytes = new TextEncoder().encode(BODY.replace("Old.", "New."));
+    expect(p).toMatchObject({
+      command: "event",
+      subject: A,
+      files: {},
+      replace: { [BODY_PATH]: { bytes, expected: new TextEncoder().encode(BODY) } },
+      events: [],
+      stage: [BODY_PATH],
+      involved: [A],
+      commitScope: [BODY_PATH, `docs/adr/events/${A}`, TEMPLATE].sort(),
+      eventDirs: [`docs/adr/events/${A}`],
+      draft: null,
+      commit: {
+        action: "update the draft of",
+        title: A,
+        id: A,
+        display: A,
+        body: ["Sections: context."],
+      },
+      trailers: [["ADR", A]],
+      affected: [],
+      findings: [],
+    });
+    expect(p.decision?.id).toBe(A);
+  });
+
+  it("returns lint findings, and refuses them with refuseIncomplete", async () => {
+    const { read, c } = await memoryRead();
+    const input = { id: A, sections: { decision: "  " } };
+    const r = await planUpdateDraft(read, input, c);
+    expect(r.ok && r.plan.findings.map((f) => [f.rule, f.kind])).toEqual([
+      ["template/section-empty", "decision"],
+    ]);
+    const refused = await planUpdateDraft(read, input, c, { refuseIncomplete: true });
+    expect(refused).toMatchObject({ ok: false, decision: { id: A } });
+    expect(refused.ok ? [] : refused.findings.map((f) => f.rule)).toEqual([
+      "template/section-empty",
+    ]);
+  });
+
+  it("writes nothing for the same content", async () => {
+    const { read, c } = await memoryRead();
+    const r = await planUpdateDraft(read, { id: A, sections: { context: "Old." } }, c);
+    expect(r).toMatchObject({
+      ok: true,
+      plan: {
+        files: {},
+        events: [],
+        notes: ["the draft already has this content; nothing written"],
+      },
+    });
+    expect(r.ok && r.plan.replace).toBeUndefined();
+  });
+
+  it("refuses a decision that isn't proposed, or whose body is missing", async () => {
+    const rejected = await memoryRead({ status: "rejected" });
+    const r = await planUpdateDraft(
+      rejected.read,
+      { id: A, sections: { context: "x" } },
+      rejected.c,
+    );
+    expect(r.ok ? [] : r.findings.map((f) => [f.rule, f.message])).toEqual([
+      ["decision/not-a-draft", `${A} is rejected; only a proposed decision's draft can change`],
+    ]);
+    const bodiless = await memoryRead({ body: null });
+    const b = await planUpdateDraft(
+      bodiless.read,
+      { id: A, sections: { context: "x" } },
+      bodiless.c,
+    );
+    expect(b.ok ? [] : b.findings.map((f) => f.rule)).toEqual(["body/missing"]);
+  });
+
+  it.each<[string, Record<string, string>, string | null, string]>([
+    ["no sections", {}, null, "a draft update takes 1 to 50 sections"],
+    [
+      "an unknown section",
+      { nope: "x" },
+      null,
+      "template nygard has no section nope; its sections are context, decision, scope, consequences",
+    ],
+    [
+      "a heading in the content",
+      { context: "x\n## Decision\ny" },
+      null,
+      "contains a section heading line",
+    ],
+    ["a NUL", { context: "a\0b" }, null, "must not contain NUL characters"],
+    [
+      "a missing heading",
+      { decision: "x" },
+      BODY.replace("## Decision\n", ""),
+      `${BODY_PATH} has no 'Decision' heading; edit the file by hand`,
+    ],
+  ])("throws UsageError for %s", async (_, sections, body, message) => {
+    const { read, c } = await memoryRead(body === null ? {} : { body });
+    const p = planUpdateDraft(read, { id: A, sections }, c);
+    await expect(p).rejects.toBeInstanceOf(UsageError);
+    await expect(p).rejects.toThrow(message);
+  });
+});
+
+describe("updateDraft", () => {
+  const filled = { ...SECTIONS, context: "Old context." };
+
+  it("replaces and stages the body", async () => {
+    const r = await repo();
+    const id = idOf(await propose(r, "Use Aurora", { sections: filled }));
+    const w = await updateDraft(await open(r), { id, sections: { context: "New context." } });
+    const body = `docs/adr/decisions/${id}-use-aurora.md`;
+    expect(w).toMatchObject({
+      command: "update",
+      ok: true,
+      decision: { id, status: "proposed" },
+      written: [body],
+      commit: null,
+      findings: [],
+    });
+    expect(await git(r, "show", `:${body}`)).toContain("## Context\nNew context.\n");
+    expect(await staged(r)).toContain(body);
+  });
+
+  it("refuses a body with unstaged changes", async () => {
+    const r = await repo();
+    const id = idOf(await propose(r, "Use Aurora", { sections: filled }));
+    const body = `docs/adr/decisions/${id}-use-aurora.md`;
+    await writeFile(join(r.root, body), "edited by hand\n");
+    const w = updateDraft(await open(r), { id, sections: { context: "x" } });
+    await expect(w).rejects.toBeInstanceOf(UsageError);
+    await expect(w).rejects.toThrow(`${body} has unstaged changes`);
+    expect(await readFile(join(r.root, body), "utf8")).toBe("edited by hand\n");
+  });
+
+  it("refuses a body that changed between plan and write", async () => {
+    const r = await repo();
+    const id = idOf(await propose(r, "Use Aurora", { sections: filled }));
+    const body = `docs/adr/decisions/${id}-use-aurora.md`;
+    const deps: WriteDeps = {
+      now: Date.now,
+      apply: async (log, plan, o) => {
+        await writeFile(join(r.root, body), "changed meanwhile\n");
+        return applyPlan(log, plan, o);
+      },
+    };
+    const w = updateDraft(await open(r), { id, sections: { context: "x" } }, {}, deps);
+    await expect(w).rejects.toBeInstanceOf(FileChangedError);
+    expect(await readFile(join(r.root, body), "utf8")).toBe("changed meanwhile\n");
+  });
+
+  it("commits with auto_commit, and refuses an incomplete draft there", async () => {
+    const r = await repo({ "adr.toml": "[policy]\nauto_commit = true\n" });
+    const id = idOf(await propose(r, "Use Aurora", { sections: filled }));
+    const body = `docs/adr/decisions/${id}-use-aurora.md`;
+    const w = await updateDraft(await open(r), { id, sections: { context: "New." } });
+    expect(w.commit).toBe(await r.git.resolveCommit("HEAD"));
+    expect((await git(r, "log", "-1", "--format=%s")).trim()).toBe(
+      `docs(adr): update the draft of ${id}`,
+    );
+    expect(await headTrailers(r)).toEqual([["ADR", id]]);
+    const before = await readFile(join(r.root, body), "utf8");
+    const head = await r.git.resolveCommit("HEAD");
+    const refused = await updateDraft(await open(r), { id, sections: { decision: "" } });
+    expect(refused).toMatchObject({ ok: false, written: [], commit: null });
+    expect(refused.findings.map((f) => f.rule)).toEqual(["template/section-empty"]);
+    expect(await readFile(join(r.root, body), "utf8")).toBe(before);
+    expect(await r.git.resolveCommit("HEAD")).toBe(head);
+  });
+
+  it("keeps a committed index fresh, with and without a commit", async () => {
+    const r = await repo({ "adr.toml": `${INDEX_CONFIG}[policy]\nauto_commit = true\n` });
+    const id = idOf(await propose(r, "Use Aurora", { sections: filled }));
+    const body = `docs/adr/decisions/${id}-use-aurora.md`;
+    await updateDraft(await open(r), { id, sections: { context: "Committed." } });
+    expect(await git(r, "show", `HEAD:${body}`)).toContain("## Context\nCommitted.\n");
+    expect(runAdr(r, ["index", "--check", "--ref", "HEAD"]).status).toBe(0);
+    await updateDraft(await open(r), { id, sections: { context: "Staged." } }, { commit: false });
+    expect(await git(r, "show", `:${body}`)).toContain("## Context\nStaged.\n");
+    const fresh = runAdr(r, ["index", "--check"]);
+    expect(fresh.status, fresh.stdout + fresh.stderr).toBe(0);
+    expect(await git(r, "show", `:${INDEX}`)).toBe(await readFile(join(r.root, INDEX), "utf8"));
+  });
+});
+
+describe("proposeDecision with auto_commit", () => {
+  it("refuses an incomplete draft, writing nothing", async () => {
+    const r = await repo({ "adr.toml": "[policy]\nauto_commit = true\n" });
+    const before = await porcelain(r);
+    const w = await propose(r, "Only context", { sections: { context: "Why." } });
+    expect(w).toMatchObject({ ok: false, decision: null, written: [], commit: null });
+    expect(w.findings.map((f) => f.rule)).toEqual([
+      "template/guidance-left",
+      "template/guidance-left",
+      "template/guidance-left",
+    ]);
+    expect(await porcelain(r)).toBe(before);
   });
 });

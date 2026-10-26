@@ -20,10 +20,14 @@ export const INDEX_ACTION = "regenerate";
 /** What `adr index --commit`'s title slot holds. */
 export const INDEX_TITLE = "the decision index";
 
+/** `{action}` of a draft update (`adr_update_draft`), whose title slot holds the display. */
+export const DRAFT_ACTION = "update the draft of";
+
 /** The longest `{action}`, which `[commit] subject` must leave room for. */
 export const LONGEST_ACTION: number = Math.max(
   ...Object.values(ACTIONS).map((a) => a.action.length),
   INDEX_ACTION.length,
+  DRAFT_ACTION.length,
 );
 
 /** The longest display: `ADR-` and up to 9 digits (`formatDecisionNumber`, kind/project.ts). */
