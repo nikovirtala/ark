@@ -23,6 +23,7 @@ export type LedgerErrorCode =
   | "ulid-overflow"
   | "usage"
   | "file-exists"
+  | "file-changed"
   | "hook-conflict"
   | "commit-failed";
 
@@ -167,6 +168,17 @@ export class FileExistsError extends LedgerError {
 
   constructor(path: string, options?: ErrorOptions) {
     super("file-exists", `file already exists: ${path}`, options);
+    this.path = path;
+  }
+}
+
+/** A file to replace no longer holds the bytes it was read with (or is gone). */
+export class FileChangedError extends LedgerError {
+  override name = "FileChangedError";
+  readonly path: string;
+
+  constructor(path: string, options?: ErrorOptions) {
+    super("file-changed", `${path} changed since it was read; run the command again`, options);
     this.path = path;
   }
 }
