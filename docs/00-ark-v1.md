@@ -210,12 +210,9 @@ The roadmap is ark's extraction plan. ledger grows from its users rather than ah
 
 ark starts recording its own decisions with adr once adr's phase 1 is merged and released, beginning with the decisions in this document: the monorepo, ledger as the shared core, and the shared envelope.
 
-**Backlog**
+**Open work**
 
-Known gaps that no step owns yet:
-
-- **Source-cache garbage collection.** Each source is fetched into its own bare cache repository under `<git common dir>/ark/sources/`, one per URL and ref. Old cache directories are never removed, which only costs disk space.
-- **SHA-256 source repositories.** Not supported. Fetching one fails in git and surfaces as a `SourceFetchError`. This is a known limitation.
+ark's open work, including known gaps that no step owns, lives in its issue log, [`docs/issues/`](issues/). List it with `npx @nikovirtala/issues list`, or `npx @nikovirtala/issues ready` for what can be picked up now.
 
 ## Open questions
 
