@@ -1,0 +1,15 @@
+# issues configuration. Every key is optional: https://github.com/nikovirtala/ark/tree/main/packages/issues#config-issuestoml
+[log]
+default_template = "task"
+# issues 0.1.0 has no index command and refuses "committed"; issues PR 2 turns it on.
+index = "none"
+
+[labels]
+exclusive = ["priority", "type"]
+
+[policy]
+close_requires_human = false
+mcp_can_close = true
+
+[commit]
+# subject = "docs(issues): {action} {title}"
