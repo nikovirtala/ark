@@ -54,9 +54,30 @@ function importsOf(file: string, source: string): string[] {
   return targets;
 }
 
-/** Applies the §3 rules to a map of src-relative file → its relative import targets. */
-function violations(graph: ReadonlyMap<string, readonly string[]>): string[] {
+/** Package (bare) import specifiers of a source file, such as `node:fs` or `yaml`. */
+function packagesOf(source: string): string[] {
+  return [...source.matchAll(SPECIFIER)].map((m) => m[1] ?? "").filter((s) => !s.startsWith("."));
+}
+
+// Only the mcp entry loads the MCP SDK (ADR-0006), so the other entries never pull it in.
+const MCP_SDK = /^@modelcontextprotocol\/sdk(?:\/|$)/;
+
+/**
+ * Applies the §3 rules to a map of src-relative file → its relative import targets, and the
+ * package rule to a map of file → its package imports.
+ */
+function violations(
+  graph: ReadonlyMap<string, readonly string[]>,
+  packages: ReadonlyMap<string, readonly string[]> = new Map(),
+): string[] {
   const out: string[] = [];
+  for (const [file, specs] of packages) {
+    for (const spec of specs) {
+      if (MCP_SDK.test(spec) && !file.startsWith("mcp/")) {
+        out.push(`${file}: only mcp/ may import ${spec}`);
+      }
+    }
+  }
   for (const [file, targets] of graph) {
     const rank = rankOf(file);
     if (file !== ENTRY && rank === null) {
@@ -96,22 +117,33 @@ function violations(graph: ReadonlyMap<string, readonly string[]>): string[] {
 }
 
 function sourceGraph(srcDir: string): Map<string, string[]> {
+  return sourceGraphs(srcDir).graph;
+}
+
+function sourceGraphs(srcDir: string): {
+  graph: Map<string, string[]>;
+  packages: Map<string, string[]>;
+} {
   const graph = new Map<string, string[]>();
+  const packages = new Map<string, string[]>();
   for (const entry of readdirSync(srcDir, { recursive: true, withFileTypes: true })) {
     if (!entry.isFile() || !entry.name.endsWith(".ts") || entry.name.endsWith(".test.ts")) continue;
     const abs = join(entry.parentPath, entry.name);
     const file = relative(srcDir, abs).split("\\").join("/");
-    graph.set(file, importsOf(file, readFileSync(abs, "utf8")));
+    const source = readFileSync(abs, "utf8");
+    graph.set(file, importsOf(file, source));
+    packages.set(file, packagesOf(source));
   }
-  return graph;
+  return { graph, packages };
 }
 
 describe("layering", () => {
   it("every source file imports only equal or lower layers", () => {
-    const graph = sourceGraph(dirname(fileURLToPath(import.meta.url)));
+    const { graph, packages } = sourceGraphs(dirname(fileURLToPath(import.meta.url)));
     expect(graph.has(ENTRY)).toBe(true);
     expect(graph.has("testing/index.ts")).toBe(true);
-    expect(violations(graph)).toEqual([]);
+    expect(packages.get("mcp/serve.ts")?.some((s) => MCP_SDK.test(s))).toBe(true);
+    expect(violations(graph, packages)).toEqual([]);
   });
 
   it("maps .js specifiers back to .ts sources", () => {
@@ -147,7 +179,16 @@ describe("layering", () => {
       ["testing/x.ts", ["cli/index.ts", "mcp/index.ts", "testing/index.ts", "surfaces/a.ts"]],
       ["stray.ts", []],
     ]);
-    expect(violations(graph)).toEqual([
+    const sdk = "@modelcontextprotocol/sdk/server/index.js";
+    const packages = new Map<string, string[]>([
+      ["cli/run.ts", [sdk, "node:fs"]],
+      ["index.ts", ["@modelcontextprotocol/sdk"]],
+      ["mcp/index.ts", [sdk]],
+      ["surfaces/a.ts", ["@modelcontextprotocol/sdkx"]],
+    ]);
+    expect(violations(graph, packages)).toEqual([
+      `cli/run.ts: only mcp/ may import ${sdk}`,
+      "index.ts: only mcp/ may import @modelcontextprotocol/sdk",
       "index.ts: must not import testing/index.ts",
       "index.ts: must not import cli/index.ts",
       "git/git.ts (rank 1) imports identity/ids.ts (rank 2)",
