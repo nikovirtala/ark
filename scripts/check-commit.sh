@@ -5,6 +5,9 @@
 # with a base, it checks everything since the merge base, including uncommitted and untracked files.
 #
 #   only *.md outside docs/adr/ and packages/*/src/  -> lint
+#     that no test reads
+#   a file listed in scripts/test-inputs.txt          -> its own row, plus tests of the packages
+#                                                        that read it and their dependents
 #   docs/adr/ (no package or workspace files)         -> lint, install, build, adr verify
 #   packages/<p>/                                     -> the above + tests of <p> and its dependents
 #   anything else, a root or merge commit, no base    -> the above + every package's tests
@@ -54,6 +57,24 @@ add_pkg() {
   p=${p%%/*}
   case " $pkgs " in *" $p "*) ;; *) pkgs="$pkgs $p" ;; esac
 }
+# Repository files that tests read from disk outside their package, and the packages whose tests
+# read them: scripts/test-inputs.txt, kept complete by `pnpm lint` (scripts/check-test-inputs.mjs).
+test_inputs=scripts/test-inputs.txt
+# readers_of <file>: the packages whose tests read <file>, one per line.
+readers_of() {
+  [ -f "$test_inputs" ] || return 0
+  local input readers
+  # Read the parse check-test-inputs.mjs does: a last line without "\n" and CRLF endings count too.
+  while read -r input readers || [ -n "$input" ]; do
+    readers=${readers%$'\r'}
+    case $input in "" | "#"*) continue ;; esac
+    case $input in
+    */) [[ $1 == "$input"* ]] || continue ;;
+    *) [ "$1" = "$input" ] || continue ;;
+    esac
+    printf '%s\n' $readers
+  done <"$test_inputs"
+}
 if [ -z "$full" ]; then
   changed=$({
     git diff --name-only --no-renames "$base"
@@ -61,10 +82,14 @@ if [ -z "$full" ]; then
   } | sort -u)
   while IFS= read -r f; do
     [ -z "$f" ] && continue
+    for r in $(readers_of "$f"); do
+      say "$f is read by tests of $r"
+      add_pkg "$r"
+    done
     case $f in
     docs/adr/*) adr_log=1 ;;
     packages/*/src/*) add_pkg "$f" ;;
-    # No test reads a README, CHANGELOG, changeset or other Markdown file outside these two trees.
+    # Other Markdown outside these two trees: no test reads it (test-inputs.txt lists the files tests do read).
     *.md) ;;
     packages/*/*) add_pkg "$f" ;;
     # Same rule as CI: workspace-level files (lockfile, tsconfig, biome, .github, scripts, ...) affect every package.

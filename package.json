@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc -b && pnpm -r run build",
     "typecheck": "tsc -b",
-    "lint": "biome check .",
+    "lint": "biome check . && node scripts/check-test-inputs.mjs",
     "format": "biome check --write .",
     "test": "pnpm -r run test",
     "check": "pnpm lint && pnpm build && pnpm test",
