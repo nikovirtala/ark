@@ -12,6 +12,7 @@ import { issueKind, labelPrefix } from "../kind.js";
 import { TASK_V1 } from "../templates/builtin.js";
 import { arbTitle, ISSUE_TEST_OPTIONS } from "./arbitraries.js";
 import {
+  arbIssueBranches,
   arbIssueHistory,
   arbIssueMutation,
   dependsOnEdges,
@@ -183,6 +184,32 @@ describe("arbIssueMutation", () => {
           arbIssueMutation(h, { only: ["cycle-edge", "second-parent", "agent-close"] }),
         ).toBeNull();
         expect(arbIssueMutation(h)).not.toBeNull();
+      }),
+      RUNS,
+    );
+  });
+});
+
+describe("arbIssueBranches", () => {
+  it("gives two sides that share no subject, event id or path, and only add files", async () => {
+    const arb = arbIssueHistory({ maxSteps: 12, links: true, duplicates: true }).chain((h) =>
+      arbIssueBranches(h).map((sides) => [h, sides] as const),
+    );
+    await fc.assert(
+      fc.asyncProperty(arb, async ([h, [left, right]]) => {
+        for (const side of [left, right]) {
+          expect(side.steps.length).toBeLessThanOrEqual(6);
+          expect(side.steps.filter((s) => s.event.type === "opened").length).toBeLessThanOrEqual(2);
+          for (const path of Object.keys(side.files))
+            expect(Object.hasOwn(h.files, path)).toBe(false);
+          expect(await errorsOf({ ...h, files: { ...h.files, ...side.files } })).toEqual([]);
+        }
+        const subjects = (b: typeof left) =>
+          b.steps.filter((s) => s.event.type === "opened").map((s) => s.subject);
+        expect(subjects(right).some((s) => subjects(left).includes(s))).toBe(false);
+        const ids = [...h.steps, ...left.steps, ...right.steps].map((s) => s.event.id);
+        expect(new Set(ids).size).toBe(ids.length);
+        expect(Object.keys(right.files).some((p) => Object.hasOwn(left.files, p))).toBe(false);
       }),
       RUNS,
     );

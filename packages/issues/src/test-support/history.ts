@@ -4,11 +4,13 @@
  * `generators.test.ts` samples it and asserts them.
  */
 import {
+  bodyFileName,
   type Check,
   ENVELOPE_VERSION,
   type EventEnvelope,
   eventPath,
   foldChecks,
+  newSubjectId,
   nextEventIdentity,
   parseTemplate,
   renderTemplate,
@@ -22,6 +24,7 @@ import {
   type DataArbs,
   type HistoryContext,
   type LegalHistory,
+  TEST_HUMAN,
 } from "@nikovirtala/ledger/testing";
 import fc from "fast-check";
 import { type IssueOptions, type IssueState, issueKind, labelPrefix } from "../kind.js";
@@ -563,3 +566,167 @@ export function arbIssueMutation(
     .constantFrom(...allowed)
     .chain((t) => (candidates[t] as () => fc.Arbitrary<IssueMutation>)());
 }
+
+/** Statuses and states of subjects, advanced one applied event at a time (ledger's Replay). */
+class Replay {
+  readonly order: string[] = [];
+  readonly #status = new Map<string, string>();
+  readonly #state = new Map<string, IssueState>();
+
+  apply(e: EventEnvelope): void {
+    const status = this.#status.get(e.subject);
+    if (status === undefined) this.order.push(e.subject);
+    const to = issueKind.machine.types.get(e.type)?.to ?? status;
+    if (to === undefined) throw new Error(`no status for ${e.type} on ${e.subject}`);
+    this.#status.set(e.subject, to);
+    this.#state.set(
+      e.subject,
+      issueKind.def.reduce(this.#state.get(e.subject) ?? null, e as never),
+    );
+  }
+
+  context(subject: string): HistoryContext {
+    return {
+      subject,
+      subjects: [...this.order],
+      status: (id) => this.#status.get(id) ?? null,
+      state: (id) => this.#state.get(id) ?? null,
+    };
+  }
+}
+
+/** One side of a merge: new files only, and its events in generation order. */
+export interface IssueBranch {
+  readonly files: Readonly<Record<string, string>>;
+  readonly steps: IssueHistory["steps"];
+}
+
+/** Subject ids, event ids and paths already used by the base and either side. */
+export interface Taken {
+  readonly subjects: Set<string>;
+  readonly eventIds: Set<string>;
+  readonly paths: Set<string>;
+}
+
+export const takenOf = (h: IssueHistory): Taken => ({
+  subjects: new Set(h.subjects.map((s) => s.id)),
+  eventIds: new Set(h.steps.map((s) => s.event.id)),
+  paths: new Set(Object.keys(h.files)),
+});
+
+const BRANCH_DATA = issueDataArbs({ links: true, duplicates: true });
+const PREFERRED = new Set(["closed", "linked", "started"]);
+
+/**
+ * One side of a merge on top of `h` (design `arbIssueBranch` table): 1–6 events, at most 2 new
+ * subjects, data from `issueDataArbs` on the side's own replay of `h`, so the side alone
+ * satisfies every precondition. `side` is in the lowest bit of the last random byte of every
+ * new subject id and event id, and `taken` (shared by both sides) keeps ids and paths unique. A
+ * side only adds files.
+ */
+export function arbIssueBranch(
+  g: fc.GeneratorValue,
+  h: IssueHistory,
+  side: 0 | 1,
+  taken: Taken,
+): IssueBranch {
+  const bytes = (n: number) => {
+    const b = g(fc.uint8Array, { minLength: n, maxLength: n });
+    b[n - 1] = ((b[n - 1] ?? 0) & 0xfe) | side;
+    return (buf: Uint8Array) => buf.set(b);
+  };
+  const replay = new Replay();
+  const history = new Map<string, EventEnvelope[]>();
+  for (const { event } of h.steps) {
+    replay.apply(event);
+    history.set(event.subject, [...(history.get(event.subject) ?? []), event]);
+  }
+  const base = new Set(h.subjects.map((s) => s.id));
+  const files: Record<string, string> = {};
+  const steps: { subject: string; path: string; event: EventEnvelope }[] = [];
+  let clock = Date.parse(h.steps.at(-1)?.event.at ?? "2001-01-01T00:00:00Z") / 1000;
+  let created = 0;
+  const count = g(fc.integer, { min: 1, max: 6 });
+  for (let i = 0; i < count; i++) {
+    clock += g(fc.integer, { min: 0, max: 3600 });
+    const existing = replay.order;
+    let subject: string;
+    let type: string;
+    const fresh = created < 2 && (existing.length === 0 || g(fc.integer, { min: 0, max: 3 }) === 0);
+    if (fresh) {
+      subject = newSubjectId(bytes(5));
+      if (taken.subjects.has(subject)) continue;
+      type = "opened";
+    } else {
+      subject = g(fc.constantFrom, ...existing);
+      const ctx = replay.context(subject);
+      const status = ctx.status(subject) ?? "open";
+      const types = issueKind.machine
+        .next(status as never)
+        .filter((t) => BRANCH_DATA[t as keyof typeof BRANCH_DATA](ctx) !== null);
+      if (types.length === 0) continue;
+      const preferred = types.filter((t) => PREFERRED.has(t));
+      // Two sides starting, closing, linking or closing as duplicates the same base issues is
+      // how a merge produces illegal events, cycles, second parents and duplicates of duplicates.
+      type =
+        base.has(subject) && preferred.length > 0 && g(fc.boolean)
+          ? g(fc.constantFrom, ...preferred)
+          : g(fc.constantFrom, ...types);
+    }
+    const ctx = replay.context(subject);
+    const arb = BRANCH_DATA[type as keyof typeof BRANCH_DATA](ctx) as fc.Arbitrary<
+      Record<string, unknown>
+    > | null;
+    if (arb === null) continue;
+    const data = g(() => arb);
+    const { at, id } = nextEventIdentity(history.get(subject) ?? [], {
+      now: () => clock * 1000,
+      random: bytes(10),
+    });
+    const event: EventEnvelope = {
+      envelope: ENVELOPE_VERSION,
+      kind: issueKind.name,
+      schema: issueKind.schema,
+      id,
+      subject,
+      type,
+      at,
+      actor: TEST_HUMAN,
+      ...(type === "closed" || type === "reopened" ? { reason: "on a branch" } : {}),
+      data,
+    };
+    const path = eventPath(h.layout, event);
+    if (
+      taken.eventIds.has(id) ||
+      taken.paths.has(path) ||
+      Object.hasOwn(h.files, path) ||
+      Object.hasOwn(files, path)
+    ) {
+      continue;
+    }
+    if (type === "opened") {
+      const body = `${h.layout.root}/${h.layout.bodies}/${bodyFileName(subject, "")}`;
+      files[body] = taskBody(String(data.title), { goal: "branch goal", done: "branch done" });
+      taken.subjects.add(subject);
+      taken.paths.add(body);
+      created++;
+    }
+    replay.apply(event);
+    history.set(subject, [...(history.get(subject) ?? []), event]);
+    files[path] = serializeEvent(event);
+    taken.eventIds.add(id);
+    taken.paths.add(path);
+    steps.push({ subject, path, event });
+  }
+  return { files, steps };
+}
+
+/**
+ * Both sides from one generator: two `fc.gen()` arbitraries in a tuple were seen to make the same
+ * choices, which would hide every conflict between the sides.
+ */
+export const arbIssueBranches = (h: IssueHistory): fc.Arbitrary<[IssueBranch, IssueBranch]> =>
+  fc.gen().map((g) => {
+    const taken = takenOf(h);
+    return [arbIssueBranch(g, h, 0, taken), arbIssueBranch(g, h, 1, taken)];
+  });
