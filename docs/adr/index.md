@@ -19,4 +19,10 @@
 | ADR-0012 | [Return the CLI's JSON documents from MCP tools](decisions/28dd1x6r-return-the-clis-json-documents-from-mcp-tools.md) | accepted | 2026-10-26 |
 | ADR-0013 | [Gate agents' deciding and rescoping behind mcp\_can\_decide](decisions/htb7aax6-gate-agents-deciding-and-rescoping-behind-mcp-can-decide.md) | accepted | 2026-10-26 |
 
+## Proposed
+
+| Decision | Title | Status | Since |
+| --- | --- | --- | --- |
+| 8gs2s4at | [Let agents close issues unless the issue log's policy says otherwise](decisions/8gs2s4at-let-agents-close-issues-unless-the-issue-logs-policy-says.md) | proposed | 2026-10-26 |
+
 <!-- ledger-index/v1 numbers: gyspf3an=1 c6qyr1jz=2 9z41kzez=3 ew1emghd=4 28dj3jdc=5 fv88cd54=6 e2ye7ng3=7 q76pmwsw=8 5v1w33jg=9 btjpf9g1=10 rg1aka5e=11 28dd1x6r=12 htb7aax6=13 -->
