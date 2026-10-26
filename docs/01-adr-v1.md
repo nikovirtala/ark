@@ -84,7 +84,7 @@ ref = "main"
 
 Inside the source repository, the log is read at the entry's `root` when it sets one, otherwise at the kind's default root; a source with neither is a configuration error.
 
-Cross-log references use a qualified id, `platform:k3f9q8a1`, whose prefix is the `name` of the `[[sources]]` entry; `kind` only says what kind of log the source holds. Each decision log owns its ADRs' events, so `linked` can point anywhere but `superseded` can only be written in the decision log that owns the superseded ADR. Search, list and the MCP tools span all configured sources by default, and CI verifies cross-log references at the pinned ref.
+Cross-log references use a qualified id, `platform:k3f9q8a1`, whose prefix is the `name` of the `[[sources]]` entry; `kind` only says what kind of log the source holds. Each decision log owns its ADRs' events, so `linked` can point anywhere but `superseded` can only be written in the decision log that owns the superseded ADR. Search, list and the MCP tools read the local log only for now, and say so in a note when `[[sources]]` are configured; listing and searching across sources, and CI checks of cross-log references at the pinned ref, come with ark's step 4 (see the roadmap).
 
 A minimal config:
 
@@ -221,7 +221,7 @@ The CLI is the human interface and the automation entry point for hooks and CI. 
 
 | Command | What it does | Files written |
 | --- | --- | --- |
-| `adr init [--template madr]…` | Creates the config and copies the chosen starter templates; never overwrites | config, templates |
+| `adr init [--template madr]… [--skill [--skill-dir <path>]]` | Creates the config and copies the chosen starter templates; never overwrites. `--skill` also writes SKILL.md and the AGENTS.md pointer | config, templates, SKILL.md, AGENTS.md |
 | `adr new "Title" [--template X] [--supersedes 7]` | Renders a draft from the template, opens `$EDITOR` | decision file, `proposed` event |
 | `adr accept k3f9q8a1 [--copy-scope]` | Lints the draft, hashes the body, accepts; supersedes anything declared; copies superseded decisions' scope with --copy-scope | `accepted` + `superseded` events |
 | `adr reject k3f9q8a1 --reason "…"` | Rejects a proposal | `rejected` event (`--reason` required) |
@@ -234,7 +234,7 @@ The CLI is the human interface and the automation entry point for hooks and CI. 
 | `adr for src/orders/api.ts …` | Lists decisions governing files, from scope globs and code anchors, with warnings for inactive ones; with --ref, as of any past commit | none |
 | `adr list [--status accepted] [--since ORIG_HEAD] [--json]` | Lists decisions with computed status; with `--since`, only those with events added since a revision | none |
 | `adr show 7 [--history] [--json]` | Shows body, status, chain and history | none |
-| `adr search "orders" [--all]` | Full-text search, active decisions only unless `--all` | none |
+| `adr search "orders" [--all]` | Full-text search over ids, titles, bodies and notes; every word must match; active (proposed and accepted) decisions only unless `--all` | none |
 | `adr index [--check] [--commit]` | Regenerates or checks `index.md`; writes keep it current | `index.md` |
 | `adr verify [--base origin/main] [--staged]` | Runs every invariant check | none |
 | `adr template list\|show\|new\|lint` | Template management | templates |
@@ -249,32 +249,35 @@ When a command creates a commit, it adds trailers such as `ADR: k3f9q8a1` and `A
 
 The MCP server lets agents read decisions safely and propose new ones, but by default never decide. It runs as `adr mcp` over stdio inside the repository, sharing the core library with the CLI.
 
+Tool results carry the same JSON documents as the CLI's `--json` (as `structuredContent`), together with a readable text that puts state headers first. Errors are `isError` results with the `ark-error/v1` document; refusals are documents with `ok: false` and the findings. Writes stage their files, and commit only with `[policy] auto_commit`. Every tool except the four decision tools is always listed; without `mcp_can_decide`, `adr_update_draft`, `adr_scope` and `adr_withdraw` act only on the agent's own proposals and refuse others with `decision/mcp-cannot-decide`. The tool list is fixed when the server starts, so changing `mcp_can_decide` needs a restart.
+
 **Tools**
 
 | Tool | Inputs | Returns |
 | --- | --- | --- |
-| `adr_search` | `query`, `include_inactive` (default false), `limit` | Matching decisions with status and a short excerpt; active ones only by default |
+| `adr_search` | `query`, `include_inactive` (default false), `limit` | Matching decisions with status and a short excerpt; every word must match; active (proposed or accepted) ones only by default |
 | `adr_get` | `id`, `include_history`, `ref` | Body, computed state, chain and `effective` decision |
-| `adr_list` | `status`, `limit` | Compact list for orientation |
+| `adr_list` | `status` (a list of statuses), `limit` | Compact list for orientation |
 | `adr_templates` | none | Available templates with their sections, required flags and guidance |
 | `adr_propose` | `title`, `template`, `sections` (map of section id to markdown), `supersedes` | New ADR id, path and lint result |
-| `adr_update_draft` | `id`, `sections` | Updated draft and lint result; proposed ADRs only |
+| `adr_update_draft` | `id`, `sections` | Updated draft and lint result; proposed ADRs only; another person's proposal needs mcp\_can\_decide |
 | `adr_note` | `id`, `text` | The `noted` event |
 | `adr_link` | `id`, `to`, `rel` | The `linked` event |
 | `adr_for_path` | `paths` | Decisions governing each path, with status; inactive ones carry the supersession warning |
-| `adr_scope` | `id`, `set` / `add` / `remove` | The scoped event. Agents may scope their own proposals; rescoping an accepted decision needs mcp\_can\_decide, since narrowing scope can quietly switch a decision off |
-| `adr_accept`, `adr_reject`, `adr_deprecate`, `adr_supersede` | as the CLI | Exposed only when `mcp_can_decide = true` |
+| `adr_scope` | `id`, `set` / `add` / `remove` | The scoped event. Agents may scope their own proposals (those proposed on behalf of the same person); rescoping someone else's proposal or an accepted decision needs mcp\_can\_decide, since narrowing scope can quietly switch a decision off |
+| `adr_withdraw` | `id`, `reason` | The `withdrawn` event. Agents may withdraw their own proposals (those proposed on behalf of the same person); withdrawing someone else's proposal needs mcp\_can\_decide. Only proposals can be withdrawn |
+| `adr_accept`, `adr_reject`, `adr_deprecate`, `adr_supersede` | as the CLI (`adr_accept` takes `copy_scope`) | Exposed only when `mcp_can_decide = true` |
 
-**Resources:** `adr://index` for the projected index, and `adr://decision/{id}` for one decision with its state header.
+**Resources:** `adr://index` for the projected index, and `adr://decision/{id}` for one decision with its state header, where `{id}` is the id, the number or `ADR-NNNN`: `adr://decision/k3f9q8a1`, `adr://decision/12` and `adr://decision/ADR-0012` read the same decision.
 
 **Prompt:** `adr_draft_from_discussion` turns the current conversation into a proposal, asking the agent to fill template sections and list options considered.
 
 **Response design rules**
 
 - Every response that includes a body leads with a state header, before the body text.
-- A superseded or deprecated decision always carries a warning naming the effective decision, for example: `SUPERSEDED by ADR-0012 (accepted 2026-10-18). Do not apply this decision; read adr://decision/12.`
+- A decision that isn't in force always carries a warning: a superseded one names the effective decision, for example `SUPERSEDED by ADR-0012 (accepted 2026-10-18). Do not apply this decision; read adr://decision/ADR-0012 instead.`; a deprecated, rejected or withdrawn one says why it doesn't apply.
 - Proposals take structured `sections` rather than free markdown, so the template is enforced and lint errors come back as data the agent can fix.
-- Agent-written events get `actor.kind: agent`, the MCP client name in `actor.agent`, and `ARK_ON_BEHALF_OF`, else the git user, as `on_behalf_of`.
+- Agent-written events get `actor.kind: agent`, the MCP client name (made safe for `ARK_AGENT`'s rule) in `actor.agent`, and `ARK_ON_BEHALF_OF`, else the git user with a note, as `on_behalf_of`. Set `ARK_ON_BEHALF_OF` in the MCP client's server config: stdio clients pass only a few environment variables to the server.
 
 ## Templates and customization
 
@@ -397,7 +400,7 @@ Most properties run against the pure core at milliseconds per case. A smaller se
 
 ## Agent skill (SKILL.md)
 
-The MCP server gives agents the capability; the skill gives them the judgment of when to use it. `adr init --skill` writes it to `.claude/skills/adr/SKILL.md`, and a one-line pointer goes into `AGENTS.md` for tools that do not load skills.
+The MCP server gives agents the capability; the skill gives them the judgment of when to use it. `adr init --skill` writes it to `.claude/skills/adr/SKILL.md`, or to `<dir>/SKILL.md` with `--skill-dir <dir>` (for example `.kiro/skills/adr`), and a one-line pointer goes into `AGENTS.md` for tools that do not load skills; it never overwrites an existing SKILL.md.
 
 ```markdown
 ---
@@ -486,7 +489,7 @@ adr is step 3 of ark's extraction plan: the first kind built on ledger, starting
 2. Two releases:
    - 2a. Commands and Scope: the commands `init`, `reject`, `withdraw`, `deprecate`, `note`, `link`, `scope` and `for`, `accept --copy-scope`, ledger's Scope layer with set events, Conventional Commits messages for `--commit`, and `ARK_ON_BEHALF_OF`. Phase 1's kind, fold and verify already support the events behind them.
    - 2b. Guardrails: the generated index with its freshness check and the shallow-clone number fallback; git hooks through ledger's shared shims (pre-commit, commit-msg, pre-push with the no-upstream fallback, post-merge with `list --since`); a recovery hint when `--commit` fails; and the scope-glob, anchor, governed-by-inactive and scope-narrowing checks.
-3. Agents: MCP server, SKILL.md and `init --skill`, response state headers, `search`.
+3. Agents: the MCP server (15 tools, two resources, a prompt), SKILL.md and `init --skill`, response state headers, `search`.
 4. Adoption: template management, and import from existing adr-tools or log4brains repos, synthesizing `proposed` and `accepted` events from their status lines without rewriting the files.
 5. Later: an optional live index published as an artifact page that reloads on every new event, as decided in the ark design. Not part of the first version.
 
