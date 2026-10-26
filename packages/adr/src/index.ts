@@ -45,6 +45,7 @@ export {
   type DecisionSearchResultJson,
   searchDecisions,
 } from "./search.js";
+export { listTemplates, type TemplatesJson } from "./templates/list.js";
 export { adrChecks, verifyDecisions } from "./verify.js";
 export {
   type DecisionListJson,
