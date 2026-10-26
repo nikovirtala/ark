@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M5WGW7986CGDT1AZ89B5PXXC
+subject: 8gs2s4at
+type: proposed
+at: 2026-10-26T16:32:10Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Let agents close issues unless the issue log's policy says otherwise
+  template: nygard
+  template_version: 1
