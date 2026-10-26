@@ -57,7 +57,7 @@ export const numberingJson = (read: DecisionsRead): NumberingJson => ({
 });
 
 /** Numbered decisions by number, then unnumbered ones by `proposed_at`, then id. */
-function compareViews(a: DecisionView, b: DecisionView): number {
+export function compareViews(a: DecisionView, b: DecisionView): number {
   if (a.number !== null || b.number !== null) {
     if (a.number === null) return 1;
     if (b.number === null) return -1;

@@ -62,7 +62,8 @@ const GLOBS_APPLY: ReadonlySet<DecisionStatus> = new Set([
   "deprecated",
   "superseded",
 ]);
-const STATUS_ORDER: readonly DecisionStatus[] = [
+/** The order `adr for` and `adr search` list statuses in: in force first. */
+export const STATUS_ORDER: readonly DecisionStatus[] = [
   "accepted",
   "proposed",
   "deprecated",
