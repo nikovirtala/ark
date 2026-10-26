@@ -1,8 +1,9 @@
-import { readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { TempRepo } from "@nikovirtala/ledger/testing";
 import { afterEach, describe, expect, it } from "vitest";
-import { INIT_RERUN } from "../init.js";
+import { agentsPointer, INIT_RERUN } from "../init.js";
+import { SKILL_MD } from "../skill.js";
 import { BUILTIN_TEMPLATES } from "../templates/builtin.js";
 import { cliRepo, failingPreCommit, hintCommand, runAdr } from "../test-support/cli.js";
 
@@ -20,13 +21,14 @@ async function git(r: TempRepo, ...args: string[]): Promise<string> {
 }
 const read = (r: TempRepo, path: string) => readFile(join(r.root, path), "utf8");
 
-const INIT_KEYS = ["commit", "config", "format", "kept", "notes", "root", "written"];
+const INIT_KEYS = ["commit", "config", "format", "kept", "notes", "root", "skill", "written"];
 type InitDoc = {
   format: string;
   root: string;
   config: string | null;
   written: string[];
   kept: string[];
+  skill: string | null;
   commit: string | null;
   notes: string[];
 };
@@ -78,6 +80,7 @@ describe("adr init", { timeout: 60_000 }, () => {
       config: "docs/adr/adr.toml",
       written: [],
       kept: ["docs/adr/adr.toml", "docs/adr/templates/nygard.md"],
+      skill: null,
       commit: null,
       notes: [],
     });
@@ -215,6 +218,154 @@ describe("adr init", { timeout: 60_000 }, () => {
         error: { code: "usage", message },
       });
     }
+    expect(await git(r, "status", "--porcelain")).toBe("");
+  });
+});
+
+describe("adr init --skill", { timeout: 60_000 }, () => {
+  const SKILL = ".claude/skills/adr/SKILL.md";
+  const POINTER = agentsPointer(SKILL);
+  const staged = async (r: TempRepo) =>
+    (await git(r, "diff", "--cached", "--name-only")).split("\n").filter((l) => l !== "");
+
+  it("writes the skill and an AGENTS.md pointer, and keeps both on a second run", async () => {
+    const r = await repo();
+    const out = runAdr(r, ["init", "--skill"]);
+    expect(out).toEqual({
+      status: 0,
+      stdout: [
+        "Initialized docs/adr",
+        "  docs/adr/adr.toml",
+        "  docs/adr/templates/nygard.md",
+        `  ${SKILL}`,
+        "  AGENTS.md",
+        "Next: adr mcp, from your MCP client's config",
+        "",
+      ].join("\n"),
+      stderr: "",
+    });
+    expect(await read(r, SKILL)).toBe(SKILL_MD);
+    expect(await read(r, "AGENTS.md")).toBe(`${POINTER}\n`);
+    expect((await staged(r)).sort()).toEqual(
+      ["AGENTS.md", SKILL, "docs/adr/adr.toml", "docs/adr/templates/nygard.md"].sort(),
+    );
+    const again = runAdr(r, ["init", "--skill", "--json"]);
+    expect(doc(again.stdout)).toMatchObject({
+      written: [],
+      kept: ["docs/adr/adr.toml", "docs/adr/templates/nygard.md", SKILL, "AGENTS.md"],
+      skill: SKILL,
+      notes: [],
+    });
+  });
+
+  it("writes to --skill-dir, relative to the working directory", async () => {
+    const r = await repo();
+    await mkdir(join(r.root, "sub"));
+    const out = runAdr(r, ["init", "--skill", "--skill-dir", "../.kiro/skills/adr", "--json"], {
+      cwd: join(r.root, "sub"),
+    });
+    expect(out.status).toBe(0);
+    expect(doc(out.stdout)).toMatchObject({ skill: ".kiro/skills/adr/SKILL.md" });
+    expect(await read(r, ".kiro/skills/adr/SKILL.md")).toBe(SKILL_MD);
+    expect(await read(r, "AGENTS.md")).toBe(`${agentsPointer(".kiro/skills/adr/SKILL.md")}\n`);
+  });
+
+  it.each([
+    [["--skill-dir", "x"], "--skill-dir needs --skill"],
+    [
+      ["--skill", "--skill-dir", "../outside"],
+      "--skill-dir must be a directory inside the repository",
+    ],
+    [
+      ["--skill", "--skill-dir", ".git/hooks"],
+      "--skill-dir must be a directory inside the repository",
+    ],
+    [["--skill", "--skill-dir", " "], "--skill-dir must be a directory inside the repository"],
+  ])("exits 2 for %j, writing nothing", async (args, message) => {
+    const r = await repo();
+    const out = runAdr(r, ["init", ...args]);
+    expect(out.status).toBe(2);
+    expect(out.stderr).toBe(`adr: error: ${message}\n`);
+    expect(await git(r, "status", "--porcelain")).toBe("");
+  });
+
+  it("keeps a SKILL.md that differs, with a note", async () => {
+    const r = await repo({ [SKILL]: "my own skill\n" });
+    const out = runAdr(r, ["init", "--skill", "--json"]);
+    const d = doc(out.stdout);
+    expect(d.kept).toContain(SKILL);
+    expect(d.notes).toEqual([
+      expect.stringMatching(
+        /^\.claude\/skills\/adr\/SKILL\.md differs from adr \S+'s skill; delete it and run adr init --skill again to replace it$/,
+      ),
+    ]);
+    expect(await read(r, SKILL)).toBe("my own skill\n");
+  });
+
+  it.each([
+    ["# Agents\n\nBe nice.\n", `# Agents\n\nBe nice.\n\n${POINTER}\n`],
+    ["# Agents\nBe nice.", `# Agents\nBe nice.\n\n${POINTER}\n`],
+    ["# Agents\n\n", `# Agents\n\n${POINTER}\n`],
+    [`See ${SKILL} first.\n`, `See ${SKILL} first.\n`],
+  ])("adds the pointer to AGENTS.md %j once", async (before, after) => {
+    const r = await repo({ "AGENTS.md": before });
+    const out = runAdr(r, ["init", "--skill", "--json"]);
+    expect(out.status).toBe(0);
+    expect(await read(r, "AGENTS.md")).toBe(after);
+    const d = doc(out.stdout);
+    expect(d.written.includes("AGENTS.md")).toBe(before !== after);
+    expect(d.kept.includes("AGENTS.md")).toBe(before === after);
+    runAdr(r, ["init", "--skill"]);
+    expect(await read(r, "AGENTS.md")).toBe(after);
+  });
+
+  it("leaves AGENTS.md with unstaged changes unstaged, and refuses it with --commit", async () => {
+    const r = await repo({ "AGENTS.md": "# Agents\n" });
+    await writeFile(join(r.root, "AGENTS.md"), "# Agents\nEdited.\n");
+    const refused = runAdr(r, ["init", "--skill", "--commit"]);
+    expect(refused.status).toBe(2);
+    expect(refused.stderr).toBe(
+      "adr: error: AGENTS.md has unstaged changes; stage or discard them, or run without --commit\n",
+    );
+    expect(await git(r, "status", "--porcelain")).toBe(" M AGENTS.md\n");
+    const out = runAdr(r, ["init", "--skill", "--json"]);
+    expect(doc(out.stdout).notes).toEqual([
+      "AGENTS.md had unstaged changes, so the pointer is added but not staged; review it and git add it",
+    ]);
+    expect(await read(r, "AGENTS.md")).toBe(`# Agents\nEdited.\n\n${POINTER}\n`);
+    expect(await staged(r)).not.toContain("AGENTS.md");
+  });
+
+  it("leaves an untracked AGENTS.md unstaged, and refuses it with --commit", async () => {
+    const r = await repo();
+    await writeFile(join(r.root, "AGENTS.md"), "# Mine\n");
+    const refused = runAdr(r, ["init", "--skill", "--commit"]);
+    expect(refused.status).toBe(2);
+    expect(refused.stderr).toBe(
+      "adr: error: AGENTS.md is not tracked; git add it, or run without --commit\n",
+    );
+    expect(await git(r, "status", "--porcelain")).toBe("?? AGENTS.md\n");
+    const out = runAdr(r, ["init", "--skill", "--json"]);
+    expect(doc(out.stdout).notes).toEqual([
+      "AGENTS.md is not tracked, so the pointer is added but not staged; review it and git add it",
+    ]);
+    expect(await read(r, "AGENTS.md")).toBe(`# Mine\n\n${POINTER}\n`);
+    expect(await staged(r)).not.toContain("AGENTS.md");
+  });
+
+  it("commits the skill on its own after the log was set up", async () => {
+    const r = await repo({ "AGENTS.md": "# Agents\n" });
+    expect(runAdr(r, ["init", "--commit"]).status).toBe(0);
+    const out = runAdr(r, ["init", "--skill", "--commit"]);
+    expect(out.stdout).toMatch(
+      new RegExp(
+        `^Set up the adr agent skill\n {2}${SKILL.replace(/\./g, "\\.")}\n {2}AGENTS.md\nKept docs/adr/adr.toml\nKept docs/adr/templates/nygard.md\nCommitted [0-9a-f]{7}.\nNext: adr mcp, from your MCP client's config\n$`,
+      ),
+    );
+    expect(await git(r, "log", "-1", "--format=%s")).toBe(
+      "docs(adr): set up the adr agent skill\n",
+    );
+    expect(await git(r, "show", "--name-only", "--format=", "HEAD")).toBe(`${SKILL}\nAGENTS.md\n`);
     expect(await git(r, "status", "--porcelain")).toBe("");
   });
 });
