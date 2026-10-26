@@ -2,7 +2,7 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { lintDocument } from "./lint.js";
 import { parseTemplate, type Template } from "./parse.js";
-import { extractSections, normalizeSection, renderTemplate } from "./render.js";
+import { extractSections, normalizeSection, renderTemplate, replaceSections } from "./render.js";
 
 function template(text: string): Template {
   const r = parseTemplate(text);
@@ -236,6 +236,73 @@ describe("render and extract (AC 12)", () => {
         expect(lintDocument(t, without)).toContainEqual(
           expect.objectContaining({ rule: "template/section-missing" }),
         );
+      }),
+    );
+  });
+});
+
+describe("replaceSections", () => {
+  const doc = rendered(ADR, {
+    title: "T",
+    sections: { context: "Old context.", decision: "We will.", notes: "A note." },
+  });
+  const replaced = (d: string, sections: Record<string, string>) => {
+    const r = replaceSections(ADR, d, sections);
+    if (!r.ok) throw new Error(`replace failed: ${JSON.stringify(r.findings)}`);
+    return r.text;
+  };
+
+  it("replaces a middle section and keeps every other line", () => {
+    const edited = doc.replace("Intro text.", "Intro text, edited by hand.");
+    expect(replaced(edited, { decision: "\nWe won't.\n\nReally.  \n" })).toBe(
+      edited.replace("We will.", "We won't.\n\nReally."),
+    );
+  });
+
+  it("replaces the last section with a final newline", () => {
+    expect(replaced(doc, { notes: "New note." })).toBe(doc.replace("A note.", "New note."));
+    expect(replaced(`${doc.trimEnd()}`, { notes: "x" }).endsWith("## Notes\nx\n")).toBe(true);
+  });
+
+  it("empties a section", () => {
+    expect(replaced(doc, { context: "" })).toContain("## Context\n\n### Decision\n");
+  });
+
+  it("reads CRLF and writes LF", () => {
+    expect(replaced(doc.replace(/\n/g, "\r\n"), { context: "New." })).toBe(
+      doc.replace("Old context.", "New."),
+    );
+  });
+
+  it.each<[string, string, Record<string, string>, string]>([
+    ["an unknown section", "", { other: "x" }, "render/unknown-section"],
+    ["a missing heading", "## Context\n", { decision: "x" }, "render/section-missing"],
+    ["a heading in the content", "", { notes: "x\n## Context\ny" }, "render/heading-in-content"],
+  ])("rejects %s", (_, d, sections, rule) => {
+    const r = replaceSections(ADR, d === "" ? doc : d, sections);
+    expect(r.ok ? [] : r.findings.map((f) => f.rule)).toEqual([rule]);
+  });
+
+  it("round-trips with extractSections and leaves the other sections and title alone", () => {
+    const arb = arbCase.chain((c) =>
+      fc.record({
+        c: fc.constant(c),
+        y: fc
+          .subarray(c.t.sections.map((sec) => sec.id))
+          .chain((ids) => fc.record(Object.fromEntries(ids.map((id) => [id, arbContent(c.t)])))),
+      }),
+    );
+    fc.assert(
+      fc.property(arb, ({ c: { t, title, sections }, y }) => {
+        const before = rendered(t, { title, sections });
+        const r = replaceSections(t, before, y);
+        if (!r.ok) throw new Error(JSON.stringify(r.findings));
+        const x = extractSections(t, r.text);
+        expect(x.sections).toEqual(mapValues({ ...sections, ...y }, normalizeSection));
+        expect(x.title).toBe(title);
+        const head = (d: string) => d.split("\n").slice(0, d.split("\n").indexOf(""));
+        expect(head(r.text)).toEqual(head(before));
+        expect(replaceSections(t, r.text, y)).toEqual(r);
       }),
     );
   });
