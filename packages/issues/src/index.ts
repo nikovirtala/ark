@@ -1,1 +1,1 @@
-export { issueKind } from "./kind.js";
+export * from "./kind.js";
