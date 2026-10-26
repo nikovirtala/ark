@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M5WYE319AQY56N31KH0Y9W1H
+subject: 1w06qws8
+type: opened
+at: 2026-10-26T20:29:07Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Add guardrails and cross-repository checks to issues
+  template: feature
+  template_version: 1
