@@ -8,6 +8,7 @@ import type { InitResultJson } from "../init.js";
 import { adrKind, type DecisionView } from "../kind.js";
 import type { ChangedSince } from "../log.js";
 import type { DecisionsForJson } from "../scope.js";
+import type { DecisionSearchJson } from "../search.js";
 import type { DecisionListJson, DecisionShowJson } from "../views.js";
 import type { ScopeOffer, WriteResultJson } from "../write.js";
 
@@ -384,6 +385,34 @@ export function forText(doc: DecisionsForJson, display: Display, keyword: string
       lines.push(`  unresolved: ${keyword}:${u.ref} (line ${u.line}, ${why})`);
     }
   }
+  return lines.join("\n");
+}
+
+/**
+ * `adr search`: one padded row per result with its excerpt (or which field matched) under it, and
+ * an inactive result's warning; then the count.
+ */
+export function searchText(doc: DecisionSearchJson): string {
+  const quoted = JSON.stringify(doc.query);
+  if (doc.results.length === 0) {
+    return `No ${doc.include_inactive ? "" : "active "}decisions match ${quoted}.`;
+  }
+  const rows = columns(
+    doc.results.map((r) => [
+      r.decision.number === null ? r.decision.id : `${r.decision.display} (${r.decision.id})`,
+      r.decision.status,
+      r.decision.title,
+    ]),
+  ).split("\n");
+  const lines: string[] = [];
+  doc.results.forEach((r, i) => {
+    lines.push(rows[i] ?? "");
+    if (r.header.warning !== null) lines.push(`  ${r.header.warning}`);
+    const where = r.matched.filter((f) => f === "id" || f === "title").join(" and ");
+    lines.push(r.excerpt === null ? `  (${where} match)` : `  ${r.excerpt}`);
+  });
+  const n = doc.total;
+  lines.push(`${n === 1 ? "1 decision matches" : `${n} decisions match`} ${quoted}.`);
   return lines.join("\n");
 }
 

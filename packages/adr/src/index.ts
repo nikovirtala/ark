@@ -40,6 +40,11 @@ export {
   decisionsFor,
   type UnresolvedAnchorJson,
 } from "./scope.js";
+export {
+  type DecisionSearchJson,
+  type DecisionSearchResultJson,
+  searchDecisions,
+} from "./search.js";
 export { adrChecks, verifyDecisions } from "./verify.js";
 export {
   type DecisionListJson,

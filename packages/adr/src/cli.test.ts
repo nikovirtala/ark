@@ -43,6 +43,7 @@ describe("the adr binary", () => {
       "for",
       "list",
       "show",
+      "search",
       "verify",
     ]);
   });
