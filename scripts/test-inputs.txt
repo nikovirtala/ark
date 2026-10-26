@@ -8,3 +8,4 @@
 # (process.cwd(), git rev-parse, env vars), or a CLI spawned without cwd that reads the enclosing
 # repository; list such reads here by hand.
 docs/01-adr-v1.md adr
+docs/02-issues-v1.md issues
