@@ -45,6 +45,7 @@ describe("the adr binary", () => {
       "show",
       "search",
       "verify",
+      "mcp",
     ]);
   });
 
