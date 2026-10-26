@@ -73,9 +73,9 @@ An issue file holds the title as its first heading and the description below it,
 
 **Identifiers.** Ids come from ledger, the same as adr's. Each issue gets a canonical id at creation: 8 Crockford base32 characters in lowercase (40 random bits, in the alphabet ULIDs use), such as `m4p8x2kd`. Parallel branches cannot realistically collide, so file names, events and links use only this id and nothing is ever renamed. CI still rejects duplicates.
 
-**Display numbers** such as ?42 are derived, never stored. The ? prefix keeps forges from auto-linking them to their own issues and pull requests. The projection numbers issues in the order their `opened` event first landed on the main branch, read with `git log --first-parent`. Main's history is append-only, so a number is stable once assigned. An issue opened on a branch displays by id until it merges. Every command and MCP tool accepts the canonical id, the bare number or the prefixed number, whatever prefix is chosen.
+**Display numbers** such as ?42 are derived, never stored. The ? prefix keeps forges from auto-linking them to their own issues and pull requests. The projection numbers issues in the order their `opened` event first landed on the main branch, read with `git log --first-parent`. Main's history is append-only, so a number is stable once assigned. An issue opened on a branch displays by id until it merges. Every command and MCP tool accepts the canonical id, the bare number or the prefixed number. The prefix is fixed, not configurable. In a shell, an unquoted `?42` is a glob that can match a file such as `a42`, so type the bare number (`issues show 42`) or quote it (`'?42'`).
 
-Numbering needs main's history. With `index = "committed"`, a shallow clone reads the numbers recorded in the committed `index.md`; without one, issues display by id until you fetch the history (`git fetch --unshallow`). On a branch, these are the numbers the issues opened in the branch's commits will get once it merges (the index projects them).
+Numbering needs main's history. With `index = "committed"`, a shallow clone reads the numbers recorded in the committed `index.md`; without one, issues display by id until you fetch the history (`git fetch --unshallow`). On a branch, these are the numbers the issues opened in the branch's commits will get once it merges (the index projects them). issues 0.1.0 has no index yet, so a shallow clone shows issues by id; decisions linked with `implements` still show `ADR-0007`, because their numbers come from adr's own committed `index.md` (ADR-0010).
 
 **Any issue log topology.** The tool prescribes no organizational structure. An issue log per repository, one shared tracker repository, or both together all work the same way. Sources are a ledger feature, configured the same way in every ark tool. An issue log can reference other logs as read-only sources, pinned to a git ref:
 
@@ -89,9 +89,9 @@ ref = "main"
 
 Inside the source repository, the log is read at the entry's `root` when it sets one, otherwise at the kind's default root; a source with neither is a configuration error.
 
-Cross-log references use a qualified id, `platform:m4p8x2kd`, whose prefix is the `name` of the `[[sources]]` entry; `kind` only says what kind of log the source holds. Each log owns its issues' events, so `linked` can point anywhere, but an issue can only be closed or reopened in the log that owns it.
+Cross-log references use a qualified id, `platform:m4p8x2kd`, whose prefix is the `name` of the `[[sources]]` entry; `kind` only says what kind of log the source holds. Each log owns its issues' events, so `linked` can point into any source of the right kind, but an issue can only be closed or reopened in the log that owns it, and a duplicate's `of` names an issue of the same log. A qualified reference naming no `[[sources]]` entry is an error (`issue/unknown-source`); the log's own name (`issues:`) is not an implicit name for the log itself, so local issues are referenced by id. issues 0.1.0 stores references into other repositories without checking them, and says so in a note.
 
-**adr is a source too.** When the repository has an adr decision log, it is discovered automatically as a source named `adr`, so `adr:k3f9q8a1` references a decision with the same syntax as any other cross-log reference. issues reads the decision log by importing adr's kind from @nikovirtala/adr/kind and folding it with ledger, so it never shells out to adr or reimplements its rules. Decisions in other repositories are plain sources with `kind = "adr"`.
+**adr is a source too.** When the repository has an adr decision log, it is discovered automatically as a source named `adr` (so `name = "adr"` is reserved in `[[sources]]`), so `adr:k3f9q8a1` references a decision with the same syntax as any other cross-log reference. issues reads the decision log by importing adr's kind from @nikovirtala/adr/kind and folding it with ledger, so it never shells out to adr or reimplements its rules. Decisions in other repositories are plain sources with `kind = "adr"`.
 
 A minimal config:
 
@@ -99,16 +99,19 @@ A minimal config:
 [log]
 root = "docs/issues"  # read from <repo>/issues.toml; the default, any path works
 default_template = "task"
-index = "committed"             # committed | none
+index = "committed"             # committed | none; issues 0.1.0 refuses committed until the index ships
 
 [labels]
 exclusive = ["priority", "type"] # at most one label per prefix, e.g. priority:high
+priority = ["priority:high", "priority:low"] # ready's order, highest first
 
 [policy]
 close_requires_human = false
 mcp_can_close = true            # agents may close what they finished
 auto_commit = false
 ```
+
+`[labels] priority` orders `issues ready`: an issue ranks by the first of its labels in the list, issues with none come after, then by number. issues 0.1.0 refuses `index = "committed"` with a configuration error (exit 2), because it can't keep `index.md` fresh yet and a committed index must never go stale.
 
 ## Event schema
 
@@ -135,15 +138,15 @@ data:
 
 | Type | Required `data` | Changes state | Notes |
 | --- | --- | --- | --- |
-| `opened` | `title`, `template`, `template_version`; optional `parent` | yes | Must be an issue's first event |
-| `started` | none | yes | Someone is working on it |
+| `opened` | `title`, `template`, `template_version`; optional `parent` | yes | Must be an issue's first event; `parent` is the first `part-of` link, removed with `unlinked` like any other |
+| `started` | none | yes | Moves to `in-progress`: someone is working on it |
 | `stopped` | none | yes | Work paused without finishing; back to open |
-| `closed` | `resolution` (`done`, `wontfix`, `duplicate`, `obsolete`); `of` when duplicate | yes | `reason` required unless `done` |
+| `closed` | `resolution` (`done`, `wontfix`, `duplicate`, `obsolete`); `of`, an issue of the same log, when duplicate | yes | `reason` required unless `done`, and always from an agent |
 | `reopened` | none, `reason` required | yes | Back to open from closed |
 | `assigned` | `set: [people]` | no | Replaces the assignees as a whole; the latest one wins |
 | `labeled` | `set: [labels]` | no | Replaces the labels as a whole; exclusive prefixes enforced |
 | `commented` | `text` | no | Discussion and progress notes; the additive alternative to editing the description |
-| `linked` | `to`, `rel` (`depends-on`, `part-of`, `relates-to`, `implements`) | no | `implements` points at an adr decision |
+| `linked` | `to`, `rel` (`depends-on`, `part-of`, `relates-to`, `implements`) | no | `implements` points at an adr decision; the other relations point at issues |
 | `unlinked` | `to`, `rel` | no | Removes a relation; dependencies change as work is understood |
 | `scoped` | `set: [globs]` | no | Replaces the issue's code scope as a whole; the latest one wins |
 
@@ -151,13 +154,13 @@ Ordering within an issue is by `at`, then `id`. The author-supplied `at` is trus
 
 **Set events, not add and remove.** `assigned`, `labeled` and `scoped` carry the complete set rather than a delta. Two branches that each add a label then produce two events, and the later one wins instead of both being applied. That loses a label in a race, but it keeps the fold trivial and the result visible in one event. The CLI still offers `--add` and `--remove`; it computes the new set from current state. issues writes them with ledger's set-event helper, which adr's `scoped` events introduced in adr phase 2a.
 
-**Relations are directional and stored once.** `A depends-on B` is written on A only; the projection derives `blocks` on B. `part-of` builds the parent and child tree. Both `part-of` and `depends-on` must stay acyclic; the other relations may form any graph. Relations are implemented in issues first and lifted into ledger later, alongside adr's supersession chain.
+**Relations are directional and stored once.** `A depends-on B` is written on A only; the projection derives `blocks` on B. `part-of` builds the parent and child tree: an issue has at most one current parent. Both `part-of` and `depends-on` must stay acyclic; the other relations may form any graph. `depends-on` is acyclic over the effective graph, which also follows a dependency closed as a duplicate to its canonical issue, so a cycle through a duplicate, including an issue that depends on its own duplicate, is an `issue/cycle` too. A cycle is reported once per strongly connected component, on its smallest id. A link to a missing issue, or to one with no valid `opened` event, never blocks and fails `verify` (`issue/reference-missing`). `unlink` first matches its target verbatim against the stored targets, so a broken link can always be removed. `unlink` is never refused: an error that remains with a changed message, such as a shorter cycle path or parent list after a merge, is reported as a note. Relations are implemented in issues first and lifted into ledger later, alongside adr's supersession chain.
 
 **Scope: linking issues to code.** Same mechanism as adr: a `scoped` event carries globs, and code can point at an issue with a comment anchor above a symbol, such as `// issue:m4p8x2kd`. This turns TODO comments into tracked work: an anchor instead of a bare `// TODO`, and CI notices when the issue it points at is closed.
 
 ## State machine and invariants
 
-An issue has three states, and unlike an ADR none of them is terminal: closed issues reopen when the work turns out unfinished.
+An issue has three states, and unlike an ADR none of them is terminal: closed issues reopen when the work turns out unfinished. The states are `open`, `in-progress` and `closed`.
 
 &#91;embedded content: Issue lifecycle · 3 states, closed is reopenable\]
 
@@ -167,12 +170,14 @@ Resolution is part of the closed state, not a state of its own, so `closed: dupl
 
 - The first event is `opened`, and only one `opened` ever exists per issue.
 - `started` applies only to open issues, `stopped` only to in-progress ones, `closed` to open or in-progress ones, and `reopened` only to closed ones.
-- `closed` with `resolution: duplicate` requires `of`, which must reference an existing issue that is not itself a duplicate, so every duplicate points directly at its canonical issue.
-- `part-of` and `depends-on` graphs are acyclic, and an issue cannot relate to itself.
+- `closed` with `resolution: duplicate` requires `of`, which must reference an existing issue of the same log that is not itself a duplicate, so every duplicate points directly at its canonical issue. Duplicates are judged on current state: closing B as a duplicate of C while A is a duplicate of B is refused, so A is re-pointed first (reopen it and close it as a duplicate of C).
+- `closed` needs a non-blank `reason` unless the resolution is `done`; an agent's `closed` always needs one.
+- `part-of` and `depends-on` graphs are acyclic, an issue has at most one current parent, and an issue cannot relate to itself.
+- `implements` targets a decision; `depends-on`, `part-of` and `relates-to` target issues. A qualified target must name a configured source.
 - `commented`, `linked`, `unlinked`, `assigned`, `labeled` and `scoped` never change state and are allowed in any state, including closed.
-- `labeled` holds at most one label per exclusive prefix.
+- The current label set (the latest `labeled`) holds at most one label per exclusive prefix.
 
-**Soft rules, reported as warnings rather than errors:** closing a parent while children are still open, starting an issue that is blocked, and closing an issue as done while it still has open dependencies.
+**Soft rules, reported as warnings rather than errors:** closing a parent while children are still open (any resolution), and closing an issue as done while it still has open dependencies. Starting an issue that is blocked is a warning when you start it, not a CI finding, because whether it was blocked then depends on other issues' event times, which the fold doesn't order.
 
 The states, transitions and invariants above are the issue kind's definition, written as data. ledger replays every history against it and runs the invariants, so issues has no fold loop or transition check of its own, and the diagram and the code cannot drift apart.
 
@@ -186,33 +191,40 @@ For each issue the fold produces:
 {
   "id": "m4p8x2kd",
   "number": 42,
+  "display": "?42",
   "title": "Login fails on Safari",
   "state": "closed",
   "resolution": "done",
   "duplicate_of": null,
   "canonical": "m4p8x2kd",
+  "duplicates": [],
   "assignees": ["niko@example.com"],
-  "labels": ["type:bug", "priority:high"],
+  "labels": ["priority:high", "type:bug"],
   "parent": null,
   "children": [],
   "depends_on": [],
   "blocks": ["r7c3n9wa"],
   "blocked_by_open": [],
   "blocked": false,
+  "ready": false,
+  "relates_to": [],
   "implements": ["adr:k3f9q8a1"],
   "applies_to": ["src/auth/**"],
   "comments": 3,
-  "opened_at": "2026-10-20",
-  "closed_at": "2026-10-22",
+  "template": { "name": "bug", "version": 1 },
+  "body_path": "docs/issues/items/m4p8x2kd-login-fails-on-safari.md",
+  "opened_at": "2026-10-20T08:15:00Z",
+  "closed_at": "2026-10-22T10:15:00Z",
+  "state_at": "2026-10-22T10:15:00Z",
   "history": ["opened 2026-10-20", "started 2026-10-21", "closed 2026-10-22"]
 }
 ```
 
-`canonical` follows `duplicate_of` to the issue that actually tracks the work. Both surfaces lead with it, the same way adr leads with `effective`.
+`canonical` follows `duplicate_of` to the issue that actually tracks the work. Both surfaces lead with it, the same way adr leads with `effective`. `title` is the description's first `# ` heading, so a retitle is an edit of the description; `opened.title` is the fallback when there is none.
 
-`blocked` is derived, never stored: it is true while the issue is open or in progress and any issue in `depends_on` is not closed. `blocks` is the inverse of other issues' `depends-on` links.
+`blocked` is derived, never stored: it is true while the issue is open or in progress and the canonical issue of any local issue in `depends_on` is not closed, so a dependency closed as a duplicate keeps blocking until the issue it duplicates is closed. `blocked_by_open` lists those canonical issues. `blocks` is the inverse of other issues' `depends-on` links.
 
-**Ready work.** The projection also answers "what can be picked up now?": open, not blocked, not assigned, and with no open children. This is the query agents need most, so it gets its own command and MCP tool.
+**Ready work.** The projection also answers "what can be picked up now?": open, not blocked, not assigned, and with no open children. This is the query agents need most, so it gets its own command and MCP tool. Ready work is ordered by `[labels] priority`, then by number. `issues ready --mine` adds the issues that would be ready but are assigned to you (your email, or the address an agent acts for), listed first.
 
 **Time travel.** Any read accepts a git ref (`--ref v4.2`). The tool then reads files with `git ls-tree` and `git show` instead of the working tree, answering "what was still open when we shipped 4.2?" with no extra storage. Time travel and branch views come from ledger's git layer and work the same in adr.
 
@@ -229,12 +241,12 @@ The CLI is the human interface and the automation entry point for hooks and CI. 
 | Command | What it does | Files written |
 | --- | --- | --- |
 | `issues init [--template bug]` | Creates the layout, config and starter templates | config, templates |
-| `issues new "Title" [--template X] [--parent 12] [--label type:bug]` | Renders an issue from the template, opens `$EDITOR` | issue file, `opened` event (+ `linked`, `labeled`) |
-| `issues edit 42` | Opens the description in `$EDITOR` | issue file |
+| `issues new "Title" [--template X] [--parent 12] [--depends-on 13] [--label type:bug] [--section id=…]` | Renders an issue from the template, opens `$EDITOR` | issue file, `opened` event (+ `labeled`, `linked` for `--depends-on`) |
+| `issues edit 42 [--title "…"] [--section id=…]` | Opens the description in `$EDITOR`, or replaces the heading and sections without one | issue file |
 | `issues start 42` | Marks work begun; assigns you if unassigned | `started` (+ `assigned`) event |
 | `issues stop 42` | Pauses work without finishing | `stopped` event |
 | `issues close 42 [--resolution wontfix --reason "…"]` | Closes; resolution defaults to `done` | `closed` event |
-| `issues close 42 --duplicate-of 17` | Closes as a duplicate | `closed` event |
+| `issues close 42 --duplicate-of 17 [--reason "…"]` | Closes as a duplicate of an issue in this log | `closed` event |
 | `issues reopen 42 --reason "…"` | Reopens a closed issue | `reopened` event |
 | `issues assign 42 --set\|--add\|--remove niko` | Changes assignees | `assigned` event |
 | `issues label 42 --set\|--add\|--remove priority:high` | Changes labels | `labeled` event |
@@ -243,9 +255,9 @@ The CLI is the human interface and the automation entry point for hooks and CI. 
 | `issues scope 42 --set\|--add\|--remove "src/auth/**"` | Sets which code an issue concerns | `scoped` event |
 | `issues for src/auth/session.ts` | Lists open issues for a file, from scope globs and code anchors | none |
 | `issues ready [--mine] [--label X]` | Lists work that can be picked up now | none |
-| `issues work 42` | Sets your current issue locally, for commit trailers | `.git/issues-current` (untracked) |
-| `issues list [--state open] [--assignee me] [--json]` | Lists issues with computed state | none |
-| `issues show 42 [--history] [--commits] [--json]` | Shows description, state, relations, comments and history | none |
+| `issues work 42` | Sets your current issue locally, for commit trailers | `<git dir>/issues-current` (untracked, per worktree) |
+| `issues list [--state in-progress] [--all] [--assignee me] [--json]` | Lists issues with computed state; open and in-progress ones unless `--state` or `--all` | none |
+| `issues show 42 [--history] [--commits] [--no-comments] [--json]` | Shows description, state, relations, comments (unless `--no-comments`) and history | none |
 | `issues search "safari" [--all]` | Full-text search, open issues only unless `--all` | none |
 | `issues index [--check]` | Regenerates or checks `index.md` | `index.md` |
 | `issues verify [--base origin/main] [--staged]` | Runs every invariant check | none |
@@ -257,7 +269,7 @@ Global flags: `--ref <git-ref>` for time travel, `--json` for machine output, `-
 
 When a command creates a commit, it adds trailers such as `Issue: m4p8x2kd` and `Issue-Event: closed`. Trailers use the canonical id, because a branch commit is written before the issue has a number. They are redundant with the event files but make `git log --grep` and forge searches useful. `issues show --commits` lists every commit whose trailers reference the issue, which is how an issue shows the work done on it without storing commit hashes.
 
-**Current issue.** `issues work 42` records the issue you are working on in an untracked file inside `.git`, per clone. The `commit-msg` hook then adds `Issue: m4p8x2kd` to every commit until you switch or close it. It is a local convenience only and never affects state.
+**Current issue.** `issues work 42` records the issue you are working on in an untracked file in the git dir (`<git dir>/issues-current`), so each worktree of a clone has its own. The `commit-msg` hook then adds `Issue: m4p8x2kd` to every commit until you switch or close it. It is a local convenience only and never affects state.
 
 ## MCP surface
 
@@ -281,7 +293,7 @@ The MCP server lets agents find work, record what they learn and track what they
 | `issues_link`, `issues_unlink` | `id`, `to`, `rel` | The relation event |
 | `issues_label`, `issues_assign`, `issues_scope` | `id`, `set` / `add` / `remove` | The set event |
 
-`issues_reopen` is deliberately missing: reopening says a human judged the work unfinished, so agents propose it in a comment instead.
+`issues_reopen` is deliberately missing: reopening says a human judged the work unfinished, so agents propose it in a comment instead. This is a restriction of the MCP surface only, not a rule of the log: the CLI lets an agent reopen, and `verify` doesn't check it. `mcp_can_close` and `close_requires_human`, by contrast, are rules of the log that govern agent closes on every surface.
 
 **Resources:** `issues://index` for the projected index, `issues://issue/{id}` for one issue with its state header, and `issues://ready` for the current ready list.
 
@@ -383,17 +395,17 @@ CI runs `issues verify --base origin/main` on every pull request, and the build 
 | Append-only events | Any existing event file is modified, renamed or deleted |
 | Schema | An event does not validate against its JSON Schema version |
 | State machine | Replaying events produces an illegal transition, or an issue's first event is not `opened` |
-| References | A `linked.to`, `closed.of` or `parent` points to a missing issue, a duplicate points at another duplicate, or a `part-of` or `depends-on` graph contains a cycle |
+| References | A `linked.to`, `closed.of` or `parent` points to a missing issue (or one without a valid `opened`), a qualified reference names an unknown source, a relation targets the wrong kind, a duplicate points at another duplicate, an issue has two parents, or a `part-of` or `depends-on` graph contains a cycle |
 | Identity | Two issues share a canonical id, or two events share an id |
 | Orphans | An issue file has no `opened` event, or events exist for an issue with no file |
 | Template lint | An open issue is missing required sections or still contains guidance text |
 | Labels | A `labeled` set holds two labels with the same exclusive prefix |
 | Index freshness | `index.md` differs from what `issues index` would generate |
-| Actor policy | A `closed` event has `actor.kind: agent` while `mcp_can_close` is off, or `close_requires_human` is on; an agent's `closed` event has no `reason` |
+| Actor policy | A `closed` event has `actor.kind: agent` while `mcp_can_close` is off, or `close_requires_human` is on; an agent's `closed` event has no `reason`. Every applied `closed` event is checked, so turning a key on reports earlier agent closes in a full `verify` |
 | Scope globs | A scope glob of an open issue matches no tracked file |
 | Code anchors | An `issue:` comment anchor points to a missing issue |
 | Stale anchors | An `issue:` anchor points to a closed issue; a warning, so leftover TODOs surface in review |
-| Closed with open work | An issue closed as done still has open children or open dependencies; a warning |
+| Closed with open work | A closed issue (any resolution) still has open children, or an issue closed as done still has open dependencies; a warning |
 | Implements | An `implements` link points to an adr decision that is not accepted; a warning |
 
 The append-only, schema, state machine, identity, orphan, template, index, scope and anchor checks are ledger's and behave identically in adr; the rest are the issue kind's invariants. Because events are separate files, squash merges and rebases are safe: history rewriting cannot lose state, since the state is in the tree rather than in commit metadata.
@@ -494,9 +506,9 @@ issues comment, issues close.
 
 issues is step 4 of ark's extraction plan. It starts once ledger's mechanical core exists and adr has proven the fold engine.
 
-1. Core: the issue kind (events, state machine, invariants, relations), `new` / `start` / `close` / `reopen`, `list` / `show` / `ready`, `verify`.
-2. Guardrails: issue-specific checks in ark's shared CI action and hooks, generated index.
-3. Agents: MCP server, SKILL.md, response state headers, `issues_breakdown`.
+1. Core (issues 0.1.0): the issue kind (events, state machine, invariants and soft rules, relations with derived `blocks`, `blocked`, `children` and `canonical`, ready work, `?` numbers, mutable descriptions), `implements` links checked against the local decision log, state headers in `show`, and the commands `init`, `new`, `edit`, `start`, `stop`, `close`, `reopen`, `assign`, `label`, `comment`, `link`, `unlink`, `scope`, `for`, `ready`, `work`, `list`, `show` and `verify`.
+2. Guardrails: hooks (including the commit-msg trailers and the `fixes` warning), the generated index, checks over code (scope globs, anchors, stale anchors), and checks of references into other repositories for adr and issues alike.
+3. Agents: MCP server, SKILL.md, `search`, `issues_breakdown`.
 4. Adoption: template management, and one-way import from GitHub Issues through `gh`, synthesizing `opened`, `commented`, `labeled` and `closed` events with their original timestamps and authors.
 5. Later: an optional live board published as an artifact page that reloads on every new event, as decided in the ark design. Not part of the first version.
 
