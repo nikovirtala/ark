@@ -4,8 +4,10 @@ import { issueKind } from "../kind.js";
 import { sourcesNote } from "../log.js";
 import { readSourceLogs } from "../sources.js";
 import { issuesChecks } from "../verify.js";
+import { editCommand } from "./edit.js";
 import { initCommand } from "./init.js";
 import { listCommand } from "./list.js";
+import { newCommand } from "./new.js";
 import { openForCli } from "./open.js";
 import { showCommand } from "./show.js";
 
@@ -38,6 +40,6 @@ export function issuesCli(version: string): ToolCli {
     name: "issues",
     version,
     summary: "Issue tracking kept as event logs in git.",
-    commands: [initCommand, listCommand, showCommand, verify],
+    commands: [initCommand, newCommand, editCommand, listCommand, showCommand, verify],
   };
 }
