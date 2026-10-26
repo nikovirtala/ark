@@ -4,6 +4,7 @@ import {
   CommitFailedError,
   ConfigError,
   EventExistsError,
+  FileChangedError,
   FileExistsError,
   GitError,
   GitNotFoundError,
@@ -47,6 +48,7 @@ describe("error classes", () => {
     [new HookShimError(".git/hooks/pre-commit", "bad"), "HookShimError", "hook-shim"],
     [new UsageError("unknown command"), "UsageError", "usage"],
     [new FileExistsError("docs/adr/a.md"), "FileExistsError", "file-exists"],
+    [new FileChangedError("AGENTS.md"), "FileChangedError", "file-changed"],
     [
       new HookConflictError("h exists", { written: [], unchanged: [], conflicts: [] }),
       "HookConflictError",
@@ -85,6 +87,10 @@ describe("error classes", () => {
     expect(new FileExistsError("docs/adr/a.md")).toMatchObject({
       path: "docs/adr/a.md",
       message: "file already exists: docs/adr/a.md",
+    });
+    expect(new FileChangedError("AGENTS.md")).toMatchObject({
+      path: "AGENTS.md",
+      message: "AGENTS.md changed since it was read; run the command again",
     });
   });
 

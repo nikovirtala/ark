@@ -27,6 +27,7 @@ export {
   type CommitRecovery,
   ConfigError,
   EventExistsError,
+  FileChangedError,
   FileExistsError,
   GitError,
   GitNotFoundError,
@@ -173,7 +174,13 @@ export {
   type LogSnapshot,
   loadLog,
 } from "./log/snapshot.js";
-export { nextEventIdentity, writeEvent, writeEvents, writeNewFile } from "./log/write.js";
+export {
+  nextEventIdentity,
+  replaceFile,
+  writeEvent,
+  writeEvents,
+  writeNewFile,
+} from "./log/write.js";
 export {
   escapeMarkdown,
   INDEX_FORMAT,

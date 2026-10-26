@@ -1,9 +1,15 @@
-import { mkdir, unlink, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { randomBytes } from "node:crypto";
+import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import { type CompiledKind, envelopeFailure } from "../envelope/kind.js";
 import type { EventEnvelope } from "../envelope/types.js";
 import { MAX_EVENT_BYTES, serializeEvent } from "../envelope/yaml.js";
-import { EventExistsError, FileExistsError, InvalidArgumentError } from "../errors.js";
+import {
+  EventExistsError,
+  FileChangedError,
+  FileExistsError,
+  InvalidArgumentError,
+} from "../errors.js";
 import { assertPath, type Git, requireWorkTree } from "../git/git.js";
 import { eventPath, type LogLayout } from "../identity/layout.js";
 import { formatAt } from "../identity/time.js";
@@ -130,13 +136,7 @@ export async function writeNewFile(
   content: string | Uint8Array,
   o: { readonly stage?: boolean } = {},
 ): Promise<void> {
-  const root = requireWorkTree(git);
-  assertPath(path);
-  const segments = path.split("/");
-  if (path.startsWith("/") || segments.some((s) => s === "" || s === "." || s === "..")) {
-    throw new InvalidArgumentError(`not a repo-relative file path: ${JSON.stringify(path)}`);
-  }
-  const full = join(root, path);
+  const full = repoFile(git, path);
   await mkdir(dirname(full), { recursive: true });
   try {
     await writeFile(full, content, { flag: "wx" });
@@ -145,4 +145,47 @@ export async function writeNewFile(
     throw err;
   }
   if (o.stage === true) await git.add([path]);
+}
+
+/** The absolute path of the repo-relative file `path`; `InvalidArgumentError` for anything else. */
+function repoFile(git: Git, path: string): string {
+  const root = requireWorkTree(git);
+  assertPath(path);
+  const segments = path.split("/");
+  if (path.startsWith("/") || segments.some((s) => s === "" || s === "." || s === "..")) {
+    throw new InvalidArgumentError(`not a repo-relative file path: ${JSON.stringify(path)}`);
+  }
+  return join(root, path);
+}
+
+const sameBytes = (a: Uint8Array, b: Uint8Array) => Buffer.from(a).equals(Buffer.from(b));
+
+/**
+ * Replaces the repo-relative file `path` with `content` when it still holds `o.expected`: writes a
+ * temporary file next to it and renames it over the original, so readers see the old or the new
+ * file, never a mix. Throws `FileChangedError`, touching nothing, when the file is missing or
+ * differs. The compare-then-rename window guards against an editor, not an adversary.
+ */
+export async function replaceFile(
+  git: Git,
+  path: string,
+  content: Uint8Array,
+  o: { readonly expected: Uint8Array },
+): Promise<void> {
+  const full = repoFile(git, path);
+  const current = await readFile(full).catch((err: NodeJS.ErrnoException) => {
+    if (err.code === "ENOENT" || err.code === "EISDIR") return null;
+    throw err;
+  });
+  if (current === null || !sameBytes(current, o.expected)) throw new FileChangedError(path);
+  const temp = join(dirname(full), `.${basename(full)}.${randomBytes(4).toString("hex")}.tmp`);
+  try {
+    await writeFile(temp, content, { flag: "wx" });
+    const again = await readFile(full);
+    if (!sameBytes(again, o.expected)) throw new FileChangedError(path);
+    await rename(temp, full);
+  } catch (err) {
+    await unlink(temp).catch(() => {});
+    throw err;
+  }
 }

@@ -1,18 +1,23 @@
-import { readFile, stat } from "node:fs/promises";
+import { readdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import fc from "fast-check";
 import { afterEach, describe, expect, it } from "vitest";
 import { compileKind } from "../envelope/kind.js";
 import type { EventEnvelope } from "../envelope/types.js";
 import { MAX_EVENT_BYTES, serializeEvent } from "../envelope/yaml.js";
-import { EventExistsError, FileExistsError, InvalidArgumentError } from "../errors.js";
+import {
+  EventExistsError,
+  FileChangedError,
+  FileExistsError,
+  InvalidArgumentError,
+} from "../errors.js";
 import { compareEvents } from "../fold/fold.js";
 import { indexReader } from "../git/tree.js";
 import { formatAt } from "../identity/time.js";
 import { createUlidFactory, ulidTime } from "../identity/ulid.js";
 import { exampleKind, exampleLayout as layout } from "../testing/example-kind.js";
 import { createTempRepo, type TempRepo } from "../testing/temp-repo.js";
-import { nextEventIdentity, writeEvent, writeEvents, writeNewFile } from "./write.js";
+import { nextEventIdentity, replaceFile, writeEvent, writeEvents, writeNewFile } from "./write.js";
 
 const event: EventEnvelope = {
   envelope: "ledger/v1",
@@ -230,6 +235,43 @@ describe("writeNewFile", () => {
     const r = await repo();
     for (const path of ["../x.md", "/abs.md", "a//b.md", "-x", "a/./b.md", ""]) {
       await expect(writeNewFile(r.git, path, "x")).rejects.toBeInstanceOf(InvalidArgumentError);
+    }
+  });
+});
+
+describe("replaceFile", () => {
+  const bytes = (s: string) => new TextEncoder().encode(s);
+  const files = async (r: TempRepo, dir: string) => (await readdir(join(r.root, dir))).sort();
+
+  it("replaces a file that still holds the expected bytes", async () => {
+    const r = await repo();
+    await writeNewFile(r.git, "docs/a.md", "one\n");
+    await replaceFile(r.git, "docs/a.md", bytes("two\n"), { expected: bytes("one\n") });
+    expect(await readFile(join(r.root, "docs/a.md"), "utf8")).toBe("two\n");
+    expect(await files(r, "docs")).toEqual(["a.md"]);
+  });
+
+  it("refuses a changed or missing file, touching nothing", async () => {
+    const r = await repo();
+    await writeNewFile(r.git, "docs/a.md", "one\n");
+    await writeFile(join(r.root, "docs/a.md"), "edited\n");
+    const changed = replaceFile(r.git, "docs/a.md", bytes("two\n"), { expected: bytes("one\n") });
+    await expect(changed).rejects.toBeInstanceOf(FileChangedError);
+    await expect(changed).rejects.toMatchObject({ code: "file-changed", path: "docs/a.md" });
+    expect(await readFile(join(r.root, "docs/a.md"), "utf8")).toBe("edited\n");
+    expect(await files(r, "docs")).toEqual(["a.md"]);
+    await unlink(join(r.root, "docs/a.md"));
+    const missing = replaceFile(r.git, "docs/a.md", bytes("two\n"), { expected: bytes("one\n") });
+    await expect(missing).rejects.toBeInstanceOf(FileChangedError);
+    expect(await files(r, "docs")).toEqual([]);
+  });
+
+  it("accepts only repo-relative paths", async () => {
+    const r = await repo();
+    for (const path of ["/abs.md", "../out.md", "a/./b.md", "a//b.md", ""]) {
+      await expect(
+        replaceFile(r.git, path, bytes("x"), { expected: bytes("") }),
+      ).rejects.toBeInstanceOf(InvalidArgumentError);
     }
   });
 });
