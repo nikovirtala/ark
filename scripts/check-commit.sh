@@ -4,11 +4,12 @@
 # the steps that the changed files can affect. Run by hand: `scripts/check-commit.sh [base]`;
 # with a base, it checks everything since the merge base, including uncommitted and untracked files.
 #
-#   only *.md outside docs/adr/ and packages/*/src/  -> lint
-#     that no test reads
+#   only *.md outside docs/adr/, docs/issues/ and    -> lint
+#     packages/*/src/ that no test reads
 #   a file listed in scripts/test-inputs.txt          -> its own row, plus tests of the packages
 #                                                        that read it and their dependents
-#   docs/adr/ (no package or workspace files)         -> lint, install, build, adr verify
+#   docs/adr/ or docs/issues/ (no package or          -> lint, install, build, adr verify,
+#     workspace files)                                   issues verify
 #   packages/<p>/                                     -> the above + tests of <p> and its dependents
 #   anything else, a root or merge commit, no base    -> the above + every package's tests
 set -euo pipefail
@@ -50,6 +51,7 @@ fi
 
 # Classify the changed files: the tree against the base, plus untracked files.
 adr_log=0
+issues_log=0
 pkgs=""
 root_files=""
 add_pkg() {
@@ -88,8 +90,9 @@ if [ -z "$full" ]; then
     done
     case $f in
     docs/adr/*) adr_log=1 ;;
+    docs/issues/*) issues_log=1 ;;
     packages/*/src/*) add_pkg "$f" ;;
-    # Other Markdown outside these two trees: no test reads it (test-inputs.txt lists the files tests do read).
+    # Other Markdown outside these trees: no test reads it (test-inputs.txt lists the files tests do read).
     *.md) ;;
     packages/*/*) add_pkg "$f" ;;
     # Same rule as CI: workspace-level files (lockfile, tsconfig, biome, .github, scripts, ...) affect every package.
@@ -107,13 +110,13 @@ if [ -n "$full" ]; then
   say "$sha: full check ($full)"
 elif [ -n "$pkgs" ]; then
   mode=pkg
-  say "$sha: packages changed: $pkgs$([ "$adr_log" = 1 ] && echo ', plus docs/adr')"
-elif [ "$adr_log" = 1 ]; then
-  mode=adr_log
-  say "$sha: decision log (docs/adr) changed, no package or workspace files"
+  say "$sha: packages changed: $pkgs$([ "$adr_log" = 1 ] && echo ', plus docs/adr')$([ "$issues_log" = 1 ] && echo ', plus docs/issues')"
+elif [ "$adr_log" = 1 ] || [ "$issues_log" = 1 ]; then
+  mode=log
+  say "$sha: logs changed ($([ "$adr_log" = 1 ] && echo 'docs/adr')$([ "$adr_log$issues_log" = 11 ] && echo ', ')$([ "$issues_log" = 1 ] && echo 'docs/issues')), no package or workspace files"
 else
   mode=docs
-  say "$sha: docs only (*.md outside docs/adr and packages/*/src) or nothing changed"
+  say "$sha: docs only (*.md outside docs/adr, docs/issues and packages/*/src) or nothing changed"
 fi
 
 step lint "every commit" pnpm lint
@@ -143,9 +146,17 @@ if [ -d docs/adr ]; then
   fi
 fi
 
+if [ -d docs/issues ]; then
+  if [ -n "$base" ]; then
+    step issues-verify "check ark's issue log against $base" node packages/issues/dist/cli.js verify --base "$base"
+  else
+    step issues-verify "check ark's issue log" node packages/issues/dist/cli.js verify
+  fi
+fi
+
 case $mode in
-adr_log)
-  skip test "only docs/adr changed"
+log)
+  skip test "only docs/adr or docs/issues changed"
   ;;
 full)
   step test "full check: every package" pnpm -r run test
