@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M5VCE7BC9NG8C8254SG1A5C2
+subject: htb7aax6
+type: proposed
+at: 2026-10-26T05:55:23Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Gate agents' deciding and rescoping behind mcp_can_decide
+  template: nygard
+  template_version: 1
