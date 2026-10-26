@@ -6,6 +6,7 @@ export {
   type IssuesConfig,
   parseIssuesConfig,
 } from "./config.js";
+export { INIT_RERUN, type IssuesInitJson, initIssueLog } from "./init.js";
 export * from "./kind.js";
 export {
   type IssueLog,
