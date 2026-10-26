@@ -6,7 +6,7 @@ ark is a monorepo of tools that keep a project's knowledge in its git repository
 |---|---|---|
 | `@nikovirtala/ledger` | [packages/ledger](packages/ledger) | Published at 0.x; internal, API unstable |
 | `@nikovirtala/adr` | [packages/adr](packages/adr) | Published at 0.x |
-| `@nikovirtala/issues` | [packages/issues](packages/issues) | Private skeleton |
+| `@nikovirtala/issues` | [packages/issues](packages/issues) | Issue tracking CLI and library; published from 0.1.0 |
 
 ## Development
 
