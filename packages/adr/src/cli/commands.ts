@@ -10,6 +10,7 @@ import { indexCommand } from "./index-command.js";
 import { initCommand } from "./init.js";
 import { linkCommand } from "./link.js";
 import { listCommand } from "./list.js";
+import { mcpCommand } from "./mcp.js";
 import { newCommand } from "./new.js";
 import { noteCommand } from "./note.js";
 import { openForCli } from "./open.js";
@@ -64,6 +65,7 @@ export function adrCli(version: string): ToolCli {
       showCommand,
       searchCommand,
       verify,
+      mcpCommand(version),
     ],
   };
 }

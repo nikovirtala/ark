@@ -47,6 +47,9 @@
   "dependencies": {
     "@nikovirtala/ledger": "workspace:^"
   },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2"
+  },
   "scripts": {
     "build": "tsdown",
     "test": "vitest run",
