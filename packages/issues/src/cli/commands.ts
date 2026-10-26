@@ -6,6 +6,7 @@ import { readSourceLogs } from "../sources.js";
 import { issuesChecks } from "../verify.js";
 import { editCommand } from "./edit.js";
 import { initCommand } from "./init.js";
+import { closeCommand, reopenCommand, startCommand, stopCommand } from "./lifecycle.js";
 import { listCommand } from "./list.js";
 import { newCommand } from "./new.js";
 import { openForCli } from "./open.js";
@@ -40,6 +41,17 @@ export function issuesCli(version: string): ToolCli {
     name: "issues",
     version,
     summary: "Issue tracking kept as event logs in git.",
-    commands: [initCommand, newCommand, editCommand, listCommand, showCommand, verify],
+    commands: [
+      initCommand,
+      newCommand,
+      editCommand,
+      startCommand,
+      stopCommand,
+      closeCommand,
+      reopenCommand,
+      listCommand,
+      showCommand,
+      verify,
+    ],
   };
 }
