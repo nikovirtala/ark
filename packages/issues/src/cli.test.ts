@@ -1,18 +1,70 @@
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { fileURLToPath } from "node:url";
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import { CLI, cliRepo, requireBuilt, runIssues, runJson } from "./test-support/cli.js";
 
-const cli = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 const { version } = createRequire(import.meta.url)("../package.json") as { version: string };
+const node = (args: string[]) =>
+  spawnSync(process.execPath, [requireBuilt(CLI), ...args], { encoding: "utf8" });
 
-it("prints its version with --version", () => {
-  const result = spawnSync(process.execPath, [cli, "--version"], { encoding: "utf8" });
-  expect(result.status).toBe(0);
-  expect(result.stdout.trim()).toBe(version);
-});
+describe("the issues binary", () => {
+  it("prints its version with -V and --version", () => {
+    for (const flag of ["-V", "--version"]) {
+      const r = node([flag]);
+      expect(r.status).toBe(0);
+      expect(r.stdout.trim()).toBe(version);
+    }
+  });
 
-it("exits 2 without arguments", () => {
-  const result = spawnSync(process.execPath, [cli], { encoding: "utf8" });
-  expect(result.status).toBe(2);
+  it("exits 2 without a command, with the usage on stderr", () => {
+    const r = node([]);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("Usage: issues [global options] <command> [options]");
+    expect(r.stderr).toContain("issues: error: missing command");
+  });
+
+  it("lists the commands in order in --help", () => {
+    const r = node(["--help"]);
+    expect(r.status).toBe(0);
+    const names = r.stdout
+      .split("\n")
+      .slice(r.stdout.split("\n").indexOf("Commands:") + 1)
+      .filter((l) => l.startsWith("  "))
+      .map((l) => l.trim().split(/\s+/)[0]);
+    const commands = names.slice(0, names.indexOf("help"));
+    expect(commands).toEqual(expect.arrayContaining(["init", "list", "show", "verify"]));
+    expect(commands[0]).toBe("init");
+    expect(commands.at(-1)).toBe("verify");
+  });
+
+  it("is an executable node script", () => {
+    expect(readFileSync(CLI, "utf8").startsWith("#!/usr/bin/env node\n")).toBe(true);
+  });
+
+  it("tells the developer to build first", () => {
+    expect(() => requireBuilt("/nonexistent/dist/cli.js")).toThrow("run `pnpm build` first");
+  });
+
+  it("prints ark-error/v1 with --json when it can't run", async () => {
+    await using repo = await cliRepo();
+    const r = runJson<{ format: string; error: { code: string; message: string } }>(repo, [
+      "show",
+      "zzzzzzzz",
+    ]);
+    expect(r.status).toBe(2);
+    expect(r.json).toMatchObject({
+      format: "ark-error/v1",
+      error: { message: "unknown issue zzzzzzzz" },
+    });
+  });
+
+  it('refuses [log] index = "committed" on every command', async () => {
+    await using repo = await cliRepo({ "docs/issues/issues.toml": '[log]\nindex = "committed"\n' });
+    for (const args of [["list"], ["verify"], ["show", "1"]]) {
+      const r = runIssues(repo, args);
+      expect(r.status, args.join(" ")).toBe(2);
+      expect(r.stderr).toContain('index = "committed" needs a newer issues');
+    }
+  });
 });
