@@ -4,12 +4,14 @@ import { issueKind } from "../kind.js";
 import { sourcesNote } from "../log.js";
 import { readSourceLogs } from "../sources.js";
 import { issuesChecks } from "../verify.js";
+import { commentCommand } from "./comment.js";
 import { editCommand } from "./edit.js";
 import { initCommand } from "./init.js";
 import { closeCommand, reopenCommand, startCommand, stopCommand } from "./lifecycle.js";
 import { listCommand } from "./list.js";
 import { newCommand } from "./new.js";
 import { openForCli } from "./open.js";
+import { assignCommand, labelCommand, scopeCommand } from "./sets.js";
 import { showCommand } from "./show.js";
 
 /**
@@ -49,6 +51,10 @@ export function issuesCli(version: string): ToolCli {
       stopCommand,
       closeCommand,
       reopenCommand,
+      assignCommand,
+      labelCommand,
+      commentCommand,
+      scopeCommand,
       listCommand,
       showCommand,
       verify,
