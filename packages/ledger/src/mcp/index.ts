@@ -7,6 +7,7 @@
  * The error classes are re-exported so users of this entry share the root entry's classes.
  */
 export { LedgerError, UsageError } from "../errors.js";
+export { mcpAgentName, mcpAttribution } from "./attribution.js";
 export { serveMcp } from "./serve.js";
 export type {
   McpAnnotations,
