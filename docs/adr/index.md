@@ -17,4 +17,10 @@
 | ADR-0010 | [Keep generated indexes committed and fresh in every commit](decisions/btjpf9g1-keep-generated-indexes-committed-and-fresh-in-every-commit.md) | accepted | 2026-10-24 |
 | ADR-0011 | [Run every tool's git hooks through one ledger shim per hook](decisions/rg1aka5e-run-every-tools-git-hooks-through-one-ledger-shim-per-hook.md) | accepted | 2026-10-24 |
 
+## Proposed
+
+| Decision | Title | Status | Since |
+| --- | --- | --- | --- |
+| 28dd1x6r | [Return the CLI's JSON documents from MCP tools](decisions/28dd1x6r-return-the-clis-json-documents-from-mcp-tools.md) | proposed | 2026-10-26 |
+
 <!-- ledger-index/v1 numbers: gyspf3an=1 c6qyr1jz=2 9z41kzez=3 ew1emghd=4 28dj3jdc=5 fv88cd54=6 e2ye7ng3=7 q76pmwsw=8 5v1w33jg=9 btjpf9g1=10 rg1aka5e=11 -->
