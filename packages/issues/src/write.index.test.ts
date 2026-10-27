@@ -270,6 +270,22 @@ const ROWS: readonly Row[] = [
   },
 ];
 
+/** The rows that write events on the subject and commit them with their own subject. */
+const EVENT_ROWS: ReadonlySet<string> = new Set([
+  "start",
+  "stop",
+  "close",
+  "close --resolution wontfix",
+  "close --duplicate-of",
+  "reopen",
+  "assign",
+  "label",
+  "comment",
+  "link",
+  "unlink",
+  "scope",
+]);
+
 /** The staged entries (`git ls-files -s`) by path. */
 async function stagedBlobs(r: TempRepo): Promise<Map<string, string>> {
   const out = await git(r, "ls-files", "-s");
@@ -429,6 +445,16 @@ describe("index × --commit invariant", { timeout: 600_000 }, () => {
         if (row.mayNotCommit !== true) expect(doc?.commit, "committed").not.toBeNull();
         if (doc === null) return;
         await assertInvariants(c.r, doc, before, row.newTitle, row.mayNotCommit === true);
+        const subject = (await git(c.r, "log", "-1", "--format=%s")).trim();
+        if (row.newTitle !== undefined) {
+          // The subject quotes the title the commit holds (?6).
+          const t = row.newTitle;
+          expect(subject).toContain(`"${t.charAt(0).toLowerCase()}${t.slice(1)}"`);
+        }
+        if (pre === 4 && EVENT_ROWS.has(row.name)) {
+          // The staged retitle stays out of an event write, so the subject quotes HEAD's title.
+          expect(subject).toContain('"the subject"');
+        }
         if (pre === 2 && row.name.startsWith("edit (editor")) {
           // ?5 through reachOf: the subject's uncommitted `opened` event joined the commit.
           expect(await git(c.r, "ls-tree", "-r", "--name-only", "HEAD")).toMatch(

@@ -4,7 +4,9 @@ import {
   CommitFailedError,
   classifyPath,
   commitWithRecovery,
+  type EventRef,
   eventPath,
+  eventTrailers,
   type Finding,
   firstLine,
   headBytes,
@@ -14,6 +16,7 @@ import {
   indexReader,
   overlayTree,
   parseEventFileName,
+  type RenderedCommit,
   replaceFile,
   saveCommitRecovery,
   type Trailer,
@@ -59,7 +62,22 @@ export interface AppliedPlan {
   readonly findings: readonly Finding[];
   /** Notes about the index ("not updated", "may be stale", unstaged files); `[]` when none. */
   readonly notes: readonly string[];
+  /** The message `compose` rendered, or `null` without `compose` or a commit. */
+  readonly rendered: RenderedCommit | null;
 }
+
+/** What `compose` chooses the commit message from (design §4.2). */
+export interface ComposeInput {
+  /** The plan's own events, in plan order. */
+  readonly plan: readonly EventRef[];
+  /** The extra staged event files the commit takes, deduplicated by issue and type. */
+  readonly extra: readonly EventRef[];
+  /** The commit's tree: HEAD with every `only` path's work-tree bytes. */
+  readonly tree: TreeReader;
+}
+
+/** The `Issue`/`Issue-Event` trailer keys. */
+const TRAILER_KEYS = { subject: "Issue", event: "Issue-Event" } as const;
 
 /**
  * What the recovery hint says about rerunning a write command after `git commit` failed: the
@@ -153,8 +171,10 @@ export async function applyPlan(
   plan: WritePlan,
   o: {
     readonly commit: boolean;
-    /** The commit message, without trailers; required when committing. */
+    /** The commit message, without trailers; this or `compose` is required when committing. */
     readonly message?: string;
+    /** Chooses the commit message once the extra staged events are known (?6). */
+    readonly compose?: (c: ComposeInput) => RenderedCommit | Promise<RenderedCommit>;
     /** `message` is the user's own: append the trailers to its own trailer block, if it ends in one. */
     readonly mergeTrailers?: boolean;
     /**
@@ -167,8 +187,11 @@ export async function applyPlan(
   },
 ): Promise<AppliedPlan> {
   const { git } = log;
-  if (o.commit && o.message === undefined) {
+  if (o.commit && o.message === undefined && o.compose === undefined) {
     throw new InvalidArgumentError("applyPlan needs a message to commit");
+  }
+  if (o.message !== undefined && o.compose !== undefined) {
+    throw new InvalidArgumentError("applyPlan takes a message or compose, not both");
   }
   const stage = new Set(plan.stage);
   // Step 0: ?5's commit scope comes first, so the index render below sees reached descriptions.
@@ -300,21 +323,31 @@ export async function applyPlan(
 
   const stale = (err: unknown) => `${at} may be stale: ${firstLine(err)}; run issues index`;
   let sha: string | null = null;
+  let rendered: RenderedCommit | null = null;
   if (commit && scope !== null) {
     const extra = await extraOf();
-    const staged: Trailer[] = extra.filter(isYaml).flatMap((p): Trailer[] => {
-      const c = classifyPath(log.layout, p);
-      const name = c.area === "event" && !c.file.includes("/") ? parseEventFileName(c.file) : null;
-      return c.area === "event" && c.subject !== null && name !== null
-        ? [
-            ["Issue", c.subject],
-            ["Issue-Event", name.type],
-          ]
-        : [];
-    });
-    const message = o.message ?? "";
+    const extraRefs = stagedEventRefs(log, extra);
+    const planRefs = plan.events.map((e) => ({ subject: e.subject, type: e.type }));
+    rendered =
+      o.compose === undefined
+        ? null
+        : await o.compose({
+            plan: planRefs,
+            extra: extraRefs,
+            tree: await commitTree(extra, true),
+          });
+    const message = rendered?.message ?? o.message ?? "";
     const mergeTrailers = o.mergeTrailers === true;
-    const trailers = [...staged, ...plan.trailers];
+    // One pair per (issue, type), so three staged links give one `linked` pair (?6); `Issue:`
+    // alone (edit) only when no pair names the issue.
+    const pairs = eventTrailers([...extraRefs, ...planRefs], TRAILER_KEYS);
+    const named = new Set(pairs.filter(([k]) => k === "Issue").map(([, v]) => v));
+    const trailers: Trailer[] = [
+      ...pairs,
+      ...(plan.events.length === 0
+        ? plan.trailers.filter(([k, v]) => k !== "Issue" || !named.has(v))
+        : []),
+    ];
     if (text !== null && o.index !== undefined && o.afterStage !== undefined) {
       // Step 4: after the editor step every `only` path's work-tree bytes are what the commit
       // takes (an edited heading changes the title), so render that tree again. This differs
@@ -394,7 +427,28 @@ export async function applyPlan(
     commit: sha,
     findings,
     notes,
+    rendered,
   };
+}
+
+/**
+ * The staged event files among `paths` as (issue, type) refs, in path order (by issue, then
+ * event time), deduplicated by issue and type.
+ */
+function stagedEventRefs(log: IssueLog, paths: readonly string[]): EventRef[] {
+  const seen = new Set<string>();
+  const out: EventRef[] = [];
+  for (const p of sorted(paths.filter(isYaml))) {
+    const c = classifyPath(log.layout, p);
+    if (c.area !== "event" || c.subject === null || c.file.includes("/")) continue;
+    const name = parseEventFileName(c.file);
+    if (name === null) continue;
+    const key = `${c.subject}\0${name.type}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ subject: c.subject, type: name.type });
+  }
+  return out;
 }
 
 /** The new bytes of each file a plan replaces. */

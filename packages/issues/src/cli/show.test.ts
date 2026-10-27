@@ -32,9 +32,9 @@ describe("issues show", () => {
     ]);
     expect(full.json.comments).toBeNull();
     expect(full.json.events).toHaveLength(1);
-    expect(full.json.commits?.map((c) => c.subject)).toEqual(["docs(issues): open child"]);
+    expect(full.json.commits?.map((c) => c.subject)).toEqual(['docs(issues): open "child"']);
     const atRef = runJson<typeof doc.json>(repo, ["show", a, "--commits", "--ref", "HEAD~1"]);
-    expect(atRef.json.commits?.map((c) => c.subject)).toEqual(["docs(issues): open parent"]);
+    expect(atRef.json.commits?.map((c) => c.subject)).toEqual(['docs(issues): open "parent"']);
     const text = runIssues(repo, ["show", "2"]).stdout;
     expect(text.split("\n")[0]).toBe(`?2 (${b}) · open`);
     expect(text).toContain("## Goal");

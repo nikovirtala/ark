@@ -122,7 +122,10 @@ it("tracks issues and links them to decisions with the built issues and adr bina
     "--commits",
   ]);
   expect(commits.json.commits).toContainEqual(
-    expect.objectContaining({ subject: "docs(issues): close ?2", events: ["closed"] }),
+    expect.objectContaining({
+      subject: 'docs(issues): close ?2 "extract the queue consumer"',
+      events: ["closed"],
+    }),
   );
 
   // 6. Close and reopen the parent; a won't-fix close needs a reason.

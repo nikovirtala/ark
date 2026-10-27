@@ -81,31 +81,31 @@ describe("writes", () => {
     const one = await newIssue(r, "Split orders");
     expect(one.display).toBe("?1");
     expect(await lastMessage(r)).toBe(
-      `docs(issues): open split orders\n\nIssue: ${one.id}\nIssue-Event: opened\n`,
+      `docs(issues): open "split orders"\n\nIssue: ${one.id}\nIssue-Event: opened\n`,
     );
     const two = await newIssue(r, "Second");
     const log = await open(r);
     const cases: [() => Promise<unknown>, string, string[]][] = [
       [
         () => startIssue(log, { id: "1", actor: HUMAN }, { commit: true }),
-        "docs(issues): start work on ?1",
+        'docs(issues): start work on ?1 "split orders"',
         ["started", "assigned"],
       ],
       [
         () =>
           stopIssue(log, { id: "1", reason: "blocked on review", actor: HUMAN }, { commit: true }),
-        "docs(issues): stop work on ?1\n\nReason: blocked on review",
+        'docs(issues): stop work on ?1 "split orders"\n\nReason: blocked on review',
         ["stopped"],
       ],
       [
         () => commentIssue(log, { id: "1", text: "note", actor: HUMAN }, { commit: true }),
-        "docs(issues): comment on ?1",
+        'docs(issues): comment on ?1 "split orders"',
         ["commented"],
       ],
       [
         () =>
           labelIssue(log, { id: "1", op: { add: ["type:bug"] }, actor: HUMAN }, { commit: true }),
-        "docs(issues): set the labels of ?1",
+        'docs(issues): set the labels of ?1 "split orders"',
         ["labeled"],
       ],
       [
@@ -115,24 +115,24 @@ describe("writes", () => {
             { id: "1", op: { set: ["bob@example.com"] }, actor: HUMAN },
             { commit: true },
           ),
-        "docs(issues): set the assignees of ?1",
+        'docs(issues): set the assignees of ?1 "split orders"',
         ["assigned"],
       ],
       [
         () =>
           scopeIssue(log, { id: "1", op: { add: ["README.md"] }, actor: HUMAN }, { commit: true }),
-        "docs(issues): set the scope of ?1",
+        'docs(issues): set the scope of ?1 "split orders"',
         ["scoped"],
       ],
       [
         () =>
           linkIssue(log, { id: "1", to: "2", rel: "depends-on", actor: HUMAN }, { commit: true }),
-        "docs(issues): link ?1 to ?2\n\ndepends-on ?2: Second.",
+        'docs(issues): link ?1 "split orders" to ?2\n\ndepends-on ?2: Second.',
         ["linked"],
       ],
       [
         () => unlinkIssue(log, { id: "1", to: "?2", actor: HUMAN }, { commit: true }),
-        "docs(issues): unlink ?1 to ?2\n\ndepends-on ?2: Second.",
+        'docs(issues): unlink ?1 "split orders" from ?2\n\ndepends-on ?2: Second.',
         ["unlinked"],
       ],
       [
@@ -142,12 +142,12 @@ describe("writes", () => {
             { id: "2", of: "1", reason: "same work", actor: HUMAN },
             { commit: true },
           ),
-        "docs(issues): close ?2 as a duplicate of ?1\n\nReason: same work",
+        'docs(issues): close ?2 "second" as a duplicate of ?1\n\nReason: same work',
         ["closed"],
       ],
       [
         () => reopenIssue(log, { id: "2", reason: "not the same", actor: HUMAN }, { commit: true }),
-        "docs(issues): reopen ?2\n\nReason: not the same",
+        'docs(issues): reopen ?2 "second"\n\nReason: not the same',
         ["reopened"],
       ],
       [
@@ -157,7 +157,7 @@ describe("writes", () => {
             { id: "2", resolution: "wontfix", reason: "no", actor: HUMAN },
             { commit: true },
           ),
-        "docs(issues): close ?2 as won't fix\n\nReason: no",
+        'docs(issues): close ?2 "second" as won\'t fix\n\nReason: no',
         ["closed"],
       ],
     ];
@@ -187,10 +187,11 @@ describe("writes", () => {
     const message = await lastMessage(r);
     const [subject] = message.split("\n");
     expect((subject ?? "").length).toBeLessThanOrEqual(86);
-    expect(subject).toMatch(/…$/);
+    expect(subject).toMatch(/^docs\(issues\): open "make the order service .*…"$/);
+    expect((subject ?? "").length - "docs(issues): ".length).toBeLessThanOrEqual(72);
     expect(message.replace(/\n/g, " ")).toContain(`Full title: ${title}`);
     expect(doc.notes).toContain(
-      "commit subject shortened to 72 characters; the full title is in the commit body",
+      'the title was shortened to keep the commit description (after "docs(issues):") within 72 characters; the full title is in the commit body',
     );
   });
 
@@ -247,7 +248,7 @@ describe("writes", () => {
     await commentIssue(await open(r), { id: one.id, text: "staged first", actor: HUMAN });
     await closeIssue(await open(r), { id: one.id, actor: HUMAN }, { commit: true });
     expect(await lastMessage(r)).toBe(
-      `docs(issues): close ?1\n\nIssue: ${one.id}\nIssue-Event: commented\nIssue: ${one.id}\nIssue-Event: closed\n`,
+      `docs(issues): close and comment on ?1 "split orders"\n\nIssue: ${one.id}\nIssue-Event: commented\nIssue: ${one.id}\nIssue-Event: closed\n`,
     );
   });
 
@@ -345,7 +346,7 @@ describe("writes", () => {
     expect(doc.ok).toBe(true);
     expect(doc.issue?.title).toBe("Split the orders service");
     expect(await lastMessage(r)).toBe(
-      `docs(issues): edit the description of ?1\n\nIssue: ${one.id}\n`,
+      `docs(issues): edit ?1 "split the orders service"\n\nIssue: ${one.id}\n`,
     );
     expect((await git(r, "show", "--name-only", "--format=", "HEAD")).trim()).toBe(one.body_path);
     const again = await editIssue(await open(r), { id: "1", title: "Split the orders service" });
@@ -387,5 +388,148 @@ describe("writes", () => {
     await expect(openIssue(log, { title: "x", actor: HUMAN })).rejects.toThrow(
       "writes read the work tree",
     );
+  });
+});
+
+describe("default commit subjects (?6)", () => {
+  const trailersOf = async (r: TempRepo) =>
+    (await git(r, "log", "-1", "--format=%(trailers:only,unfold)")).trim().split("\n");
+  const subjectOf = async (r: TempRepo) => (await git(r, "log", "-1", "--format=%s")).trim();
+
+  it("names a batch of staged events of other types, with one pair per issue and type", async () => {
+    const r = await repo();
+    const a = await newIssue(r, "Split the orders service");
+    const b = await newIssue(r, "Extract the consumer");
+    const c = await newIssue(r, "Move the schema");
+    const log = await open(r);
+    await linkIssue(log, { id: a.id, to: b.id, actor: HUMAN });
+    await linkIssue(log, { id: a.id, to: c.id, rel: "depends-on", actor: HUMAN });
+    await linkIssue(log, { id: a.id, to: b.id, rel: "depends-on", actor: HUMAN });
+    await scopeIssue(log, { id: a.id, op: { set: ["README.md"] }, actor: HUMAN }, { commit: true });
+    expect(await subjectOf(r)).toBe('docs(issues): link and scope ?1 "split the orders service"');
+    expect(await trailersOf(r)).toEqual([
+      `Issue: ${a.id}`,
+      "Issue-Event: linked",
+      `Issue: ${a.id}`,
+      "Issue-Event: scoped",
+    ]);
+
+    // Two staged labels: one verb, one pair.
+    await labelIssue(log, { id: b.id, op: { add: ["type:bug"] }, actor: HUMAN });
+    await labelIssue(log, { id: b.id, op: { add: ["area:api"] }, actor: HUMAN }, { commit: true });
+    expect(await subjectOf(r)).toBe('docs(issues): set the labels of ?2 "extract the consumer"');
+    expect(await trailersOf(r)).toEqual([`Issue: ${b.id}`, "Issue-Event: labeled"]);
+
+    // A retitle quotes the new title. edit commits the description alone (?5), so a staged
+    // link of the committed issue stays staged and adds no verb.
+    await linkIssue(log, { id: c.id, to: b.id, actor: HUMAN });
+    await editIssue(log, { id: c.id, title: "Move the schema first" }, { commit: true });
+    expect(await subjectOf(r)).toBe('docs(issues): edit ?3 "move the schema first"');
+    expect(await trailersOf(r)).toEqual([`Issue: ${c.id}`]);
+
+    // An issue opened without --commit: edit takes its staged events, edit comes first.
+    const e = await newIssue(r, "Drop the old table", false);
+    await linkIssue(log, { id: e.id, to: b.id, actor: HUMAN });
+    await editIssue(log, { id: e.id, title: "Drop the old tables" }, { commit: true });
+    expect(await subjectOf(r)).toBe(
+      `docs(issues): edit, open and link ${e.id} "drop the old tables"`,
+    );
+    // Both events were staged, so their pairs come in path order, and two events stamped in the
+    // same second sort by their random part: compare the pairs, not their order.
+    const pairs = (lines: string[]) =>
+      lines.flatMap((l, i) => (i % 2 === 0 ? [`${l}\n${lines[i + 1]}`] : [])).sort();
+    expect(pairs(await trailersOf(r))).toEqual(
+      pairs([`Issue: ${e.id}`, "Issue-Event: opened", `Issue: ${e.id}`, "Issue-Event: linked"]),
+    );
+  });
+
+  it("names start with a staged assign, and keeps start's own assigned event out", async () => {
+    const r = await repo();
+    const a = await newIssue(r, "Split the orders service");
+    const b = await newIssue(r, "Extract the consumer");
+    const log = await open(r);
+    await startIssue(log, { id: a.id, actor: HUMAN }, { commit: true });
+    expect(await subjectOf(r)).toBe('docs(issues): start work on ?1 "split the orders service"');
+    await assignIssue(log, { id: b.id, op: { add: ["ada@example.com"] }, actor: HUMAN });
+    await startIssue(log, { id: b.id, actor: HUMAN }, { commit: true });
+    expect(await subjectOf(r)).toBe('docs(issues): assign and start ?2 "extract the consumer"');
+  });
+
+  it("says update beyond three verbs, and names several issues", async () => {
+    const r = await repo();
+    const a = await newIssue(r, "Split the orders service");
+    const b = await newIssue(r, "Extract the consumer");
+    const log = await open(r);
+    await linkIssue(log, { id: a.id, to: b.id, actor: HUMAN });
+    await labelIssue(log, { id: a.id, op: { add: ["type:bug"] }, actor: HUMAN });
+    await commentIssue(log, { id: a.id, text: "Noted.", actor: HUMAN });
+    await scopeIssue(log, { id: a.id, op: { set: ["README.md"] }, actor: HUMAN });
+    await closeIssue(log, { id: a.id, actor: HUMAN }, { commit: true });
+    expect(await subjectOf(r)).toBe('docs(issues): update ?1 "split the orders service"');
+
+    // Y opened without --commit joins X's commit: open is the one verb, so open's own subject.
+    const y = await newIssue(r, "The dependency", false);
+    const x = await openIssue(
+      log,
+      { title: "The dependent", sections: TASK, dependsOn: [y.id], actor: HUMAN },
+      { commit: true },
+    );
+    expect(x.ok).toBe(true);
+    expect(await subjectOf(r)).toBe('docs(issues): open "the dependent"');
+
+    // An uncommitted dependency with a staged label joins: two verbs over two issues.
+    const z = await newIssue(r, "Another dependency", false);
+    await labelIssue(log, { id: z.id, op: { add: ["type:bug"] }, actor: HUMAN });
+    const w = await openIssue(
+      log,
+      { title: "Another dependent", sections: TASK, dependsOn: [z.id], actor: HUMAN },
+      { commit: true },
+    );
+    expect(await subjectOf(r)).toBe(
+      `docs(issues): open and label ${w.issue?.id} and 1 other issue`,
+    );
+  });
+
+  it("quotes a title with a double quote as it is", async () => {
+    const r = await repo();
+    await newIssue(r, 'Use the "fast" path');
+    expect(await subjectOf(r)).toBe('docs(issues): open "use the "fast" path"');
+  });
+});
+
+describe("composeSubject", () => {
+  it("names one, two and more than 999 other issues", async () => {
+    const { composeSubject } = await import("./commit-actions.js");
+    const base = {
+      command: "link",
+      subject: "a",
+      display: "?1",
+      plan: [{ subject: "a", type: "linked" }],
+    };
+    expect(composeSubject({ ...base, extra: [{ subject: "a", type: "linked" }] })).toBeNull();
+    expect(composeSubject({ ...base, extra: [{ subject: "b", type: "commented" }] })).toEqual({
+      action: "link and comment on",
+      name: "?1 and 1 other issue",
+    });
+    expect(
+      composeSubject({
+        ...base,
+        extra: [
+          { subject: "b", type: "commented" },
+          { subject: "c", type: "commented" },
+        ],
+      }),
+    ).toEqual({ action: "link and comment on", name: "?1 and 2 other issues" });
+    const many = Array.from({ length: 1000 }, (_, i) => ({ subject: `s${i}`, type: "scoped" }));
+    expect(composeSubject({ ...base, extra: many })).toEqual({
+      action: "link and scope",
+      name: "?1 and more issues",
+    });
+    expect(
+      composeSubject({
+        ...base,
+        extra: ["opened", "assigned", "labeled", "scoped"].map((type) => ({ subject: "a", type })),
+      }),
+    ).toEqual({ action: "update", name: null });
   });
 });

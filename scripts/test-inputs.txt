@@ -10,3 +10,4 @@
 docs/01-adr-v1.md adr
 docs/02-issues-v1.md issues
 commitlint.config.mjs adr
+commitlint.config.mjs issues
