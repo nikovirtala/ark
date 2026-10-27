@@ -7,6 +7,7 @@ import { bodySha256 } from "../identity/hash.js";
 import { eventPath } from "../identity/layout.js";
 import { createUlidFactory } from "../identity/ulid.js";
 import { defineKind } from "../kind/define.js";
+import type { FoldedLogOf } from "../kind/types.js";
 import { loadLog } from "../log/snapshot.js";
 import { exampleMachineKind } from "../testing/example-machine-kind.js";
 import { TEST_HUMAN } from "../testing/history.js";
@@ -107,6 +108,27 @@ describe("projectLog", () => {
   it("shows ids without numbering", async () => {
     const p = projectLog(note, await folded(), { numbering: NO_NUMBERING });
     expect(p.views.get(A)).toMatchObject({ number: null, display: A });
+  });
+
+  it("passes options to the kind's project, undefined when omitted", async () => {
+    const seen: unknown[] = [];
+    const withOptions = defineKind({
+      ...note.def,
+      project: (s, ctx) => {
+        seen.push(ctx.options);
+        return s.id;
+      },
+    });
+    // The same events, folded with the same definition apart from project.
+    const log = (await folded()) as unknown as FoldedLogOf<typeof withOptions>;
+    const options = { sources: new Map([["platform", null]]) };
+    projectLog(withOptions, log, { numbering: NO_NUMBERING, options });
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every((o) => o === options)).toBe(true);
+    seen.length = 0;
+    projectLog(withOptions, log, { numbering: NO_NUMBERING });
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every((o) => o === undefined)).toBe(true);
   });
 
   it("works with the widget kind's projection", async () => {

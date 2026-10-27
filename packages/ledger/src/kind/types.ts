@@ -93,6 +93,11 @@ export interface ProjectContext<S extends string, St, E extends EventDefs<S>> {
   display(id: string): string;
   /** SHA-256 of the subject's current body bytes (`bodySha256`), or `null`. */
   bodySha256(id: string): string | null;
+  /**
+   * What the caller passed as `projectLog`'s `options` (for example other repositories' logs a
+   * projection reads); `undefined` when it passed none. The kind narrows it.
+   */
+  readonly options?: unknown;
 }
 
 /**
