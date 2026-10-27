@@ -57,3 +57,14 @@ If step 3 fails, fix the offending commit (fixup + autosquash), then rerun steps
 - Mark the PR **ready for review** (remove draft status) only after all of the above is done and nothing is left to do.
 - Use `gh pr ready <number>` or the GraphQL `markPullRequestReadyForReview` mutation. The REST API can't remove draft status. If your environment can't run either, say so explicitly when you hand off, and ask the maintainer to click "Ready for review".
 - If review requires more work, move the PR back to draft, make the changes with ordinary pushes, and repeat the "Before marking ready for review" steps once before marking it ready again.
+
+## Review findings
+
+ark tracks its open work in `docs/issues/` with its own `issues` tool (`node packages/issues/dist/cli.js` after `pnpm build`). Code reviews use it for findings that don't block:
+
+- High and medium findings block the review and are fixed in the pull request.
+- Fix a low finding in the pull request only when it's a one-line change to code the pull request already touches. Otherwise the reviewer files it as an issue in the same pull request, with the evidence, scope globs on the affected files, a Done when, and a `relates-to` link to the issue the pull request works on.
+- Before filing, look for an existing issue (`issues for <path>`, and `issues search` once it exists). Comment on it instead of filing a duplicate.
+- Agents file with `ARK_AGENT` set and `ARK_ON_BEHALF_OF` naming the person they act for.
+- List the filed issues in the PR description under "Filed for later".
+- Design reviews don't file issues. Their low findings are fixed in the design.
