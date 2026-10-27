@@ -7,6 +7,10 @@ index = "none"
 [labels]
 exclusive = ["priority", "type"]
 
+[scope]
+# Docs, tests and the test harness show issue: anchor examples that name no issue in this log.
+anchor_exclude = ["**/*.md", "**/*.test.ts", "**/test-support/**", "packages/ledger/src/testing/**"]
+
 [policy]
 close_requires_human = false
 mcp_can_close = true
