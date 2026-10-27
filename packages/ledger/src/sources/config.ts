@@ -79,6 +79,12 @@ function validateSource(
   }
   if (ref.startsWith("-")) throw fail(`${where}.ref must not start with -`);
   if (ref.includes("..")) throw fail(`${where}.ref must not contain ..`);
+  // These would make the fetch refspec force-update (+), write a ref in the cache (a:b), match
+  // several refs (* ? [), or name a revision git can't fetch (\ ^ ~ @{).
+  if (ref.startsWith("+")) throw fail(`${where}.ref must not start with +`);
+  if (/[:*?[\\^~]|@\{/.test(ref)) {
+    throw fail(`${where}.ref must not contain :, *, ?, [, \\, ^, ~ or @{`);
+  }
   if (ABBREVIATED_SHA.test(ref)) {
     throw fail(`${where}.ref looks like an abbreviated commit id; use the full sha`);
   }

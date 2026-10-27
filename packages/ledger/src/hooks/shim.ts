@@ -18,14 +18,21 @@ export const HOOK_NAMES: readonly HookName[] = [
 
 /**
  * What `installHooks` registers by default: `verify --staged` before a commit, and before a push
- * `verify --base @{upstream} --ref HEAD`, which checks what is being pushed rather than the work
- * tree. The pre-push entry is safe on any branch because `verifyCommand` falls back when there is
+ * `verify --base @{upstream} --ref HEAD --fetch-sources`, which checks what is being pushed rather
+ * than the work tree, against freshly fetched sources (a failed fetch stops the push). The pre-push entry is safe on any branch because `verifyCommand` falls back when there is
  * no upstream (`resolveVerifyBase`): origin's default branch, else the whole log.
  */
 export const DEFAULT_HOOK_COMMANDS: Readonly<Partial<Record<HookName, readonly string[]>>> =
   Object.freeze({
     "pre-commit": Object.freeze(["verify", "--staged"]),
-    "pre-push": Object.freeze(["verify", "--base", "@{upstream}", "--ref", "HEAD"]),
+    "pre-push": Object.freeze([
+      "verify",
+      "--base",
+      "@{upstream}",
+      "--ref",
+      "HEAD",
+      "--fetch-sources",
+    ]),
   });
 
 export const SHIM_MARKER = "# ark-hooks v1 (@nikovirtala/ledger). Generated; do not edit.";

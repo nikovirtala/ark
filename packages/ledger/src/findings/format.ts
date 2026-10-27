@@ -7,12 +7,33 @@ import {
   summarize,
 } from "./finding.js";
 
+/**
+ * What a verify run read of one `[[sources]]` entry: the report's `sources` items. Defined here,
+ * below the sources layer, and re-exported by `sources/read.ts`.
+ */
+export interface SourceStatus {
+  readonly name: string;
+  readonly kind: string;
+  readonly ref: string;
+  /** The pinned commit served, or `null` when the source isn't cached. */
+  readonly commit: string | null;
+  /** True when this run fetched it from the network. */
+  readonly fetched: boolean;
+}
+
 /** The `--json` report. Every key is always present so consumers can rely on the shape. */
 export interface FindingsReport {
   readonly format: "ledger-findings/v1";
   readonly ok: boolean;
   readonly summary: FindingsSummary;
   readonly findings: readonly Finding[];
+  /** What each `[[sources]]` entry the tool reads resolved to; absent without sources. */
+  readonly sources?: readonly SourceStatus[];
+}
+
+export interface ReportOptions {
+  readonly failOn?: Severity;
+  readonly sources?: readonly SourceStatus[];
 }
 
 function plural(n: number, word: string): string {
@@ -38,10 +59,7 @@ export function formatText(fs: readonly Finding[]): string {
  * The `ledger-findings/v1` report as an object, findings sorted and with every key, for tools that
  * embed it in a larger JSON document.
  */
-export function findingsReport(
-  fs: readonly Finding[],
-  opts: { readonly failOn?: Severity } = {},
-): FindingsReport {
+export function findingsReport(fs: readonly Finding[], opts: ReportOptions = {}): FindingsReport {
   return {
     format: "ledger-findings/v1",
     ok: exitCode(fs, opts) === 0,
@@ -55,14 +73,22 @@ export function findingsReport(
       subject: f.subject,
       kind: f.kind,
     })),
+    ...(opts.sources === undefined
+      ? {}
+      : {
+          sources: opts.sources.map((s) => ({
+            name: s.name,
+            kind: s.kind,
+            ref: s.ref,
+            commit: s.commit,
+            fetched: s.fetched,
+          })),
+        }),
   };
 }
 
 /** The `ledger-findings/v1` report, 2-space indented, ending with a newline. */
-export function formatJson(
-  fs: readonly Finding[],
-  opts: { readonly failOn?: Severity } = {},
-): string {
+export function formatJson(fs: readonly Finding[], opts: ReportOptions = {}): string {
   return `${JSON.stringify(findingsReport(fs, opts), null, 2)}\n`;
 }
 

@@ -120,6 +120,8 @@ describe("fetchSource", () => {
     await rm(remote.root, { recursive: true, force: true });
     const g = await fetchSource(main.git, s);
     expect(g).toMatchObject({ commit: f.commit, stale: true, cacheDir: f.cacheDir });
+    expect(g.staleReason).toMatch(/^fatal: /);
+    expect(f.staleReason).toBeNull();
     expect(await readme(g.tree)).toBe("v1\n");
   });
 
@@ -131,6 +133,10 @@ describe("fetchSource", () => {
     expect(e).toBeInstanceOf(SourceFetchError);
     expect(e).toMatchObject({ code: "source-fetch", source: "platform" });
     expect((e as SourceFetchError).stderr).toContain("nope");
+    // git's first stderr line, not the GitError's "git -c exited with 128" message.
+    expect((e as SourceFetchError).message).toBe(
+      "cannot fetch source platform (nope): fatal: couldn't find remote ref nope",
+    );
   });
 
   it("uses a new cache when the ref or url changes, and leaves the old one alone", async () => {
