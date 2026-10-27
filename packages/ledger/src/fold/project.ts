@@ -22,12 +22,13 @@ export interface Projection<P> {
 
 /**
  * Projects every folded subject with the kind's `project`. Numbers come from `o.numbering`, and
- * only for subjects with an applied `numbering.on` event in this log.
+ * only for subjects with an applied `numbering.on` event in this log. `options` reaches the kind's
+ * `project` as `ctx.options`.
  */
 export function projectLog<K extends AnyKind>(
   kind: K,
   log: FoldedLogOf<K>,
-  o: { readonly numbering: Numbering },
+  o: { readonly numbering: Numbering; readonly options?: unknown },
 ): Projection<ViewOf<K>> {
   const { def } = kind;
   const subjects = log.subjects as ReadonlyMap<string, FoldedSubjectOf<AnyKind>>;
@@ -50,6 +51,7 @@ export function projectLog<K extends AnyKind>(
       const body = subjects.get(id)?.loaded.body;
       return body === undefined || body === null ? null : bodySha256(body.bytes);
     },
+    ...(o.options === undefined ? {} : { options: o.options }),
   };
   const views = new Map<string, ViewOf<K>>();
   const unreadable: string[] = [];
