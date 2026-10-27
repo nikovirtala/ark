@@ -1,8 +1,12 @@
 import { templateHistoryRef } from "@nikovirtala/ledger";
-import { type CommandSpec, type ToolCli, verifyCommand } from "@nikovirtala/ledger/cli";
+import {
+  type CommandSpec,
+  sourcesCommand,
+  type ToolCli,
+  verifyCommand,
+} from "@nikovirtala/ledger/cli";
 import { issueKind } from "../kind.js";
-import { sourcesNote } from "../log.js";
-import { readDecisionLog, sourceLogsOf } from "../sources.js";
+import { readDecisionLog, readIssueSources } from "../sources.js";
 import { issuesChecks, issueVerifyInputs } from "../verify.js";
 import { commentCommand } from "./comment.js";
 import { editCommand } from "./edit.js";
@@ -25,21 +29,46 @@ import { workCommand } from "./work.js";
  * `[verify] fail_on`.
  */
 const verify: CommandSpec = verifyCommand({
-  async open({ io, flags, mode }) {
+  async open({ io, flags, mode, fetchSources }) {
     const log = await openForCli(io, flags, {
       reader: mode.type === "staged" ? "index" : "worktree",
     });
     const decisions = await readDecisionLog(log);
-    const sources = sourceLogsOf(decisions, log.config);
-    const note = sourcesNote({ sources: (log.config?.sources ?? []).map((s) => s.name) });
+    const sources = await readIssueSources(log, {
+      decisions,
+      fetch: fetchSources ? "network" : "cache",
+    });
+    const configured = log.config?.sources ?? [];
     return {
       git: log.git,
       kind: issueKind,
       layout: log.layout,
-      checks: issuesChecks(log, await templateHistoryRef(log.git, mode), sources),
+      checks: issuesChecks(
+        log,
+        await templateHistoryRef(log.git, mode),
+        sources.logs,
+        sources.statuses,
+      ),
       failOn: log.issues.failOn,
-      notes: note === null ? log.notes : [...log.notes, note],
+      notes: [...log.notes, ...sources.notes],
       widenOn: issueVerifyInputs(log, decisions),
+      ...(configured.length === 0 ? {} : { sources: sources.statuses }),
+    };
+  },
+});
+
+/** ledger's shared `sources fetch`; issues reads every kind its config accepts. */
+const sources: CommandSpec = sourcesCommand({
+  format: "issues-sources/v1",
+  tool: "issues",
+  async open({ io, flags }) {
+    const log = await openForCli(io, flags);
+    return {
+      git: log.git,
+      sources: log.config?.sources ?? [],
+      skipped: [],
+      configPath: log.configPath,
+      notes: log.notes,
     };
   },
 });
@@ -71,6 +100,7 @@ export function issuesCli(version: string): ToolCli {
       listCommand,
       showCommand,
       verify,
+      sources,
     ],
   };
 }

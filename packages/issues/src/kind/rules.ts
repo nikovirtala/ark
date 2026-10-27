@@ -21,6 +21,8 @@ export interface SourceLog {
   readonly local: boolean;
   /** Known subjects; `null` when the log isn't read, so references into it aren't checked. */
   readonly subjects: ReadonlyMap<string, ForeignSubject> | null;
+  /** A `[[sources]]` entry's cached commit; `null` for the local log or an uncached source. */
+  readonly commit?: string | null;
 }
 
 /** Options of the issue kind's `invariants` and `relate` (`issues.toml`, plus the sources read). */

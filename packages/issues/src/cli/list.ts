@@ -1,23 +1,27 @@
 import { type JsonValue, resolveAttribution, UsageError } from "@nikovirtala/ledger";
 import type { CommandSpec } from "@nikovirtala/ledger/cli";
 import { ISSUE_STATES, type IssueStatus } from "../kind.js";
-import { readIssues } from "../log.js";
+import { readIssues, readSourceIssues } from "../log.js";
 import { listIssues, myAddress } from "../views.js";
 import { limitOf, openForCli, strings } from "./open.js";
 import { listText } from "./text.js";
 
-/** `issues list`: open and in-progress issues by default. */
+/**
+ * `issues list`: open and in-progress issues by default; `--source` lists a `[[sources]]` entry's
+ * cached issue log instead of the local one.
+ */
 export const listCommand: CommandSpec = {
   name: "list",
   summary: "list issues with their computed state (open and in progress by default)",
   usage:
-    "list [--state open|in-progress|closed]… [--all] [--assignee <who|me>]… [--label <label>]… [--limit <n>]",
+    "list [--state open|in-progress|closed]… [--all] [--assignee <who|me>]… [--label <label>]… [--limit <n>] [--source <name>]",
   options: {
     state: { type: "string", multiple: true },
     all: { type: "boolean" },
     assignee: { type: "string", multiple: true },
     label: { type: "string", multiple: true },
     limit: { type: "string" },
+    source: { type: "string" },
   },
   positionals: { min: 0, max: 0, names: [] },
   ref: "read",
@@ -36,7 +40,11 @@ export const listCommand: CommandSpec = {
       const me = myAddress(actor, "--assignee me");
       assignees = assignees.map((a) => (a === "me" ? me : a));
     }
-    const doc = listIssues(await readIssues(log), {
+    const read =
+      typeof values.source === "string"
+        ? await readSourceIssues(log, values.source)
+        : await readIssues(log);
+    const doc = listIssues(read, {
       states: states as IssueStatus[],
       all: values.all === true,
       assignees,

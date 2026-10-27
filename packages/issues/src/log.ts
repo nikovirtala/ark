@@ -11,24 +11,35 @@ import {
   type LogLayout,
   loadFindings,
   loadLog,
+  MemoryTree,
+  NO_NUMBERING,
   type Numbering,
   numberLog,
   openToolLog,
   type Projection,
   projectLog,
   readIndexNumbers,
+  readSources,
   refReader,
   relateCheck,
   resolveSubjectInput,
   sortFindings,
+  sourceLogRef,
   type ToolLog,
   type TreeReader,
   transitions,
   UsageError,
 } from "@nikovirtala/ledger";
 import { type IssuesConfig, parseIssuesConfig } from "./config.js";
-import { type IssueOptions, type IssueView, issueKind, type Rel, type SourceLog } from "./kind.js";
-import { type DecisionLogRead, readDecisionLog, sourceLogsOf } from "./sources.js";
+import {
+  type IssueOptions,
+  type IssueView,
+  issueKind,
+  type ProjectOptions,
+  type Rel,
+  type SourceLog,
+} from "./kind.js";
+import { type DecisionLogRead, readDecisionLog, readIssueSources } from "./sources.js";
 
 /** An issue log opened for the CLI or MCP: ledger's tool log plus issues' config. */
 export interface IssueLog extends ToolLog {
@@ -75,22 +86,28 @@ export interface IssuesRead {
   readonly options: IssueOptions;
   /** The repository's own decision log, or `null` when there is none (or it wasn't read). */
   readonly decisions: DecisionLogRead | null;
-  /** The `[[sources]]` names in the config; their logs aren't read in this version. */
+  /** The `[[sources]]` names in the config; their logs are read from the local cache. */
   readonly sources: readonly string[];
+  /** The `[[sources]]` entry this read is of (`list --source`), or `null` for the local log. */
+  readonly source: string | null;
   /** Load, transition, invariant and relate findings; no diff-based checks. */
   readonly findings: readonly Finding[];
   /** How the log was located (`ToolLog.notes`); `[]` for a MemoryTree read. */
   readonly notes: readonly string[];
 }
 
-/** `numberLog` and the decision log on the repository, then `readIssuesFrom(log.tree, …)`. */
+/**
+ * `numberLog`, the decision log and the cached `[[sources]]` on the repository (never the
+ * network), then `readIssuesFrom(log.tree, …)`.
+ */
 export async function readIssues(log: IssueLog): Promise<IssuesRead> {
   const decisions = await readDecisionLog(log);
+  const sources = await readIssueSources(log, { decisions });
   return readIssuesFrom(log.tree, {
     layout: log.layout,
     issues: log.issues,
     numbering: await numberIssues(log),
-    sources: sourceLogsOf(decisions, log.config),
+    sources: sources.logs,
     decisions,
     ref: log.ref,
     commit: log.commit,
@@ -139,6 +156,8 @@ export async function readIssuesFrom(
     readonly notes?: readonly string[];
     /** The `[[sources]]` names, for the sources note. */
     readonly configured?: readonly string[];
+    /** The `[[sources]]` entry `tree` is of; default `null`, the local log. */
+    readonly source?: string | null;
   },
 ): Promise<IssuesRead> {
   const { layout, issues, numbering } = o;
@@ -172,14 +191,78 @@ export async function readIssuesFrom(
     ref: o.ref ?? null,
     commit: o.commit ?? null,
     folded,
-    projection: projectLog(issueKind, folded, { numbering }),
+    // Foreign blockers need the sources; without them (the index) the projection reads the tree only.
+    projection: projectLog(issueKind, folded, {
+      numbering,
+      ...(o.sources === null ? {} : { options: { sources: o.sources } satisfies ProjectOptions }),
+    }),
     numbering,
     options,
     decisions: o.decisions ?? null,
     sources: o.configured ?? [],
+    source: o.source ?? null,
     findings: sortFindings(findings.map((f) => ({ ...f, kind: issueKind.name }))),
     notes: o.notes ?? [],
   };
+}
+
+const SOURCE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
+
+/**
+ * The cached issue log of the `[[sources]]` entry `name`, for `issues list --source` (cache only,
+ * never the network), numbered from its committed `index.md`. An uncached source reads as an empty
+ * log with the note `<name> not fetched; run issues sources fetch`. Throws `UsageError` for a name
+ * that isn't configured or names a decision log.
+ */
+export async function readSourceIssues(log: IssueLog, name: string): Promise<IssuesRead> {
+  if (!SOURCE_NAME.test(name)) {
+    throw new UsageError(`--source must match ${SOURCE_NAME.source}: ${name}`);
+  }
+  const configs = log.config?.sources ?? [];
+  const config = configs.find((s) => s.name === name);
+  if (config === undefined) {
+    const known = configs.map((s) => s.name);
+    throw new UsageError(
+      known.length === 0
+        ? `unknown source ${name}; there are no sources`
+        : `unknown source ${name}; the sources are ${known.join(", ")}`,
+    );
+  }
+  if (config.kind !== "issues") {
+    throw new UsageError(`source ${name} is a decision log; list --source lists issue logs`);
+  }
+  const [r] = await readSources(log.git, [config], { fetch: "cache" });
+  const base = { issues: log.issues, sources: null, source: name } as const;
+  if (r?.source === undefined || r.source === null) {
+    return readIssuesFrom(new MemoryTree({}), {
+      ...base,
+      layout: issueKind.layoutAt(config.root ?? issueKind.def.defaultRoot),
+      numbering: NO_NUMBERING,
+      notes: [...log.notes, `${name} not fetched; run issues sources fetch`],
+    });
+  }
+  const ref = sourceLogRef(r.source, {
+    layout: issueKind.def.layout,
+    defaultRoot: issueKind.def.defaultRoot,
+  });
+  const byId = await readIndexNumbers(ref.tree, `${ref.layout.root}/index.md`);
+  return readIssuesFrom(ref.tree, {
+    ...base,
+    layout: ref.layout,
+    numbering:
+      byId === null
+        ? NO_NUMBERING
+        : {
+            available: true,
+            reason: "index",
+            ref: null,
+            commit: null,
+            byId,
+            byNumber: new Map([...byId].map(([id, n]) => [n, id])),
+          },
+    commit: r.source.commit,
+    notes: [...log.notes],
+  });
 }
 
 /** Why numbers are unavailable, in words: `shallow clone` or `no main branch`. */
@@ -205,12 +288,12 @@ export function decisionsNote(read: IssuesRead): string | null {
 }
 
 /**
- * The note while references into other repositories aren't checked: they are stored, and the
- * other logs' issues aren't listed. `null` without `[[sources]]`.
+ * The note of reads in a log with `[[sources]]`: references into them are checked against the
+ * local cache. `null` without `[[sources]]`.
  */
 export function sourcesNote(read: Pick<IssuesRead, "sources">): string | null {
   if (read.sources.length === 0) return null;
-  return `references into other repositories (${read.sources.join(", ")}) are stored but not checked, and their issues aren't listed, until a newer issues`;
+  return `references into ${read.sources.join(", ")} are checked against cached copies; run issues sources fetch to update them`;
 }
 
 /** `read.notes`, then the numbering, decision-numbering and sources notes that apply. */

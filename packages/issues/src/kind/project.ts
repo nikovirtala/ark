@@ -1,6 +1,7 @@
 import type { FoldedSubject, ProjectContext } from "@nikovirtala/ledger";
 import { issueGraph } from "./graph.js";
 import type { IssueState } from "./reduce.js";
+import type { SourceLog } from "./rules.js";
 import type { IssueEvents, IssueStatus, Resolution } from "./schemas.js";
 
 /** One issue as the CLI, the library and MCP show it (02 Projection, plus the added fields). */
@@ -68,6 +69,31 @@ export function bodyTitle(body: Uint8Array): string | null {
   return null;
 }
 
+/** What `projectLog` may pass the issue kind's projection: the other logs references name. */
+export interface ProjectOptions {
+  readonly sources: ReadonlyMap<string, SourceLog> | null;
+}
+
+/**
+ * The `depends-on <source>:<id>` targets known in a read source that aren't closed (for a
+ * duplicate, its canonical issue's status in the same source): blockers in other repositories.
+ */
+function foreignBlockers(dependsOn: readonly string[], options: unknown): string[] {
+  const sources = (options as ProjectOptions | undefined)?.sources ?? null;
+  if (sources === null) return [];
+  return dependsOn.filter((to) => {
+    const at = to.indexOf(":");
+    if (at < 0) return false;
+    const source = sources.get(to.slice(0, at));
+    if (source === undefined || source.kind !== "issues" || source.subjects === null) return false;
+    const found = source.subjects.get(to.slice(at + 1));
+    if (found === undefined) return false;
+    const canonical =
+      found.effective === null ? found : (source.subjects.get(found.effective) ?? found);
+    return canonical.status !== "closed";
+  });
+}
+
 /** Pure: the view of one folded issue. */
 export function project(subject: Subject, ctx: Context): IssueView {
   const { id } = subject;
@@ -76,6 +102,8 @@ export function project(subject: Subject, ctx: Context): IssueView {
   if (s === null || subject.status === null || fields === null) {
     throw new Error(`issue ${id} is not folded`);
   }
+  const foreign = foreignBlockers(fields.depends_on, ctx.options);
+  const blocked = fields.blocked || (subject.status !== "closed" && foreign.length > 0);
   const body = subject.loaded.body;
   return {
     id,
@@ -93,9 +121,9 @@ export function project(subject: Subject, ctx: Context): IssueView {
     children: fields.children,
     depends_on: fields.depends_on,
     blocks: fields.blocks,
-    blocked_by_open: fields.blocked_by_open,
-    blocked: fields.blocked,
-    ready: fields.ready,
+    blocked_by_open: [...fields.blocked_by_open, ...foreign],
+    blocked,
+    ready: fields.ready && foreign.length === 0,
     relates_to: fields.relates_to,
     implements: fields.implements,
     applies_to: s.appliesTo,
