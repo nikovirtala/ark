@@ -2,7 +2,7 @@
 
 Issue tracking kept as event logs in git, built on [`@nikovirtala/ledger`](https://www.npmjs.com/package/@nikovirtala/ledger). An issue is a Markdown description plus append-only event files. Its state (open, in progress, closed), resolution, assignees, labels and relations are computed from the events: what blocks it, which issue a duplicate points to, what is ready to pick up. Issues can link to the repository's architecture decisions with `implements`. See the [design doc](https://github.com/nikovirtala/ark/blob/main/docs/02-issues-v1.md).
 
-Released at 0.x. 0.1.0 brings the issue kind, the library and the `issues` CLI (`init`, `new`, `edit`, `start`, `stop`, `close`, `reopen`, `assign`, `label`, `comment`, `link`, `unlink`, `scope`, `for`, `ready`, `work`, `list`, `show`, `verify`), with `implements` links checked against the repository's own decision log. Git hooks, a generated `index.md`, checks over code, references into other repositories and the MCP server are not in 0.1.0.
+Released at 0.x. 0.1.0 brought the issue kind, the library and the `issues` CLI (`init`, `new`, `edit`, `start`, `stop`, `close`, `reopen`, `assign`, `label`, `comment`, `link`, `unlink`, `scope`, `for`, `ready`, `work`, `list`, `show`, `verify`), with `implements` links checked against the repository's own decision log. 0.2.0 adds git hooks (`issues hooks`), a generated `index.md` kept fresh on every write (`issues index`), checks over code (scope globs, anchors, stale anchors), and references into other repositories checked against a local cache (`verify --fetch-sources`, `issues sources fetch`, `list --source`). The MCP server, SKILL.md and search are not in 0.2.0.
 
 ## Install
 
@@ -59,28 +59,39 @@ issues link 42 17 --rel depends-on
 issues link 42 ADR-0007 --rel implements
 issues unlink 42 17 --rel depends-on
 
+# Keep index.md generated ([log] index = "committed"); every write keeps it fresh.
+issues index [--check] [--commit]
+
+# Git hooks through ark's shared shims, next to adr's.
+issues hooks install                      # or: uninstall, print --manager lefthook|husky|pre-commit
+issues scope [42] --follow-renames        # what the pre-commit hook does with staged renames
+
+# Other repositories' logs, read from a local cache.
+issues sources fetch [<name>]
+issues list --source platform
+
 # What to work on.
 issues ready [--mine] [--label type:bug] [--limit 10]
 issues for src/orders/consumer.ts [--all]
 issues work 42                            # your current issue in this worktree; --clear removes it
 
 # Read and verify.
-issues list [--state closed] [--all] [--assignee me] [--label type:bug]
+issues list [--state closed] [--all] [--assignee me] [--label type:bug] [--since ORIG_HEAD]
 issues show 42 [--history] [--commits] [--no-comments]
-issues verify [--staged | --base origin/main] [--format text|json|github]
+issues verify [--staged | --base origin/main] [--fetch-sources] [--format text|json|github]
 ```
 
-Every command takes `--json`, `--root <dir>` (the log directory) and `--help`; reads also take `--ref <ref>`, and writes refuse it. Every write stages what it writes and commits only with `--commit` (or `[policy] auto_commit`), with a Conventional Commits subject such as `docs(issues): close ?42 as won't fix` and one `Issue:`/`Issue-Event:` trailer pair per event. `-m` gives your own message; the trailers join its last paragraph when that is a trailer block. An event write commits the issue's events directory, so an unstaged edit of a committed issue's description never blocks `close --commit` and is never swept into it. When the commit takes an issue's `opened` event (the issue was opened without `--commit`), it also takes that issue's staged description and template, and the same for any issue it references that isn't committed yet. It refuses with exit 2, writing nothing, when one of those files has unstaged changes, isn't tracked or is missing.
+Every command takes `--json`, `--root <dir>` (the log directory) and `--help`; reads also take `--ref <ref>`, and writes refuse it. Every write stages what it writes and commits only with `--commit` (or `[policy] auto_commit`), with a Conventional Commits subject (see [Commit subjects](#commit-subjects)) and one `Issue:`/`Issue-Event:` trailer pair per issue and event type. `-m` gives your own message; the trailers join its last paragraph when that is a trailer block. An event write commits the issue's events directory, so an unstaged edit of a committed issue's description never blocks `close --commit` and is never swept into it. When the commit takes an issue's `opened` event (the issue was opened without `--commit`), it also takes that issue's staged description and template, and the same for any issue it references that isn't committed yet. It refuses with exit 2, writing nothing, when one of those files has unstaged changes, isn't tracked or is missing.
 
-`list` shows open and in-progress issues unless you pass `--state` or `--all`. `ready` lists open issues that are not blocked, not assigned and have no open child, in `[labels] priority` order, then by number; `--mine` adds the issues assigned to you, first. An issue is blocked while the canonical issue of one of its dependencies isn't closed (a dependency closed as a duplicate blocks until the issue it duplicates is closed).
+`list` shows open and in-progress issues unless you pass `--state` or `--all`; `list --since <rev>` shows the issues closed, reopened or assigned to you since `<rev>`, each marked `[new: closed]` and so on (the post-merge hook runs it with `ORIG_HEAD`). `ready` lists open issues that are not blocked, not assigned and have no open child, in `[labels] priority` order, then by number; `--mine` adds the issues assigned to you, first. An issue is blocked while the canonical issue of one of its dependencies isn't closed (a dependency closed as a duplicate blocks until the issue it duplicates is closed).
 
 ## Exit codes and JSON
 
 - **0**: success, including a write that only adds warnings or writes nothing (an existing link, an unchanged set).
 - **1**: failing findings from `verify`, or a write the log's rules forbid: an illegal transition, a missing reason, a cycle, a second parent, a duplicate of a duplicate, two labels of an exclusive prefix, an incomplete draft with `--commit`, or an agent close the policy forbids. Nothing is written, and the findings are in the output.
-- **2**: the tool can't run: bad usage (unknown command, flag or issue, a qualified issue where none is allowed, `--ref` on a write), config (including `[log] index = "committed"`), environment or internal errors. Nothing is written, except when git refuses a `--commit`: the write is then staged and the error says how to finish the commit.
+- **2**: the tool can't run: bad usage (unknown command, flag or issue, a qualified issue where none is allowed, `--ref` on a write), config, environment or internal errors, and a source `verify --fetch-sources` couldn't fetch. Nothing is written, except when git refuses a `--commit`: the write is then staged and the error says how to finish the commit.
 
-With `--json`, stdout carries exactly one JSON document: `issues-write/v1` for every write command, `issues-list/v1`, `issues-show/v1`, `issues-ready/v1`, `issues-for/v1`, `issues-work/v1`, `issues-init/v1`, ledger's `ledger-findings/v1` for `verify`, or `ark-error/v1` when the command exits 2. Warnings and notes go to stderr.
+With `--json`, stdout carries exactly one JSON document: `issues-write/v1` for every write command, `issues-list/v1`, `issues-show/v1`, `issues-ready/v1`, `issues-for/v1`, `issues-work/v1`, `issues-init/v1`, `issues-index/v1`, `issues-hooks/v1`, `issues-sources/v1`, ledger's `ledger-findings/v1` for `verify`, or `ark-error/v1` when the command exits 2. Warnings and notes go to stderr.
 
 ## Config (`issues.toml`)
 
@@ -133,7 +144,11 @@ subject = "docs(issues): {action} {title}"   # the default; --message overrides 
 anchor_keyword = "issue"        # the default: anchors read issue:<id>
 anchor_exclude = ["**/*.md"]    # files never searched for anchors; default []
 
-[[sources]]                     # other repositories' logs; references into them are stored but not checked yet
+[hooks]
+index = "check"                 # or "stage": pre-commit regenerates and stages a stale index.md
+scope_follow_renames = "stage"  # or "warn", "off": what pre-commit does with renames of scoped files
+
+[[sources]]                     # other repositories' logs, checked against a local cache
 name = "platform"
 kind = "issues"                 # or "adr"; the name adr is reserved for this repository's decision log
 url = "https://github.com/example/platform.git"
@@ -143,6 +158,43 @@ ref = "main"
 The config is `<repo>/issues.toml`, whose `[log] root` chooses the log directory, or `<root>/issues.toml`. `--root` uses a repository-level file that names the same root, and overrides one that names another root with a warning.
 
 `implements` targets decisions in the repository's own decision log, found as adr finds it (`adr.toml`, `docs/adr`); `adr:<id>`, the id, the number and `ADR-0007` all work, and the link is stored as `adr:<id>`. issues shows the same decision numbers as `adr list`, including in a shallow clone when adr's `index.md` is committed. A link to a decision that isn't accepted is a warning.
+
+## Commit subjects
+
+The `[commit] subject` template's `{title}` slot holds the title in quotes for `new`, and the issue's number (or its id on a branch) with its title in quotes for every other write, so `git log --oneline` reads without `issues show`. The title is the one the commit holds, so an edited heading is what the subject says. A title longer than the description's 72 characters is shortened inside the quotes, with the full title in the body.
+
+| Write | Subject |
+| --- | --- |
+| `new` | `docs(issues): open "split the orders service"` |
+| `edit` | `docs(issues): edit ?42 "split the orders service"` |
+| `start`, `stop` | `docs(issues): start work on ?42 "split the orders service"` |
+| `close` | `docs(issues): close ?42 "split the orders service"`, `… as won't fix`, `… as a duplicate of ?17` |
+| `reopen`, `comment` | `docs(issues): reopen ?42 "split the orders service"`, `comment on ?42 "…"` |
+| `assign`, `label`, `scope` | `docs(issues): set the scope of ?42 "split the orders service"` |
+| `link`, `unlink` | `docs(issues): link ?42 "split the orders service" to ?17`, `unlink ?42 "…" from ?17` |
+| staged events of other types swept in | `docs(issues): link and scope ?42 "…"`; `update ?42 "…"` beyond three verbs; `open and link ?42 and 1 other issue` across issues |
+| `init`, `index --commit` | `docs(issues): set up the issue log`, `docs(issues): regenerate the issue index` |
+
+A custom template must leave 20 characters for the title at the longest action (`reopen, unlink and comment on`); one that doesn't is refused when the config loads.
+
+## Hooks and CI
+
+`issues hooks install` registers issues in ark's shared hook shims (one per hook, next to adr's when both are installed):
+
+- **pre-commit**: follows staged renames into scope globs (`[hooks] scope_follow_renames`), checks `index.md` (or regenerates and stages it with `[hooks] index = "stage"`), then runs `verify --staged`. `--staged` checks the issues the staged files touch, or every issue when a staged change touches `issues.toml`, the templates or the decision log, because a staged `adr reject` or `mcp_can_close = false` can break issues nothing else touches.
+- **commit-msg**: adds an `Issue`/`Issue-Event` pair per staged issue and event type, and `Issue: <id>` for your current issue (`issues work`) on every commit, adr's included. A message that says `fixes ?42`, `closes ?42` or `resolves ?42` for an issue with no staged `closed` event gets a note: issues never close from commit messages, so run `issues close 42` in the pull request.
+- **pre-push**: `verify --base @{upstream} --ref HEAD --fetch-sources`.
+- **post-merge**: `list --since ORIG_HEAD`.
+
+The checks `verify` runs include the code checks: an `issue:<id>` anchor naming a missing issue is an error, one naming a closed issue a warning (`issue/stale-anchor`). A scope glob that matches no tracked file is an error only while the issue is in progress: an open issue's globs may name code that doesn't exist yet, because the work is still planned, and a typo is still caught by `issues scope`'s note, which says when verify will report it. `issues start` notes each glob that still matches nothing, since from that commit verify (and the pre-commit hook) reports it.
+
+With `index = "committed"`, every write keeps `index.md` fresh in the same commit, and `verify` reports a stale one (`index/stale`). The index doesn't read other repositories, so an issue blocked only by an open issue in a source shows as Ready there; `issues ready` reads the cached copy.
+
+## Other repositories
+
+References into `[[sources]]` logs (`platform:m4p8x2kd`) are checked against a local cache kept in the repository's git directory. Plain `verify`, the pre-commit hook and every read and write use only the cache and never the network: a referenced source that isn't cached gives one `sources/not-fetched` warning. `verify --fetch-sources`, for CI and the pre-push hook, fetches each source first, and a failed fetch exits 2. `issues sources fetch` refreshes the cache by hand. A ref may be a branch, a tag or a full commit; a tag or commit keeps CI reproducible. `verify --json` records the commit each source resolved to. `link`, `new --parent`/`--depends-on` and `close --duplicate-of` into a cached source refuse a missing target (`issue/reference-missing`, exit 1); into an uncached one they write with a note. `issues list --source platform` lists a cached source's issues with its numbers.
+
+Fetching uses plain git and its credentials. For a private source in CI, use an `insteadOf` URL with a token from the CI secret store (`git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"`) or an SSH deploy key.
 
 ## Agents
 
@@ -173,7 +225,4 @@ import { issueKind } from "@nikovirtala/issues/kind";
 
 ## Not yet included
 
-- **Git hooks and index.md:** commit-msg trailers from `issues work`, a pre-commit check, and a generated `index.md` kept fresh on every write; until then shallow clones show issues by id.
-- **Checks over code:** scope globs that match no file and stale `issue:<id>` anchors.
-- **Other repositories:** references into `[[sources]]` are stored but not checked, and their issues aren't listed.
 - **Agents:** `issues mcp`, `issues init --skill` and `issues search`.
