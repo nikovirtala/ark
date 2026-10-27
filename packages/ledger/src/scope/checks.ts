@@ -58,7 +58,8 @@ async function changedCode(repo: RepoContext, root: string): Promise<string[]> {
 /**
  * `scope/glob-invalid` (error) for a glob in an in-scope subject's latest applied set that doesn't
  * parse, and `scope/glob-unmatched` (error) for a valid one that matches no tracked file of the
- * head, for subjects whose status is in `scope.activeIn`. In staged mode only touched subjects
+ * head, for subjects whose status is in `scope.requireMatchIn` (default `scope.activeIn`); invalid
+ * globs are reported in every status. In staged mode only touched subjects
  * are examined. Findings go on the set event's path.
  */
 export function scopeGlobCheck(): Check {
@@ -73,7 +74,8 @@ export function scopeGlobCheck(): Check {
         const s = c.folded.head.subjects.get(id);
         const latest = s === undefined ? null : latestSetEvent(s, c.scope.event);
         if (s === undefined || latest === null) continue;
-        const active = s.status !== null && c.scope.activeIn.includes(s.status);
+        const required = c.scope.requireMatchIn ?? c.scope.activeIn;
+        const active = s.status !== null && required.includes(s.status);
         for (const g of latest.set) {
           const parsed = parseGlob(g);
           const at = { file: latest.path, subject: id };

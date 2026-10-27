@@ -148,6 +148,22 @@ describe("defineKind", () => {
       'kind task: scope.keyword "Adr" must match ^[a-z][a-z0-9-]{0,31}$',
     ],
     [
+      "a scope.requireMatchIn state outside activeIn",
+      {
+        events: events({ labeled }),
+        scope: { event: "labeled", activeIn: ["open"], requireMatchIn: ["closed"] },
+      },
+      'kind task: scope.requireMatchIn names "closed", which isn\'t in activeIn',
+    ],
+    [
+      "a scope.requireMatchIn state that does not exist",
+      {
+        events: events({ labeled }),
+        scope: { event: "labeled", activeIn: ["open"], requireMatchIn: ["gone"] },
+      },
+      'kind task: scope.requireMatchIn names unknown state "gone"',
+    ],
+    [
       "a scope.event without a set array",
       { scope: { event: "noted", activeIn: ["open"] } },
       'kind task: scope.event "noted" must have a data.set array',
