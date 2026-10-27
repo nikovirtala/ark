@@ -685,7 +685,7 @@ export async function planAccept(
   read: DecisionsRead,
   input: { readonly id: string; readonly actor: Actor },
   c: PlanContext,
-  o: { readonly copyGlobs?: readonly string[] } = {},
+  o: { readonly copyGlobs?: readonly string[]; readonly tracked?: readonly string[] } = {},
 ): Promise<PlanResult> {
   const id = resolveDecision(read, input.id);
   const view = viewOf(read, id);
@@ -792,9 +792,20 @@ export async function planAccept(
   const involved = sorted([id, ...targets]);
   const { scope, eventDirs } = commitScope(read, involved);
   const bodyPath = view.body_path ?? "";
+  // Accepted, the decision's globs must match (?7): say so for each one that doesn't yet.
+  const globs = copied === null ? view.applies_to : (copied.data.set as readonly string[]);
+  const unmatched = o.tracked === undefined ? [] : unmatchedGlobs(globs, o.tracked);
   return {
     ok: true,
     plan: {
+      ...(unmatched.length === 0
+        ? {}
+        : {
+            notes: unmatched.map(
+              (g) =>
+                `${g} matches no tracked file; from this commit verify reports scope/glob-unmatched until a file matches, so commit the files with it or change the scope`,
+            ),
+          }),
       command: "accept",
       subject: id,
       files,
@@ -1282,10 +1293,13 @@ export async function planScope(
     };
   }
   if (o.tracked !== undefined) {
-    // Verify's scope/glob-unmatched applies to the statuses in activeIn (design 2b §5.2).
-    const checked = (adrKind.def.scope?.activeIn ?? []).includes(view.status)
+    // Verify's scope/glob-unmatched applies to the statuses in requireMatchIn (?7): accepted
+    // decisions; a proposed one may name code that doesn't exist yet.
+    const checked = (adrKind.def.scope?.requireMatchIn ?? []).includes(view.status)
       ? "; verify (hooks and CI) reports scope/glob-unmatched until a file matches"
-      : "";
+      : view.status === "proposed"
+        ? `; verify reports scope/glob-unmatched once ${view.display} is accepted, until a file matches`
+        : "";
     notes.push(
       ...unmatchedGlobs(result.set, o.tracked).map((g) => `${g} matches no tracked file${checked}`),
     );
@@ -2066,11 +2080,12 @@ export async function acceptDecision(
   const copyScope = o.copyScope ?? "suggest";
   // Decided once per command: the EventExistsError retry plans again without asking again.
   let copy: boolean | null = null;
+  const tracked = await trackedFiles(log);
   return write(
     log,
     "accept",
     async (read, c) => {
-      const plain = await planAccept(read, input, c);
+      const plain = await planAccept(read, input, c, { tracked });
       if (!plain.ok) return plain;
       const id = plain.plan.subject;
       const offer = scopeToCopy(read, id);
@@ -2078,7 +2093,7 @@ export async function acceptDecision(
       if (copy === null) {
         copy = typeof copyScope === "function" ? await copyScope(offer) : copyScope === "copy";
       }
-      if (copy) return planAccept(read, input, c, { copyGlobs: offer.globs });
+      if (copy) return planAccept(read, input, c, { copyGlobs: offer.globs, tracked });
       if (copyScope === "skip") return plain;
       const notes = [...(plain.plan.notes ?? []), copyScopeNote(id, offer)];
       return { ok: true, plan: { ...plain.plan, notes } };

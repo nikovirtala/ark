@@ -396,3 +396,28 @@ describe("adr scope --follow-renames", { timeout: 120_000 }, () => {
     );
   });
 });
+
+describe("planned code in a decision's scope (?7)", () => {
+  it("lets a proposed decision name code that doesn't exist, and checks it once accepted", async () => {
+    const r = await repo();
+    const p = await seedDecision(r, "Add the planned cache", { accept: false });
+    const scoped = runAdr(r, ["scope", p, "--set", "src/planned/**", "--commit"]);
+    expect(scoped.status).toBe(0);
+    expect(scoped.stderr).toBe(
+      `adr: warning: src/planned/** matches no tracked file; verify reports scope/glob-unmatched once ${p} is accepted, until a file matches\n`,
+    );
+    expect(runAdr(r, ["verify"])).toMatchObject({ status: 0, stdout: "No findings.\n" });
+    const accepted = runAdr(r, ["accept", p, "--commit"]);
+    expect(accepted.status).toBe(0);
+    expect(accepted.stderr).toContain(
+      "adr: warning: src/planned/** matches no tracked file; from this commit verify reports scope/glob-unmatched until a file matches, so commit the files with it or change the scope\n",
+    );
+    const verify = runAdr(r, ["verify"]);
+    expect(verify.status).toBe(1);
+    expect(verify.stdout).toContain('scope glob "src/planned/**" matches no tracked file');
+    const more = runAdr(r, ["scope", p, "--add", "src/later/**"]);
+    expect(more.stderr).toContain(
+      "adr: warning: src/later/** matches no tracked file; verify (hooks and CI) reports scope/glob-unmatched until a file matches\n",
+    );
+  });
+});

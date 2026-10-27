@@ -55,6 +55,10 @@ it("keeps the scoped event of decision/v1 as it was", () => {
 });
 
 // Design 2b §4.8: deprecated decisions' globs no longer have to match tracked files.
-it("checks scope globs against code for proposed and accepted decisions only", () => {
-  expect(adrKind.def.scope).toEqual({ event: "scoped", activeIn: ["proposed", "accepted"] });
+it("checks scope globs against code for proposed and accepted decisions, requiring a match once accepted", () => {
+  expect(adrKind.def.scope).toEqual({
+    event: "scoped",
+    activeIn: ["proposed", "accepted"],
+    requireMatchIn: ["accepted"],
+  });
 });

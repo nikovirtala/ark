@@ -302,9 +302,20 @@ describe("adr hooks", { timeout: 120_000 }, () => {
     expect((await indexCopies(r)).worktree).toContain(w);
   });
 
-  it("fails adr scope --commit on a glob for code not written yet, with the hint", async () => {
+  it("commits a proposed decision's glob for code not written yet, and says when verify checks it", async () => {
     const r = await repo();
     const p = await seedDecision(r, "Pay with Stripe", { accept: false });
+    install(r);
+    const out = runAdr(r, ["scope", p, "--set", "nothing/**", "--commit"]);
+    expect(out.status).toBe(0);
+    expect(out.stderr).toContain(
+      `adr: warning: nothing/** matches no tracked file; verify reports scope/glob-unmatched once ${p} is accepted, until a file matches\n`,
+    );
+  });
+
+  it("fails adr scope --commit on an accepted decision's glob for code not written yet, with the hint", async () => {
+    const r = await repo();
+    const p = await seedDecision(r, "Pay with Stripe");
     install(r);
     const out = runAdr(r, ["scope", p, "--set", "nothing/**", "--commit"]);
     expect(out.status).toBe(2);

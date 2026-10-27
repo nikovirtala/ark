@@ -127,8 +127,10 @@ describe("adr phase 2b demo rows 1–10d", { timeout: 300_000 }, () => {
     expect(said).toContain("Changed since ORIG_HEAD (");
     expect(said).toMatch(/^ADR-0002 .*accepted.*\n {2}\[new: accepted\]$/m);
 
-    // 7b. A 2a-legal write that pre-commit's verify fails: a glob for code not written yet.
+    // 7b. A 2a-legal write that pre-commit's verify fails: an accepted decision's glob for code
+    // not written yet (a proposed decision's may name planned code, ?7).
     const stripe = propose(r, "Pay with Stripe", "--commit");
+    adr(r, 0, ["accept", stripe, "--commit"]);
     const scoped = adr(r, 2, ["scope", stripe, "--set", "src/payments/**", "--commit"]);
     expect(scoped.stderr).toContain(
       "matches no tracked file; verify (hooks and CI) reports scope/glob-unmatched until a file matches",
