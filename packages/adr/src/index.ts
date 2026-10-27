@@ -47,7 +47,7 @@ export {
 } from "./search.js";
 export { SKILL_MD } from "./skill.js";
 export { listTemplates, type TemplatesJson } from "./templates/list.js";
-export { adrChecks, verifyDecisions } from "./verify.js";
+export { adrChecks, decisionVerifyInputs, verifyDecisions } from "./verify.js";
 export {
   type DecisionListJson,
   type DecisionShowJson,
