@@ -1,7 +1,7 @@
 import { ConfigError, parseToolConfig, renderCommitMessage } from "@nikovirtala/ledger";
 import { describe, expect, it } from "vitest";
 import { COMMIT_VARS } from "./commit-actions.js";
-import { DEFAULT_ISSUES_CONFIG, INDEX_UNSUPPORTED, parseIssuesConfig } from "./config.js";
+import { DEFAULT_ISSUES_CONFIG, parseIssuesConfig } from "./config.js";
 
 const FILE = "docs/issues/issues.toml";
 const parse = (toml: string) => parseIssuesConfig(parseToolConfig(toml, { file: FILE }), FILE);
@@ -78,8 +78,10 @@ anchor_exclude = ["docs/**"]
     );
   });
 
-  it('refuses index = "committed", which this version can\'t keep fresh', () => {
-    expect(fails('[log]\nindex = "committed"\n')).toBe(`${FILE}: ${INDEX_UNSUPPORTED}`);
+  it('accepts index = "none" or "committed", and refuses other values', () => {
+    expect(parse('[log]\nindex = "committed"\n').index).toBe("committed");
+    expect(parse('[log]\nindex = "none"\n').index).toBe("none");
+    expect(fails("[log]\nindex = 1\n")).toBe(`${FILE}: log.index must be "none" or "committed"`);
     expect(fails('[log]\nindex = "comitted"\n')).toBe(
       `${FILE}: log.index must be "none" or "committed"`,
     );

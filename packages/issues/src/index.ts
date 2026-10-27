@@ -17,6 +17,12 @@ export {
   resolveIssue,
   resolveTarget,
 } from "./log.js";
+export {
+  type IssueIndexJson,
+  indexIssueLog,
+  issueIndexCheck,
+  renderIssueIndex,
+} from "./log-index.js";
 export type {
   CloseInput,
   EditInput,

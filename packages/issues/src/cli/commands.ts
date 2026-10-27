@@ -7,6 +7,7 @@ import { issuesChecks } from "../verify.js";
 import { commentCommand } from "./comment.js";
 import { editCommand } from "./edit.js";
 import { forCommand } from "./for.js";
+import { indexCommand } from "./index-command.js";
 import { initCommand } from "./init.js";
 import { closeCommand, reopenCommand, startCommand, stopCommand } from "./lifecycle.js";
 import { linkCommand, unlinkCommand } from "./link.js";
@@ -61,6 +62,7 @@ export function issuesCli(version: string): ToolCli {
       linkCommand,
       unlinkCommand,
       scopeCommand,
+      indexCommand,
       forCommand,
       readyCommand,
       workCommand,

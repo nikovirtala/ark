@@ -46,6 +46,7 @@ describe("the issues binary", () => {
       "link",
       "unlink",
       "scope",
+      "index",
       "for",
       "ready",
       "work",
@@ -76,12 +77,10 @@ describe("the issues binary", () => {
     });
   });
 
-  it('refuses [log] index = "committed" on every command', async () => {
+  it('accepts [log] index = "committed"', async () => {
     await using repo = await cliRepo({ "docs/issues/issues.toml": '[log]\nindex = "committed"\n' });
-    for (const args of [["list"], ["verify"], ["show", "1"]]) {
-      const r = runIssues(repo, args);
-      expect(r.status, args.join(" ")).toBe(2);
-      expect(r.stderr).toContain('index = "committed" needs a newer issues');
-    }
+    expect(runIssues(repo, ["list"]).status).toBe(0);
+    expect(runIssues(repo, ["index"]).status).toBe(0);
+    expect(runIssues(repo, ["index", "--check"]).status).toBe(0);
   });
 });

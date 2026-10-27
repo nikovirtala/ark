@@ -16,6 +16,8 @@ import {
   openToolLog,
   type Projection,
   projectLog,
+  readIndexNumbers,
+  refReader,
   relateCheck,
   resolveSubjectInput,
   sortFindings,
@@ -87,17 +89,36 @@ export async function readIssues(log: IssueLog): Promise<IssuesRead> {
   return readIssuesFrom(log.tree, {
     layout: log.layout,
     issues: log.issues,
-    numbering: await numberLog(log.git, {
-      kind: issueKind,
-      layout: log.layout,
-      mainRef: log.issues.mainBranch,
-    }),
+    numbering: await numberIssues(log),
     sources: sourceLogsOf(decisions, log.config),
     decisions,
     ref: log.ref,
     commit: log.commit,
     notes: log.notes,
     configured: (log.config?.sources ?? []).map((s) => s.name),
+  });
+}
+
+/**
+ * The display numbers `readIssues` uses. In a shallow clone of a log with `[log] index =
+ * "committed"`, they come from `<root>/index.md` in the commit being read (`--ref`, else HEAD),
+ * as adr's do (ADR-0010).
+ */
+export async function numberIssues(log: IssueLog): Promise<Numbering> {
+  return numberLog(log.git, {
+    kind: issueKind,
+    layout: log.layout,
+    mainRef: log.issues.mainBranch,
+    ...(log.issues.index === "committed"
+      ? {
+          fallback: async () => {
+            const c = await log.git.resolveCommit(log.ref ?? "HEAD");
+            return c === null
+              ? null
+              : readIndexNumbers(await refReader(log.git, c), `${log.layout.root}/index.md`);
+          },
+        }
+      : {}),
   });
 }
 
@@ -167,8 +188,8 @@ export function unavailableReason(n: Numbering): string {
 }
 
 /**
- * The note a read command adds when issue numbers are unavailable (`null` otherwise). This
- * version has no issue index, so a shallow clone shows issues by id.
+ * The note a read command adds when issue numbers are unavailable (`null` otherwise): a shallow
+ * clone without a committed index shows issues by id.
  */
 export function numberingNote(read: IssuesRead): string | null {
   const n = read.numbering;
