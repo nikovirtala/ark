@@ -121,7 +121,7 @@ ledger provides everything below a kind's domain rules. Read bottom up, each lay
 | Envelope | The shared event envelope and its JSON Schema; per-kind `data` schemas plugged in | Validation, actor attribution, forward-compatible fields |
 | Fold | Loading a subject's events, ordering by `at` then `id`, replaying the kind's state machine and `reduce`; numbering on main | Every read |
 | Verify | Base-to-head diffing; append-only and body-policy checks; schema, identity and transition checks; the kind's invariants; the findings model with text, `--json` and GitHub annotation output | `verify`, pre-commit, pre-push, CI |
-| Sources | `[[sources]]` config; fetching pinned refs; resolving qualified ids such as `platform:k3f9q8a1` across logs and kinds | Cross-repository references, issues linking to adr |
+| Sources | `[[sources]]` config; a local cache of each source's pinned ref, fetched only when asked; resolving qualified ids such as `platform:k3f9q8a1` across logs and kinds | Cross-repository references, issues linking to adr |
 | Scope | Glob sets with latest-wins events; set events and the `--set`/`--add`/`--remove` helper; comment-anchor scanning with a per-kind keyword; rename following; the path-to-subjects lookup | `adr for`, `issues for`, the rename hook |
 | Templates | Section-schema frontmatter; rendering from a `sections` map; lint; versioning | `new`, `issues_open`, `adr_propose`, template lint |
 | Index | Rendering a committed, generated markdown index from a kind's projection, numbered as its commit will be on main; freshness check; display numbers for shallow clones | `index.md` in each log |
@@ -130,6 +130,8 @@ ledger provides everything below a kind's domain rules. Read bottom up, each lay
 | Testing | fast-check generators for legal histories, tampering mutations and merges; temporary git repositories | Each kind's property tests |
 
 The split is between mechanism and meaning. ledger decides how an event is stored, ordered, validated and found. A kind decides what the event means.
+
+**Sources: cache only, fetched when asked.** References into other repositories' logs are checked against a local cache of each `[[sources]]` entry, kept inside the repository's git directory, one per source name, URL and ref, and locked while it is fetched. Plain `verify`, the pre-commit hook and every read and write use only the cache and never the network: a referenced source that isn't cached gives one `sources/not-fetched` warning, and its references aren't checked. `verify --fetch-sources`, which CI and the pre-push hook run, fetches each source's ref first; a failed fetch exits 2 (the checks couldn't run), even when an older pin is still cached. `<tool> sources fetch` refreshes the cache by hand. A ref may be a branch, a tag or a full commit; tags or commits are recommended for reproducible CI. `verify --json` records the commit each source resolved to in its `sources` field. Credentials are plain git's: a private source in CI needs an `insteadOf` URL with a token from the CI secret store, or an SSH deploy key.
 
 **Hooks across tools.** A repository using both adr and issues gets one shim per hook, not two. Each installed tool registers itself in the shim. One run of the shim walks that registry once and runs each registered tool's command, such as `adr hooks run pre-commit`, which ends with `verify --staged`, each checking the staged files in its own log, and fails if any of them fails. Adding a third ledger-based tool later changes nothing in the repository's hooks.
 

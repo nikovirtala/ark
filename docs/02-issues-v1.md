@@ -75,7 +75,7 @@ An issue file holds the title as its first heading and the description below it,
 
 **Display numbers** such as ?42 are derived, never stored. The ? prefix keeps forges from auto-linking them to their own issues and pull requests. The projection numbers issues in the order their `opened` event first landed on the main branch, read with `git log --first-parent`. Main's history is append-only, so a number is stable once assigned. An issue opened on a branch displays by id until it merges. Every command and MCP tool accepts the canonical id, the bare number or the prefixed number. The prefix is fixed, not configurable. In a shell, an unquoted `?42` is a glob that can match a file such as `a42`, so type the bare number (`issues show 42`) or quote it (`'?42'`).
 
-Numbering needs main's history. With `index = "committed"`, a shallow clone reads the numbers recorded in the committed `index.md`; without one, issues display by id until you fetch the history (`git fetch --unshallow`). On a branch, these are the numbers the issues opened in the branch's commits will get once it merges (the index projects them). issues 0.1.0 has no index yet, so a shallow clone shows issues by id; decisions linked with `implements` still show `ADR-0007`, because their numbers come from adr's own committed `index.md` (ADR-0010).
+Numbering needs main's history. With `index = "committed"`, a shallow clone reads the numbers recorded in the committed `index.md`; without one, issues display by id until you fetch the history (`git fetch --unshallow`). On a branch, these are the numbers the issues opened in the branch's commits will get once it merges (the index projects them). Decisions linked with `implements` show `ADR-0007` in a shallow clone too, because their numbers come from adr's own committed `index.md` (ADR-0010).
 
 **Any issue log topology.** The tool prescribes no organizational structure. An issue log per repository, one shared tracker repository, or both together all work the same way. Sources are a ledger feature, configured the same way in every ark tool. An issue log can reference other logs as read-only sources, pinned to a git ref:
 
@@ -89,7 +89,7 @@ ref = "main"
 
 Inside the source repository, the log is read at the entry's `root` when it sets one, otherwise at the kind's default root; a source with neither is a configuration error.
 
-Cross-log references use a qualified id, `platform:m4p8x2kd`, whose prefix is the `name` of the `[[sources]]` entry; `kind` only says what kind of log the source holds. Each log owns its issues' events, so `linked` can point into any source of the right kind, but an issue can only be closed or reopened in the log that owns it, and a duplicate's `of` names an issue of the same log. A qualified reference naming no `[[sources]]` entry is an error (`issue/unknown-source`); the log's own name (`issues:`) is not an implicit name for the log itself, so local issues are referenced by id. issues 0.1.0 stores references into other repositories without checking them, and says so in a note.
+Cross-log references use a qualified id, `platform:m4p8x2kd`, whose prefix is the `name` of the `[[sources]]` entry; `kind` only says what kind of log the source holds. Each log owns its issues' events, so `linked` can point into any source of the right kind, but an issue can only be closed or reopened in the log that owns it, and a duplicate's `of` names an issue of the same log. A qualified reference naming no `[[sources]]` entry is an error (`issue/unknown-source`); the log's own name (`issues:`) is not an implicit name for the log itself, so local issues are referenced by id. References into other repositories are checked against ledger's local cache of each source (see the ark design's Sources layer): cache only by default, with `verify --fetch-sources` (CI and the pre-push hook) fetching first and exiting 2 when a fetch fails, and `issues sources fetch` refreshing it by hand. A referenced source that isn't cached gives one `sources/not-fetched` warning. A write that links into a cached source refuses a missing target (`issue/reference-missing`); into an uncached one it writes the link with a note. `issues list --source <name>` lists a cached source's issues.
 
 **adr is a source too.** When the repository has an adr decision log, it is discovered automatically as a source named `adr` (so `name = "adr"` is reserved in `[[sources]]`), so `adr:k3f9q8a1` references a decision with the same syntax as any other cross-log reference. issues reads the decision log by importing adr's kind from @nikovirtala/adr/kind and folding it with ledger, so it never shells out to adr or reimplements its rules. Decisions in other repositories are plain sources with `kind = "adr"`.
 
@@ -230,7 +230,7 @@ For each issue the fold produces:
 
 **Branch view.** Without `--ref`, reads use the working tree, so a feature branch sees its own closes before they reach main. `issues list --ref origin/main` shows the shared view.
 
-**Generated index.** With `index = "committed"`, `issues index` writes `index.md`: a header marking it generated, then in-progress issues, ready issues, blocked issues, and recently closed ones, each with number, title, assignees and labels. CI checks it is current. It exists for people browsing on a forge; tools read it only for display numbers in a shallow clone.
+**Generated index.** With `index = "committed"`, `issues index` writes `index.md`: a header marking it generated, then in-progress issues, ready issues, blocked issues, other open issues (assigned but not started, or with open children), and recently closed ones, each with number, title, assignees and labels. Every write keeps it fresh, and CI checks it is current. It exists for people browsing on a forge; tools read it only for display numbers in a shallow clone. The index doesn't read other repositories, so an issue blocked only by an open issue in a source shows as Ready there; `issues ready` reads the cached copy.
 
 **No state in issue files, ever.** The tool never writes state, labels or assignees into an issue file, not even as managed frontmatter. Descriptions change for content reasons only, so a diff of an issue file always means the work itself was redescribed.
 
@@ -375,14 +375,14 @@ Hooks give fast local feedback and keep commits connected to issues; CI remains 
 
 | Hook | Runs | Purpose |
 | --- | --- | --- |
-| `pre-commit` | `issues verify --staged`, then `issues index --check` or regenerate-and-stage (config) | Catches bad events, broken links and stale index before the commit exists |
-| `commit-msg` | `issues hooks trailers` | Adds `Issue:` and `Issue-Event:` trailers when event files are staged, and `Issue:` for the current issue set by `issues work` |
-| `pre-push` | `issues verify --base @{upstream}` | Full invariant check against what the remote has |
+| `pre-commit` | `issues hooks run pre-commit`: rename following, the index check (or regenerate-and-stage with `[hooks] index = "stage"`), then `issues verify --staged` | Catches bad events, broken links and stale index before the commit exists |
+| `commit-msg` | `issues hooks trailers` | Adds one `Issue:` and `Issue-Event:` pair per issue and event type when event files are staged, unless the message has them already or a merge is in progress, and `Issue:` for the current issue set by `issues work`, on any commit, adr's included |
+| `pre-push` | `issues verify --base @{upstream} --ref HEAD --fetch-sources` | Full invariant check against what the remote has, with references into other repositories checked at their fetched refs |
 | `post-merge` | `issues list --since ORIG_HEAD` | Prints issues newly closed, reopened or assigned to you after a pull |
 
-`--staged` checks only issues touched by staged files, keeping `pre-commit` well under a second on large issue logs.
+`--staged` checks only issues touched by staged files, keeping `pre-commit` well under a second on large issue logs. When the staged changes touch an input outside the log that every check reads (`issues.toml`, `<root>/issues.toml`, `<root>/templates/`, the decision log or its `adr.toml`), it checks every issue instead and says so in a note: a staged `adr reject` or a staged `mcp_can_close = false` can break issues no staged file touches.
 
-When staged changes rename files covered by a scope glob, `pre-commit` also proposes updated globs as a `scoped` event, as adr does. The config key `scope_follow_renames` sets this to `stage` (default), `warn` or `off`.
+When staged changes rename files covered by a scope glob, `pre-commit` also runs `issues scope --follow-renames` and stages the resulting `scoped` events in the same commit, as adr does. The config key `[hooks] scope_follow_renames` sets this to `stage` (default), `warn` or `off`.
 
 **Closing from commit messages, deliberately not.** Many trackers close issues from `Fixes #42` in a commit message. issues does not, because that would make state depend on commit metadata, which squash merges rewrite. `issues close` in the same pull request is the equivalent, and `commit-msg` warns when a message says `fixes` or `closes` for an issue with no staged `closed` event.
 
@@ -402,11 +402,12 @@ CI runs `issues verify --base origin/main` on every pull request, and the build 
 | Labels | A `labeled` set holds two labels with the same exclusive prefix |
 | Index freshness | `index.md` differs from what `issues index` would generate |
 | Actor policy | A `closed` event has `actor.kind: agent` while `mcp_can_close` is off, or `close_requires_human` is on; an agent's `closed` event has no `reason`. Every applied `closed` event is checked, so turning a key on reports earlier agent closes in a full `verify` |
-| Scope globs | A scope glob of an open issue matches no tracked file |
+| Scope globs | A scope glob of an in-progress issue matches no tracked file, or a stored glob is invalid. An open issue's globs may name code that doesn't exist yet: the work is planned, so verify reports them only once the issue is started |
 | Code anchors | An `issue:` comment anchor points to a missing issue |
 | Stale anchors | An `issue:` anchor points to a closed issue; a warning, so leftover TODOs surface in review |
 | Closed with open work | A closed issue (any resolution) still has open children, or an issue closed as done still has open dependencies; a warning |
 | Implements | An `implements` link points to an adr decision that is not accepted; a warning |
+| Other repositories | A reference into a cached `[[sources]]` log names a missing issue or decision (`issue/reference-missing`); a referenced source that isn't cached is a `sources/not-fetched` warning |
 
 The append-only, schema, state machine, identity, orphan, template, index, scope and anchor checks are ledger's and behave identically in adr; the rest are the issue kind's invariants. Because events are separate files, squash merges and rebases are safe: history rewriting cannot lose state, since the state is in the tree rather than in commit metadata.
 
