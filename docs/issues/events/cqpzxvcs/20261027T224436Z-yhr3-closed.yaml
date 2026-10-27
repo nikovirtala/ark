@@ -1,0 +1,20 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M5ZRJW7DYRNGKZ6YD675YHR3
+subject: cqpzxvcs
+type: closed
+at: 2026-10-27T22:44:36Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: |-
+  Done in issues PR 2 (@nikovirtala/issues 0.2.0). Commits are named by subject because the fixups are squashed before merge.
+  1. issues init --commit in a root that holds only an empty .gitkeep makes one commit that writes the config and template and removes the .gitkeep, leaving a clean status, also after a `git rm` of it. A .gitkeep that isn't empty is kept, with a note naming it ("feat(issues): let init replace a placeholder and write the index key"). Tested in init.test.ts ("initIssueLog and a .gitkeep placeholder (?8)") and cli/init.test.ts.
+  2. The starter issues.toml writes `index = "none"` with the comment '"none", or "committed" to keep index.md generated and fresh in every commit (ADR-0010)'. init.test.ts ("writes the index key with a comment on its values, and the README shows the file") checks the starter file and that the issues README's config example matches it.
+  3. This close is in the same PR as the change.
+data:
+  resolution: done
