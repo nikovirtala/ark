@@ -66,6 +66,13 @@ export const issueKind: Kind<IssueStatus, IssueEvents, IssueState, IssueView, Is
       lintIn: ["open", "in-progress"],
       requireSections: ["done"],
     },
-    scope: { event: "scoped", activeIn: ["open", "in-progress"], keyword: "issue" },
+    // An open issue's globs may name code that doesn't exist yet (?7): only in-progress issues'
+    // globs must match a tracked file.
+    scope: {
+      event: "scoped",
+      activeIn: ["open", "in-progress"],
+      requireMatchIn: ["in-progress"],
+      keyword: "issue",
+    },
     options: DEFAULT_ISSUE_OPTIONS,
   });

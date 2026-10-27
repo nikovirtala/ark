@@ -751,10 +751,20 @@ export async function planStart(
   read: IssuesRead,
   input: { readonly id: string; readonly actor: Actor },
   c: PlanContext,
+  o: { readonly tracked?: readonly string[] } = {},
 ): Promise<PlanResult> {
   const id = resolveIssue(read, input.id);
   const view = viewOf(read, id);
   const notes: string[] = [];
+  // Started, the issue's globs must match (?7): say so for each one that doesn't yet.
+  if (o.tracked !== undefined) {
+    notes.push(
+      ...unmatchedGlobs(view.applies_to, o.tracked).map(
+        (g) =>
+          `${g} matches no tracked file; from this commit verify reports scope/glob-unmatched until a file matches, so commit the files with it or change the scope`,
+      ),
+    );
+  }
   const events: EventSpec[] = [{ type: "started", data: {} }];
   if (view.assignees.length === 0) {
     const me = input.actor.kind === "agent" ? input.actor.on_behalf_of : input.actor.email;
@@ -1038,7 +1048,16 @@ export async function planSet(
   );
   if (!result.changed) return emptyPlan(kind, view, notes);
   if (kind === "scope" && o.tracked !== undefined) {
-    notes.push(...unmatchedGlobs(result.set, o.tracked).map((g) => `${g} matches no tracked file`));
+    // verify reports scope/glob-unmatched only for in-progress issues (?7).
+    const when =
+      view.state === "in-progress"
+        ? "; verify (hooks and CI) reports scope/glob-unmatched until a file matches"
+        : view.state === "open"
+          ? `; verify reports scope/glob-unmatched once ${view.display} is started, until a file matches`
+          : "";
+    notes.push(
+      ...unmatchedGlobs(result.set, o.tracked).map((g) => `${g} matches no tracked file${when}`),
+    );
   }
   return planEvents(read, c, {
     command: kind,

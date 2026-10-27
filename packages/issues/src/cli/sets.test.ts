@@ -72,7 +72,9 @@ describe("issues scope", () => {
     const r = runJson<Write>(repo, ["scope", "1", "--set", "README.md", "--set", "src/**"]);
     expect(r.status).toBe(0);
     expect(r.json.issue?.applies_to).toEqual(["README.md", "src/**"]);
-    expect(r.json.notes).toContain("src/** matches no tracked file");
+    expect(r.json.notes).toContain(
+      "src/** matches no tracked file; verify reports scope/glob-unmatched once ?1 is started, until a file matches",
+    );
     expect(runIssues(repo, ["scope", "1", "--add", "["]).status).toBe(2);
   });
 });
