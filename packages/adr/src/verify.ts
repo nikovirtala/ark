@@ -11,7 +11,9 @@ import {
   governedChanges,
   narrowedScopes,
   projectLog,
+  type SourceStatus,
   scopeGlobCheck,
+  sourceFindings,
   templateHistoryRef,
   type VerifyMode,
   verifyLog,
@@ -19,6 +21,7 @@ import {
 import { adrKind, type DecisionView } from "./kind.js";
 import { type DecisionLog, numberDecisions } from "./log.js";
 import { decisionIndexCheck } from "./log-index.js";
+import { type DecisionSources, readDecisionSources } from "./sources.js";
 
 /** At most this many paths are named in a `decision/scope-narrowed` message. */
 const NARROWED_PATHS = 3;
@@ -107,12 +110,21 @@ function scopeNarrowed(log: DecisionLog): Check {
  * lint against the templates in the head tree and, for older versions, the history of
  * `historyRef`, the scope-glob and anchor checks, and the decision checks over code
  * (`decision/governed-by-inactive`, `decision/scope-narrowed`). With `[log] index = "committed"`,
- * also the freshness of `<root>/index.md`.
+ * also the freshness of `<root>/index.md`. With `sources` (`readDecisionSources`), qualified
+ * references are checked against the cached source logs, and each referenced source that isn't
+ * cached gets one `sources/not-fetched` warning.
  */
-export function adrChecks(log: DecisionLog, historyRef: string | null): readonly Check[] {
+export function adrChecks(
+  log: DecisionLog,
+  historyRef: string | null,
+  sources?: DecisionSources,
+): readonly Check[] {
   return [
     ...foldChecks(adrKind, {
-      options: { acceptRequiresHuman: log.adr.acceptRequiresHuman },
+      options: {
+        acceptRequiresHuman: log.adr.acceptRequiresHuman,
+        sources: sources?.logs ?? null,
+      },
       templates: gitTemplates(log.git, { historyRef }),
     }),
     scopeGlobCheck(),
@@ -120,7 +132,44 @@ export function adrChecks(log: DecisionLog, historyRef: string | null): readonly
     governedByInactive(log),
     scopeNarrowed(log),
     ...(log.adr.index === "committed" ? [decisionIndexCheck(log)] : []),
+    ...(sources === undefined ? [] : [sourcesCheck(log, sources.statuses)]),
   ];
+}
+
+/** The source names that qualified references in a folded decision log name. */
+export function referencedSources(head: FoldedLogOf<typeof adrKind>): Set<string> {
+  const out = new Set<string>();
+  const add = (ref: string) => {
+    const at = ref.indexOf(":");
+    if (at > 0) out.add(ref.slice(0, at));
+  };
+  for (const s of head.subjects.values()) {
+    for (const { event } of s.applied) {
+      if (event.type === "proposed") for (const ref of event.data.supersedes ?? []) add(ref);
+      else if (event.type === "superseded") add(event.data.by);
+      else if (event.type === "linked") add(event.data.to);
+    }
+  }
+  return out;
+}
+
+/**
+ * `sources/not-fetched` (warning) once per uncached source that a qualified reference in the head
+ * names. It runs in every scope, because it is about the log, not about one decision.
+ */
+function sourcesCheck(log: DecisionLog, statuses: readonly SourceStatus[]): Check {
+  return {
+    id: "decision-sources",
+    async run(ctx) {
+      const head = ctx.folded?.head;
+      if (head === undefined) return [];
+      return sourceFindings(statuses, {
+        tool: "adr",
+        file: log.configPath,
+        referenced: referencedSources(head as FoldedLogOf<typeof adrKind>),
+      });
+    },
+  };
 }
 
 /**
@@ -134,14 +183,21 @@ export function decisionVerifyInputs(log: DecisionLog): string[] {
   return ["adr.toml", `${root}/adr.toml`, `${root}/templates/`];
 }
 
-/** Verifies the decision log in `mode` (staged, range or full) with `adrChecks`. */
+/**
+ * Verifies the decision log in `mode` (staged, range or full) with `adrChecks`, reading the
+ * sources from the local cache only.
+ */
 export async function verifyDecisions(log: DecisionLog, mode: VerifyMode): Promise<Finding[]> {
   return verifyLog({
     git: log.git,
     kind: adrKind,
     layout: log.layout,
     mode,
-    checks: adrChecks(log, await templateHistoryRef(log.git, mode)),
+    checks: adrChecks(
+      log,
+      await templateHistoryRef(log.git, mode),
+      await readDecisionSources(log, { fetch: "cache" }),
+    ),
     widenOn: decisionVerifyInputs(log),
   });
 }

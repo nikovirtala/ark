@@ -59,7 +59,7 @@ export function decisionHookCommands(
   return {
     "pre-commit": [...r, "hooks", "run", "pre-commit"],
     "commit-msg": [...r, "hooks", "trailers", "{args}"],
-    "pre-push": [...r, "verify", "--base", "@{upstream}", "--ref", "HEAD"],
+    "pre-push": [...r, "verify", "--base", "@{upstream}", "--ref", "HEAD", "--fetch-sources"],
     "post-merge": [...r, "list", "--since", "ORIG_HEAD"],
   };
 }

@@ -186,7 +186,7 @@ describe("sourcesNote", () => {
     '[[sources]]\nname = "platform"\nkind = "adr"\nurl = "https://example.com/p.git"\nref = "main"\n' +
     '[[sources]]\nname = "web"\nkind = "adr"\nurl = "https://example.com/w.git"\nref = "main"\n';
   const NOTE =
-    "only this repository's decision log is read; the logs in [[sources]] (platform, web) aren't listed or searched until ark's step 4";
+    "the logs in [[sources]] (platform, web) are listed with --source <name>, from cached copies; run adr sources fetch to update them";
 
   it("is null without [[sources]], and names them otherwise", async () => {
     const plain = await readDecisions(await open(await repo({ "README.md": "x\n" })));

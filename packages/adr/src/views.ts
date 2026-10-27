@@ -18,6 +18,8 @@ export interface NumberingJson {
 /** `adr list --json` (design §5.5). */
 export interface DecisionListJson {
   readonly format: "adr-list/v1";
+  /** The `[[sources]]` entry listed (`--source`), or `null` for the local log. */
+  readonly source: string | null;
   readonly root: string;
   readonly ref: string | null;
   readonly commit: string | null;
@@ -91,6 +93,7 @@ export function listDecisions(
   const listed = new Set(decisions.map((v) => v.id));
   return {
     format: "adr-list/v1",
+    source: read.source,
     root: read.root,
     ref: read.ref,
     commit: read.commit,

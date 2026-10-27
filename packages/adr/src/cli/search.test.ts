@@ -136,7 +136,7 @@ describe("adr search", { timeout: 60_000 }, () => {
     const out = runAdr(r, ["search", "orders"]);
     expect(out.status).toBe(0);
     expect(out.stderr).toBe(
-      "adr: warning: only this repository's decision log is read; the logs in [[sources]] (platform) aren't listed or searched until ark's step 4\n",
+      "adr: warning: the logs in [[sources]] (platform) are listed with --source <name>, from cached copies; run adr sources fetch to update them\n",
     );
   });
 });

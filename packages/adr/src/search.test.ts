@@ -215,7 +215,7 @@ describe("searchDecisions", () => {
   it("adds the sources note", async () => {
     const r = await read(LOG(), { sources: ["platform"] });
     expect(searchDecisions(r, { query: "orders" }).notes).toEqual([
-      "only this repository's decision log is read; the logs in [[sources]] (platform) aren't listed or searched until ark's step 4",
+      "the logs in [[sources]] (platform) are listed with --source <name>, from cached copies; run adr sources fetch to update them",
     ]);
   });
 

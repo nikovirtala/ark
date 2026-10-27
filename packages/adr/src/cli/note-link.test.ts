@@ -161,10 +161,10 @@ describe("adr link", { timeout: 90_000 }, () => {
     expect(await git(r, "status", "--porcelain")).toBe("");
   });
 
-  it("links to a decision in a configured source without looking it up", async () => {
+  it("links to a decision in an uncached source without looking it up, and says so", async () => {
     const r = await repo({
       "docs/adr/adr.toml":
-        '[[sources]]\nname = "platform"\nkind = "decision"\nurl = "https://example.com/platform.git"\nref = "main"\n',
+        '[[sources]]\nname = "platform"\nkind = "adr"\nurl = "https://example.com/platform.git"\nref = "main"\n',
     });
     const a = await seedDecision(r, "Use Aurora");
     const out = runAdr(r, [
@@ -178,6 +178,7 @@ describe("adr link", { timeout: 90_000 }, () => {
     ]);
     expect(out.status).toBe(0);
     expect(doc(out.stdout).decision?.links).toEqual([{ to: "platform:k3f9q8a1", rel: "refines" }]);
+    expect(doc(out.stdout).notes).toContain("platform not fetched; the reference isn't checked");
     expect(await git(r, "log", "-1", "--format=%s")).toBe(
       "docs(adr): link ADR-0001 to a decision in another log\n",
     );
@@ -189,7 +190,7 @@ describe("adr link", { timeout: 90_000 }, () => {
 
   it("never shortens a link subject's names under a [commit] subject that fits them", async () => {
     const r = await repo({
-      "docs/adr/adr.toml": `[commit]\nsubject = "docs(adr): ${"x".repeat(29)} {title}"\n[[sources]]\nname = "platform"\nkind = "decision"\nurl = "https://example.com/platform.git"\nref = "main"\n`,
+      "docs/adr/adr.toml": `[commit]\nsubject = "docs(adr): ${"x".repeat(29)} {title}"\n[[sources]]\nname = "platform"\nkind = "adr"\nurl = "https://example.com/platform.git"\nref = "main"\n`,
     });
     const a = await seedDecision(r, "Use Aurora");
     const out = runAdr(r, ["link", a, "platform:k3f9q8a1", "--commit", "--json"]);
@@ -198,13 +199,13 @@ describe("adr link", { timeout: 90_000 }, () => {
       `docs(adr): ${"x".repeat(29)} ADR-0001 to a decision in another log\n`,
     );
     expect(await git(r, "log", "-1", "--format=%b")).not.toContain("Full title:");
-    expect(doc(out.stdout).notes).toEqual([]);
+    expect(doc(out.stdout).notes).toEqual(["platform not fetched; the reference isn't checked"]);
   });
 
   it("fits a cross-log link's name uncut at the longest [commit] subject pad", async () => {
     const pad = "x".repeat(24);
     const r = await repo({
-      "docs/adr/adr.toml": `[commit]\nsubject = "docs(adr): {action} {title} ${pad}"\n[[sources]]\nname = "platform"\nkind = "decision"\nurl = "https://example.com/platform.git"\nref = "main"\n`,
+      "docs/adr/adr.toml": `[commit]\nsubject = "docs(adr): {action} {title} ${pad}"\n[[sources]]\nname = "platform"\nkind = "adr"\nurl = "https://example.com/platform.git"\nref = "main"\n`,
     });
     const a = await seedDecision(r, "Use Aurora");
     const out = runAdr(r, ["link", "ADR-0001", "platform:k3f9q8a1", "--commit", "--json"]);
@@ -215,7 +216,7 @@ describe("adr link", { timeout: 90_000 }, () => {
     expect(await git(r, "log", "-1", "--format=%b")).toBe(
       `relates-to platform:k3f9q8a1.\n\nADR: ${a}\nADR-Event: linked\n\n`,
     );
-    expect(doc(out.stdout).notes).toEqual([]);
+    expect(doc(out.stdout).notes).toEqual(["platform not fetched; the reference isn't checked"]);
   });
 
   it("exits 2 for a self link, an unknown rel and an unknown source", async () => {

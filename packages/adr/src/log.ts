@@ -66,8 +66,10 @@ export interface DecisionsRead {
   readonly findings: readonly Finding[];
   /** How the log was located (`ToolLog.notes`); `[]` for a MemoryTree read. */
   readonly notes: readonly string[];
-  /** The `[[sources]]` names in the config; their logs aren't read yet (ark's step 4). */
+  /** The `[[sources]]` names in the config; listings read them only with `--source`. */
   readonly sources: readonly string[];
+  /** The `[[sources]]` entry this read is of (`--source`), or `null` for the local log. */
+  readonly source: string | null;
 }
 
 /**
@@ -120,6 +122,7 @@ export async function readDecisionsFrom(
     readonly commit?: string | null;
     readonly notes?: readonly string[];
     readonly sources?: readonly string[];
+    readonly source?: string | null;
   },
 ): Promise<DecisionsRead> {
   const { layout, adr, numbering } = o;
@@ -135,7 +138,7 @@ export async function readDecisionsFrom(
     inScope: new Set(snapshot.subjects.keys()),
     folded: { head: folded, base: null },
   };
-  const options = { acceptRequiresHuman: adr.acceptRequiresHuman };
+  const options = { acceptRequiresHuman: adr.acceptRequiresHuman, sources: null };
   const findings: Finding[] = [];
   for (const check of [loadFindings, transitions, invariantsCheck(options), relateCheck(options)]) {
     findings.push(...(await check.run(ctx)));
@@ -153,16 +156,17 @@ export async function readDecisionsFrom(
     findings: sortFindings(findings.map((f) => ({ ...f, kind: adrKind.name }))),
     notes: o.notes ?? [],
     sources: o.sources ?? [],
+    source: o.source ?? null,
   };
 }
 
 /**
- * The note listing reads add while only the local log is read: the logs of `[[sources]]` aren't
- * listed or searched until ark's step 4. `null` without sources.
+ * The note listing reads add for a log with `[[sources]]`: the other logs are listed with
+ * `--source`, from cached copies. `null` without sources, and for a `--source` read.
  */
 export function sourcesNote(read: DecisionsRead): string | null {
-  if (read.sources.length === 0) return null;
-  return `only this repository's decision log is read; the logs in [[sources]] (${read.sources.join(", ")}) aren't listed or searched until ark's step 4`;
+  if (read.sources.length === 0 || read.source !== null) return null;
+  return `the logs in [[sources]] (${read.sources.join(", ")}) are listed with --source <name>, from cached copies; run adr sources fetch to update them`;
 }
 
 /** `read.notes`, then the sources note when there is one. */

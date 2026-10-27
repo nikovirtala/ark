@@ -228,7 +228,7 @@ describe("adr for", { timeout: 120_000 }, () => {
 const SOURCES =
   '[[sources]]\nname = "platform"\nkind = "adr"\nurl = "https://example.com/p.git"\nref = "main"\n';
 const SOURCES_NOTE =
-  "adr: warning: only this repository's decision log is read; the logs in [[sources]] (platform) aren't listed or searched until ark's step 4\n";
+  "adr: warning: the logs in [[sources]] (platform) are listed with --source <name>, from cached copies; run adr sources fetch to update them\n";
 
 describe("adr for with [[sources]]", () => {
   it("notes that only the local log is read", async () => {

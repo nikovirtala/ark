@@ -2,10 +2,30 @@ import type { FoldedLog, FoldedSubject, KindFinding } from "@nikovirtala/ledger"
 import type { DecisionState } from "./reduce.js";
 import type { DecisionEvents, DecisionStatus } from "./schemas.js";
 
+/** A decision in another repository's log, as the reference rules and `--source` listings see it. */
+export interface ForeignDecision {
+  readonly status: DecisionStatus;
+  readonly display: string;
+  readonly title: string;
+}
+
+/** One `[[sources]]` entry of kind `adr`, as `AdrOptions.sources` holds it. */
+export interface AdrSource {
+  /** The decisions at the cached commit; `null` when the source isn't cached (not checked). */
+  readonly subjects: ReadonlyMap<string, ForeignDecision> | null;
+  /** The cached commit, or `null`. */
+  readonly commit: string | null;
+}
+
 /** Options of the decision kind's `invariants` and `relate`. */
 export interface AdrOptions {
   /** Default `true`: an agent may propose, but only a human may accept (01:98). */
   readonly acceptRequiresHuman: boolean;
+  /**
+   * The `kind = "adr"` `[[sources]]` by name, for checking qualified references; `null` (the
+   * default) skips qualified references, as reads that don't load sources do.
+   */
+  readonly sources: ReadonlyMap<string, AdrSource> | null;
 }
 
 type Subject = FoldedSubject<DecisionStatus, DecisionState, DecisionEvents>;
@@ -29,25 +49,54 @@ export function invariants(subject: Subject, options: AdrOptions): readonly Kind
   );
 }
 
-/**
- * Qualified ids (`<source>:<id>`) name decisions in other logs. Phase 1 checks local references
- * only and skips qualified ones, which only hand-written events can hold; CI checks them at the
- * pinned ref in phase 2 (design §E).
- */
+/** Qualified ids (`<source>:<id>`) name decisions in other logs. */
 const isQualified = (ref: string) => ref.includes(":");
 
 /**
  * Cross-subject rules: `decision/reference-missing` for a local `supersedes`, `superseded.by` or
  * `linked.to` naming no subject in the log; `decision/superseded-by-unaccepted` when the target of
  * an applied `superseded.by` has no applied `accepted` event in this tree; and
- * `decision/supersession-cycle`, once per cycle on its smallest id.
+ * `decision/supersession-cycle`, once per cycle on its smallest id. With `options.sources`, a
+ * qualified reference naming a source that isn't configured is `decision/unknown-source`, and one
+ * into a cached source that doesn't hold the id is `decision/reference-missing`; references into
+ * an uncached source aren't checked.
  */
-export function relate(log: Log): readonly KindFinding[] {
+export function relate(log: Log, options?: AdrOptions): readonly KindFinding[] {
   const out: KindFinding[] = [];
+  const sources = options?.sources ?? null;
   const isAccepted = (id: string) =>
     log.subjects.get(id)?.applied.some((a) => a.event.type === "accepted") ?? false;
+  const foreign = (subject: string, event: string, ref: string, what: string) => {
+    if (sources === null) return;
+    const at = ref.indexOf(":");
+    const name = ref.slice(0, at);
+    const id = ref.slice(at + 1);
+    const source = sources.get(name);
+    if (source === undefined) {
+      out.push({
+        severity: "error",
+        rule: "decision/unknown-source",
+        message: `${what} ${ref}, whose source ${name} isn't in [[sources]]`,
+        subject,
+        event,
+      });
+      return;
+    }
+    if (source.subjects === null || source.subjects.has(id)) return;
+    out.push({
+      severity: "error",
+      rule: "decision/reference-missing",
+      message: `${what} ${ref}, which is not in source ${name} at ${(source.commit ?? "").slice(0, 12)}`,
+      subject,
+      event,
+    });
+  };
   const missing = (subject: string, event: string, ref: string, what: string) => {
-    if (isQualified(ref) || log.subjects.has(ref)) return false;
+    if (isQualified(ref)) {
+      foreign(subject, event, ref, what);
+      return false;
+    }
+    if (log.subjects.has(ref)) return false;
     out.push({
       severity: "error",
       rule: "decision/reference-missing",

@@ -192,6 +192,7 @@ describe("listDecisions", () => {
     const list = listDecisions(r);
     expect(Object.keys(list)).toEqual([
       "format",
+      "source",
       "root",
       "ref",
       "commit",

@@ -12,7 +12,7 @@ import { type DecisionEvents, type DecisionStatus, decisionEvents } from "./kind
 export type { DecisionView } from "./kind/project.js";
 export { formatDecisionNumber, parseDecisionNumber } from "./kind/project.js";
 export type { DecisionState } from "./kind/reduce.js";
-export type { AdrOptions } from "./kind/rules.js";
+export type { AdrOptions, AdrSource, ForeignDecision } from "./kind/rules.js";
 export {
   DECISION_STATUSES,
   type DecisionEvents,
@@ -59,5 +59,5 @@ export const adrKind: Kind<
   },
   // A deprecated decision's globs no longer have to match code (design 2b §4.8).
   scope: { event: "scoped", activeIn: ["proposed", "accepted"] },
-  options: Object.freeze({ acceptRequiresHuman: true }),
+  options: Object.freeze({ acceptRequiresHuman: true, sources: null }),
 });

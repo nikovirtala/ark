@@ -21,6 +21,8 @@ export interface DecisionSearchResultJson {
 /** `adr search <query>… --json` and `adr_search` (design §6.4). */
 export interface DecisionSearchJson {
   readonly format: "adr-search/v1";
+  /** The `[[sources]]` entry searched (`--source`), or `null` for the local log. */
+  readonly source: string | null;
   readonly root: string;
   readonly ref: string | null;
   readonly commit: string | null;
@@ -229,6 +231,7 @@ export function searchDecisions(
   const listed = new Set(results.map((r) => r.decision.id));
   return {
     format: "adr-search/v1",
+    source: read.source,
     root: read.root,
     ref: read.ref,
     commit: read.commit,

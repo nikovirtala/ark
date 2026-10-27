@@ -48,7 +48,7 @@ describe("invariants", () => {
     const log = await foldFiles(decisionFiles([subject(A, proposed(A), e)]));
     const s = log.subjects.get(A);
     if (s === undefined) throw new Error("not folded");
-    expect(adrKind.def.invariants?.(s, { acceptRequiresHuman: true })).toEqual([
+    expect(adrKind.def.invariants?.(s, { acceptRequiresHuman: true, sources: null })).toEqual([
       {
         severity: "error",
         rule: "decision/agent-accepted",
@@ -57,7 +57,7 @@ describe("invariants", () => {
         event: e.id,
       },
     ]);
-    expect(adrKind.def.invariants?.(s, { acceptRequiresHuman: false })).toEqual([]);
+    expect(adrKind.def.invariants?.(s, { acceptRequiresHuman: false, sources: null })).toEqual([]);
   });
 
   it("accepts a human acceptance and an agent proposal", async () => {
@@ -70,6 +70,50 @@ describe("invariants", () => {
 });
 
 describe("relate", () => {
+  it("checks qualified references against known sources, and skips them without sources", async () => {
+    const link = (to: string, at: string) =>
+      decisionEvent(A, "linked", { data: { to, rel: "relates-to" }, at });
+    const p = proposed(B, [`gone:${MISSING}`]);
+    const s = superseded(C, `uncached:${MISSING}`);
+    const subjects = [
+      subject(
+        A,
+        proposed(A),
+        link(`platform:${B}`, "2026-03-14T10:00:00Z"),
+        link(`platform:${MISSING}`, "2026-03-15T10:00:00Z"),
+      ),
+      subject(B, p),
+      subject(C, proposed(C), accepted(C), s),
+    ];
+    const log = await foldFiles(decisionFiles(subjects));
+    expect(adrKind.def.relate?.(log, adrKind.def.options)).toEqual([]);
+    const sources = new Map([
+      [
+        "platform",
+        {
+          commit: "c".repeat(40),
+          subjects: new Map([
+            [B, { status: "accepted" as const, display: "ADR-0001", title: "B" }],
+          ]),
+        },
+      ],
+      ["uncached", { commit: null, subjects: null }],
+    ]);
+    const fs = adrKind.def.relate?.(log, { acceptRequiresHuman: true, sources }) ?? [];
+    expect(fs.map((f) => [f.rule, f.subject, f.message])).toEqual([
+      [
+        "decision/reference-missing",
+        A,
+        `links to platform:${MISSING}, which is not in source platform at ${"c".repeat(12)}`,
+      ],
+      [
+        "decision/unknown-source",
+        B,
+        `supersedes gone:${MISSING}, whose source gone isn't in [[sources]]`,
+      ],
+    ]);
+  });
+
   it("finds nothing in a consistent log", async () => {
     expect(
       await relateOf(

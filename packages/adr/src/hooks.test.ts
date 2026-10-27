@@ -27,14 +27,14 @@ describe("decisionHookCommands", () => {
     expect(decisionHookCommands(await open(r))).toEqual({
       "pre-commit": ["hooks", "run", "pre-commit"],
       "commit-msg": ["hooks", "trailers", "{args}"],
-      "pre-push": ["verify", "--base", "@{upstream}", "--ref", "HEAD"],
+      "pre-push": ["verify", "--base", "@{upstream}", "--ref", "HEAD", "--fetch-sources"],
       "post-merge": ["list", "--since", "ORIG_HEAD"],
     });
     const R = ["--root", "decisions"];
     expect(decisionHookCommands(await open(r, { root: "decisions" }))).toEqual({
       "pre-commit": [...R, "hooks", "run", "pre-commit"],
       "commit-msg": [...R, "hooks", "trailers", "{args}"],
-      "pre-push": [...R, "verify", "--base", "@{upstream}", "--ref", "HEAD"],
+      "pre-push": [...R, "verify", "--base", "@{upstream}", "--ref", "HEAD", "--fetch-sources"],
       "post-merge": [...R, "list", "--since", "ORIG_HEAD"],
     });
     // A repo-level adr.toml naming the root finds it, so the hooks don't need --root.
