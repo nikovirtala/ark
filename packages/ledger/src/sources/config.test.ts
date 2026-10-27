@@ -102,6 +102,13 @@ describe("parseToolConfig", () => {
     [source({ ...base, ref: "main..dev" }), "sources[0].ref must not contain .."],
     [source({ ...base, ref: "a1b2c3d4" }), "looks like an abbreviated commit id; use the full sha"],
     [source({ ...base, ref: "a".repeat(41) }), "looks like an abbreviated commit id"],
+    [source({ ...base, ref: "+main" }), "sources[0].ref must not start with +"],
+    ...["a:b", "ma*", "ma?n", "ma[in]", "a\\b", "main^", "HEAD~1", "@{u}", "main@{1}"].map(
+      (ref): [string, string] => [
+        source({ ...base, ref }),
+        "sources[0].ref must not contain :, *, ?, [, \\, ^, ~ or @{",
+      ],
+    ),
     [source({ ...base, root: "/abs" }), "sources[0].root: layout root"],
     [source({ ...base, root: "a/../b" }), "sources[0].root: layout root"],
     [
@@ -112,6 +119,12 @@ describe("parseToolConfig", () => {
     const e = configError(text);
     expect(e.message).toContain(message);
     expect(e.file).toBe("adr.toml");
+  });
+
+  it("accepts branch, full ref, tag and full sha refs", () => {
+    for (const ref of ["main", "refs/heads/main", "v1.2.0", "release/2026-10", "a".repeat(40)]) {
+      expect(parseToolConfig(source({ ...base, ref })).sources[0]?.ref).toBe(ref);
+    }
   });
 
   it("rejects an oversized document", () => {

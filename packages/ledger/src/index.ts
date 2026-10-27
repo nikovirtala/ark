@@ -241,6 +241,13 @@ export {
   type QualifiedId,
 } from "./sources/qualified-id.js";
 export {
+  readSources,
+  type SourceRead,
+  type SourceStatus,
+  sourceFindings,
+  sourcesOfKinds,
+} from "./sources/read.js";
+export {
   type LogRef,
   type Resolution,
   resolveQualifiedId,

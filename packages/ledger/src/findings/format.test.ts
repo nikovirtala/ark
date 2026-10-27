@@ -147,6 +147,21 @@ describe("findingsReport", () => {
     ] as const) {
       expect(findingsReport(fs, opts)).toEqual(JSON.parse(formatJson(fs, opts)));
     }
+    const sources = [
+      { name: "platform", kind: "adr", ref: "v1", commit: "a".repeat(40), fetched: true },
+      { name: "tracker", kind: "issues", ref: "main", commit: null, fetched: false },
+    ];
+    expect(findingsReport(sample, { sources }).sources).toEqual(sources);
+    expect(JSON.parse(formatJson(sample, { sources })).sources).toEqual(sources);
+    expect(Object.keys(JSON.parse(formatJson(sample, { sources })))).toEqual([
+      "format",
+      "ok",
+      "summary",
+      "findings",
+      "sources",
+    ]);
+    expect("sources" in findingsReport(sample)).toBe(false);
+    expect("sources" in JSON.parse(formatJson(sample))).toBe(false);
     expect(findingsReport(sample).findings.map((f) => f.rule)).toEqual(
       [sample[3], sample[1], sample[2], sample[4], sample[0]].map((f) => f?.rule),
     );

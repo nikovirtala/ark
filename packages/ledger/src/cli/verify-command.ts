@@ -4,6 +4,7 @@ import { findingsReport, formatGithub, formatJson, formatText } from "../finding
 import type { Git } from "../git/git.js";
 import type { LogLayout } from "../identity/layout.js";
 import type { AnyKind } from "../kind/types.js";
+import type { SourceStatus } from "../sources/read.js";
 import type { Check } from "../verify/checks.js";
 import { touchedInputs, type VerifyMode, verifyLog } from "../verify/verify.js";
 import type { GlobalFlags } from "./flags.js";
@@ -14,11 +15,14 @@ export interface VerifyCommandOptions {
   /**
    * Opens the log for verify; called with the parsed globals and the mode `verifyCommand` derived
    * from the flags, so the tool can compute `templateHistoryRef(git, mode)` for its checks.
+   * `fetchSources` is `--fetch-sources`: read the `[[sources]]` from the network (`readSources`
+   * `"network"`, a failed fetch throws `SourceFetchError`, exit 2), else from the cache only.
    */
   open(ctx: {
     readonly io: CliIO;
     readonly flags: GlobalFlags;
     readonly mode: VerifyMode;
+    readonly fetchSources: boolean;
   }): Promise<{
     readonly git: Git;
     readonly kind: AnyKind;
@@ -29,6 +33,8 @@ export interface VerifyCommandOptions {
     readonly notes?: readonly string[];
     /** Inputs outside the log whose staged change widens `--staged` to every subject. */
     readonly widenOn?: readonly string[];
+    /** The sources the tool read, for the report's `sources` field; omit without `[[sources]]`. */
+    readonly sources?: readonly SourceStatus[];
   }>;
 }
 
@@ -84,19 +90,33 @@ function widenedNote(kind: string, touched: readonly string[]): string {
   return `--staged checks every ${kind}: the staged changes touch ${touched[0]}${more}`;
 }
 
+/** The stderr note for a source a verify run read. */
+function sourceNote(s: SourceStatus): string | null {
+  if (s.commit === null) return null;
+  const how = s.fetched ? "fetched now" : "from the cache";
+  return `source ${s.name} (${s.ref}) at ${s.commit.slice(0, 12)}, ${how}`;
+}
+
 /**
- * The shared `verify [--staged | --base <ref>] [--format text|json|github]` command. `--ref` sets
+ * The shared `verify [--staged | --base <ref>] [--fetch-sources] [--format text|json|github]`
+ * command. `--ref` sets
  * the head: the mode is `staged`, `range { base, head: ref }` or `full { head: ref }`. With
  * `--json` (or `--format json`) it prints the `ledger-findings/v1` report; it exits 1 when the
  * findings fail at the tool's `failOn`. A `--base @{upstream}` with no upstream falls back as
- * `resolveVerifyBase` says, with a note on stderr.
+ * `resolveVerifyBase` says, with a note on stderr. `--fetch-sources` fetches the tool's sources
+ * before any check runs; the report's `sources` field records what each resolved to.
  */
 export function verifyCommand(o: VerifyCommandOptions): CommandSpec {
   return {
     name: "verify",
     summary: "check the log against its rules",
-    usage: "verify [--staged | --base <ref>] [--format text|json|github]",
-    options: { staged: { type: "boolean" }, base: { type: "string" }, format: { type: "string" } },
+    usage: "verify [--staged | --base <ref>] [--fetch-sources] [--format text|json|github]",
+    options: {
+      staged: { type: "boolean" },
+      base: { type: "string" },
+      "fetch-sources": { type: "boolean" },
+      format: { type: "string" },
+    },
     positionals: { min: 0, max: 0, names: [] },
     ref: "read",
     async run({ io, flags, values }) {
@@ -120,7 +140,8 @@ export function verifyCommand(o: VerifyCommandOptions): CommandSpec {
           ? { type: "range", base, ...head }
           : { type: "full", ...head };
 
-      const log = await o.open({ io, flags, mode });
+      const fetchSources = values["fetch-sources"] === true;
+      const log = await o.open({ io, flags, mode, fetchSources });
       const resolved = await resolveVerifyBase(log.git, mode);
       const widenOn = log.widenOn ?? [];
       const findings = await verifyLog({
@@ -136,8 +157,17 @@ export function verifyCommand(o: VerifyCommandOptions): CommandSpec {
         ...(log.notes ?? []),
         ...(resolved.note === null ? [] : [resolved.note]),
         ...(touched.length === 0 ? [] : [widenedNote(log.kind.def.name, touched)]),
+        ...(format === "json"
+          ? []
+          : (log.sources ?? []).flatMap((s) => {
+              const n = sourceNote(s);
+              return n === null ? [] : [n];
+            })),
       ];
-      const failOn = { failOn: log.failOn };
+      const failOn = {
+        failOn: log.failOn,
+        ...(log.sources === undefined ? {} : { sources: log.sources }),
+      };
       const text =
         format === "json"
           ? formatJson(findings, failOn)

@@ -66,6 +66,7 @@ describe("sourceLogRef", () => {
     commit: "1".repeat(40),
     tree: new MemoryTree({}),
     stale: false,
+    staleReason: null,
     cacheDir: "/tmp/cache.git",
   });
   const kindLayout = { bodies: "decisions", events: "events" };

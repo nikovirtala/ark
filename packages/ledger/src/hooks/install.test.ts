@@ -24,7 +24,7 @@ async function repo(o?: Parameters<typeof createTempRepo>[0]): Promise<TempRepo>
 }
 
 const verify = ["verify", "--staged"];
-const push = ["verify", "--base", "@{upstream}", "--ref", "HEAD"];
+const push = ["verify", "--base", "@{upstream}", "--ref", "HEAD", "--fetch-sources"];
 const hookPath = (r: TempRepo, hook: string) => join(r.root, ".git", "hooks", hook);
 /** The shims the default commands write, in `HOOK_NAMES` order. */
 const defaults = (r: TempRepo) => [hookPath(r, "pre-commit"), hookPath(r, "pre-push")];

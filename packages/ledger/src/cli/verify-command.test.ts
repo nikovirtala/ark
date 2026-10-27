@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { EventEnvelope } from "../envelope/types.js";
 import { serializeEvent } from "../envelope/yaml.js";
+import { SourceFetchError } from "../errors.js";
 import type { Severity } from "../findings/finding.js";
 import { formatJson } from "../findings/format.js";
 import { eventPath } from "../identity/layout.js";
+import type { SourceStatus } from "../sources/read.js";
 import { exampleMachineKind as kind } from "../testing/example-machine-kind.js";
 import { TEST_HUMAN } from "../testing/history.js";
 import { createTempRepo, type TempRepo } from "../testing/temp-repo.js";
@@ -50,15 +52,26 @@ async function repo(): Promise<TempRepo> {
 async function call(
   r: TempRepo | null,
   argv: readonly string[],
-  o: { failOn?: Severity; notes?: readonly string[]; widenOn?: readonly string[] } = {},
+  o: {
+    failOn?: Severity;
+    notes?: readonly string[];
+    widenOn?: readonly string[];
+    sources?: readonly SourceStatus[];
+    fetchError?: boolean;
+  } = {},
 ) {
   let stdout = "";
   let stderr = "";
   const modes: VerifyMode[] = [];
+  const fetches: boolean[] = [];
   const verify = verifyCommand({
-    async open({ mode }) {
+    async open({ mode, fetchSources }) {
       modes.push(mode);
+      fetches.push(fetchSources);
       if (r === null) throw new Error("open called");
+      if (o.fetchError === true && fetchSources) {
+        throw new SourceFetchError("platform", "cannot fetch source platform (main): fatal: nope");
+      }
       return {
         git: r.git,
         kind,
@@ -67,6 +80,7 @@ async function call(
         failOn: o.failOn ?? "error",
         ...(o.notes === undefined ? {} : { notes: o.notes }),
         ...(o.widenOn === undefined ? {} : { widenOn: o.widenOn }),
+        ...(o.sources === undefined ? {} : { sources: o.sources }),
       };
     },
   });
@@ -90,7 +104,7 @@ async function call(
       stdoutIsTTY: false,
     },
   );
-  return { code, stdout, stderr, modes };
+  return { code, stdout, stderr, modes, fetches };
 }
 
 describe("verifyCommand flags", () => {
@@ -106,7 +120,7 @@ describe("verifyCommand flags", () => {
     const r = await call(null, argv);
     expect(r.code).toBe(2);
     expect(r.stderr).toBe(
-      `w: error: ${message}${message.startsWith("unexpected") ? "; usage: w verify [--staged | --base <ref>] [--format text|json|github]" : ""}\n`,
+      `w: error: ${message}${message.startsWith("unexpected") ? "; usage: w verify [--staged | --base <ref>] [--fetch-sources] [--format text|json|github]" : ""}\n`,
     );
     expect(r.modes).toEqual([]);
   });
@@ -206,6 +220,42 @@ describe("verifyCommand on a repository", () => {
       "w: warning: --staged checks every widget: the staged changes touch templates/a.md and 2 more\n",
     );
     expect((await call(r, ["verify"], { widenOn })).stderr).toBe("");
+  });
+
+  it("passes --fetch-sources to open and reports the sources it read", async () => {
+    const r = await repo();
+    const sources: SourceStatus[] = [
+      { name: "platform", kind: "widget", ref: "v1", commit: "a".repeat(40), fetched: true },
+      { name: "cached", kind: "widget", ref: "main", commit: "b".repeat(40), fetched: false },
+      { name: "missing", kind: "widget", ref: "main", commit: null, fetched: false },
+    ];
+    const plain = await call(r, ["verify"], { sources });
+    expect(plain.fetches).toEqual([false]);
+    expect(plain.stderr).toBe(
+      `w: warning: source platform (v1) at ${"a".repeat(12)}, fetched now\n` +
+        `w: warning: source cached (main) at ${"b".repeat(12)}, from the cache\n`,
+    );
+    const json = await call(r, ["verify", "--fetch-sources", "--json"], { sources });
+    expect(json.fetches).toEqual([true]);
+    expect(json.stderr).toBe("");
+    expect(JSON.parse(json.stdout).sources).toEqual(sources);
+    const format = await call(r, ["verify", "--fetch-sources", "--format", "json"], { sources });
+    expect(format.stdout).toBe(json.stdout);
+    expect((await call(r, ["verify", "--staged", "--fetch-sources"])).fetches).toEqual([true]);
+  });
+
+  it("exits 2 with ark-error/v1 when a source can't be fetched", async () => {
+    const r = await repo();
+    const text = await call(r, ["verify", "--fetch-sources"], { fetchError: true });
+    expect(text.code).toBe(2);
+    expect(text.stderr).toBe("w: error: cannot fetch source platform (main): fatal: nope\n");
+    const json = await call(r, ["--json", "verify", "--fetch-sources"], { fetchError: true });
+    expect(json.code).toBe(2);
+    expect(JSON.parse(json.stdout)).toMatchObject({
+      format: "ark-error/v1",
+      error: { code: "source-fetch" },
+    });
+    expect((await call(r, ["verify"], { fetchError: true })).code).toBe(0);
   });
 
   it("prints the tool's notes on stderr and keeps them out of the report", async () => {

@@ -60,7 +60,7 @@ describe("DEFAULT_HOOK_COMMANDS", () => {
   it("verifies staged changes before a commit and the pushed commits before a push", () => {
     expect(DEFAULT_HOOK_COMMANDS).toEqual({
       "pre-commit": ["verify", "--staged"],
-      "pre-push": ["verify", "--base", "@{upstream}", "--ref", "HEAD"],
+      "pre-push": ["verify", "--base", "@{upstream}", "--ref", "HEAD", "--fetch-sources"],
     });
     expect(Object.isFrozen(DEFAULT_HOOK_COMMANDS["pre-push"])).toBe(true);
   });

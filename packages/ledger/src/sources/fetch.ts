@@ -15,8 +15,13 @@ export interface FetchedSource {
   readonly commit: string;
   /** The pinned commit's tree, read from the cache. */
   readonly tree: TreeReader;
-  /** The refetch failed and the previously pinned commit is served; callers warn `sources/stale`. */
+  /**
+   * The refetch failed and the previously pinned commit is served. `readSources` turns this into
+   * an error in network mode, so a stale cache never passes for a fetched one.
+   */
   readonly stale: boolean;
+  /** The first line of git's stderr when `stale`, else `null`. */
+  readonly staleReason: string | null;
   /** The cache's bare repository. */
   readonly cacheDir: string;
 }
@@ -27,6 +32,15 @@ const FULL_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const POLL_MS = 100;
 /** Time a lock holder gets beyond its fetch timeout for the local git steps around the fetch. */
 const LOCK_GRACE_MS = 30_000;
+
+/** The first non-empty line of git's stderr, or the error message when stderr is empty. */
+function gitReason(e: GitError): string {
+  const line = e.stderr
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .find((l) => l !== "");
+  return line ?? e.message;
+}
 
 /** A URL with no `://` and no scp-like `host:path` form names a local path. */
 function isLocalUrl(url: string): boolean {
@@ -279,9 +293,10 @@ export async function fetchSource(
     ...git.options,
     env: { ...git.options.env, ...GIT_ENV_ISOLATION },
   };
-  const served = async (cache: Git, stale: boolean): Promise<FetchedSource> => {
+  const served = async (cache: Git, staleReason: string | null): Promise<FetchedSource> => {
     const tree = await refReader(cache, PINNED);
-    return { config: s, commit: tree.commit ?? "", tree, stale, cacheDir };
+    const stale = staleReason !== null;
+    return { config: s, commit: tree.commit ?? "", tree, stale, staleReason, cacheDir };
   };
 
   if (o.offline === true) {
@@ -292,7 +307,7 @@ export async function fetchSource(
     if (cache === null || commit === null) {
       throw new SourceFetchError(s.name, `source ${s.name} is not cached; fetch it online first`);
     }
-    return served(cache, false);
+    return served(cache, null);
   }
 
   try {
@@ -314,7 +329,7 @@ export async function fetchSource(
       : null;
     const cache = existing ?? (await Git.initBare(cacheDir, cacheOpts));
     const pinned = existing === null ? null : await pinnedCommit(cache);
-    if (FULL_SHA.test(s.ref) && pinned === s.ref) return await served(cache, false);
+    if (FULL_SHA.test(s.ref) && pinned === s.ref) return await served(cache, null);
     try {
       await cache.run(
         ["-c", "protocol.ext.allow=never", "fetch", "--depth=1", "--no-tags", "--", url, s.ref],
@@ -322,10 +337,10 @@ export async function fetchSource(
       );
     } catch (e) {
       if (!(e instanceof GitError)) throw e;
-      if (pinned !== null) return await served(cache, true);
+      if (pinned !== null) return await served(cache, gitReason(e));
       throw new SourceFetchError(
         s.name,
-        `cannot fetch source ${s.name} (${s.ref}): ${e.message}`,
+        `cannot fetch source ${s.name} (${s.ref}): ${gitReason(e)}`,
         e.stderr,
         { cause: e },
       );
@@ -342,7 +357,7 @@ export async function fetchSource(
       commit,
       fetchedAt: new Date().toISOString(),
     });
-    return await served(cache, false);
+    return await served(cache, null);
   } finally {
     await release();
   }
