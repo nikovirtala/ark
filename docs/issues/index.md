@@ -14,6 +14,7 @@
 | ?9 | [Fix the subcommand help and two show messages](items/984qb8rg-fix-the-subcommand-help-and-two-show-messages.md) |  |  | 2026-10-27 |
 | ?10 | [Drop empty optional sections from issue descriptions](items/wy4r966a-drop-empty-optional-sections-from-issue-descriptions.md) |  |  | 2026-10-27 |
 | ?11 | [Name the real reason when a source's numbers are unavailable](items/vpq5v23q-name-the-real-reason-when-a-sources-numbers-are-unavailable.md) |  |  | 2026-10-27 |
+| ?12 | [Share the index-numbering and source-name helpers in ledger](items/3gyr85xq-share-the-index-numbering-and-source-name-helpers-in-ledger.md) |  |  | 2026-10-27 |
 
 ## Blocked
 
@@ -27,4 +28,4 @@
 | --- | --- | --- | --- | --- |
 | ?5 | [Commit a staged issue description with its events](items/f4f25st2-commit-a-staged-issue-description-with-its-events.md) |  |  | 2026-10-27 |
 
-<!-- ledger-index/v1 numbers: 65qt4pp3=1 pcmzc2dz=2 1w06qws8=3 6930v8w9=4 f4f25st2=5 jdpc6bn7=6 m5xh8bkd=7 cqpzxvcs=8 984qb8rg=9 wy4r966a=10 vpq5v23q=11 -->
+<!-- ledger-index/v1 numbers: 65qt4pp3=1 pcmzc2dz=2 1w06qws8=3 6930v8w9=4 f4f25st2=5 jdpc6bn7=6 m5xh8bkd=7 cqpzxvcs=8 984qb8rg=9 wy4r966a=10 vpq5v23q=11 3gyr85xq=12 -->
