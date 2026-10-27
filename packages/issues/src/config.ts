@@ -19,8 +19,8 @@ export interface IssuesConfig {
   readonly defaultTemplate: string;
   /** `[log] main_branch`: the ref numbers come from; `null` resolves it automatically. */
   readonly mainBranch: string | null;
-  /** `[log] index`: this version keeps no index, so only `"none"` is accepted. */
-  readonly index: "none";
+  /** `[log] index`: `"committed"` keeps `<root>/index.md` generated and fresh (ADR-0010). */
+  readonly index: "none" | "committed";
   /** `[labels] exclusive`: prefixes an issue can hold one label of. */
   readonly exclusive: readonly string[];
   /** `[labels] priority`: labels in priority order, highest first, for `issues ready`. */
@@ -59,10 +59,6 @@ export const DEFAULT_ISSUES_CONFIG: IssuesConfig = Object.freeze({
   anchorKeyword: issueKind.anchorKeyword,
   anchorExclude: Object.freeze([]) as readonly string[],
 });
-
-/** The message of the `ConfigError` for `[log] index = "committed"`. */
-export const INDEX_UNSUPPORTED =
-  'index = "committed" needs a newer issues; this version can\'t keep index.md fresh';
 
 const TEMPLATE = /^[a-z][a-z0-9-]*$/;
 const KEYWORD = /^[a-z][a-z0-9-]{0,31}$/;
@@ -140,10 +136,8 @@ export function parseIssuesConfig(config: ToolConfig | null, file: string | null
     throw fail("log.main_branch must be a ref name that doesn't start with -");
   }
   const index = log.index;
-  if (index !== undefined && index !== "none") {
-    throw fail(
-      index === "committed" ? INDEX_UNSUPPORTED : 'log.index must be "none" or "committed"',
-    );
+  if (index !== undefined && index !== "none" && index !== "committed") {
+    throw fail('log.index must be "none" or "committed"');
   }
   const failOn = verify.fail_on;
   if (failOn !== undefined && failOn !== "error" && failOn !== "warning") {
@@ -176,7 +170,7 @@ export function parseIssuesConfig(config: ToolConfig | null, file: string | null
     defaultTemplate:
       typeof template === "string" ? template : DEFAULT_ISSUES_CONFIG.defaultTemplate,
     mainBranch: typeof main === "string" ? main : null,
-    index: "none",
+    index: index === "committed" ? "committed" : "none",
     exclusive: strings(labels, "exclusive", "prefix", PREFIX),
     priority: strings(labels, "priority", "label", LABEL_RE),
     closeRequiresHuman: bool(policy, "policy", "close_requires_human", false),

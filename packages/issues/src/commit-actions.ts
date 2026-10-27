@@ -22,6 +22,12 @@ export const ACTIONS = {
 /** What `issues init --commit`'s title slot holds. */
 export const INIT_TITLE = "the issue log";
 
+/** `{action}` of `issues index --commit`, whose title slot holds `the issue index`. */
+export const INDEX_ACTION = "regenerate";
+
+/** What `issues index --commit`'s title slot holds. */
+export const INDEX_TITLE = "the issue index";
+
 /** The longest display: `?` and up to 9 digits (`formatIssueNumber`, kind/project.ts). */
 export const DISPLAY_LENGTH = 10;
 
@@ -33,7 +39,10 @@ export const CROSS_LOG_ISSUE = "to an issue in another log";
 export const CROSS_LOG_DECISION = "to a decision in another log";
 
 /** The longest `{action}`, which `[commit] subject` must leave room for. */
-export const LONGEST_ACTION: number = Math.max(...Object.values(ACTIONS).map((a) => a.length));
+export const LONGEST_ACTION: number = Math.max(
+  ...Object.values(ACTIONS).map((a) => a.length),
+  INDEX_ACTION.length,
+);
 
 /** issues' commit-subject placeholders, each with its longest value. */
 export const COMMIT_VARS = Object.freeze({
@@ -59,4 +68,5 @@ export const COMMIT_NAMES = Object.freeze([
     vars: { action: Math.max(ACTIONS.link.length, ACTIONS.unlink.length) },
   },
   { length: INIT_TITLE.length, vars: { action: ACTIONS.init.length } },
+  { length: INDEX_TITLE.length, vars: { action: INDEX_ACTION.length } },
 ]);
