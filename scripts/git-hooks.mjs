@@ -1,5 +1,6 @@
-// Installs or removes ark's own git hooks: adr's four hooks and commitlint on commit-msg, all in
-// ledger's shared shims (AGENTS.md "Commit messages"). Usage: pnpm git-hooks install|uninstall.
+// Installs or removes ark's own git hooks: adr's and issues' four hooks each and commitlint on
+// commit-msg, all in ledger's shared shims (ADR-0011, AGENTS.md "Commit messages"). Usage: pnpm
+// git-hooks install|uninstall.
 // Workspace code is loaded with a dynamic import() only after checking that it is built, so an
 // unbuilt checkout gets the "run pnpm install && pnpm build first" message instead of a crash.
 import { spawnSync } from "node:child_process";
@@ -18,9 +19,16 @@ if (process.argv.length !== 3 || (action !== "install" && action !== "uninstall"
 
 const root = new URL("..", import.meta.url);
 const ledgerEntry = new URL("packages/ledger/dist/index.js", root);
-const adrBin = new URL("node_modules/.bin/adr", root);
-if (!existsSync(ledgerEntry) || !existsSync(adrBin)) {
-  console.error("git-hooks: run pnpm install && pnpm build first");
+const bins = ["adr", "issues"].map((tool) => ({
+  tool,
+  bin: new URL(`node_modules/.bin/${tool}`, root),
+  dist: new URL(`packages/${tool}/dist/cli.js`, root),
+}));
+if (!existsSync(ledgerEntry) || bins.some((b) => !existsSync(b.bin) || !existsSync(b.dist))) {
+  const tools = bins.map((b) => b.tool).join(" and ");
+  console.error(
+    `git-hooks: ${tools} must be linked and built; run pnpm install && pnpm build first`,
+  );
   process.exit(2);
 }
 
@@ -29,8 +37,10 @@ try {
     ledgerEntry.href
   );
   const cwd = fileURLToPath(root);
-  const adr = spawnSync(fileURLToPath(adrBin), ["hooks", action], { stdio: "inherit", cwd });
-  if (adr.status !== 0) process.exit(adr.status ?? 2);
+  for (const { bin } of bins) {
+    const run = spawnSync(fileURLToPath(bin), ["hooks", action], { stdio: "inherit", cwd });
+    if (run.status !== 0) process.exit(run.status ?? 2);
+  }
   const git = await Git.open(cwd);
   /** A shim path as the user sees it: repo-relative, as adr prints it. */
   const shown = (path) =>

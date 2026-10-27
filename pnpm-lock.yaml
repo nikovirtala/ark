@@ -181,6 +181,9 @@ importers:
       '@nikovirtala/adr':
         specifier: workspace:*
         version: link:packages/adr
+      '@nikovirtala/issues':
+        specifier: workspace:*
+        version: link:packages/issues
       '@types/node':
         specifier: 24.19.2
         version: 24.19.2

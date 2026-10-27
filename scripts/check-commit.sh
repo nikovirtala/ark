@@ -9,7 +9,8 @@
 #   a file listed in scripts/test-inputs.txt          -> its own row, plus tests of the packages
 #                                                        that read it and their dependents
 #   docs/adr/ or docs/issues/ (no package or          -> lint, install, build, adr verify,
-#     workspace files)                                   issues verify
+#     workspace files)                                   issues verify, and each committed
+#                                                        index.md's --check
 #   packages/<p>/                                     -> the above + tests of <p> and its dependents
 #   anything else, a root or merge commit, no base    -> the above + every package's tests
 set -euo pipefail
@@ -151,6 +152,9 @@ if [ -d docs/issues ]; then
     step issues-verify "check ark's issue log against $base" node packages/issues/dist/cli.js verify --base "$base"
   else
     step issues-verify "check ark's issue log" node packages/issues/dist/cli.js verify
+  fi
+  if git ls-files --error-unmatch docs/issues/index.md >/dev/null 2>&1; then
+    step issues-index-check "docs/issues/index.md must match the log" node packages/issues/dist/cli.js index --check
   fi
 fi
 

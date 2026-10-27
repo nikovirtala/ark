@@ -53,6 +53,8 @@ jobs:
             # is the whole suite; exclude it.
             pnpm --filter "...{./packages/**}[$base]" --filter "!ark" run test
           fi
+      # ark has no [[sources]] in docs/adr/adr.toml or docs/issues/issues.toml, so neither verify
+      # step passes --fetch-sources (it would fetch nothing). Add it to both when ark gets a source.
       - name: Verify ark's decision log
         env:
           EVENT: ${{ github.event_name }}
