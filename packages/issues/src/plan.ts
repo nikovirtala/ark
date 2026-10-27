@@ -105,10 +105,15 @@ export interface WritePlan {
   /**
    * The paths a `--commit` takes and checks for unstaged or untracked changes: an event write's
    * events directory only, `new`'s body, template and events directory, `edit`'s body. Sorted.
+   * `applyPlan` widens it with the `reach` of every issue whose `opened` event isn't in `HEAD`
+   * yet, because a commit that holds an `opened` event needs the description and template too.
+   * A committed issue's description stays out, so an unstaged edit of it never blocks or joins.
    */
   readonly commitScope: readonly string[];
   /** The events directories in `commitScope`; the rest of `commitScope` are file paths. */
   readonly eventDirs: readonly string[];
+  /** The issues reachable from `subject` through local references after the write, by id. */
+  readonly reach: Readonly<Record<string, ReachedIssue>>;
   /** For `new`: the body path, the rendered bytes and the template, for the editor step. */
   readonly draft: {
     readonly path: string;
@@ -127,6 +132,20 @@ export interface WritePlan {
   readonly findings: readonly Finding[];
   /** The write's own notes (an unchanged set, an existing link, …). */
   readonly notes?: readonly string[];
+}
+
+/** What `applyPlan` needs of an issue a write reaches, to decide whether a `--commit` takes it. */
+export interface ReachedIssue {
+  /** The issue's events directory. */
+  readonly dir: string;
+  /** The path of the applied `opened` event; `null` without one. */
+  readonly opened: string | null;
+  /** The description paths (more than one means a duplicate id); empty when it is missing. */
+  readonly bodies: readonly string[];
+  /** `<root>/templates/<name>.md` of the template `opened` records; `null` without state. */
+  readonly template: string | null;
+  /** Local issue ids it references: current links without `:`, and `duplicateOf`. Sorted. */
+  readonly refs: readonly string[];
 }
 
 export type PlanResult =
@@ -283,6 +302,34 @@ const pairsOf = (events: readonly EventEnvelope[]): Trailer[] =>
     ["Issue-Event", e.type],
   ]);
 
+/** The issues reachable from `root` in `read` through local links and `duplicateOf`, by id. */
+export function reachOf(read: IssuesRead, root: string): Record<string, ReachedIssue> {
+  const reach: Record<string, ReachedIssue> = {};
+  const queue = [root];
+  for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
+    if (Object.hasOwn(reach, id)) continue;
+    const s = read.folded.subjects.get(id);
+    if (s === undefined) continue;
+    const st = s.state;
+    const refs =
+      st === null
+        ? []
+        : sorted([
+            ...st.links.map((l) => l.to).filter((to) => !to.includes(":")),
+            ...(st.duplicateOf === null ? [] : [st.duplicateOf]),
+          ]);
+    reach[id] = {
+      dir: eventDir(read.layout, id),
+      opened: s.applied.find((a) => a.event.type === "opened")?.path ?? null,
+      bodies: [...s.loaded.bodyPaths],
+      template: st === null ? null : templatePath(read, st.template.name),
+      refs,
+    };
+    queue.push(...refs);
+  }
+  return reach;
+}
+
 /** A plan that writes nothing: the views as they are, and `notes`. */
 function emptyPlan(command: WriteCommand, view: IssueView, notes: readonly string[]): PlanResult {
   return {
@@ -295,6 +342,7 @@ function emptyPlan(command: WriteCommand, view: IssueView, notes: readonly strin
       stage: [],
       commitScope: [],
       eventDirs: [],
+      reach: {},
       draft: null,
       commit: null,
       trailers: [],
@@ -316,7 +364,8 @@ interface EventSpec {
 /**
  * Plans events on an existing issue (`subject`, already resolved): the state machine and each
  * event's validation decide, then the precheck refuses added errors. The commit scope is the
- * issue's events directory only, so an unstaged description edit never blocks or joins it.
+ * issue's events directory; `applyPlan` adds the description and template only of reached issues
+ * not yet in `HEAD`, so an unstaged edit of a committed description never blocks or joins it.
  */
 async function planEvents(
   read: IssuesRead,
@@ -382,6 +431,7 @@ async function planEvents(
       stage: Object.keys(files),
       commitScope: [dir],
       eventDirs: [dir],
+      reach: reachOf(after, id),
       draft: null,
       commit: o.commit(view),
       trailers: pairsOf(events),
@@ -547,6 +597,7 @@ export async function planOpen(
       stage: Object.keys(files),
       commitScope: sorted([bodyPath, chosen.path, dir]),
       eventDirs: [dir],
+      reach: reachOf(after, id),
       draft: { path: bodyPath, rendered: body, template: t },
       commit: { action: ACTIONS.new, title, id, display: id, body: [] },
       trailers: pairsOf(events),
@@ -579,7 +630,8 @@ function retitle(text: string, title: string): string {
 /**
  * Plans `issues edit --title/--section`: the body with its `# ` heading and the given sections
  * replaced, every other line kept, written only if the body still holds the bytes read. Works in
- * every state; the commit takes the body alone. An unknown section or a missing heading is a
+ * every state; the commit takes the body alone, plus the issue's staged events and template when
+ * its `opened` event isn't in `HEAD` yet (see `applyPlan`). An unknown section or a missing heading is a
  * `UsageError`; an unchanged body plans nothing, with a note.
  */
 export async function planEdit(
@@ -672,6 +724,7 @@ export async function planEdit(
       stage: [body.path],
       commitScope: [body.path],
       eventDirs: [],
+      reach: reachOf(after, id),
       draft: null,
       commit: { action: ACTIONS.edit, title: view.display, id, display: view.display, body: [] },
       trailers: [["Issue", id]],

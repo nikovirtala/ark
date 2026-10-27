@@ -16,6 +16,8 @@ import {
 import type { IssueLog } from "./log.js";
 import type { WritePlan } from "./plan.js";
 
+type Git = IssueLog["git"];
+
 /** What the editor step decided. */
 export interface AfterStage {
   /** Draft lint findings to report instead of `plan.findings`; `null` keeps `plan.findings`. */
@@ -43,8 +45,52 @@ const isYaml = (path: string) => /\.ya?ml$/.test(path);
 const sorted = (xs: Iterable<string>): string[] => [...new Set(xs)].sort();
 
 /**
- * Applies a plan, as adr's `applyPlan` does without the index: refuses a commit whose scope has
- * unstaged or untracked paths, writes replacements and new files (removing them again if a write
+ * The paths a `--commit` of `plan` takes: `plan.commitScope`, widened by every issue reachable
+ * from `plan.subject` whose `opened` event isn't in `HEAD` (planned, staged as added or
+ * untracked) with its events directory, description and template, as adr's commit scope takes
+ * every involved subject's. References are followed from each issue whose events directory is in
+ * the scope, since all its staged events join the commit. A committed issue adds nothing, so an
+ * unstaged edit of its description never blocks or joins. An uncommitted issue without a
+ * description is a `UsageError`: its `opened` event would leave `body/missing` at the commit.
+ */
+async function commitScopeOf(
+  git: Git,
+  plan: WritePlan,
+): Promise<{ scope: string[]; eventDirs: string[] }> {
+  const stage = new Set(plan.stage);
+  const opened = sorted(
+    Object.values(plan.reach).flatMap((r) => (r.opened === null ? [] : [r.opened])),
+  );
+  const fresh = new Set([
+    ...opened.filter((p) => stage.has(p)),
+    ...(await git.stagedPaths(opened, { addedOnly: true })),
+    ...(await git.untrackedPaths(opened)),
+  ]);
+  const paths = new Set(plan.commitScope);
+  const dirs = new Set(plan.eventDirs);
+  const seen = new Set<string>();
+  const queue = [plan.subject];
+  for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
+    const r = Object.hasOwn(plan.reach, id) ? plan.reach[id] : undefined;
+    if (r === undefined || seen.has(id)) continue;
+    seen.add(id);
+    if (r.opened !== null && fresh.has(r.opened)) {
+      if (r.bodies.length === 0) {
+        throw new UsageError(`${r.opened} has no description; restore it, or run without --commit`);
+      }
+      dirs.add(r.dir);
+      for (const b of r.bodies) paths.add(b);
+      if (r.template !== null) paths.add(r.template);
+    }
+    if (dirs.has(r.dir)) queue.push(...r.refs);
+  }
+  return { scope: sorted([...paths, ...dirs]), eventDirs: sorted(dirs) };
+}
+
+/**
+ * Applies a plan, as adr's `applyPlan` does without the index: refuses a commit whose scope
+ * (`commitScopeOf`: the plan's, plus the files of reached issues not yet in `HEAD`) has unstaged
+ * or untracked paths, writes replacements and new files (removing them again if a write
  * fails), writes the events, stages them, runs `afterStage`, and commits `plan.stage` plus the
  * already-staged files of the scope with `--only` and exact trailers. A failed `git commit` throws
  * `CommitFailedError` with the manual command.
@@ -66,12 +112,13 @@ export async function applyPlan(
     throw new InvalidArgumentError("applyPlan needs a message to commit");
   }
   const stage = new Set(plan.stage);
-  if (o.commit) {
-    const unstaged = new Set(await git.unstagedPaths(plan.commitScope));
-    const dirs = new Set(plan.eventDirs);
+  const scope = o.commit ? await commitScopeOf(git, plan) : null;
+  if (scope !== null) {
+    const unstaged = new Set(await git.unstagedPaths(scope.scope));
+    const dirs = new Set(scope.eventDirs);
     const untracked = new Set([
-      ...(await git.untrackedPaths(plan.commitScope.filter((p) => !dirs.has(p)))),
-      ...(await git.untrackedPaths(plan.eventDirs)).filter(isYaml),
+      ...(await git.untrackedPaths(scope.scope.filter((p) => !dirs.has(p)))),
+      ...(await git.untrackedPaths(scope.eventDirs)).filter(isYaml),
     ]);
     const dirty = sorted([...unstaged, ...untracked]).filter((p) => !stage.has(p));
     const [first] = dirty;
@@ -120,8 +167,8 @@ export async function applyPlan(
   }
 
   let sha: string | null = null;
-  if (commit) {
-    const extra = (await git.stagedPaths(plan.commitScope)).filter((p) => !stage.has(p));
+  if (commit && scope !== null) {
+    const extra = (await git.stagedPaths(scope.scope)).filter((p) => !stage.has(p));
     const staged: Trailer[] = extra.filter(isYaml).flatMap((p): Trailer[] => {
       const c = classifyPath(log.layout, p);
       const name = c.area === "event" && !c.file.includes("/") ? parseEventFileName(c.file) : null;
