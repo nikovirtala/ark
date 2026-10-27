@@ -3,13 +3,14 @@
  * config, rendered as a Conventional Commits header whose description stays within 72 characters.
  */
 import { ConfigError, UsageError } from "../errors.js";
+import type { Trailer } from "../git/git.js";
 import type { ToolConfig } from "../sources/config.js";
 
 /** The longest description (the subject after a Conventional prefix), in UTF-16 code units. */
 export const MAX_DESCRIPTION = 72;
 const MAX_TEMPLATE = 200;
 /** Room the fixed part of a description must leave for the title. */
-const MIN_TITLE_ROOM = 20;
+export const MIN_TITLE_ROOM = 20;
 /** The longest Conventional prefix, `: ` included, so the header stays within 100. */
 const MAX_PREFIX = 28;
 const MAX_MESSAGE_BYTES = 65_536;
@@ -38,6 +39,18 @@ export interface RenderedCommit {
   readonly subject: string;
   /** The title was shortened to keep the description within 72 characters. */
   readonly shortened: boolean;
+  /** What a write reports when the title was shortened; `null` when it wasn't. */
+  readonly note: string | null;
+}
+
+/**
+ * What the title placeholder holds around the title: `before` and `after` (joined with spaces)
+ * and, with `quote`, the title in double quotes. Only the title is ever shortened.
+ */
+export interface CommitSlot {
+  readonly before?: string;
+  readonly after?: string;
+  readonly quote?: boolean;
 }
 
 type Part = { readonly text: string } | { readonly name: string };
@@ -259,6 +272,20 @@ function shorten(title: string, budget: number): string {
   return `${title.slice(0, cut).replace(/[ .,;:-]+$/, "")}…`;
 }
 
+/** The title placeholder's value: `slot`'s text around `title` (quoted with `quote`). */
+function inSlot(title: string, slot: CommitSlot | undefined): string {
+  if (slot === undefined) return title;
+  const t = slot.quote === true ? `"${title}"` : title;
+  return [slot.before ?? "", t, slot.after ?? ""].filter((x) => x !== "").join(" ");
+}
+
+/** The shortened note, naming the rendered Conventional prefix when the subject has one. */
+function shortenedNote(subject: string): string {
+  const prefix = PREFIX.exec(subject)?.[0].trimEnd();
+  const what = prefix === undefined ? "commit subject" : `commit description (after "${prefix}")`;
+  return `the title was shortened to keep the ${what} within ${MAX_DESCRIPTION} characters; the full title is in the commit body`;
+}
+
 /**
  * Renders a commit message (design §4.2–4.5). `title` is the title as recorded: `{raw_title}` gets
  * it with whitespace collapsed and trailing dots removed, `{title}` the same with an ordinary
@@ -266,6 +293,12 @@ function shorten(title: string, budget: number): string {
  * description's first letter is always lowercased and the rest keeps its natural casing. A
  * description over 72 characters gets a shortened title, and the body then starts with
  * `Full title: <title>`. Body paragraphs are wrapped at 72.
+ *
+ * With `slot`, the placeholder holds `before`, the title and `after`; with `quote` the title is in
+ * double quotes. The title keeps the casing above and every other character as it is (a `"` in
+ * it stays, unescaped): git and commitlint read the subject as plain text, and the full title is
+ * in the body when shortened. Only the title is shortened; `before`, `after` and the quotes never
+ * are, and the closing quote comes after the `…`. Without `slot` the output is unchanged.
  */
 export function renderCommitMessage(
   t: CommitTemplate,
@@ -273,18 +306,19 @@ export function renderCommitMessage(
     readonly title: string | null;
     readonly vars: Readonly<Record<string, string>>;
     readonly body?: readonly string[];
+    readonly slot?: CommitSlot;
   },
 ): RenderedCommit {
   const raw = prepareTitle(o.title ?? "");
   const parts = tokenize(t.source) ?? [];
   const lower = parts.some((p) => "name" in p && p.name === "title");
   const title = lower ? inSentence(raw) : raw;
-  let subject = substitute(t, title, o.vars);
+  let subject = substitute(t, inSlot(title, o.slot), o.vars);
   let shortened = false;
   const desc = description(subject);
   if (desc.length > MAX_DESCRIPTION && title !== "" && parts.some(isTitle)) {
     const budget = MAX_DESCRIPTION - (desc.length - title.length) - 1;
-    subject = substitute(t, shorten(title, Math.max(budget, 1)), o.vars);
+    subject = substitute(t, inSlot(shorten(title, Math.max(budget, 1)), o.slot), o.vars);
     shortened = true;
   }
   const paragraphs = [
@@ -299,7 +333,38 @@ export function renderCommitMessage(
     lines.push(...wrapped);
   }
   const message = lines.length === 0 ? subject : `${subject}\n\n${lines.join("\n")}`;
-  return { message, subject, shortened };
+  return { message, subject, shortened, note: shortened ? shortenedNote(subject) : null };
+}
+
+/** Verbs joined for a batch subject: `a`, `a and b`, `a, b and c`. */
+export function joinActions(verbs: readonly string[]): string {
+  if (verbs.length <= 1) return verbs[0] ?? "";
+  return `${verbs.slice(0, -1).join(", ")} and ${verbs[verbs.length - 1]}`;
+}
+
+/** An event a commit records: its subject and type. */
+export interface EventRef {
+  readonly subject: string;
+  readonly type: string;
+}
+
+/**
+ * The trailers for `events`: one `[keys.subject, subject]`, `[keys.event, type]` pair per
+ * distinct (subject, type), in first-occurrence order, so no commit has two identical pairs.
+ */
+export function eventTrailers(
+  events: readonly EventRef[],
+  keys: { readonly subject: string; readonly event: string },
+): Trailer[] {
+  const seen = new Set<string>();
+  const out: Trailer[] = [];
+  for (const e of events) {
+    const key = `${e.subject}\0${e.type}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push([keys.subject, e.subject], [keys.event, e.type]);
+  }
+  return out;
 }
 
 /** `--message` text: trimmed, non-empty, no NUL, at most 64 KiB; else `UsageError`. */

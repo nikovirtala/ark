@@ -4,7 +4,10 @@ import { ConfigError, UsageError } from "../errors.js";
 import { commitMessageText } from "../git/git.js";
 import { parseToolConfig } from "../sources/config.js";
 import {
+  type CommitSlot,
   checkCommitMessage,
+  eventTrailers,
+  joinActions,
   MAX_DESCRIPTION,
   parseCommitTemplate,
   readCommitTemplate,
@@ -291,6 +294,7 @@ describe("renderCommitMessage", () => {
       message: "docs(adr): set up the decision log",
       subject: "docs(adr): set up the decision log",
       shortened: false,
+      note: null,
     });
   });
 
@@ -506,5 +510,117 @@ describe("commitMessageText", () => {
     ]) {
       expect(merge(last)).toBe(`chore: x\n\n${last}\n\nADR: k\n`);
     }
+  });
+});
+
+describe("renderCommitMessage with a slot", () => {
+  const issues = parseCommitTemplate("docs(issues): {action} {title}", { vars: VARS, where });
+  const slotted = (action: string, title: string, slot: CommitSlot) =>
+    renderCommitMessage(issues, { title, vars: { action }, slot });
+
+  it("puts before, the quoted title and after around the title", () => {
+    expect(slotted("open", "Split the orders service", { quote: true }).subject).toBe(
+      'docs(issues): open "split the orders service"',
+    );
+    expect(
+      slotted("close", "Split the orders service", {
+        before: "?42",
+        quote: true,
+        after: "as won't fix",
+      }).subject,
+    ).toBe(`docs(issues): close ?42 "split the orders service" as won't fix`);
+    expect(slotted("start work on", "CLI flags", { before: "?42" }).subject).toBe(
+      "docs(issues): start work on ?42 CLI flags",
+    );
+    // A quote inside the title stays as it is.
+    expect(slotted("open", 'Use the "fast" path', { quote: true }).subject).toBe(
+      'docs(issues): open "use the "fast" path"',
+    );
+    // {raw_title} keeps the recorded casing.
+    const raw = parseCommitTemplate("docs(issues): {action} {raw_title}", { vars: VARS, where });
+    expect(
+      renderCommitMessage(raw, { title: "Use X", vars: { action: "open" }, slot: { quote: true } })
+        .subject,
+    ).toBe('docs(issues): open "Use X"');
+  });
+
+  it("shortens only the title, keeping before, after and both quotes", () => {
+    const title = "Add the retry budget and the circuit breaker to the payments gateway client";
+    const r = slotted("close", title, {
+      before: "?42",
+      quote: true,
+      after: "as a duplicate of ?17",
+    });
+    expect(r.shortened).toBe(true);
+    expect(r.subject).toMatch(/^docs\(issues\): close \?42 "add the .*…" as a duplicate of \?17$/);
+    expect(descriptionOf(r.subject).length).toBeLessThanOrEqual(MAX_DESCRIPTION);
+    expect(r.message.replace(/\s+/g, " ")).toContain(`Full title: ${title}`);
+    expect(r.note).toBe(
+      'the title was shortened to keep the commit description (after "docs(issues):") within 72 characters; the full title is in the commit body',
+    );
+  });
+
+  it("words the note for a template without a Conventional prefix", () => {
+    const plain = parseCommitTemplate("{action} {title}", { vars: VARS, where });
+    const r = renderCommitMessage(plain, { title: "x".repeat(90), vars: { action: "open" } });
+    expect(r.note).toBe(
+      "the title was shortened to keep the commit subject within 72 characters; the full title is in the commit body",
+    );
+    expect(renderCommitMessage(plain, { title: "x", vars: { action: "open" } }).note).toBeNull();
+  });
+
+  it("keeps quotes balanced and the description within 72 for any title", () => {
+    const unit = fc.constantFrom("a", "B", " ", '"', "'", "é", "😀", "-", ".");
+    const arbTitle = fc
+      .array(unit, { minLength: 1, maxLength: 120 })
+      .map((xs) => xs.join(""))
+      .filter((t) => t.replace(/[\s.]/g, "") !== "");
+    fc.assert(
+      fc.property(arbTitle, fc.constantFrom("", "as won't fix", "to ?17"), (title, after) => {
+        const r = slotted("close", title, { before: "?42", quote: true, after });
+        const d = descriptionOf(r.subject);
+        expect(d.length).toBeLessThanOrEqual(MAX_DESCRIPTION);
+        expect(d.startsWith('close ?42 "')).toBe(true);
+        const end = after === "" ? '"' : `" ${after}`;
+        expect(d.endsWith(end)).toBe(true);
+        if (r.shortened) expect(d.endsWith(`…${end}`)).toBe(true);
+      }),
+      { numRuns: 300 },
+    );
+  });
+});
+
+describe("joinActions", () => {
+  it("joins one to three verbs without an Oxford comma", () => {
+    expect(joinActions([])).toBe("");
+    expect(joinActions(["link"])).toBe("link");
+    expect(joinActions(["link", "scope"])).toBe("link and scope");
+    expect(joinActions(["assign", "start", "comment on"])).toBe("assign, start and comment on");
+  });
+});
+
+describe("eventTrailers", () => {
+  it("gives one pair per distinct subject and type, in first-occurrence order", () => {
+    const keys = { subject: "Issue", event: "Issue-Event" };
+    expect(
+      eventTrailers(
+        [
+          { subject: "x", type: "linked" },
+          { subject: "x", type: "linked" },
+          { subject: "y", type: "linked" },
+          { subject: "x", type: "scoped" },
+          { subject: "x", type: "linked" },
+        ],
+        keys,
+      ),
+    ).toEqual([
+      ["Issue", "x"],
+      ["Issue-Event", "linked"],
+      ["Issue", "y"],
+      ["Issue-Event", "linked"],
+      ["Issue", "x"],
+      ["Issue-Event", "scoped"],
+    ]);
+    expect(eventTrailers([], keys)).toEqual([]);
   });
 });
