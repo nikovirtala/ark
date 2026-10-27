@@ -120,8 +120,8 @@ async function subjectIds(ctx: CheckContext): Promise<Set<string>> {
 
 /**
  * `scope/anchor-missing` (error) for a local anchor `<keyword>:<id>` whose id has no events
- * directory in the log. Staged mode scans the changed files outside the log root; range and full
- * mode the whole head tree. Qualified anchors (another log's) aren't checked, and paths matching
+ * directory in the log. Staged mode scans the changed files outside the log root (the whole tree
+ * when the scope was widened to every subject); range and full mode the whole head tree. Qualified anchors (another log's) aren't checked, and paths matching
  * an `exclude` glob are skipped.
  */
 export function anchorCheck(o: {
@@ -134,7 +134,10 @@ export function anchorCheck(o: {
       const c = scopedContext(ctx);
       if (c === null) return [];
       const root = ctx.layout.root;
-      const paths = c.repo.mode === "staged" ? await changedCode(c.repo, root) : undefined;
+      const paths =
+        c.repo.mode === "staged" && ctx.scope === "changed"
+          ? await changedCode(c.repo, root)
+          : undefined;
       if (paths !== undefined && paths.length === 0) return [];
       const anchors = await scanAnchors(c.repo.git, {
         keyword: o.keyword,

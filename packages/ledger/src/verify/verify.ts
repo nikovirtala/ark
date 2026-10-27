@@ -101,8 +101,28 @@ async function commitOf(git: Git, ref: string): Promise<string> {
 }
 
 /**
+ * The entries of `widenOn` (repo-relative paths; a trailing `/` means anything under it) that the
+ * staged changes touch: the paths changed between `HEAD` (none on an unborn `HEAD`) and the index,
+ * deletions included, that equal an entry or lie under a `/` entry. In path order; `[]` outside
+ * `staged` mode or for an empty `widenOn`.
+ */
+export async function touchedInputs(
+  git: Git,
+  mode: VerifyMode,
+  widenOn: readonly string[],
+): Promise<string[]> {
+  if (mode.type !== "staged" || widenOn.length === 0) return [];
+  const sha = await git.resolveCommit("HEAD");
+  const changed = await git.changedPaths(sha, "index");
+  return changed.filter((p) => widenOn.some((w) => (w.endsWith("/") ? p.startsWith(w) : p === w)));
+}
+
+/**
  * Verifies a log in a repository. `staged` checks the subjects touched by the index against
  * `HEAD`; `range` checks everything from the merge base to the head; `full` checks a single tree.
+ * In `staged` mode, when the staged changes touch an entry of `widenOn` (`touchedInputs`), every
+ * subject is in scope, because a checked input outside the log (a config, a template, another
+ * log) changed.
  */
 export async function verifyLog(o: {
   readonly git: Git;
@@ -110,6 +130,8 @@ export async function verifyLog(o: {
   readonly layout: LogLayout;
   readonly mode: VerifyMode;
   readonly checks?: readonly Check[];
+  /** Inputs outside the log whose staged change widens a `staged` verify to every subject. */
+  readonly widenOn?: readonly string[];
 }): Promise<Finding[]> {
   const { git, mode } = o;
   let base: TreeReader | null;
@@ -120,7 +142,8 @@ export async function verifyLog(o: {
     head = await indexReader(git);
     const sha = await git.resolveCommit("HEAD");
     base = sha === null ? null : await refReader(git, sha);
-    scope = "changed";
+    const touched = await touchedInputs(git, mode, o.widenOn ?? []);
+    scope = touched.length === 0 ? "changed" : "all";
     repo = { git, mode: "staged", head: "index", base: sha };
   } else if (mode.type === "range") {
     const baseSha = await commitOf(git, mode.base);

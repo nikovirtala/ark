@@ -203,6 +203,21 @@ describe("anchorCheck", () => {
     await r.write("src/other.ts", "export {};\n");
     await r.stage("src/other.ts");
     expect(await verify(r, { type: "staged" })).toEqual([]);
+    // A widened staged run (a checked input outside the log changed) scans the whole tree.
+    await r.write("task.toml", "x = 1\n");
+    await r.stage("task.toml");
+    expect(
+      brief(
+        await verifyLog({
+          git: r.git,
+          kind: task,
+          layout,
+          mode: { type: "staged" },
+          checks: CHECKS,
+          widenOn: ["task.toml"],
+        }),
+      ),
+    ).toEqual(expected);
   });
 
   it("is quiet without a repository context or a scoped kind", async () => {
