@@ -279,7 +279,7 @@ describe("--commit with staged descriptions", () => {
     write(repo, ["edit", a.id, "--section", "goal=Edited.", "--commit"]);
     expect(files(repo)).toEqual(sorted(a.written));
     expect(git(repo, "log", "-1", "--format=%(trailers:only,unfold)")).toBe(
-      `Issue: ${a.id}\nIssue-Event: opened\nIssue: ${a.id}\n\n`,
+      `Issue: ${a.id}\nIssue-Event: opened\n\n`,
     );
     expect(status(repo)).toBe("");
     verifiesAtHead(repo);

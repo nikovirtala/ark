@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
   type Actor,
   CommitFailedError,
+  type CommitSlot,
   ConfigError,
   EventExistsError,
   type Finding,
@@ -10,6 +11,7 @@ import {
   InvalidArgumentError,
   indexReader,
   lintDocument,
+  type RenderedCommit,
   refReader,
   renderCommitMessage,
   type SetOp,
@@ -18,8 +20,9 @@ import {
   templateHistoryRef,
   UsageError,
 } from "@nikovirtala/ledger";
-import { type AfterStage, applyPlan } from "./apply.js";
-import { ACTIONS } from "./commit-actions.js";
+import { type AfterStage, applyPlan, type ComposeInput } from "./apply.js";
+import { ACTIONS, composeSubject, UPDATE_ACTION } from "./commit-actions.js";
+import { bodyTitle } from "./kind/project.js";
 import { type IssueView, issueKind } from "./kind.js";
 import { type IssueLog, type IssuesRead, readIssues, resolveIssue } from "./log.js";
 import { renderIssueIndex } from "./log-index.js";
@@ -44,6 +47,7 @@ import {
   reachOf,
   type SetKind,
   type StagedRenames,
+  slotOf,
   type WriteCommand,
   type WritePlan,
 } from "./plan.js";
@@ -97,8 +101,6 @@ const DEFAULT_DEPS: WriteDeps = { now: Date.now, apply: applyPlan };
 /** An editor run on an absolute path: `null` when it exited 0, else a note for the user. */
 export type Editor = (absPath: string) => Promise<string | null>;
 
-const SHORTENED_NOTE =
-  "commit subject shortened to 72 characters; the full title is in the commit body";
 const decoder = new TextDecoder();
 
 /** `--commit` needs an author and a committer identity; checked before anything is written. */
@@ -120,50 +122,80 @@ function checkWorkTree(log: IssueLog): void {
 }
 
 /**
- * What every write passes `applyPlan` besides the plan: the commit and its message (the user's
- * own with `-m`, else the plan's rendered one) and, with `[log] index = "committed"`, the index
- * render. `write()` and `editIssue`'s editor branch both call `deps.apply` with it, so tests'
- * apply seams cover both.
+ * What every write passes `applyPlan` besides the plan: the commit and either the user's own
+ * message (`-m`) or `compose`, which renders `[commit] subject` once the extra staged events are
+ * known (?6), and, with `[log] index = "committed"`, the index render. `write()` and `editIssue`'s
+ * editor branch both call `deps.apply` with it, so tests' apply seams cover both.
  */
 function applyOptions(
   log: IssueLog,
   command: WriteCommand,
   plan: WritePlan,
   o: WriteOptions & { readonly commit: boolean },
-): {
-  readonly applied: Parameters<typeof applyPlan>[2];
-  readonly rendered: ReturnType<typeof commitMessage> | null;
-  readonly given: string | null;
-} {
-  const rendered = o.commit ? commitMessage(log, command, plan) : null;
+): Parameters<typeof applyPlan>[2] {
   const given = o.message ?? null;
   return {
-    rendered,
-    given,
-    applied: {
-      commit: o.commit,
-      ...(rendered === null
-        ? {}
-        : { message: given ?? rendered.message, mergeTrailers: given !== null }),
-      ...(log.issues.index === "committed" && o.index !== "skip"
-        ? {
-            index: (tree: TreeReader, history: string | null) =>
-              renderIssueIndex(log.git, { layout: log.layout, issues: log.issues, tree, history }),
-          }
-        : {}),
-    },
+    commit: o.commit,
+    ...(!o.commit
+      ? {}
+      : given !== null
+        ? { message: given, mergeTrailers: true }
+        : { compose: (c: ComposeInput) => commitMessage(log, command, plan, c) }),
+    ...(log.issues.index === "committed" && o.index !== "skip"
+      ? {
+          index: (tree: TreeReader, history: string | null) =>
+            renderIssueIndex(log.git, { layout: log.layout, issues: log.issues, tree, history }),
+        }
+      : {}),
   };
 }
 
-/** The plan's commit message from `[commit] subject`, and whether it was shortened. */
-function commitMessage(log: IssueLog, command: string, plan: WritePlan) {
+/**
+ * The plan's commit message from `[commit] subject` (?6): the slot holds the command's issue as
+ * `<display> "<title>"` (`new`: the title alone), with the title the commit's tree holds (an
+ * edited heading; HEAD's when a staged retitle stays out of the commit), then the action's own
+ * words. A batch of extra staged events of other types gets `composeSubject`'s joined verbs and
+ * name instead; where a custom template can't fit them, `update`.
+ */
+async function commitMessage(
+  log: IssueLog,
+  command: WriteCommand,
+  plan: WritePlan,
+  c: ComposeInput,
+): Promise<RenderedCommit> {
   const parts = plan.commit;
   if (parts === null) throw new InvalidArgumentError("this write can't be committed");
-  return renderCommitMessage(log.issues.commitSubject, {
-    title: parts.title,
-    vars: { action: parts.action, id: parts.id, display: parts.display, command },
-    body: parts.body,
+  const path = plan.draft?.path ?? plan.issue?.body_path ?? null;
+  const bytes = path === null ? null : await c.tree.read(path);
+  const title = (bytes === null ? null : bodyTitle(bytes)) ?? parts.title;
+  const render = (action: string, t: string, slot: CommitSlot | undefined) =>
+    renderCommitMessage(log.issues.commitSubject, {
+      title: t,
+      vars: { action, id: parts.id, display: parts.display, command },
+      body: parts.body,
+      ...(slot === undefined ? {} : { slot }),
+    });
+  const single = render(parts.action, title, {
+    before: parts.before,
+    after: parts.after,
+    quote: parts.quote,
   });
+  const batch = composeSubject({
+    command,
+    subject: plan.subject,
+    display: parts.display,
+    plan: c.plan,
+    extra: c.extra,
+  });
+  if (batch === null) return single;
+  const named = (action: string) =>
+    batch.name === null
+      ? render(action, title, { before: parts.before, quote: true })
+      : render(action, batch.name, undefined);
+  const r = named(batch.action);
+  // The several-issues name is never shortened: a template too long for the joined verbs gets
+  // `update`.
+  return r.shortened && batch.name !== null ? named(UPDATE_ACTION) : r;
 }
 
 /** The views after a commit, read again so a commit on the main ref shows its numbers. */
@@ -245,14 +277,7 @@ async function write(
         notes: [...notes, ...(r.plan.notes ?? [])],
       };
     }
-    const {
-      applied: options,
-      rendered,
-      given,
-    } = applyOptions(log, command, r.plan, {
-      ...o,
-      commit,
-    });
+    const options = applyOptions(log, command, r.plan, { ...o, commit });
     try {
       const applied = await deps.apply(log, r.plan, {
         ...options,
@@ -272,8 +297,8 @@ async function write(
           ...notes,
           ...(r.plan.notes ?? []),
           ...applied.notes,
-          ...(applied.commit !== null && given === null && rendered?.shortened === true
-            ? [SHORTENED_NOTE]
+          ...(applied.commit !== null && applied.rendered?.note != null
+            ? [applied.rendered.note]
             : []),
         ],
       };
@@ -462,14 +487,13 @@ export async function editIssue(
     eventDirs: [],
     reach: reachOf(fresh, id),
     draft: null,
-    commit: { action: ACTIONS.edit, title: now.display, id, display: now.display, body: [] },
+    commit: slotOf(now, ACTIONS.edit),
     trailers: [["Issue", id]],
     issue: now,
     affected: [],
     findings: [],
   };
-  const { applied: options, rendered, given } = applyOptions(log, "edit", plan, { ...o, commit });
-  const applied = await deps.apply(log, plan, options);
+  const applied = await deps.apply(log, plan, applyOptions(log, "edit", plan, { ...o, commit }));
   const views = await viewsAfter(log, plan, applied.commit);
   return result({
     issue: views.issue ?? now,
@@ -478,9 +502,7 @@ export async function editIssue(
     notes: [
       ...notes,
       ...applied.notes,
-      ...(applied.commit !== null && given === null && rendered?.shortened === true
-        ? [SHORTENED_NOTE]
-        : []),
+      ...(applied.commit !== null && applied.rendered?.note != null ? [applied.rendered.note] : []),
     ],
   });
 }

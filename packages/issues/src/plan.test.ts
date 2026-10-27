@@ -105,7 +105,9 @@ describe("relations through link", () => {
       expect(first.events.map((e) => [e.type, e.data])).toEqual([["linked", { to: B, rel }]]);
       expect(first.commit).toMatchObject({
         action: "link",
-        title: "?1 to ?2",
+        before: "?1",
+        after: "to ?2",
+        quote: true,
         body: [`${rel} ?2: Issue ${B}.`],
       });
       expect(first.affected.map((v) => v.id)).toEqual([B]);
@@ -207,7 +209,7 @@ describe("relations through link", () => {
     const r = plan(await link(log, A, "ADR-0007", "implements"));
     expect(r.events[0]?.data).toEqual({ to: "adr:k3f9q8a1", rel: "implements" });
     expect(r.commit).toMatchObject({
-      title: "?1 to ADR-0007",
+      after: "to ADR-0007",
       body: ["implements ADR-0007: Use queues."],
     });
     expect(await usage(link(log, A, B, "implements"))).toBe(
@@ -215,7 +217,7 @@ describe("relations through link", () => {
     );
     const cross = plan(await link(log, A, `platform:${Z}`, "depends-on"));
     expect(cross.commit).toMatchObject({
-      title: "?1 to an issue in another log",
+      after: "to an issue in another log",
       body: [`depends-on platform:${Z}.`],
     });
   });
@@ -271,7 +273,7 @@ describe("unlink", () => {
     );
     const r = plan(await unlink("2", "depends-on"));
     expect(r.events[0]?.data).toEqual({ to: B, rel: "depends-on" });
-    expect(r.commit).toMatchObject({ action: "unlink", title: "?1 to ?2" });
+    expect(r.commit).toMatchObject({ action: "unlink", before: "?1", after: "from ?2" });
     expect(plan(await unlink("?2", "depends-on")).notes).toEqual([
       "not linked: ?1 depends-on ?2; nothing written",
     ]);
@@ -329,12 +331,13 @@ describe("closing", () => {
     ]);
     expect(plan(await close(l, A, { resolution: "wontfix", reason: "no" })).commit).toMatchObject({
       action: "close",
-      title: "?1 as won't fix",
+      before: "?1",
+      after: "as won't fix",
       body: ["Reason: no"],
     });
     expect(refusedRules(await close(l, A))).toEqual(["transition/illegal"]);
-    expect(plan(await close(l, B, { resolution: "obsolete", reason: "x" })).commit?.title).toBe(
-      "?2 as obsolete",
+    expect(plan(await close(l, B, { resolution: "obsolete", reason: "x" })).commit?.after).toBe(
+      "as obsolete",
     );
   });
 
@@ -349,7 +352,7 @@ describe("closing", () => {
     expect(await usage(close(l, A, { of: `platform:${B}` }))).toContain("is in another log");
     const r = plan(await close(l, A, { of: "?2", reason: "same" }));
     expect(r.events[0]?.data).toEqual({ resolution: "duplicate", of: B });
-    expect(r.commit?.title).toBe("?1 as a duplicate of ?2");
+    expect(r.commit?.after).toBe("as a duplicate of ?2");
     expect(r.affected.map((v) => v.id)).toEqual([B]);
   });
 
@@ -421,7 +424,7 @@ describe("closing", () => {
         .commit,
     ).toMatchObject({
       action: "reopen",
-      title: "?1",
+      before: "?1",
       body: ["Reason: back"],
     });
   });
@@ -456,7 +459,7 @@ describe("start and stop", () => {
     );
     expect(stop.commit).toMatchObject({
       action: "stop work on",
-      title: "?3",
+      before: "?3",
       body: ["Reason: later"],
     });
     expect(
@@ -539,7 +542,7 @@ describe("sets and label exclusivity", () => {
       ),
     );
     expect(a.events[0]?.data).toEqual({ set: ["dee", "test@example.com"] });
-    expect(a.commit).toMatchObject({ action: "set the assignees of", title: "?1" });
+    expect(a.commit).toMatchObject({ action: "set the assignees of", before: "?1", quote: true });
     expect(
       await usage(
         run(l, (read, c) =>
@@ -598,7 +601,7 @@ describe("new", () => {
     expect(r.commitScope).toEqual(
       [`docs/issues/events/${id}`, body, "docs/issues/templates/task.md"].sort(),
     );
-    expect(r.commit).toMatchObject({ action: "open", title: "Split it" });
+    expect(r.commit).toMatchObject({ action: "open", title: "Split it", before: "", quote: true });
     expect(r.findings).toEqual([]);
     expect(r.issue).toMatchObject({ parent: A, depends_on: [B], blocked: true });
   });
@@ -658,7 +661,7 @@ describe("edit", () => {
     );
     expect(r.commitScope).toEqual([path]);
     expect(r.trailers).toEqual([["Issue", A]]);
-    expect(r.commit).toMatchObject({ action: "edit the description of", title: "?1" });
+    expect(r.commit).toMatchObject({ action: "edit", title: "New", before: "?1", quote: true });
     expect(r.issue?.title).toBe("New");
   });
 
@@ -685,7 +688,7 @@ describe("comment and commit scopes", () => {
     );
     expect(r.commitScope).toEqual([`docs/issues/events/${A}`]);
     expect(r.eventDirs).toEqual([`docs/issues/events/${A}`]);
-    expect(r.commit).toMatchObject({ action: "comment on", title: "?1" });
+    expect(r.commit).toMatchObject({ action: "comment on", before: "?1", after: "" });
     expect(
       await usage(run(l, (read, c) => planComment(read, { id: A, text: "  ", actor: ME }, c))),
     ).toBe("the comment text must not be empty");

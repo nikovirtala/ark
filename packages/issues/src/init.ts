@@ -56,6 +56,7 @@ export function starterConfig(o: {
     "mcp_can_close = true",
     "",
     "[commit]",
+    '# {title} holds the title in quotes for new, and the issue\'s number (or id on a branch) with its title in quotes for every other write, as in: close ?42 "split the orders service".',
     '# subject = "docs(issues): {action} {title}"',
     "",
   ].join("\n");

@@ -148,19 +148,30 @@ anchor_exclude = ["docs/**"]
   });
 
   it("fits the longest names in the default subject without shortening them", () => {
-    const longest = [
-      ["close", `?123456789 as a duplicate of ?123456788`],
-      ["unlink", "?123456789 to a decision in another log"],
-      ["set up", "the issue log"],
+    const twenty = "a".repeat(20);
+    const longest: [string, string, { before?: string; after?: string; quote?: boolean }][] = [
+      [
+        "close",
+        twenty,
+        { before: "?123456789", after: "as a duplicate of ?123456788", quote: true },
+      ],
+      [
+        "unlink",
+        twenty,
+        { before: "?123456789", after: "from a decision in another log", quote: true },
+      ],
+      ["reopen, unlink and comment on", twenty, { before: "?123456789", quote: true }],
+      ["reopen, unlink and comment on", "?123456789 and 999 other issues", {}],
+      ["set up", "the issue log", {}],
     ];
-    for (const [action, title] of longest) {
+    for (const [action, title, slot] of longest) {
       const r = renderCommitMessage(DEFAULT_ISSUES_CONFIG.commitSubject, {
-        title: title ?? "",
-        vars: { action: action ?? "", id: "m4p8x2kd", display: "?1", command: "close" },
+        title,
+        vars: { action, id: "m4p8x2kd", display: "?1", command: "close" },
+        slot,
       });
-      expect(r.shortened).toBe(false);
-      expect(r.subject).toBe(`docs(issues): ${action} ${title}`);
+      expect(r.shortened, r.subject).toBe(false);
     }
-    expect(COMMIT_VARS.action).toBe("edit the description of".length);
+    expect(COMMIT_VARS.action).toBe("reopen, unlink and comment on".length);
   });
 });

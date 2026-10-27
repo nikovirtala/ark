@@ -70,12 +70,14 @@ describe("the lifecycle commands", () => {
     ]);
     expect(dup.status).toBe(0);
     expect(dup.json.affected.map((v) => v.display)).toEqual(["?2"]);
-    expect(subjectOf(repo.root, cliEnv(repo))).toBe("docs(issues): close ?1 as a duplicate of ?2");
+    expect(subjectOf(repo.root, cliEnv(repo))).toBe(
+      'docs(issues): close ?1 "one" as a duplicate of ?2',
+    );
     expect(
       runIssues(repo, ["close", "2", "--resolution", "wontfix", "--reason", "no", "--commit"])
         .status,
     ).toBe(0);
-    expect(subjectOf(repo.root, cliEnv(repo))).toBe("docs(issues): close ?2 as won't fix");
+    expect(subjectOf(repo.root, cliEnv(repo))).toBe(`docs(issues): close ?2 "two" as won't fix`);
   });
 
   it("refuses the effective self-loop when the close makes it", async () => {

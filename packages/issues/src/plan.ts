@@ -79,12 +79,21 @@ export interface PlanContext {
   readonly builtins: Readonly<Record<string, string>>;
 }
 
-/** The parts of a commit message: the template's variables and the body. */
+/** The parts of a commit message: the template's variables, the title slot and the body. */
 export interface CommitParts {
   /** `{action}`, the verb phrase, e.g. `close` or `set the labels of`. */
   readonly action: string;
-  /** The text after `{action}`: the title for `new`, else a name built from displays. */
+  /**
+   * The issue's title, or a name (`the issue log`). The commit quotes the title its tree holds
+   * (`composeSubject`'s caller reads it), so this is the fallback.
+   */
   readonly title: string;
+  /** Slot text before the title: the display for every write after `new`, else `""`. */
+  readonly before: string;
+  /** Slot text after the title: `as won't fix`, `to ?17`, or `""`. */
+  readonly after: string;
+  /** Whether the title is quoted; `false` for a name. */
+  readonly quote: boolean;
   readonly id: string;
   readonly display: string;
   /** Body paragraphs, each wrapped at 72. */
@@ -463,6 +472,27 @@ async function planEvents(
 
 const reasonBody = (reason: string | null) => (reason === null ? [] : [`Reason: ${reason}`]);
 
+/**
+ * The commit parts of a write after `new`: `<display> "<title>"` in the slot, then `after` (?6),
+ * so `git log --oneline` names the issue without `issues show`.
+ */
+export function slotOf(
+  v: IssueView,
+  action: string,
+  o: { readonly after?: string; readonly body?: readonly string[] } = {},
+): CommitParts {
+  return {
+    action,
+    title: v.title,
+    before: v.display,
+    after: o.after ?? "",
+    quote: true,
+    id: v.id,
+    display: v.display,
+    body: o.body ?? [],
+  };
+}
+
 /** The template `new` uses: the repo's `<root>/templates/<name>.md`, else a built-in to copy. */
 async function chooseTemplate(
   read: IssuesRead,
@@ -617,7 +647,16 @@ export async function planOpen(
       eventDirs: [dir],
       reach: reachOf(after, id),
       draft: { path: bodyPath, rendered: body, template: t },
-      commit: { action: ACTIONS.new, title, id, display: id, body: [] },
+      commit: {
+        action: ACTIONS.new,
+        title,
+        before: "",
+        after: "",
+        quote: true,
+        id,
+        display: id,
+        body: [],
+      },
       trailers: pairsOf(events),
       issue: after.projection.views.get(id) ?? null,
       affected: [],
@@ -745,7 +784,7 @@ export async function planEdit(
       eventDirs: [],
       reach: reachOf(after, id),
       draft: null,
-      commit: { action: ACTIONS.edit, title: view.display, id, display: view.display, body: [] },
+      commit: slotOf(after.projection.views.get(id) ?? view, ACTIONS.edit),
       trailers: [["Issue", id]],
       issue: after.projection.views.get(id) ?? view,
       affected: [],
@@ -801,7 +840,7 @@ export async function planStart(
     subject: id,
     events,
     actor: input.actor,
-    commit: (v) => ({ action: ACTIONS.start, title: v.display, id, display: v.display, body: [] }),
+    commit: (v) => slotOf(v, ACTIONS.start),
     findings: () =>
       view.blocked
         ? [
@@ -834,13 +873,7 @@ export function planStop(
     subject: id,
     events: [{ type: "stopped", data: {}, reason }],
     actor: input.actor,
-    commit: (v) => ({
-      action: ACTIONS.stop,
-      title: v.display,
-      id,
-      display: v.display,
-      body: reasonBody(reason),
-    }),
+    commit: (v) => slotOf(v, ACTIONS.stop, { body: reasonBody(reason) }),
   });
 }
 
@@ -895,13 +928,11 @@ export async function planClose(
     subject: id,
     events: [{ type: "closed", data: { resolution, ...(of === null ? {} : { of }) }, reason }],
     actor: input.actor,
-    commit: (v) => ({
-      action: ACTIONS.close,
-      title: `${v.display}${RESOLUTION_TITLES[resolution]}${of === null ? "" : ` ${display(of)}`}`,
-      id,
-      display: v.display,
-      body: reasonBody(reason),
-    }),
+    commit: (v) =>
+      slotOf(v, ACTIONS.close, {
+        after: `${RESOLUTION_TITLES[resolution]}${of === null ? "" : ` ${display(of)}`}`.trim(),
+        body: reasonBody(reason),
+      }),
     affected: (after) => {
       if (of === null) return [];
       const canonical = after.projection.views.get(id)?.canonical ?? of;
@@ -933,13 +964,7 @@ export function planReopen(
     subject: id,
     events: [{ type: "reopened", data: {}, reason }],
     actor: input.actor,
-    commit: (v) => ({
-      action: ACTIONS.reopen,
-      title: v.display,
-      id,
-      display: v.display,
-      body: reasonBody(reason),
-    }),
+    commit: (v) => slotOf(v, ACTIONS.reopen, { body: reasonBody(reason) }),
   });
 }
 
@@ -957,13 +982,7 @@ export function planComment(
     subject: id,
     events: [{ type: "commented", data: { text: input.text } }],
     actor: input.actor,
-    commit: (v) => ({
-      action: ACTIONS.comment,
-      title: v.display,
-      id,
-      display: v.display,
-      body: [],
-    }),
+    commit: (v) => slotOf(v, ACTIONS.comment),
   });
 }
 
@@ -1083,7 +1102,7 @@ export async function planSet(
     subject: id,
     events: [{ type: spec.type, data: { set: [...result.set] } }],
     actor: input.actor,
-    commit: (v) => ({ action: spec.action, title: v.display, id, display: v.display, body: [] }),
+    commit: (v) => slotOf(v, spec.action),
     notes,
   });
 }
@@ -1104,28 +1123,31 @@ function checkRel(rel: string): Rel {
   return rel as Rel;
 }
 
-/** How a link's commit names its target, and the body sentence. */
+/**
+ * How a link's commit names its target after the title (`to ?17`, `to an issue in another log`;
+ * `from …` for unlink), and the body sentence.
+ */
 function linkWords(
   read: IssuesRead,
-  view: IssueView,
   rel: Rel,
   to: string,
-): { title: string; body: string; shown: string } {
+  word: "to" | "from" = "to",
+): { after: string; body: string; shown: string } {
   const at = to.indexOf(":");
   if (at < 0) {
     const t = read.projection.views.get(to);
     const shown = t?.display ?? to;
     const title = t === undefined ? "" : `: ${sentenceTitle(t.title)}`;
-    return { title: `${view.display} to ${shown}`, body: `${rel} ${shown}${title}.`, shown };
+    return { after: `${word} ${shown}`, body: `${rel} ${shown}${title}.`, shown };
   }
   if (to.slice(0, at) === "adr" && read.decisions !== null) {
     const d = read.decisions.views.get(to.slice(at + 1));
     const shown = d?.display ?? to;
     const title = d === undefined ? "" : `: ${sentenceTitle(d.title)}`;
-    return { title: `${view.display} to ${shown}`, body: `${rel} ${shown}${title}.`, shown };
+    return { after: `${word} ${shown}`, body: `${rel} ${shown}${title}.`, shown };
   }
   const cross = rel === "implements" ? CROSS_LOG_DECISION : CROSS_LOG_ISSUE;
-  return { title: `${view.display} ${cross}`, body: `${rel} ${to}.`, shown: to };
+  return { after: `${word} ${cross.slice(3)}`, body: `${rel} ${to}.`, shown: to };
 }
 
 const affectedOf = (after: IssuesRead, to: string) => {
@@ -1148,7 +1170,7 @@ export async function planLink(
   const view = viewOf(read, id);
   const to = resolveTarget(read, input.to, rel);
   if (to === id) throw new UsageError("an issue can't link to itself");
-  const words = linkWords(read, view, rel, to);
+  const words = linkWords(read, rel, to);
   const links = read.folded.subjects.get(id)?.state?.links ?? [];
   if (links.some((l) => l.to === to && l.rel === rel)) {
     return emptyPlan("link", view, [
@@ -1160,13 +1182,7 @@ export async function planLink(
     subject: id,
     events: [{ type: "linked", data: { to, rel } }],
     actor: input.actor,
-    commit: (v) => ({
-      action: ACTIONS.link,
-      title: words.title,
-      id,
-      display: v.display,
-      body: [words.body],
-    }),
+    commit: (v) => slotOf(v, ACTIONS.link, { after: words.after, body: [words.body] }),
     affected: (after) => affectedOf(after, to),
     notes: uncachedNotes(read, [to]),
   });
@@ -1228,19 +1244,13 @@ export async function planUnlink(
     );
   }
   const link = candidates[0] as { to: string; rel: Rel };
-  const words = linkWords(read, view, link.rel, link.to);
+  const words = linkWords(read, link.rel, link.to, "from");
   return planEvents(read, c, {
     command: "unlink",
     subject: id,
     events: [{ type: "unlinked", data: { to: link.to, rel: link.rel } }],
     actor: input.actor,
-    commit: (v) => ({
-      action: ACTIONS.unlink,
-      title: words.title,
-      id,
-      display: v.display,
-      body: [words.body],
-    }),
+    commit: (v) => slotOf(v, ACTIONS.unlink, { after: words.after, body: [words.body] }),
     affected: (after) => affectedOf(after, link.to),
     refuseAdded: false,
   });
@@ -1250,6 +1260,9 @@ export async function planUnlink(
 export const INIT_COMMIT: Omit<CommitParts, "id" | "display" | "body"> = Object.freeze({
   action: ACTIONS.init,
   title: INIT_TITLE,
+  before: "",
+  after: "",
+  quote: false,
 });
 
 /** The renamed files and the tracked files before and after them. */
