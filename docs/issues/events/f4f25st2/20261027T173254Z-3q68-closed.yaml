@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M5Z6R4MP2MNHBT0FMZV93Q68
+subject: f4f25st2
+type: closed
+at: 2026-10-27T17:32:54Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "Fixed in #25 (@nikovirtala/issues 0.1.1). A --commit that commits an issue's staged opened event now also commits its staged description and template, and the staged files of any issue it references (by link, parent or duplicate-of) that isn't committed yet. When one of those files has unstaged changes, is untracked or is missing, the commit refuses with exit 2 before writing anything and names the file, so no --commit leaves body/missing at HEAD. packages/issues/src/cli/commit-staged.test.ts runs this issue's steps and PR #22's new, link, then scope --commit, plus each related case. Each test that commits checks the commit's files and that issues verify --ref HEAD exits 0; each refusal test checks exit 2, the message, and that HEAD and git status are unchanged. 20 of its 22 tests fail without the fix. The patch changeset .changeset/issues-commit-staged-description.md releases 0.1.1, and #25 merges before ?3. This close is in #25, the same PR as the fix."
+data:
+  resolution: done
