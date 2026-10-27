@@ -61,6 +61,7 @@ it("lints open and in-progress bodies and requires a done section in templates",
   expect(issueKind.def.scope).toEqual({
     event: "scoped",
     activeIn: ["open", "in-progress"],
+    requireMatchIn: ["in-progress"],
     keyword: "issue",
   });
 });

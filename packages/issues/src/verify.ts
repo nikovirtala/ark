@@ -1,8 +1,10 @@
 import {
+  anchorCheck,
   type Check,
   type Finding,
   foldChecks,
   gitTemplates,
+  scopeGlobCheck,
   templateHistoryRef,
   type VerifyMode,
   verifyLog,
@@ -11,13 +13,15 @@ import { issueKind, type SourceLog } from "./kind.js";
 import type { IssueLog } from "./log.js";
 import { issueIndexCheck } from "./log-index.js";
 import { readSourceLogs } from "./sources.js";
+import { staleAnchorCheck } from "./stale-anchors.js";
 
 /**
  * Every check of an issue log in this version: ledger's mechanical and fold checks with the
  * kind's invariants and relate under the config's policy and `sources` (the local decision log),
  * and template lint of open and in-progress issues against the templates in the head tree and,
- * for older versions, the history of `historyRef`. With `[log] index = "committed"`, also the
- * freshness of `<root>/index.md`.
+ * for older versions, the history of `historyRef`; the checks over code of 02's CI table (scope
+ * globs of in-progress issues, `scope/anchor-missing`, `issue/stale-anchor`); and with `[log]
+ * index = "committed"`, the freshness of `<root>/index.md`.
  */
 export function issuesChecks(
   log: IssueLog,
@@ -34,6 +38,9 @@ export function issuesChecks(
       },
       templates: gitTemplates(log.git, { historyRef }),
     }),
+    scopeGlobCheck(),
+    anchorCheck({ keyword: log.issues.anchorKeyword, exclude: log.issues.anchorExclude }),
+    staleAnchorCheck(log),
     ...(log.issues.index === "committed" ? [issueIndexCheck(log)] : []),
   ];
 }

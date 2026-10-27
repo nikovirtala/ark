@@ -554,7 +554,9 @@ describe("sets and label exclusivity", () => {
         }),
       ),
     );
-    expect(s.notes).toEqual(["nothing/** matches no tracked file"]);
+    expect(s.notes).toEqual([
+      `nothing/** matches no tracked file; verify reports scope/glob-unmatched once ${s.issue?.display} is started, until a file matches`,
+    ]);
     expect(
       await usage(
         run(l, (read, c) => planSet(read, "scope", { id: A, op: { add: ["["] }, actor: ME }, c)),

@@ -481,14 +481,18 @@ export async function editIssue(
   });
 }
 
-/** `issues start`: writes `started` (and `assigned` with you when unassigned). */
-export function startIssue(
+/**
+ * `issues start`: writes `started` (and `assigned` with you when unassigned), noting each scope
+ * glob that matches no tracked file, which verify reports from now on.
+ */
+export async function startIssue(
   log: IssueLog,
   input: { readonly id: string; readonly actor: Actor },
   o: WriteOptions = {},
   deps: WriteDeps = DEFAULT_DEPS,
 ): Promise<IssueWriteJson> {
-  return write(log, "start", (read, c) => planStart(read, input, c), o, deps);
+  const tracked = (await (await indexReader(log.git)).list("")).map((e) => e.path);
+  return write(log, "start", (read, c) => planStart(read, input, c, { tracked }), o, deps);
 }
 
 /** `issues stop`: writes `stopped`, with a reason when given. */
