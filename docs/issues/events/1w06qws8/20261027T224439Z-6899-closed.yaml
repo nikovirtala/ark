@@ -1,0 +1,22 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M5ZRJZA57RE03Y62XX0P6899
+subject: 1w06qws8
+type: closed
+at: 2026-10-27T22:44:39Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: |-
+  Done in issues PR 2. Commits are named by subject because the fixups are squashed before merge.
+  1. The changesets ("chore: add changesets for ledger 0.7.0, adr 0.5.0 and issues 0.2.0") release ledger 0.7.0, adr 0.5.0 and issues 0.2.0 in the next version PR, shipping everything below with its tests. Hooks: "feat(issues): add git hooks through ledger's shim" (hooks.test.ts). issues index and index = "committed": "feat(issues): render the issue index and accept index = \"committed\"" and "feat(issues): keep index.md fresh on every write" (log-index.test.ts, cli/index-command.test.ts, the invariant matrix in cli/index-invariant.test.ts and write.index.test.ts). Code checks: "feat(issues): check scope globs, code anchors and stale anchors" (verify.test.ts, cli/code-checks.test.ts). Cross-repository references: "feat(adr): check references into cached decision logs" and "feat(issues): check references into other repositories", on ledger's "read sources from the cache unless verify fetches them" and "add the shared sources fetch command" (sources tests in each package, ledger sources/read.test.ts, cli/sources-command.test.ts). End to end: e2e-guardrails.test.ts in both tools. The issues README ("docs: describe issues 0.2.0 and adr 0.5.0 in the readmes") lists only the MCP server, SKILL.md and search as not included.
+  2. Staged widening: ledger's "widen staged verify when a checked input outside the log changes", adr's "re-check every decision when a staged config or template changes" and issues' "re-check every issue when a staged input outside the log changes". verify.staged.test.ts covers these cases, each staged alone: an adr reject reports issue/implements-unaccepted on the unchanged implementing issue, and a change to mcp_can_close, close_requires_human or [labels] exclusive reports the unchanged issues it breaks. hooks.test.ts runs the same checks through the pre-commit hook. adr's verify.test.ts covers a staged policy change alone ("re-checks every decision when only a staged policy change touches the config") and a staged template change alone ("re-lints an unchanged proposed decision when only a staged template changes").
+  3. Without --fetch-sources, sources are read from the cache only. ledger sources/read.test.ts ("reads only the cache by default: a miss is null, and nothing touches the network") and each tool's cli/sources.test.ts (issues: "warns once per uncached source without touching the network"; adr: "warns once per uncached source and never touches the network without --fetch-sources") assert this under GIT_TRACE2_EVENT, with one sources/not-fetched warning per uncached source. A failed fetch under --fetch-sources exits 2 under ADR-0004, because the checks couldn't run (cli/sources.test.ts in issues and adr, ledger cli/verify-command.test.ts).
+  4. ark's docs/issues/issues.toml sets index = "committed" with a committed docs/issues/index.md ("docs(issues): keep ark's issue index committed"), and every later log commit keeps the index fresh. "build: install issues' hooks in ark and check its index per commit" installs issues' hooks in ark's shared shims, and check-commit.sh runs issues index --check. CI's "Verify ark's issue log" step runs issues verify, which now includes the code and index checks. ark has no [[sources]], so CI doesn't pass --fetch-sources, and the workflow comment says to add it when ark gets a source.
+  5. This close is in the same PR as the change.
+data:
+  resolution: done
