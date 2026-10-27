@@ -123,6 +123,17 @@ export function adrChecks(log: DecisionLog, historyRef: string | null): readonly
   ];
 }
 
+/**
+ * The inputs outside the decision events that adr's checks read: both candidate config paths (so
+ * adding a config counts) and the log's templates. A staged change to one widens `verify --staged`
+ * to every decision, because a policy, scope, severity, index or template change can make an
+ * unchanged decision fail.
+ */
+export function decisionVerifyInputs(log: DecisionLog): string[] {
+  const root = log.layout.root;
+  return ["adr.toml", `${root}/adr.toml`, `${root}/templates/`];
+}
+
 /** Verifies the decision log in `mode` (staged, range or full) with `adrChecks`. */
 export async function verifyDecisions(log: DecisionLog, mode: VerifyMode): Promise<Finding[]> {
   return verifyLog({
@@ -131,5 +142,6 @@ export async function verifyDecisions(log: DecisionLog, mode: VerifyMode): Promi
     layout: log.layout,
     mode,
     checks: adrChecks(log, await templateHistoryRef(log.git, mode)),
+    widenOn: decisionVerifyInputs(log),
   });
 }

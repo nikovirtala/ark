@@ -1,7 +1,7 @@
 import { templateHistoryRef } from "@nikovirtala/ledger";
 import { type ToolCli, verifyCommand } from "@nikovirtala/ledger/cli";
 import { adrKind } from "../kind.js";
-import { adrChecks } from "../verify.js";
+import { adrChecks, decisionVerifyInputs } from "../verify.js";
 import { acceptCommand } from "./accept.js";
 import { deprecateCommand } from "./deprecate.js";
 import { forCommand } from "./for.js";
@@ -37,6 +37,7 @@ const verify = verifyCommand({
       checks: adrChecks(log, await templateHistoryRef(log.git, mode)),
       failOn: log.adr.failOn,
       notes: log.notes,
+      widenOn: decisionVerifyInputs(log),
     };
   },
 });

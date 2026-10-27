@@ -38,7 +38,7 @@ import {
   LAYOUT,
   proposedData,
 } from "./test-support/events.js";
-import { adrChecks, verifyDecisions } from "./verify.js";
+import { adrChecks, decisionVerifyInputs, verifyDecisions } from "./verify.js";
 
 const repos: TempRepo[] = [];
 afterEach(async () => {
@@ -194,6 +194,64 @@ describe("verifyDecisions", () => {
     const log = await open(relaxed);
     expect(await verifyDecisions(log, { type: "full" })).toEqual([]);
     expect(adrChecks(log, null).map((c) => c.id)).toContain("template");
+  });
+
+  it("re-checks every decision when only a staged policy change touches the config", async () => {
+    const files = decisionFiles([
+      {
+        id: B,
+        body: BODY,
+        events: [
+          decisionEvent(B, "proposed", { data: proposedData("Agent") }),
+          decisionEvent(B, "accepted", { data: { body_sha256: hashOf(BODY) }, actor: TEST_AGENT }),
+        ],
+      },
+    ]);
+    const r = await acceptedLog({
+      ...files,
+      "adr.toml": "[policy]\naccept_requires_human = false\n",
+    });
+    await r.write("adr.toml", "[policy]\naccept_requires_human = true\n");
+    await r.stage("adr.toml");
+    const log = await open(r, { reader: "index" });
+    expect(rules(await verifyDecisions(log, { type: "staged" }))).toEqual([
+      `decision/agent-accepted ${B}`,
+    ]);
+    // ledger's verifyLog without the inputs keeps the touched-only scope.
+    const narrow = await verifyLog({
+      git: log.git,
+      kind: adrKind,
+      layout: log.layout,
+      mode: { type: "staged" },
+      checks: adrChecks(log, "HEAD"),
+    });
+    expect(narrow).toEqual([]);
+    expect(decisionVerifyInputs(log)).toEqual([
+      "adr.toml",
+      "docs/adr/adr.toml",
+      "docs/adr/templates/",
+    ]);
+  });
+
+  it("re-lints an unchanged proposed decision when only a staged template changes", async () => {
+    const proposed = decisionFiles([
+      {
+        id: B,
+        body: BODY,
+        events: [decisionEvent(B, "proposed", { data: proposedData("Use Aurora") })],
+      },
+    ]);
+    const r = await acceptedLog(proposed);
+    expect(await verifyDecisions(await open(r), { type: "full" })).toEqual([]);
+    const stricter = TEMPLATE.replace(
+      "  - id: scope\n",
+      "  - id: decision\n    heading: Decision\n    required: true\n  - id: scope\n",
+    ).replace("## Scope\n", "## Decision\n{{decision}}\n\n## Scope\n");
+    await r.write("docs/adr/templates/nygard.md", stricter);
+    await r.stage("docs/adr/templates/nygard.md");
+    expect(
+      rules(await verifyDecisions(await open(r, { reader: "index" }), { type: "staged" })),
+    ).toEqual([`template/section-missing ${B}`]);
   });
 
   it("finds a draft whose template is missing", async () => {

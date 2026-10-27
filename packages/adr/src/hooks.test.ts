@@ -94,6 +94,19 @@ describe("runPreCommitHook", { timeout: 60_000 }, () => {
     expect(await stagedLog(r)).toEqual([]);
   });
 
+  it("fails on an unchanged agent-accepted decision when only the staged policy changes", async () => {
+    const r = await repo({ "docs/adr/adr.toml": "[policy]\naccept_requires_human = false\n" });
+    const a = await seedDecision(r, "Use Aurora for orders", { accept: false });
+    const agent = { ARK_AGENT: "kiro", ARK_ON_BEHALF_OF: "ada@example.com" };
+    expect(runAdr(r, ["accept", a, "--commit"], { env: agent }).status).toBe(0);
+    expect(await run(r)).toMatchObject({ exit: 0, findings: [] });
+    await r.write("docs/adr/adr.toml", "[policy]\naccept_requires_human = true\n");
+    await r.stage("docs/adr/adr.toml");
+    const out = await run(r);
+    expect(out.exit).toBe(1);
+    expect(out.findings.map((f) => [f.rule, f.subject])).toEqual([["decision/agent-accepted", a]]);
+  });
+
   it("skips rename following when it is off", async () => {
     const { r } = await moved('[hooks]\nscope_follow_renames = "off"\n');
     expect(await run(r)).toMatchObject({ exit: 0, findings: [], notes: [] });
