@@ -14,6 +14,31 @@ export const ACTIONS = {
   scoped: { action: "set the scope of", names: "display" },
 } as const satisfies Record<string, { action: string; names: "title" | "display" }>;
 
+/**
+ * The verb of each display-named event type in a batch subject (?6, design §4.4), and the order
+ * they are joined in: `link and scope ADR-0003`, `add a note to` last so it reads before the name.
+ */
+export const BATCH_ACTIONS = {
+  deprecated: "deprecate",
+  superseded: "supersede",
+  linked: "link",
+  scoped: "scope",
+  noted: "add a note to",
+} as const;
+export const BATCH_ORDER: readonly string[] = [
+  "deprecated",
+  "superseded",
+  "linked",
+  "scoped",
+  "noted",
+];
+
+/** `{action}` of a batch of more than three verbs. */
+export const UPDATE_ACTION = "update";
+
+/** The longest batch action, `deprecate, supersede and add a note to`. */
+export const LONGEST_BATCH = "deprecate, supersede and add a note to".length;
+
 /** `{action}` of `adr index --commit`, whose title slot holds `the decision index`. */
 export const INDEX_ACTION = "regenerate";
 
@@ -23,7 +48,11 @@ export const INDEX_TITLE = "the decision index";
 /** `{action}` of a draft update (`adr_update_draft`), whose title slot holds the display. */
 export const DRAFT_ACTION = "update the draft of";
 
-/** The longest `{action}`, which `[commit] subject` must leave room for. */
+/**
+ * The longest `{action}` that goes with a title, which `[commit] subject` must leave a title room
+ * for. A batch action (up to `LONGEST_BATCH`) only ever goes with a display, so `COMMIT_NAMES`
+ * covers it instead.
+ */
 export const LONGEST_ACTION: number = Math.max(
   ...Object.values(ACTIONS).map((a) => a.action.length),
   INDEX_ACTION.length,
@@ -61,4 +90,7 @@ export const COMMIT_NAMES = Object.freeze([
     vars: { action: ACTIONS.linked.action.length },
   },
   { length: INDEX_TITLE.length, vars: { action: INDEX_ACTION.length } },
+  // A batch names the decision by its display, never shortened; where the joined verbs don't fit
+  // the template, the batch says `update <display>`, so every template that fits that still parses.
+  { length: DISPLAY_LENGTH, vars: { action: UPDATE_ACTION.length } },
 ]);

@@ -378,7 +378,8 @@ describe("--commit messages", { timeout: 60_000 }, () => {
         "",
       ].join("\n"),
     );
-    const note = "commit subject shortened to 72 characters; the full title is in the commit body";
+    const note =
+      'the title was shortened to keep the commit description (after "docs(adr):") within 72 characters; the full title is in the commit body';
     expect(json(out.stdout).notes).toEqual([note]);
     expect(out.stderr).toBe(`adr: warning: ${note}\n`);
   });

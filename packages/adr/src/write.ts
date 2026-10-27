@@ -13,8 +13,10 @@ import {
   ENVELOPE_VERSION,
   type EventEnvelope,
   EventExistsError,
+  type EventRef,
   eventDir,
   eventPath,
+  eventTrailers,
   extractSections,
   FileExistsError,
   type Finding,
@@ -29,6 +31,8 @@ import {
   InvalidArgumentError,
   indexReader,
   isSubjectId,
+  joinActions,
+  type LogLayout,
   lintDocument,
   lintTemplate,
   newSubjectId,
@@ -38,6 +42,7 @@ import {
   parseGlob,
   parseTemplate,
   type Rename,
+  type RenderedCommit,
   refReader,
   renderCommitMessage,
   renderTemplate,
@@ -60,7 +65,14 @@ import {
   writeIndexCopy,
   writeNewFile,
 } from "@nikovirtala/ledger";
-import { ACTIONS, CROSS_LOG_LINK, DRAFT_ACTION } from "./commit-actions.js";
+import {
+  ACTIONS,
+  BATCH_ACTIONS,
+  BATCH_ORDER,
+  CROSS_LOG_LINK,
+  DRAFT_ACTION,
+  UPDATE_ACTION,
+} from "./commit-actions.js";
 import { type AdrSource, adrKind, type DecisionView, type LinkRel } from "./kind.js";
 import {
   type DecisionLog,
@@ -1503,6 +1515,8 @@ export interface AppliedPlan {
   readonly findings: readonly Finding[];
   /** Notes about the index ("not updated", "may be stale"); `[]` when none. */
   readonly notes: readonly string[];
+  /** The message `compose` rendered, or `null` without `compose` or a commit. */
+  readonly rendered: RenderedCommit | null;
 }
 
 /**
@@ -1548,6 +1562,17 @@ export async function applyPlan(
     readonly message?: string;
     /** `message` is the user's own: append the trailers to its own trailer block, if it ends in one. */
     readonly mergeTrailers?: boolean;
+    /**
+     * Renders the commit message once the extra staged events are known (?6), instead of
+     * `message`: `plan` holds the plan's own events, `extra` the other staged event files the
+     * commit sweeps in (by file name, deduplicated by subject and type), and `tree` is the
+     * commit's tree. Exclusive with `message`.
+     */
+    readonly compose?: (c: {
+      readonly plan: readonly EventRef[];
+      readonly extra: readonly EventRef[];
+      readonly tree: TreeReader;
+    }) => RenderedCommit;
     readonly afterStage?: () => Promise<AfterStage>;
     /**
      * Renders the log's index for `tree`, which builds on `history` (HEAD, the new commit, or
@@ -1558,8 +1583,11 @@ export async function applyPlan(
   },
 ): Promise<AppliedPlan> {
   const { git } = log;
-  if (o.commit && o.message === undefined) {
+  if (o.commit && o.message === undefined && o.compose === undefined) {
     throw new InvalidArgumentError("applyPlan needs a message to commit");
+  }
+  if (o.message !== undefined && o.compose !== undefined) {
+    throw new InvalidArgumentError("applyPlan takes a message or compose, not both");
   }
   const stage = new Set(plan.stage);
   // This check runs before anything is written. It stays correct with an editor in between for
@@ -1688,21 +1716,26 @@ export async function applyPlan(
 
   const stale = (err: unknown) => `${at} may be stale: ${firstLine(err)}; run adr index`;
   let sha: string | null = null;
+  let rendered: RenderedCommit | null = null;
   if (commit) {
     const extra = await extraOf();
-    const staged: Trailer[] = extra.filter(isYaml).flatMap((p): Trailer[] => {
-      const c = classifyPath(log.layout, p);
-      const name = c.area === "event" && !c.file.includes("/") ? parseEventFileName(c.file) : null;
-      return c.area === "event" && c.subject !== null && name !== null
-        ? [
-            ["ADR", c.subject],
-            ["ADR-Event", name.type],
-          ]
-        : [];
-    });
-    const message = o.message ?? "";
+    const extraRefs = stagedEventRefs(log.layout, extra);
+    const planRefs = plan.events.map((e) => ({ subject: e.subject, type: e.type }));
+    rendered =
+      o.compose === undefined
+        ? null
+        : o.compose({ plan: planRefs, extra: extraRefs, tree: await commitTree(extra) });
+    const message = rendered?.message ?? o.message ?? "";
     const mergeTrailers = o.mergeTrailers === true;
-    const trailers = [...staged, ...plan.trailers];
+    // One pair per (decision, type): a staged event of a type the plan writes too adds nothing.
+    const pairs = eventTrailers([...extraRefs, ...planRefs], TRAILER_KEYS);
+    const named = new Set(pairs.filter(([k]) => k === "ADR").map(([, v]) => v));
+    const trailers = [
+      ...pairs,
+      ...(plan.events.length === 0
+        ? plan.trailers.filter(([k, v]) => k !== "ADR" || !named.has(v))
+        : []),
+    ];
     const sameEvents =
       sorted(extra.filter(isYaml)).join("\0") === sorted(extra0.filter(isYaml)).join("\0");
     if (text !== null && o.index !== undefined && o.afterStage !== undefined && !sameEvents) {
@@ -1783,7 +1816,32 @@ export async function applyPlan(
     commit: sha,
     findings,
     notes,
+    rendered,
   };
+}
+
+/** The `ADR`/`ADR-Event` trailer keys. */
+const TRAILER_KEYS = { subject: "ADR", event: "ADR-Event" } as const;
+
+/**
+ * The staged event files among `paths` as (decision, type) refs, in path order (by decision,
+ * then event time), deduplicated by decision and type.
+ */
+function stagedEventRefs(layout: LogLayout, paths: readonly string[]): EventRef[] {
+  const found: EventRef[] = [];
+  for (const p of sorted(paths.filter(isYaml))) {
+    const c = classifyPath(layout, p);
+    if (c.area !== "event" || c.subject === null || c.file.includes("/")) continue;
+    const name = parseEventFileName(c.file);
+    if (name !== null) found.push({ subject: c.subject, type: name.type });
+  }
+  const seen = new Set<string>();
+  return found.filter((r) => {
+    const key = `${r.subject}\0${r.type}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /** The new bytes of each file a plan replaces. */
@@ -1821,9 +1879,6 @@ async function viewsAfter(
   };
 }
 
-const SHORTENED_NOTE =
-  "commit subject shortened to 72 characters; the full title is in the commit body";
-
 /**
  * `--commit` needs an author and a committer identity; checked before anything is written, since
  * `GIT_AUTHOR_*` alone satisfies the author while `git commit` still fails on the committer.
@@ -1834,20 +1889,75 @@ async function checkCommitIdentity(log: DecisionLog): Promise<void> {
   }
 }
 
-/** The plan's commit message from `[commit] subject` (design §4), and whether it was shortened. */
+const STATUS_TYPES: ReadonlySet<string> = new Set([
+  "proposed",
+  "accepted",
+  "rejected",
+  "withdrawn",
+]);
+
+/**
+ * The commit's action and title slot (ADR-0008, ?6), chosen once the staged events the commit
+ * sweeps in are known: when `plan` or `extra` holds a status event (proposed, accepted, rejected,
+ * withdrawn), the title form of the last one, since that is what the commit decides. Otherwise
+ * the plan's own subject when the extra events add no other verb; with two or three verbs those
+ * joined (`link and scope ADR-0003`), and beyond three (or where the joined verbs don't fit a
+ * custom template) `update ADR-0003`. Every single-action subject stays the plan's own, byte for
+ * byte.
+ */
+export function composeSubject(
+  read: DecisionsRead,
+  parts: CommitParts,
+  c: { readonly plan: readonly EventRef[]; readonly extra: readonly EventRef[] },
+): { readonly action: string; readonly title: string } {
+  const all = [...c.extra, ...c.plan];
+  const status = all.filter((e) => STATUS_TYPES.has(e.type)).at(-1);
+  if (status !== undefined) {
+    const own = c.plan.some((e) => e.subject === status.subject && e.type === status.type);
+    if (own) return { action: parts.action, title: parts.title };
+    const action = ACTIONS[status.type as keyof typeof ACTIONS].action;
+    return { action, title: read.projection.views.get(status.subject)?.title ?? status.subject };
+  }
+  const primary = c.plan[0]?.type;
+  const verbs = new Set<string>();
+  for (const t of [primary, ...c.extra.map((e) => e.type)]) {
+    if (t !== undefined && Object.hasOwn(BATCH_ACTIONS, t)) verbs.add(t);
+  }
+  if (verbs.size <= 1 || primary === undefined || !verbs.has(primary)) {
+    return { action: parts.action, title: parts.title };
+  }
+  const ordered = BATCH_ORDER.filter((t) => verbs.has(t)).map(
+    (t) => BATCH_ACTIONS[t as keyof typeof BATCH_ACTIONS],
+  );
+  return {
+    action: ordered.length > 3 ? UPDATE_ACTION : joinActions(ordered),
+    title: parts.display,
+  };
+}
+
+/** The plan's commit message from `[commit] subject` (design §4), with `composeSubject`'s slot. */
 function commitMessage(
   log: DecisionLog,
   command: string,
+  read: DecisionsRead,
   plan: WritePlan,
-): { message: string; shortened: boolean } {
+  c: { readonly plan: readonly EventRef[]; readonly extra: readonly EventRef[] },
+): RenderedCommit {
   const parts = plan.commit;
   if (parts === null) throw new InvalidArgumentError("this write can't be committed");
-  const r = renderCommitMessage(log.adr.commitSubject, {
-    title: parts.title,
-    vars: { action: parts.action, id: parts.id, display: parts.display, command },
-    body: parts.body,
-  });
-  return { message: r.message, shortened: r.shortened };
+  const { action, title } = composeSubject(read, parts, c);
+  const render = (a: string) =>
+    renderCommitMessage(log.adr.commitSubject, {
+      title,
+      vars: { action: a, id: parts.id, display: parts.display, command },
+      body: parts.body,
+    });
+  const r = render(action);
+  // A batch names the display, which is never shortened: a custom template too long for the
+  // joined verbs gets `update <display>`.
+  return r.shortened && title === parts.display && action !== parts.action
+    ? render(UPDATE_ACTION)
+    : r;
 }
 
 /**
@@ -1915,14 +2025,18 @@ async function write(
         notes: [...notes, ...(r.plan.notes ?? [])],
       };
     }
-    const rendered = commit ? commitMessage(log, command, r.plan) : null;
+    if (commit && r.plan.commit === null) {
+      throw new InvalidArgumentError("this write can't be committed");
+    }
     const given = o.message ?? null;
     try {
       const applied = await deps.apply(log, r.plan, {
         commit,
-        ...(rendered === null
+        ...(!commit
           ? {}
-          : { message: given ?? rendered.message, mergeTrailers: given !== null }),
+          : given !== null
+            ? { message: given, mergeTrailers: true }
+            : { compose: (c) => commitMessage(log, command, read, r.plan, c) }),
         ...(afterStage === undefined ? {} : { afterStage: afterStage(r.plan, commit) }),
         ...(log.adr.index === "committed" && o.index !== "skip"
           ? {
@@ -1935,8 +2049,8 @@ async function write(
       const own = [
         ...(r.plan.notes ?? []),
         ...applied.notes,
-        ...(applied.commit !== null && given === null && rendered?.shortened === true
-          ? [SHORTENED_NOTE]
+        ...(applied.commit !== null && applied.rendered?.note != null
+          ? [applied.rendered.note]
           : []),
       ];
       return {

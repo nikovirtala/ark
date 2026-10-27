@@ -3,6 +3,8 @@ import { relative, resolve, sep } from "node:path";
 import {
   assertNoHookConflicts,
   classifyPath,
+  type EventRef,
+  eventTrailers,
   exitCode,
   type Finding,
   type Git,
@@ -16,7 +18,6 @@ import {
   resolveAttribution,
   type Severity,
   stagedRenames,
-  type Trailer,
   UsageError,
   uninstallHooks,
   writeIndexFile,
@@ -128,8 +129,9 @@ export function printDecisionHooks(log: DecisionLog, manager: HookManager): Hook
 const ADR_EVENT = /^adr-event[ \t]*:/im;
 
 /**
- * The `commit-msg` step (P1 §7.1): appends one `ADR`/`ADR-Event` pair per staged added event file
- * of the log, by path, keeping repeats (`ifExists: "add"`). It does nothing for a message that
+ * The `commit-msg` step (P1 §7.1): appends one `ADR`/`ADR-Event` pair per decision and event type
+ * among the staged added event files of the log (`eventTrailers`, ?6), in path order, keeping
+ * pairs another tool already added (`ifExists: "add"`). It does nothing for a message that
  * already has an `ADR-Event:` trailer (an `adr … --commit` message), or during a merge, whose
  * events came with their own commits' trailers. Throws `UsageError` when the file is missing.
  */
@@ -150,16 +152,14 @@ export async function addHookTrailers(
   }
   if ((await git.resolveCommit("MERGE_HEAD")) !== null) return result(log, "trailers", null);
   const added = await git.stagedPaths([`${layout.root}/${layout.events}`], { addedOnly: true });
-  const trailers = added.flatMap((p): Trailer[] => {
+  const refs = added.flatMap((p): EventRef[] => {
     const c = classifyPath(layout, p);
     const name = c.area === "event" && !c.file.includes("/") ? parseEventFileName(c.file) : null;
     return c.area === "event" && c.subject !== null && name !== null
-      ? [
-          ["ADR", c.subject],
-          ["ADR-Event", name.type],
-        ]
+      ? [{ subject: c.subject, type: name.type }]
       : [];
   });
+  const trailers = eventTrailers(refs, { subject: "ADR", event: "ADR-Event" });
   await git.appendTrailers(file, trailers, { ifExists: "add" });
   return result(log, "trailers", null, { trailers });
 }

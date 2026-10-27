@@ -330,6 +330,18 @@ describe("adr hooks", { timeout: 120_000 }, () => {
     expect(out.stderr).toContain(WRITE_RERUN);
   });
 
+  it("adds one trailer pair per decision and event type for staged events", async () => {
+    const r = await repo();
+    const a = await seedDecision(r, "Use Aurora for orders");
+    const b = await seedDecision(r, "Use Kafka for events");
+    const c = await seedDecision(r, "Use Redis for caching");
+    install(r);
+    expect(runAdr(r, ["link", a, b]).status).toBe(0);
+    expect(runAdr(r, ["link", a, c]).status).toBe(0);
+    expect(runGit(r, ["commit", "-qm", "docs(adr): link ADR-0001"]).status).toBe(0);
+    expect(await trailers(r)).toBe(`ADR: ${a}\nADR-Event: linked\n\n`);
+  });
+
   it("adds trailers for staged events only, not to adr's own message or a merge", async () => {
     const r = await repo();
     const a = await seedDecision(r, "Use Aurora for orders");
