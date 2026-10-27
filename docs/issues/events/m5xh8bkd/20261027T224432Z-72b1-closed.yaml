@@ -1,0 +1,21 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M5ZRJS2RZ7F70H5GQDTV72B1
+subject: m5xh8bkd
+type: closed
+at: 2026-10-27T22:44:32Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: |-
+  Done in issues PR 2 (@nikovirtala/issues 0.2.0, ledger 0.7.0, adr 0.5.0). Commits are named by subject because the fixups are squashed before merge.
+  1. The "CI checks" table of docs/02-issues-v1.md ("docs: describe sources, hooks and the issue index in the design docs") and the issues README ("docs: describe issues 0.2.0 and adr 0.5.0 in the readmes") state the rule: a scope glob that matches no tracked file is an error only while the issue is in progress. An open issue's globs may name code that doesn't exist yet, because the work is still planned, and issues scope's note still catches a typo. adr's docs say the same for proposed decisions.
+  2. issues verify follows the rule through ledger's scope.requireMatchIn ("feat(ledger): let a kind's planned states keep unmatched scope globs"), with issues setting it to in-progress ("feat(issues): check scope globs, code anchors and stale anchors"). cli/code-checks.test.ts ("lets an open issue name code that doesn't exist, and checks it once started") verifies an open issue with an unmatched glob (no finding) and the same issue once started (scope/glob-unmatched). e2e-guardrails.test.ts repeats this with the built binary.
+  3. issues scope's note for an open issue says "<glob> matches no tracked file; verify reports scope/glob-unmatched once ?N is started, until a file matches", with its own text for an in-progress issue. issues start notes each glob that still matches nothing. Tested in cli/sets.test.ts, cli/code-checks.test.ts and plan.test.ts.
+  4. This close is in the same PR as the change.
+data:
+  resolution: done
