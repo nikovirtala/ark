@@ -84,7 +84,7 @@ ref = "main"
 
 Inside the source repository, the log is read at the entry's `root` when it sets one, otherwise at the kind's default root; a source with neither is a configuration error.
 
-Cross-log references use a qualified id, `platform:k3f9q8a1`, whose prefix is the `name` of the `[[sources]]` entry; `kind` only says what kind of log the source holds. Each decision log owns its ADRs' events, so `linked` can point anywhere but `superseded` can only be written in the decision log that owns the superseded ADR. Search, list and the MCP tools read the local log only for now, and say so in a note when `[[sources]]` are configured; listing and searching across sources, and CI checks of cross-log references at the pinned ref, come with ark's step 4 (see the roadmap).
+Cross-log references use a qualified id, `platform:k3f9q8a1`, whose prefix is the `name` of the `[[sources]]` entry; `kind` only says what kind of log the source holds. Each decision log owns its ADRs' events, so `linked` can point anywhere but `superseded` can only be written in the decision log that owns the superseded ADR. `verify` checks cross-log references against ledger's local cache of each source (see the ark design's Sources layer): cache only by default, with `verify --fetch-sources` (CI and the pre-push hook) fetching first and exiting 2 when a fetch fails, and `adr sources fetch` refreshing it by hand. A referenced source that isn't cached gives one `sources/not-fetched` warning. `adr list --source <name>`, `adr search --source <name>` and the MCP tools read a cached source's decisions.
 
 A minimal config:
 
@@ -230,7 +230,7 @@ The CLI is the human interface and the automation entry point for hooks and CI. 
 | `adr supersede 7 --by 12` | Supersedes after the fact, when 12 is already accepted | `superseded` event |
 | `adr note 7 "…"` | Adds a clarification without touching the body | `noted` event |
 | `adr link 7 4 --rel depends-on` | Records a relation | `linked` event |
-| `adr scope 7 --set\|--add\|--remove "src/orders/**"`, `--clear` | Sets which code a decision governs. With --follow-renames, writes and stages glob updates from the staged renames (never commits). A glob that matches no tracked file is written with a note; verify reports it for proposed and accepted decisions, so a `--commit` with hooks installed fails until a file matches | `scoped` event |
+| `adr scope 7 --set\|--add\|--remove "src/orders/**"`, `--clear` | Sets which code a decision governs. With --follow-renames, writes and stages glob updates from the staged renames (never commits). A glob that matches no tracked file is written with a note; verify reports it once the decision is accepted, so an `accept --commit` with hooks installed fails until a file matches | `scoped` event |
 | `adr for src/orders/api.ts …` | Lists decisions governing files, from scope globs and code anchors, with warnings for inactive ones; with --ref, as of any past commit | none |
 | `adr list [--status accepted] [--since ORIG_HEAD] [--json]` | Lists decisions with computed status; with `--since`, only those with events added since a revision | none |
 | `adr show 7 [--history] [--json]` | Shows body, status, chain and history | none |
@@ -347,10 +347,10 @@ Hooks give fast local feedback; CI remains the real guard, because hooks can be 
 | --- | --- | --- |
 | `pre-commit` | `adr hooks run pre-commit`: rename following, the index check (or regenerate-and-stage with `[hooks] index = "stage"`), then `adr verify --staged` | Catches body edits, bad events and stale index before the commit exists |
 | `commit-msg` | `adr hooks trailers` | Adds `ADR:` and `ADR-Event:` trailers when event files are staged, unless the message has them already or a merge is in progress |
-| `pre-push` | `adr verify --base @{upstream} --ref HEAD` | Full invariant check of the current branch's commits against its upstream, whichever refs the push names; without an upstream, against `origin`'s default branch, and with no remote, the whole log |
+| `pre-push` | `adr verify --base @{upstream} --ref HEAD --fetch-sources` | Full invariant check of the current branch's commits against its upstream, whichever refs the push names; without an upstream, against `origin`'s default branch, and with no remote, the whole log |
 | `post-merge` | `adr list --since ORIG_HEAD` | Prints the decisions the pull brought new events for (status changes, notes, links, scope), each with the new event types, so people notice them; prints nothing when the pull didn't touch the log |
 
-`--staged` checks only ADRs touched by staged files, keeping `pre-commit` well under a second on large decision logs.
+`--staged` checks only ADRs touched by staged files, keeping `pre-commit` well under a second on large decision logs. When the staged changes touch an input outside the log that every check reads (`adr.toml`, `<root>/adr.toml` or `<root>/templates/`), it checks every ADR instead and says so in a note, because a policy or template change can break decisions no staged file touches.
 
 When staged changes rename files covered by a scope glob, `pre-commit` also runs `adr scope --follow-renames` and stages the resulting `scoped` event in the same commit. The config key `[hooks] scope_follow_renames` sets this to `stage` (default), `warn` or `off`. The hook stages only into the commit's own index. For `git commit <paths>`, a rename that changes a decision's scope stops the commit and names the command to run.
 
@@ -369,8 +369,9 @@ CI runs `adr verify --base origin/main` on every pull request, and the build fai
 | Template lint | A proposed draft is missing required sections or still contains guidance text |
 | Index freshness | `index.md` differs from what `adr index` would generate |
 | Actor policy | An `accepted` event has `actor.kind: agent` while `accept_requires_human` is on |
-| Scope globs | A scope glob of a proposed or accepted decision matches no tracked file, or a stored glob is invalid |
-| Code anchors | An `adr:` comment anchor points to a missing ADR; qualified anchors are checked with sources (ark step 4) |
+| Scope globs | A scope glob of an accepted decision matches no tracked file, or a stored glob is invalid. A proposed decision's globs may name code that doesn't exist yet: the decision is still planned, so verify reports them only once it is accepted |
+| Code anchors | An `adr:` comment anchor points to a missing ADR |
+| Cross-log references | A `linked.to` or `supersedes` into a cached `[[sources]]` log names a missing decision (`decision/reference-missing`), or names a source that isn't configured (`decision/unknown-source`) |
 | Governed by inactive decision | The diff changes files governed by a superseded or deprecated decision; a warning by default, configurable to fail |
 | Scope narrowing | A scoped event removes coverage of an accepted decision from files that still exist, so it is not a move. A warning that asks the reviewer to check the change against the decision's Scope section |
 
@@ -493,6 +494,6 @@ adr is step 3 of ark's extraction plan: the first kind built on ledger, starting
 4. Adoption: template management, and import from existing adr-tools or log4brains repos, synthesizing `proposed` and `accepted` events from their status lines without rewriting the files.
 5. Later: an optional live index published as an artifact page that reloads on every new event, as decided in the ark design. Not part of the first version.
 
-Cross-log reference checks at the pinned ref and listing across sources are not an adr phase: they are built in ark's step 4, together with issues, whose `implements` links point into decision logs, including those in other repositories. Until then `adr link` stores a qualified target unchecked and `verify` skips it.
+Cross-log reference checks and listing across sources are not an adr phase: they were built in ark's step 4 (adr 0.5.0), together with issues, whose `implements` links point into decision logs, including those in other repositories.
 
 ark's step 3 lands over phases 1–3. ark starts recording its own architecture decisions with adr once phase 1 is merged and released.
