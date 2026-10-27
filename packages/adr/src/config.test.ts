@@ -7,6 +7,8 @@ import {
   INDEX_ACTION,
   INDEX_TITLE,
   LONGEST_ACTION,
+  LONGEST_BATCH,
+  UPDATE_ACTION,
 } from "./commit-actions.js";
 import { DEFAULT_ADR_CONFIG, parseAdrConfig } from "./config.js";
 import { adrKind } from "./kind.js";
@@ -206,8 +208,13 @@ describe("commit name lengths", () => {
       ACTIONS.superseded.action.length,
       ACTIONS.linked.action.length,
       INDEX_ACTION.length,
+      UPDATE_ACTION.length,
     ]);
     expect(COMMIT_NAMES[2]?.length).toBe(INDEX_TITLE.length);
+    // A batch subject names the decision by its display: deprecate, supersede and add a note to,
+    // or update where that doesn't fit.
+    expect(LONGEST_BATCH).toBe(38);
+    expect(COMMIT_NAMES[3]?.length).toBe(13);
     expect(LONGEST_ACTION).toBeGreaterThanOrEqual(INDEX_ACTION.length);
   });
 
