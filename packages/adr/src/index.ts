@@ -46,6 +46,14 @@ export {
   searchDecisions,
 } from "./search.js";
 export { SKILL_MD } from "./skill.js";
+export {
+  type AdrSource,
+  type DecisionSources,
+  decisionSourceConfigs,
+  type ForeignDecision,
+  readDecisionSources,
+  readSourceDecisions,
+} from "./sources.js";
 export { listTemplates, type TemplatesJson } from "./templates/list.js";
 export { adrChecks, decisionVerifyInputs, verifyDecisions } from "./verify.js";
 export {

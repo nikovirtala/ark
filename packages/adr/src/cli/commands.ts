@@ -1,6 +1,7 @@
 import { templateHistoryRef } from "@nikovirtala/ledger";
-import { type ToolCli, verifyCommand } from "@nikovirtala/ledger/cli";
+import { sourcesCommand, type ToolCli, verifyCommand } from "@nikovirtala/ledger/cli";
 import { adrKind } from "../kind.js";
+import { decisionSourceConfigs, readDecisionSources } from "../sources.js";
 import { adrChecks, decisionVerifyInputs } from "../verify.js";
 import { acceptCommand } from "./accept.js";
 import { deprecateCommand } from "./deprecate.js";
@@ -26,18 +27,37 @@ import { withdrawCommand } from "./withdraw.js";
  * `--ref` tree or the work tree), every phase-1 check, and `[verify] fail_on`.
  */
 const verify = verifyCommand({
-  async open({ io, flags, mode }) {
+  async open({ io, flags, mode, fetchSources }) {
     const log = await openForCli(io, flags, {
       reader: mode.type === "staged" ? "index" : "worktree",
+    });
+    const sources = await readDecisionSources(log, {
+      fetch: fetchSources ? "network" : "cache",
     });
     return {
       git: log.git,
       kind: adrKind,
       layout: log.layout,
-      checks: adrChecks(log, await templateHistoryRef(log.git, mode)),
+      checks: adrChecks(log, await templateHistoryRef(log.git, mode), sources),
       failOn: log.adr.failOn,
-      notes: log.notes,
+      notes: [...log.notes, ...sources.notes],
       widenOn: decisionVerifyInputs(log),
+      ...((log.config?.sources ?? []).length === 0 ? {} : { sources: sources.statuses }),
+    };
+  },
+});
+
+/** ledger's shared `sources fetch`, over the `kind = "adr"` entries of `[[sources]]`. */
+const sources = sourcesCommand({
+  format: "adr-sources/v1",
+  tool: "adr",
+  async open({ io, flags }) {
+    const log = await openForCli(io, flags);
+    return {
+      git: log.git,
+      ...decisionSourceConfigs(log),
+      configPath: log.configPath,
+      notes: log.notes,
     };
   },
 });
@@ -66,6 +86,7 @@ export function adrCli(version: string): ToolCli {
       showCommand,
       searchCommand,
       verify,
+      sources,
       mcpCommand(version),
     ],
   };

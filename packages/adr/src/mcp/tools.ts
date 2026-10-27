@@ -16,6 +16,7 @@ import {
 } from "../log.js";
 import { decisionsFor } from "../scope.js";
 import { searchDecisions } from "../search.js";
+import { readSourceDecisions } from "../sources.js";
 import { listTemplates } from "../templates/list.js";
 import { listDecisions, showDecision } from "../views.js";
 import {
@@ -148,6 +149,15 @@ function policyRefusal(
   };
 }
 
+/** The `source` input of `adr_list` and `adr_search`: a `[[sources]]` name, read from the cache. */
+const SOURCE = { type: "string", pattern: "^[a-z][a-z0-9-]{0,31}$" } as const;
+
+/** The local log, or with `source` that `[[sources]]` entry's cached log. */
+async function readFor(e: AdrMcpEnv, source: string | null) {
+  const log = await openLog(e);
+  return source === null ? readDecisions(log) : readSourceDecisions(log, source);
+}
+
 /** The eleven tools `adr mcp` always lists (design §7.4). */
 export function alwaysOnTools(e: AdrMcpEnv): McpTool[] {
   return [
@@ -161,12 +171,13 @@ export function alwaysOnTools(e: AdrMcpEnv): McpTool[] {
           query: { type: "string", minLength: 1, maxLength: 200 },
           include_inactive: { type: "boolean" },
           limit: { type: "integer", minimum: 1, maximum: 100 },
+          source: SOURCE,
         },
         ["query"],
       ),
       annotations: READ,
       async run(input) {
-        const read = await readDecisions(await openLog(e));
+        const read = await readFor(e, str(input.source) ?? null);
         const d = searchDecisions(read, {
           query: str(input.query) ?? "",
           includeInactive: input.include_inactive === true,
@@ -210,10 +221,11 @@ export function alwaysOnTools(e: AdrMcpEnv): McpTool[] {
           maxItems: DECISION_STATUSES.length,
         },
         limit: { type: "integer", minimum: 1, maximum: 1000 },
+        source: SOURCE,
       }),
       annotations: READ,
       async run(input) {
-        const read = await readDecisions(await openLog(e));
+        const read = await readFor(e, str(input.source) ?? null);
         const status = strings(input.status) as DecisionStatus[] | undefined;
         const d = listDecisions(read, {
           ...(status === undefined ? {} : { status }),

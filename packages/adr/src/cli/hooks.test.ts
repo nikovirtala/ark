@@ -45,7 +45,10 @@ const SHIMS = ["pre-commit", "commit-msg", "pre-push", "post-merge"].map((h) => 
 const REGISTRATIONS = [
   { hook: "pre-commit", argv: ["hooks", "run", "pre-commit"] },
   { hook: "commit-msg", argv: ["hooks", "trailers", "{args}"] },
-  { hook: "pre-push", argv: ["verify", "--base", "@{upstream}", "--ref", "HEAD"] },
+  {
+    hook: "pre-push",
+    argv: ["verify", "--base", "@{upstream}", "--ref", "HEAD", "--fetch-sources"],
+  },
   { hook: "post-merge", argv: ["list", "--since", "ORIG_HEAD"] },
 ] as const;
 const HOOKS_LINE = "adr hooks: pre-commit, commit-msg, pre-push, post-merge";

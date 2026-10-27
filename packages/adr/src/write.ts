@@ -61,7 +61,7 @@ import {
   writeNewFile,
 } from "@nikovirtala/ledger";
 import { ACTIONS, CROSS_LOG_LINK, DRAFT_ACTION } from "./commit-actions.js";
-import { adrKind, type DecisionView, type LinkRel } from "./kind.js";
+import { type AdrSource, adrKind, type DecisionView, type LinkRel } from "./kind.js";
 import {
   type DecisionLog,
   type DecisionsRead,
@@ -77,6 +77,7 @@ import {
   unstagedIndexText,
   unstagedLogFiles,
 } from "./log-index.js";
+import { readDecisionSources } from "./sources.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
 
 /** `adr <write command> --json` (design §5.5, §6.1). */
@@ -1098,14 +1099,19 @@ export interface LinkInput {
 
 /**
  * Plans `adr link` (design §6.7): `linked` in every state. A qualified target must name one of
- * `o.sources` (the log's `[[sources]]` names); it isn't looked up in the other log. A link that
- * already exists plans nothing, with a note.
+ * `o.sources` (the log's `[[sources]]` names) of kind `adr` (`o.logs`, from the local cache): a
+ * cached source must hold the id, else `UsageError`; into an uncached one the link is written with
+ * a note that it isn't checked. A link that already exists plans nothing, with a note.
  */
 export async function planLink(
   read: DecisionsRead,
   input: LinkInput,
   c: PlanContext,
-  o: { readonly sources?: readonly string[] } = {},
+  o: {
+    readonly sources?: readonly string[];
+    readonly logs?: ReadonlyMap<string, AdrSource>;
+    readonly kinds?: ReadonlyMap<string, string>;
+  } = {},
 ): Promise<PlanResult> {
   const rel = input.rel ?? "relates-to";
   if (!(LINK_RELS as readonly string[]).includes(rel)) {
@@ -1118,6 +1124,7 @@ export async function planLink(
   let shown: string;
   let described: string;
   let named: string;
+  let foreignNote: string | null = null;
   const at = target.indexOf(":");
   if (at >= 0) {
     const source = target.slice(0, at);
@@ -1127,6 +1134,20 @@ export async function planLink(
     }
     if (!(o.sources ?? []).includes(source)) {
       throw new UsageError(`unknown source ${source}; add a [[sources]] entry named ${source}`);
+    }
+    const kind = o.kinds?.get(source);
+    if (kind !== undefined && kind !== "adr") {
+      throw new UsageError(`source ${source} has kind ${kind}, which adr doesn't read`);
+    }
+    const cached = o.logs?.get(source);
+    if (cached?.subjects !== null && cached?.subjects !== undefined) {
+      if (!cached.subjects.has(local)) {
+        throw new UsageError(
+          `${target} is not in source ${source} (pinned at ${(cached.commit ?? "").slice(0, 12)})`,
+        );
+      }
+    } else if (o.logs !== undefined) {
+      foreignNote = `${source} not fetched; the reference isn't checked`;
     }
     to = target;
     shown = target;
@@ -1170,7 +1191,11 @@ export async function planLink(
   if (!r.ok || r.plan.commit === null) return r;
   return {
     ok: true,
-    plan: { ...r.plan, commit: { ...r.plan.commit, title: named, body: [described] } },
+    plan: {
+      ...r.plan,
+      commit: { ...r.plan.commit, title: named, body: [described] },
+      notes: [...(r.plan.notes ?? []), ...(foreignNote === null ? [] : [foreignNote])],
+    },
   };
 }
 
@@ -2134,8 +2159,20 @@ export async function linkDecision(
   o: WriteOptions = {},
   deps: WriteDeps = DEFAULT_DEPS,
 ): Promise<WriteResultJson> {
-  const sources = (log.config?.sources ?? []).map((s) => s.name);
-  return write(log, "link", (read, c) => planLink(read, input, c, { sources }), o, deps);
+  const configs = log.config?.sources ?? [];
+  const sources = configs.map((s) => s.name);
+  const kinds = new Map(configs.map((s) => [s.name, s.kind]));
+  const logs = input.to.includes(":")
+    ? (await readDecisionSources(log, { fetch: "cache" })).logs
+    : undefined;
+  return write(
+    log,
+    "link",
+    (read, c) =>
+      planLink(read, input, c, { sources, kinds, ...(logs === undefined ? {} : { logs }) }),
+    o,
+    deps,
+  );
 }
 
 /**

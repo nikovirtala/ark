@@ -2,6 +2,7 @@ import { type JsonValue, UsageError } from "@nikovirtala/ledger";
 import type { CommandSpec } from "@nikovirtala/ledger/cli";
 import { DECISION_STATUSES, type DecisionStatus } from "../kind.js";
 import { changedSince, numberingNote, readDecisions } from "../log.js";
+import { readSourceDecisions } from "../sources.js";
 import { listDecisions } from "../views.js";
 import { openForCli } from "./open.js";
 import { listText, sinceText } from "./text.js";
@@ -28,20 +29,32 @@ function sinceRev(values: Readonly<Record<string, unknown>>): string | null {
   return v;
 }
 
-/** `adr list [--status <status>]… [--since <rev>]` (design §5.6, 2b D7). */
+/**
+ * `adr list [--status <status>]… [--since <rev>] [--source <name>]` (design §5.6, 2b D7):
+ * `--source` lists a `[[sources]]` entry's cached log instead of the local one.
+ */
 export const listCommand: CommandSpec = {
   name: "list",
   summary: "list decisions with their computed status",
-  usage: "list [--status <status>]… [--since <rev>]",
-  options: { status: { type: "string", multiple: true }, since: { type: "string" } },
+  usage: "list [--status <status>]… [--since <rev>] [--source <name>]",
+  options: {
+    status: { type: "string", multiple: true },
+    since: { type: "string" },
+    source: { type: "string" },
+  },
   positionals: { min: 0, max: 0, names: [] },
   ref: "read",
   async run({ io, flags, values }) {
     const status = statuses(values);
     const rev = sinceRev(values);
+    const source = typeof values.source === "string" ? values.source : null;
+    if (source !== null && rev !== null) {
+      throw new UsageError("--source can't be combined with --since");
+    }
     const log = await openForCli(io, flags);
     const since = rev === null ? null : await changedSince(log, rev);
-    const read = await readDecisions(log);
+    const read =
+      source === null ? await readDecisions(log) : await readSourceDecisions(log, source);
     const doc = listDecisions(read, { status, since });
     const notes = [...doc.notes];
     const numbering = numberingNote(read, { unavailable: true });
