@@ -27,7 +27,7 @@ import {
 } from "./test-support/events.js";
 import { MemoryLog } from "./test-support/plans.js";
 
-const { A, B, C, D, X, Z } = IDS;
+const { A, B, C, D, E, X, Z } = IDS;
 const ME = TEST_HUMAN;
 const closed = (id: string, resolution: string, of?: string) =>
   issueEvent(id, "closed", {
@@ -694,5 +694,38 @@ describe("comment and commit scopes", () => {
         ),
       ),
     ).toContain("64 KiB");
+  });
+
+  it("reach follows links, the parent and duplicate-of from the written issue", async () => {
+    const l = memory([
+      subject(A, opened(A, "Issue A", C), linked(A, B, "relates-to"), closed(A, "duplicate", D)),
+      subject(B, opened(B)),
+      subject(C, opened(C), linked(C, X, "depends-on")),
+      subject(D, opened(D), linked(D, "adr:0001", "implements")),
+      subject(X, opened(X), linked(X, A, "relates-to")),
+      subject(E, opened(E)),
+    ]);
+    const r = plan(
+      await run(l, (read, c) => planComment(read, { id: A, text: "note", actor: ME }, c)),
+    );
+    const read = await l.read();
+    const reached = (id: string, refs: string[]) => {
+      const s = read.folded.subjects.get(id);
+      return {
+        dir: `docs/issues/events/${id}`,
+        opened: s?.applied.find((a) => a.event.type === "opened")?.path,
+        bodies: s?.loaded.bodyPaths,
+        template: "docs/issues/templates/task.md",
+        refs,
+      };
+    };
+    expect(Object.keys(r.reach).sort()).toEqual([A, B, C, D, X].sort());
+    expect(r.reach[A]).toEqual(reached(A, [B, C, D].sort()));
+    expect(r.reach[B]).toEqual(reached(B, []));
+    expect(r.reach[C]).toEqual(reached(C, [X]));
+    expect(r.reach[D]).toEqual(reached(D, []));
+    expect(r.reach[X]).toEqual(reached(X, [A]));
+    expect(r.reach[A]?.opened).toMatch(/-opened\.yaml$/);
+    expect(r.reach[A]?.bodies).toHaveLength(1);
   });
 });
