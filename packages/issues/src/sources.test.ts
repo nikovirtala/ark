@@ -80,7 +80,7 @@ describe("the local decision log", () => {
     }
   });
 
-  it("returns configured [[sources]] unread, so they aren't checked", async () => {
+  it("returns uncached [[sources]] unread, so they aren't checked", async () => {
     await using repo = await createTempRepo({
       files: {
         "docs/issues/issues.toml":
@@ -88,7 +88,12 @@ describe("the local decision log", () => {
       },
     });
     const sources = await readSourceLogs(await openIn(repo.root, repo.env));
-    expect(sources.get("platform")).toEqual({ kind: "issues", local: false, subjects: null });
+    expect(sources.get("platform")).toEqual({
+      kind: "issues",
+      local: false,
+      subjects: null,
+      commit: null,
+    });
   });
 
   describe("in a shallow clone", () => {

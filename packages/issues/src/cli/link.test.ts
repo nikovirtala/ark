@@ -181,7 +181,7 @@ describe("issues link and unlink", () => {
       },
     ]);
     expect(show.json.notes).toContain(
-      "references into other repositories (platform) are stored but not checked, and their issues aren't listed, until a newer issues",
+      "references into platform are checked against cached copies; run issues sources fetch to update them",
     );
   });
 

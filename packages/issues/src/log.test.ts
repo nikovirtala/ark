@@ -205,9 +205,9 @@ describe("relation targets", () => {
     );
   });
 
-  it("adds the sources note while other repositories aren't read", async () => {
+  it("adds the sources note when [[sources]] are configured", async () => {
     expect(readNotes(await readOf())).toContain(
-      "references into other repositories (platform, platform-adr) are stored but not checked, and their issues aren't listed, until a newer issues",
+      "references into platform, platform-adr are checked against cached copies; run issues sources fetch to update them",
     );
   });
 });

@@ -3,9 +3,12 @@ import {
   anchorCheck,
   type Check,
   type Finding,
+  type FoldedLogOf,
   foldChecks,
   gitTemplates,
+  type SourceStatus,
   scopeGlobCheck,
+  sourceFindings,
   templateHistoryRef,
   type VerifyMode,
   verifyLog,
@@ -13,7 +16,7 @@ import {
 import { issueKind, type SourceLog } from "./kind.js";
 import type { IssueLog } from "./log.js";
 import { issueIndexCheck } from "./log-index.js";
-import { type DecisionLogRead, readDecisionLog, sourceLogsOf } from "./sources.js";
+import { type DecisionLogRead, readDecisionLog, readIssueSources } from "./sources.js";
 import { staleAnchorCheck } from "./stale-anchors.js";
 
 /**
@@ -28,6 +31,7 @@ export function issuesChecks(
   log: IssueLog,
   historyRef: string | null,
   sources: ReadonlyMap<string, SourceLog>,
+  statuses: readonly SourceStatus[] = [],
 ): readonly Check[] {
   return [
     ...foldChecks(issueKind, {
@@ -42,8 +46,45 @@ export function issuesChecks(
     scopeGlobCheck(),
     anchorCheck({ keyword: log.issues.anchorKeyword, exclude: log.issues.anchorExclude }),
     staleAnchorCheck(log),
+    sourcesCheck(log, statuses),
     ...(log.issues.index === "committed" ? [issueIndexCheck(log)] : []),
   ];
+}
+
+/** The source names that qualified references in a folded issue log name. */
+export function referencedSources(head: FoldedLogOf<typeof issueKind>): Set<string> {
+  const out = new Set<string>();
+  const add = (ref: string | null | undefined) => {
+    const at = ref?.indexOf(":") ?? -1;
+    if (ref !== null && ref !== undefined && at > 0) out.add(ref.slice(0, at));
+  };
+  for (const s of head.subjects.values()) {
+    for (const l of s.state?.links ?? []) add(l.to);
+    for (const { event } of s.applied) {
+      if (event.type === "opened") add(event.data.parent);
+      else if (event.type === "closed") add(event.data.of);
+    }
+  }
+  return out;
+}
+
+/**
+ * `sources/not-fetched` (warning) once per uncached `[[sources]]` entry that a qualified reference
+ * names. It runs in every scope, because it is about the log, not about one issue.
+ */
+function sourcesCheck(log: IssueLog, statuses: readonly SourceStatus[]): Check {
+  return {
+    id: "issue-sources",
+    async run(ctx) {
+      const head = ctx.folded?.head;
+      if (head === undefined || statuses.length === 0) return [];
+      return sourceFindings(statuses, {
+        tool: "issues",
+        file: log.configPath,
+        referenced: referencedSources(head as FoldedLogOf<typeof issueKind>),
+      });
+    },
+  };
 }
 
 /**
@@ -67,11 +108,13 @@ export function issueVerifyInputs(log: IssueLog, decisions: DecisionLogRead | nu
 }
 
 /**
- * Verifies the issue log in `mode` (staged, range or full) with `issuesChecks`. The decision log
- * is read from the tree `log` was opened on, so open it with the index reader for `staged`.
+ * Verifies the issue log in `mode` (staged, range or full) with `issuesChecks`, reading the
+ * sources from the local cache only. The decision log is read from the tree `log` was opened on,
+ * so open it with the index reader for `staged`.
  */
 export async function verifyIssues(log: IssueLog, mode: VerifyMode): Promise<Finding[]> {
   const decisions = await readDecisionLog(log);
+  const sources = await readIssueSources(log, { decisions, fetch: "cache" });
   return verifyLog({
     git: log.git,
     kind: issueKind,
@@ -80,7 +123,8 @@ export async function verifyIssues(log: IssueLog, mode: VerifyMode): Promise<Fin
     checks: issuesChecks(
       log,
       await templateHistoryRef(log.git, mode),
-      sourceLogsOf(decisions, log.config),
+      sources.logs,
+      sources.statuses,
     ),
     widenOn: issueVerifyInputs(log, decisions),
   });

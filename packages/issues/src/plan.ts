@@ -330,6 +330,22 @@ export function reachOf(read: IssuesRead, root: string): Record<string, ReachedI
   return reach;
 }
 
+/**
+ * One note per `[[sources]]` entry that `targets` reference and that isn't cached: those
+ * references are written unchecked.
+ */
+function uncachedNotes(read: IssuesRead, targets: readonly (string | null)[]): string[] {
+  const names = new Set<string>();
+  for (const t of targets) {
+    const at = t?.indexOf(":") ?? -1;
+    if (t === null || at < 0) continue;
+    const name = t.slice(0, at);
+    const source = read.options.sources?.get(name);
+    if (source !== undefined && !source.local && source.subjects === null) names.add(name);
+  }
+  return [...names].map((n) => `${n} not fetched; the reference isn't checked`);
+}
+
 /** A plan that writes nothing: the views as they are, and `notes`. */
 function emptyPlan(command: WriteCommand, view: IssueView, notes: readonly string[]): PlanResult {
   return {
@@ -604,6 +620,7 @@ export async function planOpen(
       issue: after.projection.views.get(id) ?? null,
       affected: [],
       findings: [...lint, ...warnings],
+      notes: uncachedNotes(read, [parent, ...dependsOn]),
     },
   };
 }
@@ -1149,6 +1166,7 @@ export async function planLink(
       body: [words.body],
     }),
     affected: (after) => affectedOf(after, to),
+    notes: uncachedNotes(read, [to]),
   });
   if (!r.ok && rel === "part-of" && r.findings.some((f) => f.rule === "issue/multiple-parents")) {
     const parent = view.parent ?? "";

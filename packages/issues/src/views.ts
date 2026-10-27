@@ -23,7 +23,7 @@ export interface IssueListJson {
   readonly ref: string | null;
   readonly commit: string | null;
   readonly numbering: NumberingJson;
-  /** `null`: this repository's log (always, in this version). */
+  /** The `[[sources]]` entry listed (`list --source`), or `null` for this repository's log. */
   readonly source: string | null;
   readonly filter: {
     readonly states: readonly IssueStatus[];
@@ -200,7 +200,7 @@ export function listIssues(
     ref: read.ref,
     commit: read.commit,
     numbering: numberingJson(read),
-    source: null,
+    source: read.source,
     filter: {
       states: [...states],
       assignees: [...assignees],

@@ -11,7 +11,12 @@ export {
   type IssueGraph,
   issueGraph,
 } from "./kind/graph.js";
-export { formatIssueNumber, type IssueView, parseIssueNumber } from "./kind/project.js";
+export {
+  formatIssueNumber,
+  type IssueView,
+  type ProjectOptions,
+  parseIssueNumber,
+} from "./kind/project.js";
 export type { IssueLink, IssueState } from "./kind/reduce.js";
 export {
   DEFAULT_ISSUE_OPTIONS,

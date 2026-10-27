@@ -14,6 +14,7 @@ export {
   openIssueLog,
   readIssues,
   readIssuesFrom,
+  readSourceIssues,
   resolveIssue,
   resolveTarget,
 } from "./log.js";
@@ -34,7 +35,13 @@ export type {
   WritePlan,
 } from "./plan.js";
 export { type IssueForJson, type IssuesForJson, issuesFor } from "./scope.js";
-export { type DecisionLogRead, readDecisionLog, readSourceLogs } from "./sources.js";
+export {
+  type DecisionLogRead,
+  type IssueSources,
+  readDecisionLog,
+  readIssueSources,
+  readSourceLogs,
+} from "./sources.js";
 export { issuesChecks, issueVerifyInputs, verifyIssues } from "./verify.js";
 export {
   type IssueCommentJson,
