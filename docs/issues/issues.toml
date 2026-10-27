@@ -1,8 +1,8 @@
 # issues configuration. Every key is optional: https://github.com/nikovirtala/ark/tree/main/packages/issues#config-issuestoml
 [log]
 default_template = "task"
-# issues 0.1.0 has no index command and refuses "committed"; issues PR 2 turns it on.
-index = "none"
+# Every issues write keeps index.md fresh; verify (hooks and CI) checks it.
+index = "committed"
 
 [labels]
 exclusive = ["priority", "type"]
@@ -16,4 +16,5 @@ close_requires_human = false
 mcp_can_close = true
 
 [commit]
+# {title} holds the title in quotes for new, and the issue's number (or id on a branch) with its title in quotes for every other write, as in: close ?42 "split the orders service".
 # subject = "docs(issues): {action} {title}"
