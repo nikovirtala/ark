@@ -50,7 +50,7 @@ async function repo(): Promise<TempRepo> {
 async function call(
   r: TempRepo | null,
   argv: readonly string[],
-  o: { failOn?: Severity; notes?: readonly string[] } = {},
+  o: { failOn?: Severity; notes?: readonly string[]; widenOn?: readonly string[] } = {},
 ) {
   let stdout = "";
   let stderr = "";
@@ -66,6 +66,7 @@ async function call(
         checks: foldChecks(kind),
         failOn: o.failOn ?? "error",
         ...(o.notes === undefined ? {} : { notes: o.notes }),
+        ...(o.widenOn === undefined ? {} : { widenOn: o.widenOn }),
       };
     },
   });
@@ -183,6 +184,28 @@ describe("verifyCommand on a repository", () => {
     const out = await call(r, ["--json", "verify"], { failOn: "warning" });
     expect(out.code).toBe(1);
     expect(JSON.parse(out.stdout)).toMatchObject({ ok: false });
+  });
+
+  it("widens --staged when a staged input changes, and says so", async () => {
+    const r = await repo();
+    const widenOn = ["w.toml", "templates/"];
+    await r.writeFiles({
+      "w.toml": "x = 1\n",
+      "templates/a.md": "# A\n",
+      "templates/b.md": "# B\n",
+    });
+    expect((await call(r, ["verify", "--staged"], { widenOn })).stderr).toBe("");
+    await r.stage("w.toml");
+    expect((await call(r, ["verify", "--staged"], { widenOn })).stderr).toBe(
+      "w: warning: --staged checks every widget: the staged changes touch w.toml\n",
+    );
+    await r.stage("templates/a.md", "templates/b.md");
+    const out = await call(r, ["verify", "--staged"], { widenOn });
+    expect(out.code).toBe(0);
+    expect(out.stderr).toBe(
+      "w: warning: --staged checks every widget: the staged changes touch templates/a.md and 2 more\n",
+    );
+    expect((await call(r, ["verify"], { widenOn })).stderr).toBe("");
   });
 
   it("prints the tool's notes on stderr and keeps them out of the report", async () => {

@@ -10,7 +10,7 @@ import { eventPath } from "../identity/layout.js";
 import { exampleKind, exampleLayout as layout } from "../testing/example-kind.js";
 import { createTempRepo, type TempRepo } from "../testing/temp-repo.js";
 import type { CheckContext, RepoContext } from "./checks.js";
-import { type VerifyMode, verifyLog, verifySnapshots } from "./verify.js";
+import { touchedInputs, type VerifyMode, verifyLog, verifySnapshots } from "./verify.js";
 
 const S = "a7c2m9xd";
 const BODY = "# Widget\n\nBody text.\n";
@@ -224,5 +224,68 @@ describe("verifyLog", () => {
         mode: { type: "full" },
       }),
     ).rejects.toBeInstanceOf(InvalidArgumentError);
+  });
+});
+
+describe("staged widening", () => {
+  const STAGED: VerifyMode = { type: "staged" };
+  const WIDEN = ["w.toml", "log/w.toml", "templates/"];
+
+  it("touchedInputs lists exact and directory entries, deletions included", async () => {
+    const r = await repo({ ...log, "templates/a.md": "# A\n", "other.txt": "x\n" });
+    expect(await touchedInputs(r.git, STAGED, WIDEN)).toEqual([]);
+    await r.writeFiles({ "w.toml": "x = 1\n", "templates/b.md": "# B\n", "other.txt": "y\n" });
+    await r.remove("templates/a.md");
+    await r.stage("w.toml", "templates/b.md", "templates/a.md", "other.txt");
+    expect(await touchedInputs(r.git, STAGED, WIDEN)).toEqual([
+      "templates/a.md",
+      "templates/b.md",
+      "w.toml",
+    ]);
+    // Only staged changes count, and only in staged mode.
+    await r.write("log/w.toml", "x = 2\n");
+    expect(await touchedInputs(r.git, STAGED, ["log/w.toml"])).toEqual([]);
+    expect(await touchedInputs(r.git, { type: "full" }, WIDEN)).toEqual([]);
+    expect(await touchedInputs(r.git, STAGED, [])).toEqual([]);
+    // A "/" entry matches under the directory only, not a sibling sharing its prefix.
+    expect(await touchedInputs(r.git, STAGED, ["templates"])).toEqual([]);
+  });
+
+  it("touchedInputs counts every staged file on an unborn HEAD", async () => {
+    const r = await repo();
+    await r.writeFiles({ "w.toml": "x = 1\n", "a.txt": "a\n" });
+    await r.stage("w.toml", "a.txt");
+    expect(await touchedInputs(r.git, STAGED, WIDEN)).toEqual(["w.toml"]);
+  });
+
+  async function scopes(r: TempRepo, widenOn?: readonly string[]) {
+    const seen: [string, string[]][] = [];
+    await verifyLog({
+      git: r.git,
+      kind: exampleKind,
+      layout,
+      mode: STAGED,
+      ...(widenOn === undefined ? {} : { widenOn }),
+      checks: [
+        {
+          id: "probe",
+          async run(ctx) {
+            seen.push([ctx.scope, [...ctx.inScope].sort()]);
+            return [];
+          },
+        },
+      ],
+    });
+    return seen;
+  }
+
+  it("widens the scope to every subject when a staged input changes", async () => {
+    const r = await repo(log);
+    await r.writeFiles({ "w.toml": "x = 1\n" });
+    expect(await scopes(r, WIDEN)).toEqual([["changed", []]]);
+    await r.stage("w.toml");
+    expect(await scopes(r, WIDEN)).toEqual([["all", [S]]]);
+    // Without widenOn, the same staged change keeps the touched-only scope.
+    expect(await scopes(r)).toEqual([["changed", []]]);
   });
 });

@@ -306,4 +306,4 @@ export {
 export { type Change, diffTrees } from "./verify/diff.js";
 export { foldChecks, invariantsCheck, relateCheck, transitions } from "./verify/fold-checks.js";
 export { templateCheck, templateHistoryRef } from "./verify/template-check.js";
-export { type VerifyMode, verifyLog, verifySnapshots } from "./verify/verify.js";
+export { touchedInputs, type VerifyMode, verifyLog, verifySnapshots } from "./verify/verify.js";

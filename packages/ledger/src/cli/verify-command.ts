@@ -5,7 +5,7 @@ import type { Git } from "../git/git.js";
 import type { LogLayout } from "../identity/layout.js";
 import type { AnyKind } from "../kind/types.js";
 import type { Check } from "../verify/checks.js";
-import { type VerifyMode, verifyLog } from "../verify/verify.js";
+import { touchedInputs, type VerifyMode, verifyLog } from "../verify/verify.js";
 import type { GlobalFlags } from "./flags.js";
 import type { CliIO } from "./output.js";
 import type { CommandSpec } from "./run.js";
@@ -27,6 +27,8 @@ export interface VerifyCommandOptions {
     readonly failOn: Severity;
     /** `ToolLog.notes`; `verifyCommand` copies them into `Outcome.notes` (stderr only). */
     readonly notes?: readonly string[];
+    /** Inputs outside the log whose staged change widens `--staged` to every subject. */
+    readonly widenOn?: readonly string[];
   }>;
 }
 
@@ -76,6 +78,12 @@ export async function resolveVerifyBase(
   };
 }
 
+/** The note for a widened `--staged` run. */
+function widenedNote(kind: string, touched: readonly string[]): string {
+  const more = touched.length > 1 ? ` and ${touched.length - 1} more` : "";
+  return `--staged checks every ${kind}: the staged changes touch ${touched[0]}${more}`;
+}
+
 /**
  * The shared `verify [--staged | --base <ref>] [--format text|json|github]` command. `--ref` sets
  * the head: the mode is `staged`, `range { base, head: ref }` or `full { head: ref }`. With
@@ -114,14 +122,21 @@ export function verifyCommand(o: VerifyCommandOptions): CommandSpec {
 
       const log = await o.open({ io, flags, mode });
       const resolved = await resolveVerifyBase(log.git, mode);
+      const widenOn = log.widenOn ?? [];
       const findings = await verifyLog({
         git: log.git,
         kind: log.kind,
         layout: log.layout,
         mode: resolved.mode,
         checks: log.checks,
+        widenOn,
       });
-      const notes = [...(log.notes ?? []), ...(resolved.note === null ? [] : [resolved.note])];
+      const touched = await touchedInputs(log.git, resolved.mode, widenOn);
+      const notes = [
+        ...(log.notes ?? []),
+        ...(resolved.note === null ? [] : [resolved.note]),
+        ...(touched.length === 0 ? [] : [widenedNote(log.kind.def.name, touched)]),
+      ];
       const failOn = { failOn: log.failOn };
       const text =
         format === "json"
