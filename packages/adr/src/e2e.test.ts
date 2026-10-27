@@ -224,7 +224,7 @@ it("runs the phase 2a demo: init, scope, for, renames, copy-scope, lifecycle, ag
   const added = run(["scope", a, "--add", "src/shared/**", "--remove", "src/payments/**"]);
   expect(added.status).toBe(0);
   expect(added.stderr).toBe(
-    "adr: warning: src/shared/** matches no tracked file; verify (hooks and CI) reports scope/glob-unmatched until a file matches\n",
+    `adr: warning: src/shared/** matches no tracked file; verify reports scope/glob-unmatched once ${a} is accepted, until a file matches\n`,
   );
   ok(["scope", a, "--remove", "src/shared/**", "--commit"]);
   expect(json(["show", a]).decision.applies_to).toEqual(["src/orders/**"]);
