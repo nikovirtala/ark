@@ -1,22 +1,44 @@
-import { rm } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  CommitFailedError,
   classifyPath,
   commitWithRecovery,
   eventPath,
   type Finding,
+  firstLine,
+  headBytes,
+  headTree,
+  holdsText,
   InvalidArgumentError,
+  indexReader,
+  overlayTree,
   parseEventFileName,
   replaceFile,
+  saveCommitRecovery,
   type Trailer,
+  type TreeReader,
   UsageError,
+  withoutPaths,
+  worktreeReader,
   writeEvents,
+  writeIndexCopy,
   writeNewFile,
 } from "@nikovirtala/ledger";
 import type { IssueLog } from "./log.js";
+import {
+  INDEX_AFTER,
+  INDEX_BEFORE,
+  indexPath,
+  unstagedIndexText,
+  unstagedLogFiles,
+} from "./log-index.js";
 import type { WritePlan } from "./plan.js";
 
 type Git = IssueLog["git"];
+
+/** Renders the log's index for `tree`, which builds on `history`; `null` when unnumbered. */
+export type IndexRender = (tree: TreeReader, history: string | null) => Promise<string | null>;
 
 /** What the editor step decided. */
 export interface AfterStage {
@@ -28,10 +50,15 @@ export interface AfterStage {
 
 /** What `applyPlan` did. */
 export interface AppliedPlan {
-  /** Repo-relative paths written: replaced files, then new ones, in write order. */
+  /**
+   * Repo-relative paths written: replaced files, then new ones, in write order, then
+   * `<root>/index.md` when it was written.
+   */
   readonly written: string[];
   readonly commit: string | null;
   readonly findings: readonly Finding[];
+  /** Notes about the index ("not updated", "may be stale", unstaged files); `[]` when none. */
+  readonly notes: readonly string[];
 }
 
 /**
@@ -88,12 +115,38 @@ async function commitScopeOf(
 }
 
 /**
- * Applies a plan, as adr's `applyPlan` does without the index: refuses a commit whose scope
- * (`commitScopeOf`: the plan's, plus the files of reached issues not yet in `HEAD`) has unstaged
- * or untracked paths, writes replacements and new files (removing them again if a write
- * fails), writes the events, stages them, runs `afterStage`, and commits `plan.stage` plus the
- * already-staged files of the scope with `--only` and exact trailers. A failed `git commit` throws
- * `CommitFailedError` with the manual command.
+ * A write leaves the work tree's render of `index.md` (`staged`) staged, and it lists issue files
+ * that may not be staged. When some aren't and the index's own render differs, the next plain
+ * commit's hook fails; the note says so, as its `index/stale` finding does. `null` otherwise, or
+ * when that render fails. adr's `unstagedIndexNote`.
+ */
+async function unstagedIndexNote(
+  log: IssueLog,
+  at: string,
+  staged: string,
+  history: string | null,
+  render: IndexRender,
+): Promise<string | null> {
+  const files = await unstagedLogFiles(log.git, log.layout);
+  if (files.length === 0) return null;
+  const own = await render(await indexReader(log.git), history).catch(() => null);
+  if (own === null || own === staged) return null;
+  return `${unstagedIndexText(at, files)}; git add them before you commit, or move them out of the work tree and run issues index`;
+}
+
+/**
+ * Applies a plan: refuses a commit whose scope (`commitScopeOf`: the plan's, plus the files of
+ * reached issues not yet in `HEAD`) has unstaged or untracked paths, writes replacements and new
+ * files (removing them again if a write fails), writes the events, stages them, runs
+ * `afterStage`, and commits `plan.stage` plus the already-staged files of the scope with `--only`
+ * and exact trailers. A failed `git commit` throws `CommitFailedError` with the manual command.
+ *
+ * With `index` (`[log] index = "committed"`), `<root>/index.md` is kept fresh with adr 2b's steps
+ * (packages/adr/src/write.ts `applyPlan`, design 2b §4.5 and the binding addendum after review
+ * 6): rendered before anything is written from the tree the commit will hold, placed inside the
+ * rollback where HEAD's copy decides, rendered again after the editor step from the work-tree
+ * bytes of every `only` path (an edited `# ` heading changes the title), committed with the
+ * batch, and refreshed from the work tree afterwards.
  */
 export async function applyPlan(
   log: IssueLog,
@@ -104,7 +157,13 @@ export async function applyPlan(
     readonly message?: string;
     /** `message` is the user's own: append the trailers to its own trailer block, if it ends in one. */
     readonly mergeTrailers?: boolean;
-    readonly afterStage?: () => Promise<AfterStage>;
+    /**
+     * Runs after staging (the editor step of `new`), with the scope a commit takes, so its
+     * late-change check covers the reached issues' files too.
+     */
+    readonly afterStage?: (scope: readonly string[]) => Promise<AfterStage>;
+    /** Renders the log's index; given only when the log keeps a committed index. */
+    readonly index?: IndexRender;
   },
 ): Promise<AppliedPlan> {
   const { git } = log;
@@ -112,6 +171,7 @@ export async function applyPlan(
     throw new InvalidArgumentError("applyPlan needs a message to commit");
   }
   const stage = new Set(plan.stage);
+  // Step 0: ?5's commit scope comes first, so the index render below sees reached descriptions.
   const scope = o.commit ? await commitScopeOf(git, plan) : null;
   if (scope !== null) {
     const unstaged = new Set(await git.unstagedPaths(scope.scope));
@@ -131,6 +191,68 @@ export async function applyPlan(
     }
   }
 
+  // Step 1: render before anything is written, so a projection error leaves nothing behind. A
+  // committing write renders the tree `git commit --only` builds: HEAD (or nothing) with every
+  // `only` path's bytes, `plan.files`' for new files (`fromWork`: the work tree's, after staging).
+  const root = log.layout.root;
+  const at = indexPath(log.layout);
+  const notes: string[] = [];
+  const head = await git.resolveCommit("HEAD");
+  const extraOf = async () =>
+    scope === null ? [] : (await git.stagedPaths(scope.scope)).filter((p) => !stage.has(p));
+  const commitTree = async (extra: readonly string[], fromWork: boolean): Promise<TreeReader> => {
+    const work = worktreeReader(git);
+    const files: Record<string, Uint8Array> = {};
+    const gone = new Set<string>();
+    for (const p of sorted([...plan.stage, ...extra])) {
+      const bytes = fromWork
+        ? await work.read(p)
+        : (plan.files[p] ?? plan.replace?.[p]?.bytes ?? (await work.read(p)));
+      if (bytes === null) gone.add(p);
+      else files[p] = bytes;
+    }
+    return withoutPaths(overlayTree(await headTree(git, head), files), gone);
+  };
+  const extra0 = o.commit && o.index !== undefined ? await extraOf() : [];
+  let text: string | null = null;
+  if (o.index !== undefined) {
+    const tree = o.commit
+      ? await commitTree(extra0, false)
+      : overlayTree(worktreeReader(git), { ...plan.files, ...replaceBytes(plan) });
+    text = await o.index(tree, head);
+    if (text === null) {
+      notes.push(
+        `${at} not updated: numbers need history in this shallow clone; run git fetch --unshallow, then issues index`,
+      );
+    }
+  }
+
+  const toStage: string[] = [];
+  // Assigned in the closures below, so typed without narrowing.
+  let indexWritten = false as boolean;
+  let indexOld = null as Uint8Array | null;
+  let indexInCommit = false as boolean;
+  /** Brings the work-tree copy to `t` and stages it (now, or with the batch) where they differ. */
+  const refresh = async (t: string, now: boolean): Promise<boolean> => {
+    const r = await writeIndexCopy(git, at, t);
+    if (r.wrote && !indexWritten) indexOld = r.old;
+    indexWritten ||= r.wrote;
+    if (r.stage) {
+      if (now) await git.add([at]);
+      else toStage.push(at);
+    }
+    return r.wrote || r.stage;
+  };
+  /** Step 2's rules: committing, HEAD's copy decides; otherwise the work tree and the index. */
+  const place = async (t: string, committing: boolean, now: boolean): Promise<void> => {
+    if (!committing) {
+      await refresh(t, now);
+      return;
+    }
+    indexInCommit = !holdsText(await headBytes(git, at), t);
+    if (indexInCommit) await refresh(t, now);
+  };
+
   const eventPaths = new Set(plan.events.map((e) => eventPath(log.layout, e)));
   const written: string[] = [];
   const replaced: string[] = [];
@@ -144,9 +266,15 @@ export async function applyPlan(
       await writeNewFile(git, path, bytes, { stage: false });
       written.push(path);
     }
+    // Step 2: place inside the rollback, so a failure restores the old copy.
+    if (text !== null) await place(text, o.commit, false);
     await writeEvents(git, log.layout, plan.events, { kind: log.compiled, stage: false });
   } catch (err) {
     const top = git.root ?? "";
+    if (indexWritten) {
+      if (indexOld === null) await rm(join(top, at), { force: true });
+      else await writeFile(join(top, at), indexOld);
+    }
     for (const path of written) await rm(join(top, path), { force: true });
     for (const path of replaced) {
       const r = plan.replace?.[path];
@@ -156,19 +284,24 @@ export async function applyPlan(
     }
     throw err;
   }
-  await git.add([...plan.stage]);
+  // Step 3: stage the batch, and the index when placed.
+  await git.add([...plan.stage, ...toStage]);
+  /** The work tree's render that ends up staged, and the commit it builds on. */
+  let stagedIndex: { readonly text: string; readonly history: string | null } | null =
+    !o.commit && text !== null ? { text, history: head } : null;
 
   let findings = plan.findings;
   let commit = o.commit;
   if (o.afterStage !== undefined) {
-    const after = await o.afterStage();
+    const after = await o.afterStage(scope?.scope ?? plan.commitScope);
     findings = after.findings ?? plan.findings;
     commit = commit && after.commit;
   }
 
+  const stale = (err: unknown) => `${at} may be stale: ${firstLine(err)}; run issues index`;
   let sha: string | null = null;
   if (commit && scope !== null) {
-    const extra = (await git.stagedPaths(scope.scope)).filter((p) => !stage.has(p));
+    const extra = await extraOf();
     const staged: Trailer[] = extra.filter(isYaml).flatMap((p): Trailer[] => {
       const c = classifyPath(log.layout, p);
       const name = c.area === "event" && !c.file.includes("/") ? parseEventFileName(c.file) : null;
@@ -179,17 +312,91 @@ export async function applyPlan(
           ]
         : [];
     });
-    sha = await commitWithRecovery(git, {
-      message: o.message ?? "",
-      mergeTrailers: o.mergeTrailers === true,
-      trailers: [...staged, ...plan.trailers],
-      only: sorted([...plan.stage, ...extra]),
-      rerun: WRITE_RERUN,
-    });
+    const message = o.message ?? "";
+    const mergeTrailers = o.mergeTrailers === true;
+    const trailers = [...staged, ...plan.trailers];
+    if (text !== null && o.index !== undefined && o.afterStage !== undefined) {
+      // Step 4: after the editor step every `only` path's work-tree bytes are what the commit
+      // takes (an edited heading changes the title), so render that tree again. This differs
+      // from adr's step 4, which renders again only when the staged events changed.
+      try {
+        const again = await o.index(await commitTree(extra, true), head);
+        if (again !== null) await place(again, true, true);
+      } catch (err) {
+        const recovery = await saveCommitRecovery(git, {
+          message,
+          mergeTrailers,
+          trailers,
+          only: sorted([...plan.stage, ...extra, at]),
+        });
+        throw new CommitFailedError(
+          {
+            recovery,
+            headline: `${at} couldn't be refreshed: ${firstLine(err)}`,
+            detail: "",
+            rerun: WRITE_RERUN,
+            before: INDEX_BEFORE(root),
+            after: null,
+            notes,
+          },
+          { cause: err },
+        );
+      }
+    }
+    try {
+      sha = await commitWithRecovery(git, {
+        message,
+        mergeTrailers,
+        trailers,
+        only: sorted([...plan.stage, ...extra, ...(indexInCommit ? [at] : [])]),
+        rerun: WRITE_RERUN,
+        after: indexInCommit ? INDEX_AFTER(root) : null,
+      });
+    } catch (err) {
+      throw err instanceof CommitFailedError ? err.withNotes(notes) : err;
+    }
+    // Step 5: the commit's render leaves out other issues' uncommitted entries; the work tree
+    // and the index get them back.
+    if (text !== null && o.index !== undefined) {
+      try {
+        const again = await o.index(worktreeReader(git), sha);
+        if (again !== null) {
+          await refresh(again, true);
+          stagedIndex = { text: again, history: sha };
+        }
+      } catch (err) {
+        notes.push(stale(err));
+      }
+    }
+  } else if (o.commit && text !== null && o.index !== undefined) {
+    // Step 4: the editor step turned the commit off, so the index must match the work tree.
+    try {
+      const again = await o.index(worktreeReader(git), head);
+      if (again !== null) {
+        await refresh(again, true);
+        stagedIndex = { text: again, history: head };
+      }
+    } catch (err) {
+      notes.push(stale(err));
+    }
+  }
+  if (stagedIndex !== null && o.index !== undefined) {
+    const { text: t, history } = stagedIndex;
+    const note = await unstagedIndexNote(log, at, t, history, o.index);
+    if (note !== null) notes.push(note);
   }
   return {
-    written: [...Object.keys(plan.replace ?? {}), ...Object.keys(plan.files)],
+    written: [
+      ...Object.keys(plan.replace ?? {}),
+      ...Object.keys(plan.files),
+      ...(indexWritten ? [at] : []),
+    ],
     commit: sha,
     findings,
+    notes,
   };
 }
+
+/** The new bytes of each file a plan replaces. */
+const replaceBytes = (plan: WritePlan): Record<string, Uint8Array> =>
+  Object.fromEntries(Object.entries(plan.replace ?? {}).map(([p, r]) => [p, r.bytes]));

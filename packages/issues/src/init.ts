@@ -12,6 +12,7 @@ import {
 import { ACTIONS, INIT_TITLE } from "./commit-actions.js";
 import { issueKind } from "./kind.js";
 import type { IssueLog } from "./log.js";
+import { indexPath, renderIssueIndex } from "./log-index.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
 
 /** `issues init --json`. */
@@ -116,6 +117,28 @@ export async function initIssueLog(
     const path = `${root}/templates/${name}.md`;
     if ((await log.tree.read(path)) !== null) kept.push(path);
     else files.push([path, BUILTIN_TEMPLATES[name] ?? ""]);
+  }
+  // A kept config with `[log] index = "committed"` gets its index, as adr's init does; an
+  // existing index.md is kept.
+  if (log.issues.index === "committed") {
+    const path = indexPath(log.layout);
+    if ((await log.tree.read(path)) !== null) {
+      kept.push(path);
+    } else {
+      const text = await renderIssueIndex(log.git, {
+        layout: log.layout,
+        issues: log.issues,
+        tree: log.tree,
+        history: await log.git.resolveCommit("HEAD"),
+      });
+      if (text === null) {
+        notes.push(
+          `${path} not written: numbers need history in this shallow clone; run git fetch --unshallow, then issues index`,
+        );
+      } else {
+        files.push([path, text]);
+      }
+    }
   }
   const commit = files.length > 0 && (o.commit ?? log.issues.autoCommit);
   if (
