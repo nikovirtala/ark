@@ -55,6 +55,7 @@ describe("issueHookCommands", () => {
       "pre-commit": ["hooks", "run", "pre-commit"],
       "commit-msg": ["hooks", "trailers", "{args}"],
       "pre-push": ["verify", "--base", "@{upstream}", "--ref", "HEAD", "--fetch-sources"],
+      "post-merge": ["list", "--since", "ORIG_HEAD"],
     });
     const R = ["--root", "tickets"];
     expect(issueHookCommands(await open(r, { root: "tickets" }))["pre-commit"]).toEqual([
@@ -78,7 +79,8 @@ describe("issues hooks share ledger's shims with adr", { timeout: 120_000 }, () 
         "wrote .git/hooks/pre-commit",
         "wrote .git/hooks/commit-msg",
         "wrote .git/hooks/pre-push",
-        "issues hooks: pre-commit, commit-msg, pre-push",
+        "wrote .git/hooks/post-merge",
+        "issues hooks: pre-commit, commit-msg, pre-push, post-merge",
         "",
       ].join("\n"),
     );
@@ -90,13 +92,19 @@ describe("issues hooks share ledger's shims with adr", { timeout: 120_000 }, () 
       format: "issues-hooks/v1",
       action: "install",
       written: [],
-      unchanged: [".git/hooks/pre-commit", ".git/hooks/commit-msg", ".git/hooks/pre-push"],
+      unchanged: [
+        ".git/hooks/pre-commit",
+        ".git/hooks/commit-msg",
+        ".git/hooks/pre-push",
+        ".git/hooks/post-merge",
+      ],
     });
     expect(ok(runIssues(r, ["hooks", "uninstall"])).stdout).toBe(
       [
         "removed issues from .git/hooks/pre-commit",
         "removed issues from .git/hooks/commit-msg",
         "removed issues from .git/hooks/pre-push",
+        "removed issues from .git/hooks/post-merge",
         "",
       ].join("\n"),
     );
@@ -284,5 +292,26 @@ describe("the commit-msg hook", { timeout: 180_000 }, () => {
     const after = ok(runGit(r, ["commit", "-q", "--allow-empty", "-m", "chore: tidy"]));
     expect(after.stderr).toMatch(/the current issue \S+ is closed; run issues work --clear/);
     expect((await trailers(r)).filter((t) => t.startsWith("Issue:"))).toEqual([]);
+  });
+});
+
+describe("the post-merge hook", { timeout: 120_000 }, () => {
+  it("lists what a merge closed, after a real git merge", async () => {
+    const r = await repo();
+    ok(runIssues(r, ["hooks", "install"]));
+    const x = newIssue(r, "Closed on the branch");
+    const y = newIssue(r, "Opened on the branch only");
+    ok(runGit(r, ["checkout", "-qb", "topic"]));
+    ok(runIssues(r, ["close", x, "--reason", "Done.", "--commit"]));
+    newIssue(r, "Brand new");
+    ok(runGit(r, ["checkout", "-q", "main"]));
+    const merged = ok(runGit(r, ["merge", "-q", "--ff-only", "topic"]));
+    // git passes hook output to stderr.
+    const shown = JSON.parse(ok(runIssues(r, ["show", x, "--json"])).stdout).issue.display;
+    expect(merged.stderr).toMatch(/^Changed since ORIG_HEAD \([0-9a-f]{7}\):\n/);
+    expect(merged.stderr).toContain(`${shown.padEnd(10)} closed`);
+    expect(merged.stderr).toMatch(/\[new: closed\]\n$/);
+    expect(merged.stderr).not.toContain("Brand new");
+    expect(merged.stderr).not.toContain(y);
   });
 });

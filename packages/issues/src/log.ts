@@ -1,7 +1,9 @@
 import { parseDecisionNumber } from "@nikovirtala/adr/kind";
 import {
   type CheckContext,
+  classifyPath,
   compileKind,
+  diffTrees,
   type Finding,
   type FoldedLogOf,
   foldLog,
@@ -17,6 +19,7 @@ import {
   numberLog,
   openToolLog,
   type Projection,
+  parseEventFileName,
   projectLog,
   readIndexNumbers,
   readSources,
@@ -424,4 +427,37 @@ export function resolveTarget(read: IssuesRead, input: string, rel: Rel): string
   if (DECISION_NUMBER.test(s))
     throw new UsageError(`${rel} needs an issue, and ${s} is a decision`);
   return resolveIssue(read, s);
+}
+
+/** `issues list --since <rev>`: the event files added since `rev`. adr's `ChangedSince`. */
+export interface ChangedSince {
+  /** The revision as given, such as `ORIG_HEAD`. */
+  readonly rev: string;
+  readonly commit: string;
+  /** Event files added since `rev`, sorted by path. */
+  readonly events: readonly {
+    readonly subject: string;
+    readonly type: string;
+    readonly path: string;
+  }[];
+}
+
+/**
+ * The event files in `--ref`'s tree (else HEAD's) that `rev`'s tree lacks, as adr's
+ * `changedSince`: diffing trees answers "what did this pull bring" for fast-forwards and merges
+ * (`ORIG_HEAD` is the tip before them). Throws `RefNotFoundError` when either doesn't resolve.
+ */
+export async function changedSince(log: IssueLog, rev: string): Promise<ChangedSince> {
+  const base = await refReader(log.git, rev);
+  const head = await refReader(log.git, log.ref ?? "HEAD");
+  const changes = await diffTrees(base, head, `${log.layout.root}/${log.layout.events}`);
+  const events = changes.flatMap((c) => {
+    if (c.status !== "added") return [];
+    const p = classifyPath(log.layout, c.path);
+    if (p.area !== "event" || p.subject === null || p.file.includes("/")) return [];
+    const name = parseEventFileName(p.file);
+    return name === null ? [] : [{ subject: p.subject, type: name.type, path: c.path }];
+  });
+  events.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  return { rev, commit: base.commit ?? "", events };
 }

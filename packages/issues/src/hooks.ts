@@ -63,6 +63,7 @@ export function issueHookCommands(log: IssueLog): Partial<Record<HookName, reado
     "pre-commit": [...r, "hooks", "run", "pre-commit"],
     "commit-msg": [...r, "hooks", "trailers", "{args}"],
     "pre-push": [...r, "verify", "--base", "@{upstream}", "--ref", "HEAD", "--fetch-sources"],
+    "post-merge": [...r, "list", "--since", "ORIG_HEAD"],
   };
 }
 
