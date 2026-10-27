@@ -93,13 +93,18 @@ function definitionProblem<S extends string, E extends EventDefs<S>, St, P, O>(
   const stateRefs: [string, readonly string[] | undefined][] = [
     ["templates.lintIn", def.templates?.lintIn],
     ["scope.activeIn", def.scope?.activeIn],
+    ["scope.requireMatchIn", def.scope?.requireMatchIn],
   ];
   for (const [field, ss] of stateRefs) {
     const unknown = (ss ?? []).filter((s) => !isState(s));
     if (unknown.length > 0) return `${field} names unknown state ${list(unknown)}`;
   }
   if (def.scope !== undefined) {
-    const { keyword, event } = def.scope;
+    const { keyword, event, activeIn, requireMatchIn } = def.scope;
+    const outside = (requireMatchIn ?? []).filter((s) => !activeIn.includes(s));
+    if (outside.length > 0) {
+      return `scope.requireMatchIn names ${list(outside)}, which isn't in activeIn`;
+    }
     if (keyword !== undefined && (typeof keyword !== "string" || !KEYWORD.test(keyword))) {
       return `scope.keyword ${JSON.stringify(keyword)} must match ${KEYWORD.source}`;
     }

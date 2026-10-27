@@ -144,11 +144,15 @@ export interface KindDef<S extends string, E extends EventDefs<S>, St, P, O> {
   readonly options: O;
   /**
    * Scope: which whole-set event carries the glob set, in which states it is active, and the
-   * comment-anchor keyword (`<keyword>:<id>`, default `sourceName`).
+   * comment-anchor keyword (`<keyword>:<id>`, default `sourceName`). `requireMatchIn` (a subset
+   * of `activeIn`, default `activeIn`) are the states in which a glob matching no tracked file is
+   * `scope/glob-unmatched`; leaving a planned state out lets planned work name code that doesn't
+   * exist yet.
    */
   readonly scope?: {
     readonly event: keyof E & string;
     readonly activeIn: readonly S[];
+    readonly requireMatchIn?: readonly S[];
     readonly keyword?: string;
   };
 }

@@ -136,6 +136,31 @@ describe("scopeGlobCheck", () => {
     expect(await verify(r, { type: "full", head: "HEAD" })).toEqual([]);
   });
 
+  it("reports unmatched globs only in requireMatchIn, invalid ones in every status", async () => {
+    // The same kind, with "open" a planned state whose globs may name code that doesn't exist.
+    const planned = defineKind({
+      ...task.def,
+      scope: { event: "labeled", activeIn: ["open", "done"], requireMatchIn: ["done"] },
+    });
+    const r = await repo();
+    const opened = ev(A, "opened");
+    const labeled = ev(A, "labeled", { set: ["src/**", "src/[a"] });
+    await commitFiles(r, files(opened, labeled));
+    const check = (kind: typeof planned) =>
+      verifyLog({ git: r.git, kind, layout, mode: { type: "full" }, checks: [scopeGlobCheck()] });
+    const at = eventPath(layout, labeled);
+    expect(brief(await check(planned))).toEqual([["scope/glob-invalid", at, null, A]]);
+    expect(brief(await check(task))).toEqual([
+      ["scope/glob-invalid", at, null, A],
+      ["scope/glob-unmatched", at, null, A],
+    ]);
+    await commitFiles(r, files(ev(A, "done")));
+    expect(brief(await check(planned))).toEqual([
+      ["scope/glob-invalid", at, null, A],
+      ["scope/glob-unmatched", at, null, A],
+    ]);
+  });
+
   it("reports invalid globs in any status and unmatched ones only while active", async () => {
     const r = await repo();
     const [openedA, openedB] = [ev(A, "opened"), ev(B, "opened")];
