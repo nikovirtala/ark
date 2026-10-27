@@ -7,7 +7,7 @@ import {
   UsageError,
 } from "@nikovirtala/ledger";
 import type { IssueStatus, IssueView, Rel } from "./kind.js";
-import { type IssuesRead, readNotes } from "./log.js";
+import { type ChangedSince, type IssuesRead, readNotes } from "./log.js";
 
 /** The `numbering` key of the read documents. */
 export interface NumberingJson {
@@ -32,6 +32,11 @@ export interface IssueListJson {
     readonly limit: number | null;
   };
   readonly issues: readonly IssueView[];
+  /**
+   * With `--since <rev>`: the event files added since `rev` that listed an issue (closed,
+   * reopened, or assigned to you); `null` without it.
+   */
+  readonly since: ChangedSince | null;
   /** Newer envelope or schema versions; upgrade issues. */
   readonly unreadable: readonly string[];
   /** First event not `opened`, or a body with no events; run issues verify. */
@@ -164,6 +169,11 @@ const findingsOf = (read: IssuesRead, ids: ReadonlySet<string>) =>
  * The `issues-list/v1` document: open and in-progress issues by default, `states` instead when
  * given, every issue with `all`; `assignees` and `labels` AND-ed. Ordered in progress, open,
  * closed, then by number, `opened_at` and id, and truncated to `limit` after ordering.
+ *
+ * With `since` (from `changedSince`), only the issues with an event file added since its
+ * revision of type `closed`, `reopened`, or `assigned` while `me` is now among the assignees, in
+ * any state unless `states` is given: what a pull brought you (02's post-merge list). Newly
+ * opened issues aren't listed. `since.events` keeps only the listing events.
  */
 export function listIssues(
   read: IssuesRead,
@@ -173,13 +183,30 @@ export function listIssues(
     readonly assignees?: readonly string[];
     readonly labels?: readonly string[];
     readonly limit?: number | null;
+    readonly since?: ChangedSince | null;
+    /** Your address, for `since`'s assigned events; `null` lists none of them. */
+    readonly me?: string | null;
   } = {},
 ): IssueListJson {
   const given = o.states ?? [];
+  const me = o.me ?? null;
+  const since =
+    o.since === undefined || o.since === null
+      ? null
+      : {
+          ...o.since,
+          events: o.since.events.filter((e) => {
+            if (e.type === "closed" || e.type === "reopened") return true;
+            if (e.type !== "assigned" || me === null) return false;
+            const v = read.projection.views.get(e.subject);
+            return v?.assignees.some((a) => matchesAssignee(a, me)) === true;
+          }),
+        };
+  const changed = since === null ? null : new Set(since.events.map((e) => e.subject));
   if (o.all === true && given.length > 0)
     throw new UsageError("--all can't be combined with --state");
   const states =
-    o.all === true
+    o.all === true || (since !== null && given.length === 0)
       ? STATE_ORDER
       : given.length > 0
         ? STATE_ORDER.filter((s) => given.includes(s))
@@ -188,6 +215,7 @@ export function listIssues(
   const labels = o.labels ?? [];
   const issues = [...read.projection.views.values()]
     .filter((v) => states.includes(v.state))
+    .filter((v) => changed === null || changed.has(v.id))
     .filter((v) => assignees.every((who) => v.assignees.some((a) => matchesAssignee(a, who))))
     .filter((v) => labels.every((l) => v.labels.includes(l)))
     .sort(
@@ -208,6 +236,7 @@ export function listIssues(
       limit: o.limit ?? null,
     },
     issues,
+    since,
     unreadable: read.projection.unreadable,
     unfoldable: read.projection.unfoldable,
     findings: findingsOf(read, new Set(issues.map((v) => v.id))),

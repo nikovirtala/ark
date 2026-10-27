@@ -26,6 +26,22 @@ const lines = (views: readonly IssueView[], none: string) =>
 
 export const listText = (doc: IssueListJson): string => lines(doc.issues, "no issues");
 
+/**
+ * `issues list --since <rev>`: a header and each issue's line with what the pull brought it
+ * (`[new: closed]`); nothing when it brought nothing, so the post-merge hook stays quiet.
+ */
+export function sinceText(doc: IssueListJson): string {
+  const since = doc.since;
+  if (since === null || doc.issues.length === 0) return "";
+  return `${[
+    `Changed since ${since.rev} (${short(since.commit)}):`,
+    ...doc.issues.map((v) => {
+      const types = [...new Set(since.events.filter((e) => e.subject === v.id).map((e) => e.type))];
+      return `${issueLine(v)}  [new: ${types.join(", ")}]`;
+    }),
+  ].join("\n")}\n`;
+}
+
 export const readyText = (doc: IssueReadyJson): string => lines(doc.issues, "no ready issues");
 
 /** Error and warning findings as `rule: message` lines, for stderr notes. */
