@@ -35,7 +35,7 @@ export type {
 } from "./plan.js";
 export { type IssueForJson, type IssuesForJson, issuesFor } from "./scope.js";
 export { type DecisionLogRead, readDecisionLog, readSourceLogs } from "./sources.js";
-export { issuesChecks, verifyIssues } from "./verify.js";
+export { issuesChecks, issueVerifyInputs, verifyIssues } from "./verify.js";
 export {
   type IssueCommentJson,
   type IssueCommitJson,

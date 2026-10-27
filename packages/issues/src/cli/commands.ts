@@ -2,8 +2,8 @@ import { templateHistoryRef } from "@nikovirtala/ledger";
 import { type CommandSpec, type ToolCli, verifyCommand } from "@nikovirtala/ledger/cli";
 import { issueKind } from "../kind.js";
 import { sourcesNote } from "../log.js";
-import { readSourceLogs } from "../sources.js";
-import { issuesChecks } from "../verify.js";
+import { readDecisionLog, sourceLogsOf } from "../sources.js";
+import { issuesChecks, issueVerifyInputs } from "../verify.js";
 import { commentCommand } from "./comment.js";
 import { editCommand } from "./edit.js";
 import { forCommand } from "./for.js";
@@ -29,7 +29,8 @@ const verify: CommandSpec = verifyCommand({
     const log = await openForCli(io, flags, {
       reader: mode.type === "staged" ? "index" : "worktree",
     });
-    const sources = await readSourceLogs(log);
+    const decisions = await readDecisionLog(log);
+    const sources = sourceLogsOf(decisions, log.config);
     const note = sourcesNote({ sources: (log.config?.sources ?? []).map((s) => s.name) });
     return {
       git: log.git,
@@ -38,6 +39,7 @@ const verify: CommandSpec = verifyCommand({
       checks: issuesChecks(log, await templateHistoryRef(log.git, mode), sources),
       failOn: log.issues.failOn,
       notes: note === null ? log.notes : [...log.notes, note],
+      widenOn: issueVerifyInputs(log, decisions),
     };
   },
 });
