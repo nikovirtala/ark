@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M5ZRF2JQRK09T3D3BP1A227D
+subject: 3gyr85xq
+type: opened
+at: 2026-10-27T22:42:31Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Share the index-numbering and source-name helpers in ledger
+  template: task
+  template_version: 1

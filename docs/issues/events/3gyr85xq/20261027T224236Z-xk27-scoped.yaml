@@ -1,0 +1,20 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M5ZRF7CHE9XZHH1NQNZ0XK27
+subject: 3gyr85xq
+type: scoped
+at: 2026-10-27T22:42:36Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/adr/src/sources.ts
+    - packages/issues/src/log.ts
+    - packages/issues/src/sources.ts
+    - packages/ledger/src/cli/sources-command.ts
+    - packages/ledger/src/sources/**
