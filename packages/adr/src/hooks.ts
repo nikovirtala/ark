@@ -9,6 +9,7 @@ import {
   type HookInstallResult,
   type HookManager,
   type HookName,
+  holdsText,
   hookSnippet,
   installHooks,
   parseEventFileName,
@@ -22,7 +23,7 @@ import {
 } from "@nikovirtala/ledger";
 import { adrKind } from "./kind.js";
 import type { DecisionLog } from "./log.js";
-import { holdsText, indexPath, renderDecisionIndex } from "./log-index.js";
+import { indexPath, renderDecisionIndex } from "./log-index.js";
 import { verifyDecisions } from "./verify.js";
 import { followScopeRenames } from "./write.js";
 

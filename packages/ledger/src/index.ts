@@ -183,12 +183,18 @@ export {
 } from "./log/write.js";
 export {
   escapeMarkdown,
+  firstLine,
+  headBytes,
+  headTree,
+  holdsText,
   INDEX_FORMAT,
   type IndexSpec,
   indexCheck,
   parseIndexNumbers,
   readIndexNumbers,
   renderIndex,
+  withoutPaths,
+  writeIndexCopy,
   writeIndexFile,
 } from "./log-index/index.js";
 export { type Anchor, anchorsInLine, scanAnchors } from "./scope/anchors.js";

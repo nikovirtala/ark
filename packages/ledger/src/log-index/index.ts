@@ -1,5 +1,13 @@
 export { indexCheck } from "./check.js";
 export {
+  firstLine,
+  headBytes,
+  headTree,
+  holdsText,
+  withoutPaths,
+  writeIndexCopy,
+} from "./copies.js";
+export {
   escapeMarkdown,
   INDEX_FORMAT,
   type IndexSpec,
