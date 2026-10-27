@@ -1,0 +1,24 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M5ZRJHG11AD1QEVMKFKHM5Z7
+subject: jdpc6bn7
+type: closed
+at: 2026-10-27T22:44:25Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: |-
+  Done in issues PR 2 (@nikovirtala/issues 0.2.0, ledger 0.7.0, adr 0.5.0). Commits are named by subject because the fixups are squashed before merge.
+  1. `issues new "Split the orders service" --commit` now writes `docs(issues): open "split the orders service"`, which doesn't read as two verbs ("feat(issues): name issues by their title in default commit subjects", on ledger's quoted title slot from "feat(ledger): quote titles, batch actions and dedupe event trailers in commits"). Tested in e2e-subjects.test.ts and write.test.ts.
+  2. Every write after open names the issue by number (or id on a branch) and quoted title, for example `close ?42 "split the orders service"`, tested per write in write.test.ts and commits.test.ts. The starter issues.toml [commit] comment (same commit) and the README's commit section ("docs: describe issues 0.2.0 and adr 0.5.0 in the readmes") say what {title} holds for new and for every other write.
+  3. Several staged events of different types get a covering subject from ledger's joinActions: `link and scope`, `assign and start`, `edit, open and link`, and `update` beyond three verbs. Tested in write.test.ts ("names a batch of staged events of other types, with one pair per issue and type", "says update beyond three verbs, and names several issues"). adr's batches use the same rule ("fix(adr): dedupe trailers and name batches in default commit subjects").
+  4. ledger's eventTrailers writes one Issue/Issue-Event pair per issue and event type, used by both tools' applyPlan and commit-msg hooks. The write.test.ts batch test commits three staged link events of one issue with scope --commit and asserts a single `Issue-Event: linked` pair.
+  5. The shortened-subject warning now reads 'the title was shortened to keep the commit description (after "docs(issues):") within 72 characters; the full title is in the commit body'. write.test.ts ("shortens a long title in the subject and puts the full title in the body") asserts the text and a description of at most 72 characters.
+  6. e2e-subjects.test.ts in issues and adr runs ark's commitlint (commitlint.config.mjs) on every default subject form, including a title with a quote and a shortened title.
+  7. This close is in the same PR as the change.
+data:
+  resolution: done
