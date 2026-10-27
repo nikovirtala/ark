@@ -19,9 +19,13 @@ import {
   FileExistsError,
   type Finding,
   finding,
+  firstLine,
   followRenames,
   globMatcher,
+  headBytes,
+  headTree,
   historyTemplates,
+  holdsText,
   InvalidArgumentError,
   indexReader,
   isSubjectId,
@@ -50,8 +54,10 @@ import {
   type TreeReader,
   templateHistoryRef,
   UsageError,
+  withoutPaths,
   worktreeReader,
   writeEvents,
+  writeIndexCopy,
   writeNewFile,
 } from "@nikovirtala/ledger";
 import { ACTIONS, CROSS_LOG_LINK, DRAFT_ACTION } from "./commit-actions.js";
@@ -64,17 +70,12 @@ import {
   resolveDecision,
 } from "./log.js";
 import {
-  firstLine,
-  headBytes,
-  headTree,
-  holdsText,
   INDEX_AFTER,
   INDEX_BEFORE,
   indexPath,
   renderDecisionIndex,
   unstagedIndexText,
   unstagedLogFiles,
-  writeIndexCopy,
 } from "./log-index.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
 
@@ -1749,18 +1750,6 @@ export async function applyPlan(
 /** The new bytes of each file a plan replaces. */
 const replaceBytes = (plan: WritePlan): Record<string, Uint8Array> =>
   Object.fromEntries(Object.entries(plan.replace ?? {}).map(([p, r]) => [p, r.bytes]));
-
-/** `tree` without the paths in `gone` (a staged deletion in a commit's `only` list). */
-function withoutPaths(tree: TreeReader, gone: ReadonlySet<string>): TreeReader {
-  if (gone.size === 0) return tree;
-  return {
-    label: tree.label,
-    commit: null,
-    list: async (prefix) => (await tree.list(prefix)).filter((e) => !gone.has(e.path)),
-    read: async (path) => (gone.has(path) ? null : tree.read(path)),
-    readMany: (paths) => tree.readMany(paths.filter((p) => !gone.has(p))),
-  };
-}
 
 /**
  * The clock, the randomness and `applyPlan` the write functions use. Only tests pass their own

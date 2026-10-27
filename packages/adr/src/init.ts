@@ -3,6 +3,8 @@ import { join } from "node:path";
 import {
   ConfigError,
   commitWithRecovery,
+  firstLine,
+  headTree,
   InvalidArgumentError,
   overlayTree,
   readToolConfig,
@@ -10,18 +12,12 @@ import {
   replaceFile,
   UsageError,
   worktreeReader,
+  writeIndexCopy,
   writeNewFile,
 } from "@nikovirtala/ledger";
 import { adrKind } from "./kind.js";
 import type { DecisionLog } from "./log.js";
-import {
-  firstLine,
-  headTree,
-  INDEX_AFTER,
-  indexPath,
-  renderDecisionIndex,
-  writeIndexCopy,
-} from "./log-index.js";
+import { INDEX_AFTER, indexPath, renderDecisionIndex } from "./log-index.js";
 import { SKILL_MD } from "./skill.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
 
