@@ -260,9 +260,15 @@ export {
   resolveAttribution,
 } from "./surfaces/actor.js";
 export {
+  type CommitName,
+  type CommitSlot,
   type CommitTemplate,
   checkCommitMessage,
+  type EventRef,
+  eventTrailers,
+  joinActions,
   MAX_DESCRIPTION,
+  MIN_TITLE_ROOM,
   parseCommitTemplate,
   type RenderedCommit,
   readCommitTemplate,
