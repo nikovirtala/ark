@@ -4,7 +4,6 @@ import {
   type Actor,
   CommitFailedError,
   ConfigError,
-  commitWithRecovery,
   EventExistsError,
   type Finding,
   historyTemplates,
@@ -13,13 +12,15 @@ import {
   lintDocument,
   renderCommitMessage,
   type SetOp,
+  type TreeReader,
   templateHistoryRef,
   UsageError,
 } from "@nikovirtala/ledger";
-import { type AfterStage, applyPlan, WRITE_RERUN } from "./apply.js";
+import { type AfterStage, applyPlan } from "./apply.js";
 import { ACTIONS } from "./commit-actions.js";
 import { type IssueView, issueKind } from "./kind.js";
 import { type IssueLog, type IssuesRead, readIssues, resolveIssue } from "./log.js";
+import { renderIssueIndex } from "./log-index.js";
 import {
   type CloseInput,
   type EditInput,
@@ -37,6 +38,7 @@ import {
   planStart,
   planStop,
   planUnlink,
+  reachOf,
   type SetKind,
   type WriteCommand,
   type WritePlan,
@@ -72,6 +74,12 @@ export interface WriteOptions {
   readonly message?: string | null;
   /** Notes to report before the write's own, such as the attribution notes. */
   readonly notes?: readonly string[];
+  /**
+   * `"skip"` leaves `<root>/index.md` alone (the pre-commit hook's rename following, which
+   * regenerates the index itself when asked to); default: kept fresh with `[log] index =
+   * "committed"`.
+   */
+  readonly index?: "skip";
 }
 
 /** The clock, the randomness and `applyPlan` the write functions use; tests pass their own. */
@@ -105,6 +113,42 @@ function checkWorkTree(log: IssueLog): void {
       "writes read the work tree; open the log with the worktree reader",
     );
   }
+}
+
+/**
+ * What every write passes `applyPlan` besides the plan: the commit and its message (the user's
+ * own with `-m`, else the plan's rendered one) and, with `[log] index = "committed"`, the index
+ * render. `write()` and `editIssue`'s editor branch both call `deps.apply` with it, so tests'
+ * apply seams cover both.
+ */
+function applyOptions(
+  log: IssueLog,
+  command: WriteCommand,
+  plan: WritePlan,
+  o: WriteOptions & { readonly commit: boolean },
+): {
+  readonly applied: Parameters<typeof applyPlan>[2];
+  readonly rendered: ReturnType<typeof commitMessage> | null;
+  readonly given: string | null;
+} {
+  const rendered = o.commit ? commitMessage(log, command, plan) : null;
+  const given = o.message ?? null;
+  return {
+    rendered,
+    given,
+    applied: {
+      commit: o.commit,
+      ...(rendered === null
+        ? {}
+        : { message: given ?? rendered.message, mergeTrailers: given !== null }),
+      ...(log.issues.index === "committed" && o.index !== "skip"
+        ? {
+            index: (tree: TreeReader, history: string | null) =>
+              renderIssueIndex(log.git, { layout: log.layout, issues: log.issues, tree, history }),
+          }
+        : {}),
+    },
+  };
 }
 
 /** The plan's commit message from `[commit] subject`, and whether it was shortened. */
@@ -155,7 +199,10 @@ async function write(
   plan: (read: IssuesRead, c: PlanContext) => Promise<PlanResult>,
   o: WriteOptions,
   deps: WriteDeps,
-  afterStage?: (plan: WritePlan, commit: boolean) => () => Promise<AfterStage>,
+  afterStage?: (
+    plan: WritePlan,
+    commit: boolean,
+  ) => (scope: readonly string[]) => Promise<AfterStage>,
 ): Promise<IssueWriteJson> {
   checkWorkTree(log);
   const commit = o.commit ?? log.issues.autoCommit;
@@ -194,14 +241,17 @@ async function write(
         notes: [...notes, ...(r.plan.notes ?? [])],
       };
     }
-    const rendered = commit ? commitMessage(log, command, r.plan) : null;
-    const given = o.message ?? null;
+    const {
+      applied: options,
+      rendered,
+      given,
+    } = applyOptions(log, command, r.plan, {
+      ...o,
+      commit,
+    });
     try {
       const applied = await deps.apply(log, r.plan, {
-        commit,
-        ...(rendered === null
-          ? {}
-          : { message: given ?? rendered.message, mergeTrailers: given !== null }),
+        ...options,
         ...(afterStage === undefined ? {} : { afterStage: afterStage(r.plan, commit) }),
       });
       const views = await viewsAfter(log, r.plan, applied.commit);
@@ -217,6 +267,7 @@ async function write(
         notes: [
           ...notes,
           ...(r.plan.notes ?? []),
+          ...applied.notes,
           ...(applied.commit !== null && given === null && rendered?.shortened === true
             ? [SHORTENED_NOTE]
             : []),
@@ -252,8 +303,11 @@ function editorStep(
   log: IssueLog,
   edit: Editor,
   onNote: ((note: string) => void) | undefined,
-): (plan: WritePlan, commitRequested: boolean) => () => Promise<AfterStage> {
-  return (plan, commitRequested) => async () => {
+): (
+  plan: WritePlan,
+  commitRequested: boolean,
+) => (scope: readonly string[]) => Promise<AfterStage> {
+  return (plan, commitRequested) => async (scope) => {
     const d = plan.draft;
     if (d === null) return { findings: null, commit: true };
     const abs = join(log.git.root ?? "", d.path);
@@ -281,7 +335,8 @@ function editorStep(
       }
     }
     if (commit && commitRequested) {
-      const late = (await log.git.unstagedPaths(plan.commitScope)).filter((p) => p !== d.path);
+      // The whole scope the commit takes, reached issues' files included.
+      const late = (await log.git.unstagedPaths(scope)).filter((p) => p !== d.path);
       const [first] = late;
       if (first !== undefined) {
         commit = false;
@@ -389,26 +444,40 @@ export async function editIssue(
     });
   }
   await log.git.add([path]);
-  let sha: string | null = null;
-  if (commit) {
-    const parts = {
-      title: view.display,
-      vars: { action: ACTIONS.edit, id, display: view.display, command: "edit" },
-    };
-    const message = o.message ?? renderCommitMessage(log.issues.commitSubject, parts).message;
-    sha = await commitWithRecovery(log.git, {
-      message,
-      mergeTrailers: o.message !== undefined && o.message !== null,
-      trailers: [["Issue", id]],
-      only: [path],
-      rerun: WRITE_RERUN,
-    });
-  }
-  const now = await readIssues(sha === null ? log : { ...log, commit: sha });
+  // Through applyPlan like every other write: ?5's commit scope (an uncommitted `opened` of this
+  // issue joins the commit) and the index, rendered from the edited body.
+  const fresh = await readIssues(log);
+  const now = fresh.projection.views.get(id) ?? view;
+  const plan: WritePlan = {
+    command: "edit",
+    subject: id,
+    files: {},
+    events: [],
+    stage: [path],
+    commitScope: [path],
+    eventDirs: [],
+    reach: reachOf(fresh, id),
+    draft: null,
+    commit: { action: ACTIONS.edit, title: now.display, id, display: now.display, body: [] },
+    trailers: [["Issue", id]],
+    issue: now,
+    affected: [],
+    findings: [],
+  };
+  const { applied: options, rendered, given } = applyOptions(log, "edit", plan, { ...o, commit });
+  const applied = await deps.apply(log, plan, options);
+  const views = await viewsAfter(log, plan, applied.commit);
   return result({
-    issue: now.projection.views.get(id) ?? view,
-    written: [path],
-    commit: sha,
+    issue: views.issue ?? now,
+    written: [path, ...applied.written.filter((p) => p !== path)],
+    commit: applied.commit,
+    notes: [
+      ...notes,
+      ...applied.notes,
+      ...(applied.commit !== null && given === null && rendered?.shortened === true
+        ? [SHORTENED_NOTE]
+        : []),
+    ],
   });
 }
 

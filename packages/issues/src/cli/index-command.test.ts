@@ -23,6 +23,10 @@ describe("issues index", { timeout: 60_000 }, () => {
   it("checks, writes and commits index.md", async () => {
     const r = await repo();
     newIssue(r, "Split the orders service");
+    // The write committed the index with the issue.
+    expect(runIssues(r, ["index", "--check", "--ref", "HEAD"]).status).toBe(0);
+    await git(r, "rm", "-q", INDEX);
+    await git(r, "commit", "-qm", "chore: drop the index");
     const missing = runIssues(r, ["index", "--check"]);
     expect(missing.status).toBe(1);
     expect(missing.stdout).toContain("[index/missing]");
