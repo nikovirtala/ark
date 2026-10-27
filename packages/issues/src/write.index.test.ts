@@ -261,6 +261,26 @@ const ROWS: readonly Row[] = [
     },
   },
   {
+    name: "init (replacing a .gitkeep)",
+    skip: {
+      1: "init on an existing log writes nothing",
+      2: "init on an existing log writes nothing",
+      3: "init on an existing log writes nothing",
+      4: "init on an existing log writes nothing",
+      5: "init on an existing log writes nothing",
+      8: "init on an existing log writes nothing",
+    },
+    run: async (c, o) => {
+      await c.r.write(`${ROOT}/.gitkeep`, "");
+      await c.r.stage(`${ROOT}/.gitkeep`);
+      const doc = await initIssueLog(await open(c.r), {
+        ...(o.commit === undefined ? {} : { commit: o.commit }),
+      });
+      if (doc.written.length > 0) expect(doc.removed).toEqual([`${ROOT}/.gitkeep`]);
+      return { ok: true, commit: doc.commit, notes: doc.notes, written: doc.written } as never;
+    },
+  },
+  {
     name: "index --commit",
     mayNotCommit: true,
     run: async (c, o) => {
@@ -313,10 +333,10 @@ async function arrange(pre: Pre, row: Row): Promise<{ c: Ctx; o: WriteOptions }>
     await r.write(`${ROOT}/issues.toml`, config);
     await r.stage(`${ROOT}/issues.toml`);
   }
-  if (row.name !== "init" || pre !== 7) {
+  if (!row.name.startsWith("init") || pre !== 7) {
     await initIssueLog(await open(r), { commit });
   }
-  if (row.name === "init" && unborn) {
+  if (row.name.startsWith("init") && unborn) {
     // init in an unborn repository: only the config, staged.
     return { c: { r, x: "", other: "", commit: false }, o: { commit: true } };
   }

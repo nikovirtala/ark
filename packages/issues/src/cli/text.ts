@@ -148,6 +148,7 @@ export function initText(doc: IssuesInitJson): string {
   const out = [
     ...doc.written.map((p) => `wrote ${p}`),
     ...doc.kept.map((p) => `kept ${p}`),
+    ...doc.removed.map((p) => `removed ${p}`),
     ...(doc.commit === null ? [] : [`committed ${short(doc.commit)}`]),
   ];
   return `${out.length === 0 ? "nothing to do" : out.join("\n")}\n`;

@@ -3,10 +3,13 @@ import { join } from "node:path";
 import {
   ConfigError,
   commitWithRecovery,
+  headBytes,
   InvalidArgumentError,
+  indexReader,
   readToolConfig,
   renderCommitMessage,
   UsageError,
+  worktreeReader,
   writeNewFile,
 } from "@nikovirtala/ledger";
 import { ACTIONS, INIT_TITLE } from "./commit-actions.js";
@@ -23,6 +26,8 @@ export interface IssuesInitJson {
   readonly config: string | null;
   readonly written: readonly string[];
   readonly kept: readonly string[];
+  /** Placeholders removed (an empty `<root>/.gitkeep`), the deletion staged and committed with them. */
+  readonly removed: readonly string[];
   /** The agent skill's path; always `null` in this version. */
   readonly skill: string | null;
   readonly commit: string | null;
@@ -47,6 +52,8 @@ export function starterConfig(o: {
     "[log]",
     ...(o.root === null ? [] : [`root = ${JSON.stringify(o.root)}`]),
     `default_template = ${JSON.stringify(o.template)}`,
+    '# "none", or "committed" to keep index.md generated and fresh in every commit (ADR-0010)',
+    'index = "none"',
     "",
     "[labels]",
     'exclusive = ["priority", "type"]',
@@ -66,8 +73,9 @@ export function starterConfig(o: {
  * `issues init`: writes the starter config unless the log has one, and each chosen built-in
  * template (default `task`) to `<root>/templates/<name>.md`, never overwriting a file; reports
  * what it wrote and kept. A `--root` other than `docs/issues` gets a repo-level `issues.toml`
- * naming it, as adr's init does, so later commands find the log. No events are written. With
- * `commit`, commits only what it wrote.
+ * naming it, as adr's init does, so later commands find the log. No events are written. Once it
+ * writes a file, an empty `<root>/.gitkeep` placeholder is removed and the deletion staged (?8);
+ * a non-empty one is kept with a note. With `commit`, commits only what it wrote and removed.
  */
 export async function initIssueLog(
   log: IssueLog,
@@ -160,6 +168,26 @@ export async function initIssueLog(
     throw err;
   }
   if (written.length > 0) await log.git.add(written);
+  // The placeholder goes once the log has real files: after the writes, so a failed write leaves
+  // it alone.
+  const removed: string[] = [];
+  const tracked: string[] = [];
+  if (written.length > 0) {
+    const keep = `${root}/.gitkeep`;
+    const work = await worktreeReader(log.git).read(keep);
+    const head = await headBytes(log.git, keep);
+    const staged = await (await indexReader(log.git)).read(keep);
+    const bytes = work ?? staged ?? head;
+    if (bytes !== null && bytes.byteLength > 0) {
+      notes.push(`kept ${keep}: it isn't empty`);
+    } else if (bytes !== null) {
+      if (work !== null) await rm(join(log.git.root ?? "", keep), { force: true });
+      if (staged !== null) await log.git.add([keep]);
+      removed.push(keep);
+      // Only HEAD's placeholder has a deletion to commit; a new or untracked one is just gone.
+      if (head !== null) tracked.push(keep);
+    }
+  }
   let sha: string | null = null;
   if (commit) {
     const message =
@@ -168,7 +196,21 @@ export async function initIssueLog(
         title: INIT_TITLE,
         vars: { action: ACTIONS.init, id: "", display: "", command: "init" },
       }).message;
-    sha = await commitWithRecovery(log.git, { message, only: written, rerun: INIT_RERUN });
+    sha = await commitWithRecovery(log.git, {
+      message,
+      only: [...written, ...tracked],
+      rerun: INIT_RERUN,
+    });
   }
-  return { format: "issues-init/v1", root, config, written, kept, skill: null, commit: sha, notes };
+  return {
+    format: "issues-init/v1",
+    root,
+    config,
+    written,
+    kept,
+    removed,
+    skill: null,
+    commit: sha,
+    notes,
+  };
 }

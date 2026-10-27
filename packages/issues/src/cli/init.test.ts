@@ -29,4 +29,11 @@ describe("issues init", () => {
     expect(runIssues(repo, ["init", "--template", "nope"]).status).toBe(2);
     expect(runIssues(repo, ["init", "--ref", "HEAD"]).status).toBe(2);
   });
+
+  it("prints the removed placeholder", async () => {
+    await using repo = await cliRepo({ "docs/issues/.gitkeep": "" });
+    const out = runIssues(repo, ["init", "--commit"]);
+    expect(out.status).toBe(0);
+    expect(out.stdout).toContain("removed docs/issues/.gitkeep\n");
+  });
 });
