@@ -1,8 +1,9 @@
-import { type SetOp, UsageError } from "@nikovirtala/ledger";
+import { type JsonValue, resolveAttribution, type SetOp, UsageError } from "@nikovirtala/ledger";
 import { COMMIT_OPTIONS, type CommandSpec } from "@nikovirtala/ledger/cli";
-import { assignIssue, labelIssue, scopeIssue } from "../write.js";
+import { assignIssue, followScopeRenames, labelIssue, scopeIssue } from "../write.js";
 import { runWrite } from "./lifecycle.js";
-import { strings } from "./open.js";
+import { openForCli, strings } from "./open.js";
+import { findingNotes, writeText } from "./text.js";
 
 const NAMES = { set: "--set", add: "--add", remove: "--remove", clear: "--clear" } as const;
 const SET_OPTIONS = {
@@ -62,16 +63,66 @@ export const labelCommand: CommandSpec = {
     ),
 };
 
-/** `issues scope`: the code an issue concerns, as globs. */
+/**
+ * `--follow-renames` alone: no set operation, no commit and no message, all refused before the
+ * commit choice so the answer doesn't depend on `auto_commit` (adr's rule).
+ */
+function checkFollowRenames(values: Readonly<Record<string, unknown>>): void {
+  const op = ["set", "add", "remove"].some((k) => strings(values[k]).length > 0);
+  if (op || values.clear === true) {
+    throw new UsageError(
+      "--follow-renames can't be combined with --set, --clear, --add or --remove",
+    );
+  }
+  if (values.commit === true) {
+    throw new UsageError(
+      "--follow-renames stages its events for the commit that contains the renames; commit them together",
+    );
+  }
+  if (typeof values.message === "string") {
+    throw new UsageError("--follow-renames never commits, so it takes no --message");
+  }
+}
+
+/**
+ * `issues scope`: the code an issue concerns, as globs. `issues scope [<issue>]
+ * --follow-renames` rewrites them after staged renames and stages the events, never committing.
+ */
 export const scopeCommand: CommandSpec = {
   name: "scope",
   summary: "set, add or remove the globs of the code an issue concerns",
-  usage: usage("scope", "glob"),
-  options: SET_OPTIONS,
-  positionals: { min: 1, max: 1, names: ["issue"] },
+  usage: `${usage("scope", "glob")} | scope [<issue>] --follow-renames`,
+  options: { ...SET_OPTIONS, "follow-renames": { type: "boolean" } },
+  positionals: { min: 0, max: 1, names: ["issue"] },
   ref: "reject",
-  run: ({ io, flags, values, positionals }) =>
-    runWrite(io, flags, values, "scoped", (log, actor, o) =>
-      scopeIssue(log, { id: positionals[0] ?? "", op: setOp(values), actor, names: NAMES }, o),
-    ),
+  async run({ io, flags, values, positionals }) {
+    const input = positionals[0];
+    if (values["follow-renames"] === true) {
+      checkFollowRenames(values);
+      const log = await openForCli(io, flags);
+      const { actor, notes } = await resolveAttribution(log.git, { env: io.env });
+      const doc = await followScopeRenames(
+        log,
+        { ...(input === undefined ? {} : { id: input }), actor },
+        { notes },
+      );
+      const text = doc.ok
+        ? doc.affected.length === 0
+          ? "no scope follows a staged rename\n"
+          : `${doc.affected.map((v) => `${v.display}: ${v.applies_to.join(", ")}`).join("\n")}\n  staged ${doc.written.length} file${doc.written.length === 1 ? "" : "s"}\n`
+        : writeText(doc, "scoped");
+      return {
+        exit: doc.ok ? 0 : 1,
+        json: doc as unknown as JsonValue,
+        text,
+        notes: [...doc.notes, ...(doc.ok ? findingNotes(doc.findings) : [])],
+      };
+    }
+    if (input === undefined) {
+      throw new UsageError(`missing argument <issue>; usage: issues ${usage("scope", "glob")}`);
+    }
+    return runWrite(io, flags, values, "scoped", (log, actor, o) =>
+      scopeIssue(log, { id: input, op: setOp(values), actor, names: NAMES }, o),
+    );
+  },
 };

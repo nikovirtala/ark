@@ -31,6 +31,7 @@ import {
   commentIssue,
   type Editor,
   editIssue,
+  followScopeRenames,
   type IssueWriteJson,
   labelIssue,
   linkIssue,
@@ -225,6 +226,22 @@ const ROWS: readonly Row[] = [
     name: "scope",
     run: async (c, o) =>
       scopeIssue(await open(c.r), { id: c.x, op: { set: ["README.md"] }, actor: me }, o),
+  },
+  {
+    name: "scope --follow-renames, then git commit",
+    skip: {
+      1: "a plain git commit with an unstaged new issue is the pre-commit hook's case",
+      7: "an unborn HEAD has no renames",
+    },
+    prep: async (c, o) =>
+      scopeIssue(await open(c.r), { id: c.x, op: { set: ["README.md"] }, actor: me }, o),
+    run: async (c) => {
+      await git(c.r, "mv", "README.md", "READ-ME.md");
+      const doc = await followScopeRenames(await open(c.r), { id: c.x, actor: me });
+      expect(doc.affected.map((v) => v.applies_to)).toEqual([["READ-ME.md"]]);
+      await git(c.r, "commit", "-qm", "docs: rename the readme");
+      return { ...doc, commit: await c.r.git.resolveCommit("HEAD") };
+    },
   },
   {
     name: "init",

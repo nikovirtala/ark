@@ -39,6 +39,10 @@ export interface IssuesConfig {
   readonly anchorKeyword: string;
   /** `[scope] anchor_exclude`: globs of files whose anchors are ignored. */
   readonly anchorExclude: readonly string[];
+  /** `[hooks] scope_follow_renames`: what the pre-commit hook does with renames of covered files. */
+  readonly scopeFollowRenames: "stage" | "warn" | "off";
+  /** `[hooks] index`: `"stage"` lets the pre-commit hook regenerate and stage `index.md`. */
+  readonly hookIndex: "check" | "stage";
 }
 
 export const DEFAULT_ISSUES_CONFIG: IssuesConfig = Object.freeze({
@@ -58,6 +62,8 @@ export const DEFAULT_ISSUES_CONFIG: IssuesConfig = Object.freeze({
   }),
   anchorKeyword: issueKind.anchorKeyword,
   anchorExclude: Object.freeze([]) as readonly string[],
+  scopeFollowRenames: "stage",
+  hookIndex: "check",
 });
 
 const TEMPLATE = /^[a-z][a-z0-9-]*$/;
@@ -75,7 +81,7 @@ function isTable(v: unknown): v is Record<string, unknown> {
 /**
  * Validates `issues.toml` (ledger's parsed `ToolConfig`; `null` when there is none), as adr's
  * `parseAdrConfig` does. A wrong type or value throws `ConfigError` naming the file and key;
- * unknown keys (`[hooks]` included) are ignored, so newer files still load. `[log] root` is
+ * unknown keys are ignored, so newer files still load. `[log] root` is
  * ledger's (`openToolLog` already checked it).
  */
 export function parseIssuesConfig(config: ToolConfig | null, file: string | null): IssuesConfig {
@@ -93,6 +99,21 @@ export function parseIssuesConfig(config: ToolConfig | null, file: string | null
   const policy = table("policy");
   const verify = table("verify");
   const scope = table("scope");
+  const hooks = table("hooks");
+  const oneOf = <T extends string>(
+    t: Record<string, unknown>,
+    section: string,
+    key: string,
+    values: readonly T[],
+    fallback: T,
+  ): T => {
+    const v = t[key];
+    if (v === undefined) return fallback;
+    if (typeof v !== "string" || !(values as readonly string[]).includes(v)) {
+      throw fail(`${section}.${key} must be ${values.map((x) => JSON.stringify(x)).join(" or ")}`);
+    }
+    return v as T;
+  };
   const bool = (t: Record<string, unknown>, section: string, key: string, fallback: boolean) => {
     const v = t[key];
     if (v === undefined) return fallback;
@@ -185,5 +206,13 @@ export function parseIssuesConfig(config: ToolConfig | null, file: string | null
     }),
     anchorKeyword: typeof keyword === "string" ? keyword : DEFAULT_ISSUES_CONFIG.anchorKeyword,
     anchorExclude: Array.isArray(exclude) ? (exclude as string[]) : [],
+    scopeFollowRenames: oneOf(
+      hooks,
+      "hooks",
+      "scope_follow_renames",
+      ["stage", "warn", "off"] as const,
+      "stage",
+    ),
+    hookIndex: oneOf(hooks, "hooks", "index", ["check", "stage"] as const, "check"),
   };
 }

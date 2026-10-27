@@ -10,6 +10,7 @@ import {
   FileExistsError,
   type Finding,
   finding,
+  followRenames,
   globMatcher,
   InvalidArgumentError,
   lintDocument,
@@ -19,6 +20,7 @@ import {
   overlayTree,
   parseGlob,
   parseTemplate,
+  type Rename,
   renderTemplate,
   replaceSections,
   type SetOp,
@@ -1249,3 +1251,132 @@ export const INIT_COMMIT: Omit<CommitParts, "id" | "display" | "body"> = Object.
   action: ACTIONS.init,
   title: INIT_TITLE,
 });
+
+/** The renamed files and the tracked files before and after them. */
+export interface StagedRenames {
+  readonly renames: readonly Rename[];
+  readonly before: readonly string[];
+  readonly after: readonly string[];
+}
+
+/**
+ * Plans `issues scope [<issue>] --follow-renames` (adr's `planFollowRenames`): the given issue's
+ * globs, or those of every issue that isn't closed, rewritten by ledger's `followRenames`, as one
+ * `scoped` event per changed issue. A closed issue's scope stays as it was, with a note when the
+ * renames would have changed it; an explicit closed issue is refused. The plan has no commit
+ * message, because `--follow-renames` never commits.
+ */
+export async function planFollowRenames(
+  read: IssuesRead,
+  input: { readonly id: string | null; readonly actor: Actor },
+  staged: StagedRenames,
+  c: PlanContext,
+): Promise<PlanResult> {
+  const id = input.id === null ? null : resolveIssue(read, input.id);
+  const given = id === null ? null : viewOf(read, id);
+  const nothing = (notes: readonly string[]): PlanResult => ({
+    ok: true,
+    plan: {
+      command: "scope",
+      subject: id ?? "",
+      files: {},
+      events: [],
+      stage: [],
+      commitScope: [],
+      eventDirs: [],
+      reach: {},
+      draft: null,
+      commit: null,
+      trailers: [],
+      issue: given,
+      affected: [],
+      findings: [],
+      notes,
+    },
+  });
+  if (staged.renames.length === 0) return nothing([]);
+  if (given !== null && !issueKind.machine.allowed(given.state, "scoped")) {
+    return {
+      ok: false,
+      issue: given,
+      findings: [
+        refusal(read, "transition/illegal", `scoped is not allowed while ${given.state}`, given.id),
+      ],
+    };
+  }
+  const views = given !== null ? [given] : [...read.projection.views.values()];
+  const notes: string[] = [];
+  const events: EventEnvelope[] = [];
+  for (const view of [...views].sort((a, b) => (a.id < b.id ? -1 : 1))) {
+    const result = followRenames({ globs: view.applies_to, ...staged });
+    if (!result.changed) continue;
+    const shown = named(view);
+    if (view.state === "closed" || !issueKind.machine.allowed(view.state, "scoped")) {
+      const covers = globMatcher(view.applies_to);
+      const leaving = staged.renames.filter((r) => covers(r.from).length > 0).length;
+      notes.push(
+        `${shown} is ${view.state}; its scope doesn't follow renames (${leaving} renamed files leave it)`,
+      );
+      continue;
+    }
+    if (result.globs.length > 200) {
+      throw new UsageError(
+        `following the renames gives ${shown} ${result.globs.length} globs; the limit is 200`,
+      );
+    }
+    for (const s of result.skipped) {
+      notes.push(
+        `${s.to} can't be written as a scope glob (${s.problem}); ${shown} no longer covers it`,
+      );
+    }
+    for (const path of result.gained) {
+      notes.push(
+        `${path} is now covered by ${shown}'s scope but wasn't before the rename; check it`,
+      );
+    }
+    const event = newEvent(read, c, {
+      subject: view.id,
+      type: "scoped",
+      data: { set: [...result.globs] },
+      actor: input.actor,
+    });
+    const valid = compiled.validate(event, { file: null });
+    if (!valid.ok) {
+      return {
+        ok: false,
+        issue: given,
+        findings: valid.findings.map((f) => ({ ...f, subject: view.id, kind: issueKind.name })),
+      };
+    }
+    events.push(event);
+  }
+  if (events.length === 0) return nothing(notes);
+  const files = filesOf(read, events);
+  const { after, errors, warnings } = await precheck(read, files);
+  if (errors.length > 0) return { ok: false, issue: given, findings: errors };
+  const dirs = sorted(events.map((e) => eventDir(read.layout, e.subject)));
+  const subject = id ?? (events[0] as EventEnvelope).subject;
+  return {
+    ok: true,
+    plan: {
+      command: "scope",
+      subject,
+      files,
+      events,
+      stage: Object.keys(files),
+      commitScope: dirs,
+      eventDirs: dirs,
+      reach: Object.assign({}, ...events.map((e) => reachOf(after, e.subject))),
+      draft: null,
+      commit: null,
+      trailers: pairsOf(events),
+      issue: id === null ? null : (after.projection.views.get(id) ?? given),
+      affected: events.flatMap((e) => {
+        const v = after.projection.views.get(e.subject);
+        return v === undefined ? [] : [v];
+      }),
+      findings: warnings,
+      notes,
+    },
+  };
+}
