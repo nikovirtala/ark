@@ -1,6 +1,8 @@
 /** Test-only helpers for spawning the built `issues` binary on temp repos. */
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { chmod, mkdir, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Actor } from "@nikovirtala/ledger";
 import { createTempRepo, type TempRepo } from "@nikovirtala/ledger/testing";
@@ -16,6 +18,9 @@ export function requireBuilt(path: string): string {
 
 /** `packages/issues/dist/cli.js`, built by `pnpm build` before the tests run. */
 export const CLI = fileURLToPath(new URL("../../dist/cli.js", import.meta.url));
+
+/** The workspace's `packages/adr/dist/cli.js`, for tests where both tools' hooks run. */
+export const ADR_CLI = fileURLToPath(new URL("../../../adr/dist/cli.js", import.meta.url));
 
 export interface IssuesRun {
   readonly status: number | null;
@@ -144,4 +149,50 @@ export async function seedIssue(
   );
   if (!doc.ok || doc.issue === null) throw new Error(`can't open ${title}`);
   return doc.issue.id;
+}
+
+/** Writes `<dir>/node_modules/.bin/issues` and `adr`, so installed shims find the built tools. */
+export async function linkBins(dir: string): Promise<void> {
+  const q = (s: string) => `'${s.replace(/'/g, "'\\''")}'`;
+  for (const [name, cli] of [
+    ["issues", CLI],
+    ["adr", ADR_CLI],
+  ] as const) {
+    const bin = join(dir, "node_modules", ".bin", name);
+    await mkdir(dirname(bin), { recursive: true });
+    await writeFile(bin, `#!/bin/sh\nexec ${q(process.execPath)} ${q(requireBuilt(cli))} "$@"\n`);
+    await chmod(bin, 0o755);
+  }
+}
+
+/** A `cliRepo` that ignores `node_modules` (committed), with `linkBins`, for hook tests. */
+export async function hooksRepo(files: Readonly<Record<string, string>> = {}): Promise<TempRepo> {
+  const r = await cliRepo({ ".gitignore": "node_modules/\n", ...files });
+  await linkBins(r.root);
+  return r;
+}
+
+/** Runs git like a user would, hooks included, in `repo` with `cliEnv`. */
+export function runGit(
+  repo: TempRepo,
+  args: readonly string[],
+  o: { readonly cwd?: string; readonly env?: NodeJS.ProcessEnv } = {},
+): IssuesRun {
+  const r = spawnSync("git", args, {
+    cwd: o.cwd ?? repo.root,
+    env: cliEnv(repo, o.env),
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (r.error !== undefined) throw r.error;
+  return { status: r.status, stdout: r.stdout, stderr: r.stderr };
+}
+
+/** Runs the built adr binary in `repo` with `cliEnv`. */
+export function runAdrCli(
+  repo: TempRepo,
+  args: readonly string[],
+  o: { readonly env?: NodeJS.ProcessEnv } = {},
+): IssuesRun {
+  return runIssues(repo, args, { ...o, cli: ADR_CLI });
 }

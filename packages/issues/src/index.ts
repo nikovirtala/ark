@@ -6,6 +6,15 @@ export {
   type IssuesConfig,
   parseIssuesConfig,
 } from "./config.js";
+export {
+  addHookTrailers,
+  type IssueHooksJson,
+  installIssueHooks,
+  issueHookCommands,
+  printIssueHooks,
+  runPreCommitHook,
+  uninstallIssueHooks,
+} from "./hooks.js";
 export { INIT_RERUN, type IssuesInitJson, initIssueLog } from "./init.js";
 export * from "./kind.js";
 export {
@@ -70,6 +79,7 @@ export {
   commentIssue,
   type Editor,
   editIssue,
+  followScopeRenames,
   type IssueWriteJson,
   labelIssue,
   linkIssue,

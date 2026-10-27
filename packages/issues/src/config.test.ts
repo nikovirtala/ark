@@ -72,9 +72,23 @@ anchor_exclude = ["docs/**"]
     expect(c.commitSubject.source).toBe("chore(issues): {action} {title}");
   });
 
-  it("ignores unknown keys and tables, [hooks] included", () => {
-    expect(parse('[log]\nfuture = 1\n[hooks]\nindex = "stage"\n[other]\nx = 1\n')).toEqual(
+  it("ignores unknown keys and tables", () => {
+    expect(parse('[log]\nfuture = 1\n[hooks]\nfuture = "x"\n[other]\nx = 1\n')).toEqual(
       DEFAULT_ISSUES_CONFIG,
+    );
+  });
+
+  it("reads [hooks] index and scope_follow_renames, and refuses other values", () => {
+    const c = parse('[hooks]\nindex = "stage"\nscope_follow_renames = "warn"\n');
+    expect(c.hookIndex).toBe("stage");
+    expect(c.scopeFollowRenames).toBe("warn");
+    expect(DEFAULT_ISSUES_CONFIG.hookIndex).toBe("check");
+    expect(DEFAULT_ISSUES_CONFIG.scopeFollowRenames).toBe("stage");
+    expect(fails('[hooks]\nindex = "always"\n')).toBe(
+      `${FILE}: hooks.index must be "check" or "stage"`,
+    );
+    expect(fails("[hooks]\nscope_follow_renames = true\n")).toBe(
+      `${FILE}: hooks.scope_follow_renames must be "stage" or "warn" or "off"`,
     );
   });
 

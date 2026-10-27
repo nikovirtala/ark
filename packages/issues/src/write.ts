@@ -10,8 +10,10 @@ import {
   InvalidArgumentError,
   indexReader,
   lintDocument,
+  refReader,
   renderCommitMessage,
   type SetOp,
+  stagedRenames,
   type TreeReader,
   templateHistoryRef,
   UsageError,
@@ -31,6 +33,7 @@ import {
   planClose,
   planComment,
   planEdit,
+  planFollowRenames,
   planLink,
   planOpen,
   planReopen,
@@ -40,6 +43,7 @@ import {
   planUnlink,
   reachOf,
   type SetKind,
+  type StagedRenames,
   type WriteCommand,
   type WritePlan,
 } from "./plan.js";
@@ -615,4 +619,67 @@ export function unlinkIssue(
   deps: WriteDeps = DEFAULT_DEPS,
 ): Promise<IssueWriteJson> {
   return write(log, "unlink", (read, c) => planUnlink(read, input, c), o, deps);
+}
+
+/** The paths of every file in `tree`. */
+async function filePaths(tree: TreeReader): Promise<string[]> {
+  return (await tree.list("")).filter((e) => e.type === "file").map((e) => e.path);
+}
+
+/**
+ * `issues scope [<issue>] --follow-renames` (adr's `followScopeRenames`): rewrites the scope
+ * globs of the given issue, or of every issue that isn't closed, after the renames staged against
+ * `HEAD`, and stages one `scoped` event per changed issue. It never commits (the events belong in
+ * the commit with the renames), so `o.commit: true` and a message are `InvalidArgumentError`s.
+ * `dryRun` plans the same events and notes, writing nothing; `affected` lists the changed issues.
+ */
+export async function followScopeRenames(
+  log: IssueLog,
+  input: { readonly id?: string; readonly actor: Actor },
+  o: WriteOptions & { readonly dryRun?: boolean } = {},
+  deps: WriteDeps = DEFAULT_DEPS,
+): Promise<IssueWriteJson> {
+  if (o.commit === true) {
+    throw new InvalidArgumentError("followScopeRenames never commits; don't pass commit: true");
+  }
+  if (o.message !== undefined && o.message !== null) {
+    throw new InvalidArgumentError("followScopeRenames never commits, so it takes no message");
+  }
+  const renames = await stagedRenames(log.git);
+  const staged: StagedRenames =
+    renames.length === 0
+      ? { renames, before: [], after: [] }
+      : {
+          renames,
+          before: await filePaths(await refReader(log.git, "HEAD")),
+          after: await filePaths(await indexReader(log.git)),
+        };
+  const plan = (read: IssuesRead, c: PlanContext) =>
+    planFollowRenames(read, { id: input.id ?? null, actor: input.actor }, staged, c);
+  if (o.dryRun === true) {
+    checkWorkTree(log);
+    const read = await readIssues(log);
+    const r = await plan(read, await planContext(log, read, deps));
+    return {
+      format: "issues-write/v1",
+      command: "scope",
+      ok: r.ok,
+      issue: r.ok ? r.plan.issue : r.issue,
+      affected: r.ok ? r.plan.affected : [],
+      written: [],
+      commit: null,
+      findings: r.ok ? r.plan.findings : r.findings,
+      notes: [...log.notes, ...(o.notes ?? []), ...((r.ok ? r.plan.notes : r.notes) ?? [])],
+    };
+  }
+  const doc = await write(log, "scope", plan, { ...o, commit: false }, deps);
+  return log.issues.autoCommit && doc.ok && doc.affected.length > 0
+    ? {
+        ...doc,
+        notes: [
+          ...doc.notes,
+          "--follow-renames never commits; commit the scoped events with the renames",
+        ],
+      }
+    : doc;
 }
