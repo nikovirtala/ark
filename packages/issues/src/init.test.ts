@@ -40,6 +40,7 @@ describe("initIssueLog", () => {
       config: "docs/issues/issues.toml",
       written: ["docs/issues/issues.toml", "docs/issues/templates/task.md"],
       kept: [],
+      removed: [],
       skill: null,
       commit: null,
       notes: [],
@@ -102,5 +103,60 @@ describe("initIssueLog", () => {
       "x",
     );
     expect(parsed).toEqual({ ...DEFAULT_ISSUES_CONFIG, exclusive: ["priority", "type"] });
+  });
+
+  it("writes the index key with a comment on its values, and the README shows the file", async () => {
+    const text = starterConfig({ root: null, template: "task" });
+    expect(text).toContain(
+      '# "none", or "committed" to keep index.md generated and fresh in every commit (ADR-0010)\nindex = "none"\n',
+    );
+    const readme = await readFile(new URL("../README.md", import.meta.url), "utf8");
+    const marker = "`issues init` writes this starter file:\n\n```toml\n";
+    const at = readme.indexOf(marker);
+    expect(at).toBeGreaterThan(-1);
+    const start = at + marker.length;
+    expect(readme.slice(start, readme.indexOf("```\n", start))).toBe(text);
+  });
+});
+
+describe("initIssueLog and a .gitkeep placeholder (?8)", () => {
+  const show = async (r: TempRepo) =>
+    (await git(r, "show", "--name-status", "--format=%s", "HEAD")).trim().split("\n");
+
+  it("removes a tracked empty .gitkeep in the same commit", async () => {
+    const r = await repo({ "docs/issues/.gitkeep": "" });
+    const doc = await initIssueLog(await open(r), { commit: true });
+    expect(doc.removed).toEqual(["docs/issues/.gitkeep"]);
+    expect(await show(r)).toEqual([
+      "docs(issues): set up the issue log",
+      "",
+      "D\tdocs/issues/.gitkeep",
+      "A\tdocs/issues/issues.toml",
+      "A\tdocs/issues/templates/task.md",
+    ]);
+    expect((await git(r, "status", "--porcelain")).trim()).toBe("");
+  });
+
+  it("commits the removal after git rm too", async () => {
+    const r = await repo({ "docs/issues/.gitkeep": "" });
+    await git(r, "rm", "-q", "docs/issues/.gitkeep");
+    const doc = await initIssueLog(await open(r), { commit: true });
+    expect(doc.removed).toEqual(["docs/issues/.gitkeep"]);
+    expect(await show(r)).toContain("D\tdocs/issues/.gitkeep");
+    expect((await git(r, "status", "--porcelain")).trim()).toBe("");
+  });
+
+  it("keeps a .gitkeep that isn't empty, with a note, and touches nothing when writing nothing", async () => {
+    const r = await repo({ "docs/issues/.gitkeep": "keep me\n" });
+    const doc = await initIssueLog(await open(r), { commit: true });
+    expect(doc.removed).toEqual([]);
+    expect(doc.notes).toContain("kept docs/issues/.gitkeep: it isn't empty");
+    const s = await repo({ "docs/issues/.gitkeep": "" });
+    await initIssueLog(await open(s), { commit: true });
+    await s.write("docs/issues/.gitkeep", "");
+    await s.stage("docs/issues/.gitkeep");
+    const again = await initIssueLog(await open(s), { commit: true });
+    expect(again).toMatchObject({ written: [], removed: [], commit: null });
+    expect((await git(s, "status", "--porcelain")).trim()).toBe("A  docs/issues/.gitkeep");
   });
 });

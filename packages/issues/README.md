@@ -84,14 +84,35 @@ With `--json`, stdout carries exactly one JSON document: `issues-write/v1` for e
 
 ## Config (`issues.toml`)
 
-Every key is optional.
+Every key is optional. `issues init` writes this starter file:
+
+```toml
+# issues configuration. Every key is optional: https://github.com/nikovirtala/ark/tree/main/packages/issues#config-issuestoml
+[log]
+default_template = "task"
+# "none", or "committed" to keep index.md generated and fresh in every commit (ADR-0010)
+index = "none"
+
+[labels]
+exclusive = ["priority", "type"]
+
+[policy]
+close_requires_human = false
+mcp_can_close = true
+
+[commit]
+# {title} holds the title in quotes for new, and the issue's number (or id on a branch) with its title in quotes for every other write, as in: close ?42 "split the orders service".
+# subject = "docs(issues): {action} {title}"
+```
+
+Every key, with its default or an example:
 
 ```toml
 [log]
 root = "docs/issues"            # read from <repo>/issues.toml; the default
 default_template = "task"
 main_branch = "origin/main"     # the ref numbers come from; default origin/HEAD, origin/main, main, …
-index = "none"                  # "committed" is refused: this version can't keep index.md fresh
+index = "none"                  # or "committed": every write keeps index.md fresh, verify checks it
 
 [labels]
 exclusive = ["priority", "type"]               # an issue holds at most one label per prefix
