@@ -1,0 +1,19 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M61CEXW9J73VE5RJ8FAP16QD
+subject: qy2ch92c
+type: scoped
+at: 2026-10-28T13:51:12Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/issues/src/cli/mcp.ts
+    - packages/issues/src/mcp-e2e.test.ts
+    - packages/issues/src/mcp/**
+    - packages/issues/src/templates/list.ts
