@@ -1,0 +1,15 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M622FENQG4ANF8DY0MQ7K065
+subject: 1fgqfkf3
+type: commented
+at: 2026-10-28T20:15:58Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  text: 'The read side of issues mcp (?14, PR #34) copies the same logic into `packages/issues/src/mcp/text.ts` `searchText`: `r.matched.filter((f) => f === "id" || f === "title")`, so `issues_search` text shows `  ( match)` for a heading-only hit too. Fix it there as well, and add `packages/issues/src/mcp/text.ts` to this issue''s scope.'
