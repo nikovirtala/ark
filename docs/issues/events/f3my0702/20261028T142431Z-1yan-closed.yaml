@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M61EBXMS0QXPASE6MWCQ1YAN
+subject: f3my0702
+type: closed
+at: 2026-10-28T14:24:31Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "Done in this PR. 1. 'fix(ledger): ask the installed git whether a message ends in trailers' removes ledger's copy of git's trailer rules (endsInTrailerBlock) and decides with one `git interpret-trailers --parse --no-divider` call in Git.commitMessage, used by Git.commit and commitWithRecovery, made only for mergeTrailers (-m) with trailers (git.test.ts: asks git once, only for mergeTrailers with trailers). 2. ledger's, adr's and issues' tests pass (`pnpm test`) on git 2.50.1 (/usr/bin/git) and on git 2.55.0 and 2.56.0 built from the kernel.org release tarballs in the task directory and put first on PATH; the PR's CI ran on git 2.55.0 only, so the local run is the evidence for git 2.56.0. The property test (merges exactly when the installed git reads trailers in the last paragraph) checks each commit against the installed git. 3. .changeset/ledger-trailers-installed-git.md is a ledger patch. 4. This close is in the same PR."
+data:
+  resolution: done
