@@ -6,7 +6,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { CommitFailedError, type CommitRecovery, GitError } from "../errors.js";
-import { commitMessageText, type Git, requireWorkTree, type Trailer } from "../git/git.js";
+import { type Git, requireWorkTree, type Trailer } from "../git/git.js";
 import { shWord } from "../hooks/snippets.js";
 
 export type { CommitRecovery } from "../errors.js";
@@ -30,14 +30,23 @@ const PATHSPEC_MAGIC = /[*?[]|^:/;
  * `--literal-pathspecs` when a path holds a pathspec character. fs errors propagate.
  */
 export async function saveCommitRecovery(git: Git, o: CommitInput): Promise<CommitRecovery> {
+  requireWorkTree(git);
+  return writeRecovery(git, await git.commitMessage(o), o.only, o.trailers ?? []);
+}
+
+/** `saveCommitRecovery` for the message text `git.commitMessage` already gave. */
+async function writeRecovery(
+  git: Git,
+  text: string,
+  only: readonly string[],
+  trailers: readonly Trailer[],
+): Promise<CommitRecovery> {
   const top = requireWorkTree(git);
-  const trailers = o.trailers ?? [];
   const dir = join(git.gitDir, "ark");
   const messageFile = join(dir, "COMMIT_MSG");
-  const text = commitMessageText(o.message, trailers, { mergeTrailers: o.mergeTrailers === true });
   await mkdir(dir, { recursive: true });
   await writeFile(messageFile, text);
-  const staged = [...o.only].sort();
+  const staged = [...only].sort();
   const literal = staged.some((p) => PATHSPEC_MAGIC.test(p));
   const command = [
     "git",
@@ -67,7 +76,9 @@ function indentLines(text: string): string {
 /**
  * `git.commit(o)`, turning a failed `git commit` into `CommitFailedError` with the recovery hint:
  * when git exits non-zero and `HEAD` hasn't moved, the message is saved (`saveCommitRecovery`)
- * and the error says what to run. `rerun` is the caller's sentence on what running the tool again
+ * and the error says what to run. The message is built first (`git.commitMessage`), so the saved
+ * file holds exactly the text git was sent, and an error building it is thrown as it is, before
+ * anything is committed. `rerun` is the caller's sentence on what running the tool again
  * would do; `after` is a step printed last. Any other error, a commit made despite the failure
  * (`HEAD` moved), or a failure to save the message rethrows git's error, the last with the fs
  * error as its `cause`, so no hint is printed that can't be followed.
@@ -76,15 +87,16 @@ export async function commitWithRecovery(
   git: Git,
   o: CommitInput & { readonly rerun: string; readonly after?: string | null },
 ): Promise<string> {
+  const message = await git.commitMessage(o);
   const before = await git.resolveCommit("HEAD");
   try {
-    return await git.commit(o);
+    return await git.commit({ message, only: o.only });
   } catch (e) {
     if (!(e instanceof GitError) || e.exitCode === null) throw e;
     if ((await git.resolveCommit("HEAD")) !== before) throw e;
     let recovery: CommitRecovery;
     try {
-      recovery = await saveCommitRecovery(git, o);
+      recovery = await writeRecovery(git, message, o.only, o.trailers ?? []);
     } catch (fsError) {
       throw new GitError(
         e.message,

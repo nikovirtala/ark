@@ -14,7 +14,6 @@ import { parseCommitTemplate, renderCommitMessage } from "../surfaces/commit-mes
 import { createTempRepo, type TempRepo } from "../testing/temp-repo.js";
 import {
   commitMessageText,
-  endsInTrailerBlock,
   GIT_ENV_ISOLATION,
   GIT_LOCATING_ENV,
   Git,
@@ -425,13 +424,40 @@ describe("identity", () => {
 });
 
 describe("trailer blocks as git reads them", () => {
-  /** git's answer: `interpret-trailers` adds a probe to the block, or after a blank line. */
-  const gitReadsBlock = async (r: TempRepo, message: string) => {
-    const out = await r.git.run(["interpret-trailers", "--no-divider", "--trailer", "X-Probe: 1"], {
-      input: message,
+  const TRAILER_LINE = /^([A-Za-z0-9-]+)[ \t]*:[ \t]*(.*)$/;
+  /** The trailers the installed git reads in the last paragraph of `message`. */
+  const gitTrailers = async (r: TempRepo, message: string): Promise<Trailer[]> => {
+    const out = await r.git.run(["interpret-trailers", "--parse", "--no-divider"], {
+      input: message.trimEnd(),
     });
-    return !Buffer.from(out.stdout).toString().includes("\n\nX-Probe: 1");
+    return Buffer.from(out.stdout)
+      .toString()
+      .split("\n")
+      .flatMap((line) => {
+        const m = TRAILER_LINE.exec(line.trimEnd());
+        return m === null ? [] : [[m[1] ?? "", m[2] ?? ""] as const];
+      });
   };
+  /** Whether `commitMessage` merges `ADR: k` into the last paragraph of `message`. */
+  const merged = async (r: TempRepo, message: string): Promise<boolean> => {
+    const text = await r.git.commitMessage({
+      message,
+      trailers: [["ADR", "k"]],
+      mergeTrailers: true,
+    });
+    if (text === `${message.trimEnd()}\nADR: k\n`) return true;
+    expect(text).toBe(`${message.trimEnd()}\n\nADR: k\n`);
+    return false;
+  };
+  const isCommentsOnly = (message: string) =>
+    (
+      message
+        .trimEnd()
+        .split(/\n[ \t\r]*\n/)
+        .at(-1) ?? ""
+    )
+      .split("\n")
+      .every((line) => line.startsWith("#") || /^[ \t\r]*$/.test(line));
 
   it.each([
     ["s\n\nRefs: #12", true],
@@ -441,23 +467,30 @@ describe("trailer blocks as git reads them", () => {
     ["s\n\n2FA: on", true],
     ["s\n\n-x: y", true],
     ["s\n\nNote: we chose X", true],
-    ["s\n\nhttps://example.com/x", true],
     ["s\n\nSee the design doc at https://example.com/adr/42.", false],
     ["s\n\nWe decided: use X.", false],
+    ["s\n\nWe decided: use Aurora.", false],
     ["s\n\n: x", false],
     ["s\n\nRefs foo: x", false],
     ["s\n\nCo-authored-by: A <a@x>\n  continued", true],
     ["s\n\nCo-authored-by: A <a@x>\n\tcontinued\nRefs: 1", true],
+    ["s\n\nWhy.\n\nCo-authored-by: A <a@x>\nRefs: #12\n", true],
     ["s\n\n  indented: x\nRefs: 1", false],
     ["s\n\nprose\n  Refs: x", false],
     ["s\n\nSigned-off-by: A <a@x>\nwe paired\non this\ntoday", true],
     ["s\n\nSigned-off-by: A <a@x>\na\nb\nc\nd", false],
     ["s\n\nSigned-off-by: A <a@x>\n  wrapped\nprose", true],
-    ["s\n\n(cherry picked from commit abc)\nprose", true],
+    // git reads this as a block but finds no `Key: value` trailer in it, so ledger's trailers get
+    // their own paragraph; git reads the same trailers either way.
+    ["s\n\n(cherry picked from commit abc)\nprose", false],
     ["s\n\nRefs: 1\nprose", false],
+    ["s\n\nRefs: #12\nsee the issue", false],
     ["s\n\nRefs: 1\n# a comment", true],
     ["s\n\n# a comment\nRefs: 1", true],
+    // git reads `Refs: 1` as the block, but trailers appended after the comment would not join it.
+    ["s\n\nRefs: 1\n\n# a comment", false],
     ["Refs: 1", false],
+    ["docs: x", false],
     ["s\nmore title\n\nRefs: 1", true],
     ["s\n\nbody\n\nRefs: 1\n\n", true],
     ["s\n\nRefs: 1\n\nbody", false],
@@ -468,14 +501,31 @@ describe("trailer blocks as git reads them", () => {
     ["s\n\nKey: v\n\vcont", false],
     ["s\n\nKey: v\n\fcont", false],
     ["s\n\nKey: v\n\rcont", true],
-  ])("reads %j as a trailer block: %s", async (message, expected) => {
+  ])("merges into %j: %s", async (message, expected) => {
     const r = await repo();
-    expect(await gitReadsBlock(r, message)).toBe(expected);
-    expect(endsInTrailerBlock(message)).toBe(expected);
+    expect(await merged(r, message)).toBe(expected);
+    if (!isCommentsOnly(message)) {
+      expect((await gitTrailers(r, message)).length > 0).toBe(expected);
+    }
   });
 
-  it("agrees with git on generated last paragraphs", async () => {
+  it("follows the installed git on lines that start with a URL (git 2.56, d122e37)", async () => {
     const r = await repo();
+    for (const message of [
+      "s\n\nhttps://example.com/x",
+      "s\n\nRefs: #12\nhttps://example.com/x",
+      "s\n\nhttps: //example.com/x",
+    ]) {
+      expect(await merged(r, message)).toBe((await gitTrailers(r, message)).length > 0);
+    }
+  });
+
+  it("merges exactly when the installed git reads trailers in the last paragraph", async () => {
+    const r = await repo();
+    const ours: Trailer[] = [
+      ["ADR", "k"],
+      ["ADR-Event", "noted"],
+    ];
     const line = fc.constantFrom(
       "Refs: #12",
       "Refs:#12",
@@ -498,10 +548,70 @@ describe("trailer blocks as git reads them", () => {
     await fc.assert(
       fc.asyncProperty(fc.array(line, { minLength: 1, maxLength: 7 }), async (last) => {
         const message = `chore: x\n\n${last.join("\n")}\n`;
-        expect(endsInTrailerBlock(message)).toBe(await gitReadsBlock(r, message));
+        const own = await gitTrailers(r, message);
+        await r.git.commit({ message, allowEmpty: true, mergeTrailers: true, trailers: ours });
+        const [head] = await firstParentHistory(r.git, "HEAD");
+        expect(head?.trailers).toEqual(isCommentsOnly(message) ? ours : [...own, ...ours]);
       }),
       { numRuns: 60 },
     );
+  });
+
+  it("reads the last paragraph with the user's trailer config", async () => {
+    const r = await repo();
+    const message = "chore: x\n\nRefs= 12\n";
+    expect(await merged(r, message)).toBe(false);
+    await r.git.run(["config", "trailer.separators", ":="]);
+    expect(await merged(r, message)).toBe(true);
+    await r.git.commit({
+      message,
+      allowEmpty: true,
+      mergeTrailers: true,
+      trailers: [["ADR", "k"]],
+    });
+    const [head] = await firstParentHistory(r.git, "HEAD");
+    expect(head?.trailers).toEqual([
+      ["Refs", "12"],
+      ["ADR", "k"],
+    ]);
+  });
+
+  it("never runs trailer commands while deciding", async () => {
+    const r = await repo();
+    const ran = join(await tempDir(), "ran");
+    await r.git.run(["config", "trailer.refs.key", "Refs"]);
+    await r.git.run(["config", "trailer.refs.cmd", `touch '${ran}'`]);
+    expect(await merged(r, "chore: x\n\nRefs: 1")).toBe(true);
+    await expect(stat(ran)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("asks git once, only for mergeTrailers with trailers", async () => {
+    const r = await repo();
+    const count = join(await tempDir(), "count");
+    const binary = join(await tempDir(), "git-wrapper");
+    await writeFile(
+      binary,
+      `#!/bin/sh\ncase " $* " in *" interpret-trailers "*) echo x >> '${count}';; esac\nexec git "$@"\n`,
+    );
+    await chmod(binary, 0o755);
+    const git = await Git.open(r.root, { ...r.git.options, binary });
+    const calls = async () =>
+      (await readFile(count, "utf8").catch(() => "")).split("\n").filter((l) => l !== "").length;
+    const trailers: Trailer[] = [["ADR", "k"]];
+    const message = "chore: x\n\nRefs: 1\n";
+    await git.commit({ message, allowEmpty: true, mergeTrailers: true, trailers });
+    expect(await calls()).toBe(1);
+    await git.commit({ message, allowEmpty: true, trailers });
+    expect(await calls()).toBe(1);
+    await git.commit({ message, allowEmpty: true, mergeTrailers: true });
+    expect(await calls()).toBe(1);
+    await git.commit({
+      message: "chore: x\n\nRefs: 1\n\n# a comment\n",
+      allowEmpty: true,
+      mergeTrailers: true,
+      trailers,
+    });
+    expect(await calls()).toBe(1);
   });
 
   it("commits trailers into the block git reads with mergeTrailers", async () => {
