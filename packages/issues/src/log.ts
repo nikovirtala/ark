@@ -212,10 +212,10 @@ export async function readIssuesFrom(
 const SOURCE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
 
 /**
- * The cached issue log of the `[[sources]]` entry `name`, for `issues list --source` (cache only,
- * never the network), numbered from its committed `index.md`. An uncached source reads as an empty
- * log with the note `<name> not fetched; run issues sources fetch`. Throws `UsageError` for a name
- * that isn't configured or names a decision log.
+ * The cached issue log of the `[[sources]]` entry `name`, for `issues list --source` and `issues
+ * search --source` (cache only, never the network), numbered from its committed `index.md`. An
+ * uncached source reads as an empty log with the note `<name> not fetched; run issues sources
+ * fetch`. Throws `UsageError` for a name that isn't configured or names a decision log.
  */
 export async function readSourceIssues(log: IssueLog, name: string): Promise<IssuesRead> {
   if (!SOURCE_NAME.test(name)) {
@@ -232,7 +232,7 @@ export async function readSourceIssues(log: IssueLog, name: string): Promise<Iss
     );
   }
   if (config.kind !== "issues") {
-    throw new UsageError(`source ${name} is a decision log; list --source lists issue logs`);
+    throw new UsageError(`source ${name} is a decision log; --source reads issue logs`);
   }
   const [r] = await readSources(log.git, [config], { fetch: "cache" });
   const base = { issues: log.issues, sources: null, source: name } as const;

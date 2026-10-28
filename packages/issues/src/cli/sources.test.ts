@@ -175,6 +175,16 @@ describe("issues' cross-repository references", { timeout: 120_000 }, () => {
     expect(runIssues(r, ["list", "--source", "nope"]).status).toBe(2);
   });
 
+  it("refuses list --source naming a decision log", async () => {
+    const s = await source();
+    const { r } = await consumer(sourceToml("decisions", s.url, { kind: "adr" }));
+    const out = runIssues(r, ["list", "--source", "decisions"]);
+    expect(out.status).toBe(2);
+    expect(out.stderr).toContain(
+      "issues: error: source decisions is a decision log; --source reads issue logs",
+    );
+  });
+
   it("refuses a source kind it doesn't know", async () => {
     const r = await cliRepo({ [CONFIG]: sourceToml("x", "../x.git", { kind: "foo" }) });
     repos.push(r);

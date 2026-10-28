@@ -20,6 +20,7 @@ import { listCommand } from "./list.js";
 import { newCommand } from "./new.js";
 import { openForCli } from "./open.js";
 import { readyCommand } from "./ready.js";
+import { searchCommand } from "./search.js";
 import { assignCommand, labelCommand, scopeCommand } from "./sets.js";
 import { showCommand } from "./show.js";
 import { workCommand } from "./work.js";
@@ -100,6 +101,7 @@ export function issuesCli(version: string): ToolCli {
       workCommand,
       listCommand,
       showCommand,
+      searchCommand,
       verify,
       sources,
       hooksCommand,

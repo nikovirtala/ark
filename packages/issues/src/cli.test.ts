@@ -52,6 +52,7 @@ describe("the issues binary", () => {
       "work",
       "list",
       "show",
+      "search",
       "verify",
       "sources",
       "hooks",

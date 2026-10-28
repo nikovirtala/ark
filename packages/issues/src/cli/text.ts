@@ -2,6 +2,7 @@ import { type Finding, formatText, renderStateHeader } from "@nikovirtala/ledger
 import type { IssuesInitJson } from "../init.js";
 import type { IssueView } from "../kind.js";
 import type { IssuesForJson } from "../scope.js";
+import type { IssueSearchJson } from "../search.js";
 import type { IssueListJson, IssueReadyJson, IssueShowJson } from "../views.js";
 import type { IssueWorkJson } from "../work.js";
 import type { IssueWriteJson } from "../write.js";
@@ -43,6 +44,49 @@ export function sinceText(doc: IssueListJson): string {
 }
 
 export const readyText = (doc: IssueReadyJson): string => lines(doc.issues, "no ready issues");
+
+/** A table: each column padded to its widest value, the last column not padded. */
+function columns(rows: readonly (readonly string[])[]): string[] {
+  const widths: number[] = [];
+  for (const row of rows) {
+    row.forEach((cell, i) => {
+      widths[i] = Math.max(widths[i] ?? 0, cell.length);
+    });
+  }
+  return rows.map((row) =>
+    row.map((cell, i) => (i === row.length - 1 ? cell : cell.padEnd(widths[i] ?? 0))).join("  "),
+  );
+}
+
+/**
+ * `issues search`: each result's `<display> (<id>)`, state and title, its state warning if any,
+ * then its excerpt or which of id and title matched; then the count.
+ */
+export function searchText(doc: IssueSearchJson): string {
+  const quoted = JSON.stringify(doc.query);
+  if (doc.results.length === 0) {
+    return `No ${doc.include_closed ? "" : "open "}issues match ${quoted}.\n`;
+  }
+  const rows = columns(
+    doc.results.map(({ issue: v }) => [
+      v.number === null ? v.id : `${v.display} (${v.id})`,
+      v.state === "closed" && v.resolution !== null && v.resolution !== "done"
+        ? `closed (${v.resolution})`
+        : v.state,
+      v.title,
+    ]),
+  );
+  const out: string[] = [];
+  doc.results.forEach((r, i) => {
+    out.push(rows[i] ?? "");
+    if (r.header.warning !== null) out.push(`  ${r.header.warning}`);
+    const where = r.matched.filter((f) => f === "id" || f === "title").join(" and ");
+    out.push(r.excerpt === null ? `  (${where} match)` : `  ${r.excerpt}`);
+  });
+  const n = doc.total;
+  out.push(`${n === 1 ? "1 issue matches" : `${n} issues match`} ${quoted}.`);
+  return `${out.join("\n")}\n`;
+}
 
 /** Error and warning findings as `rule: message` lines, for stderr notes. */
 export const findingNotes = (fs: readonly Finding[]): string[] =>
