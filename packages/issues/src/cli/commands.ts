@@ -17,6 +17,7 @@ import { initCommand } from "./init.js";
 import { closeCommand, reopenCommand, startCommand, stopCommand } from "./lifecycle.js";
 import { linkCommand, unlinkCommand } from "./link.js";
 import { listCommand } from "./list.js";
+import { mcpCommand } from "./mcp.js";
 import { newCommand } from "./new.js";
 import { openForCli } from "./open.js";
 import { readyCommand } from "./ready.js";
@@ -105,6 +106,7 @@ export function issuesCli(version: string): ToolCli {
       verify,
       sources,
       hooksCommand,
+      mcpCommand(version),
     ],
   };
 }
