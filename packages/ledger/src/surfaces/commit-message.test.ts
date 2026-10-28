@@ -467,49 +467,21 @@ describe("commitMessageText", () => {
     expect(commitMessageText("chore: y", [])).toBe("chore: y");
   });
 
-  it("appends the trailers to a last paragraph of trailers with mergeTrailers", () => {
+  it("appends the trailers to the last paragraph with merge", () => {
     const trailers: [string, string][] = [
       ["ADR", "k"],
       ["ADR-Event", "noted"],
     ];
     const own = "chore: x\n\nWhy.\n\nCo-authored-by: A <a@x>\nRefs: #12\n";
-    expect(commitMessageText(own, trailers, { mergeTrailers: true })).toBe(
+    expect(commitMessageText(own, trailers, { merge: true })).toBe(
       "chore: x\n\nWhy.\n\nCo-authored-by: A <a@x>\nRefs: #12\nADR: k\nADR-Event: noted\n",
     );
-    expect(commitMessageText(own, trailers)).toBe(
-      "chore: x\n\nWhy.\n\nCo-authored-by: A <a@x>\nRefs: #12\n\nADR: k\nADR-Event: noted\n",
-    );
-    expect(
-      commitMessageText("chore: x\n\nRefs: #12\nsee the issue", trailers, { mergeTrailers: true }),
-    ).toBe("chore: x\n\nRefs: #12\nsee the issue\n\nADR: k\nADR-Event: noted\n");
-    expect(commitMessageText("docs: x", trailers, { mergeTrailers: true })).toBe(
-      "docs: x\n\nADR: k\nADR-Event: noted\n",
-    );
-    expect(commitMessageText("Refs: #12", trailers, { mergeTrailers: true })).toBe(
-      "Refs: #12\n\nADR: k\nADR-Event: noted\n",
-    );
-  });
-
-  it("merges into any last paragraph git reads as trailers, and only those", () => {
-    const trailers: [string, string][] = [["ADR", "k"]];
-    const merge = (last: string) =>
-      commitMessageText(`chore: x\n\n${last}`, trailers, { mergeTrailers: true });
-    for (const last of [
-      "Co-authored-by: A <a@x>\n  continued",
-      "Refs:#12",
-      "Signed-off-by: A <a@x>\nwe paired\non this\ntoday",
-    ]) {
-      expect(merge(last)).toBe(`chore: x\n\n${last}\nADR: k\n`);
+    for (const o of [undefined, { merge: false }]) {
+      expect(commitMessageText(own, trailers, o)).toBe(
+        "chore: x\n\nWhy.\n\nCo-authored-by: A <a@x>\nRefs: #12\n\nADR: k\nADR-Event: noted\n",
+      );
     }
-    for (const last of [
-      "Signed-off-by: A <a@x>\na\nb\nc\nd",
-      "See the design doc at https://example.com/adr/42.",
-      "We decided: use Aurora.",
-      // git reads `Refs: 1` as the block, but trailers appended after the comment would not join it.
-      "Refs: 1\n\n# a comment",
-    ]) {
-      expect(merge(last)).toBe(`chore: x\n\n${last}\n\nADR: k\n`);
-    }
+    expect(commitMessageText(own, [], { merge: true })).toBe(own);
   });
 });
 

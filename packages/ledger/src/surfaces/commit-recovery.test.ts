@@ -206,6 +206,55 @@ describe("commitWithRecovery", () => {
     expect(await r.git.stagedPaths(["other.txt"])).toEqual(["other.txt"]);
   });
 
+  it("saves the message as merged by the installed git", async () => {
+    const r = await repo();
+    await r.write("a.txt", "a\n");
+    await r.stage("a.txt");
+    const hook = await failingHook(r, "exit 1");
+    const e = (await commitWithRecovery(r.git, {
+      message: "chore: x\n\nRefs: #12\n",
+      trailers,
+      mergeTrailers: true,
+      only: ["a.txt"],
+      rerun: RERUN,
+    }).catch((x: unknown) => x)) as CommitFailedError;
+    expect(e).toBeInstanceOf(CommitFailedError);
+    const saved = await readFile(e.recovery.messageFile, "utf8");
+    expect(saved).toBe("chore: x\n\nRefs: #12\nADR: k3f9q8a1\nADR-Event: accepted\n");
+    await rm(hook);
+    const [, ...args] = shWords(e.recovery.command);
+    await run("git", args, { cwd: "/", env: hermetic(r) });
+    expect(await out(r, ["log", "-1", "--format=%B"])).toBe(`${saved}\n`);
+  });
+
+  it("fails before committing when git can't read the message", async () => {
+    const r = await repo();
+    await r.write("a.txt", "a\n");
+    await r.stage("a.txt");
+    const binary = join(r.git.gitDir, "git-wrapper");
+    await writeFile(
+      binary,
+      '#!/bin/sh\ncase " $* " in *" interpret-trailers "*) echo "no trailers today" >&2; exit 1;; esac\nexec git "$@"\n',
+    );
+    await chmod(binary, 0o755);
+    const wrapped = await Git.open(r.root, { ...r.git.options, binary });
+    const head = await r.git.resolveCommit("HEAD");
+    const e = await commitWithRecovery(wrapped, {
+      message: "chore: x\n\nRefs: #12\n",
+      trailers,
+      mergeTrailers: true,
+      only: ["a.txt"],
+      rerun: RERUN,
+    }).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(GitError);
+    expect(e).not.toBeInstanceOf(CommitFailedError);
+    expect((e as GitError).args[0]).toBe("interpret-trailers");
+    expect(await r.git.resolveCommit("HEAD")).toBe(head);
+    await expect(readFile(join(r.git.gitDir, "ark", "COMMIT_MSG"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
   it("keeps the first 40 lines of git's stderr", async () => {
     const r = await repo();
     await r.write("a.txt", "a\n");
