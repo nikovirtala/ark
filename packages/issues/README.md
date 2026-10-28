@@ -78,12 +78,15 @@ issues work 42                            # your current issue in this worktree;
 # Read and verify.
 issues list [--state closed] [--all] [--assignee me] [--label type:bug] [--since ORIG_HEAD]
 issues show 42 [--history] [--commits] [--no-comments]
+issues search session cookie [--all] [--source platform]
 issues verify [--staged | --base origin/main] [--fetch-sources] [--format text|json|github]
 ```
 
 Every command takes `--json`, `--root <dir>` (the log directory) and `--help`; reads also take `--ref <ref>`, and writes refuse it. Every write stages what it writes and commits only with `--commit` (or `[policy] auto_commit`), with a Conventional Commits subject (see [Commit subjects](#commit-subjects)) and one `Issue:`/`Issue-Event:` trailer pair per issue and event type. `-m` gives your own message; the trailers join its last paragraph when that is a trailer block. An event write commits the issue's events directory, so an unstaged edit of a committed issue's description never blocks `close --commit` and is never swept into it. When the commit takes an issue's `opened` event (the issue was opened without `--commit`), it also takes that issue's staged description and template, and the same for any issue it references that isn't committed yet. It refuses with exit 2, writing nothing, when one of those files has unstaged changes, isn't tracked or is missing.
 
 `list` shows open and in-progress issues unless you pass `--state` or `--all`; `list --since <rev>` shows the issues closed, reopened or assigned to you since `<rev>`, each marked `[new: closed]` and so on (the post-merge hook runs it with `ORIG_HEAD`). `ready` lists open issues that are not blocked, not assigned and have no open child, in `[labels] priority` order, then by number; `--mine` adds the issues assigned to you, first. An issue is blocked while the canonical issue of one of its dependencies isn't closed (a dependency closed as a duplicate blocks until the issue it duplicates is closed).
+
+`search` lists the issues in which every word of the query appears in the id, the number (`42` or `?42`), the title, the description or a comment, ignoring case and accents as `adr search` does (`cafe` finds `Café`). Results are ranked: a word equal to the id or number counts most, then a title hit, then hits in the description and comments. Each result shows its state warning (blocked, closed, duplicate) and the best matching line. Only open and in-progress issues are listed unless you pass `--all`; a note counts the closed issues that also match. A query has 1 to 200 characters and at most 10 words. `--json` prints `issues-search/v1`.
 
 ## Exit codes and JSON
 
@@ -192,7 +195,7 @@ With `index = "committed"`, every write keeps `index.md` fresh in the same commi
 
 ## Other repositories
 
-References into `[[sources]]` logs (`platform:m4p8x2kd`) are checked against a local cache kept in the repository's git directory. Plain `verify`, the pre-commit hook and every read and write use only the cache and never the network: a referenced source that isn't cached gives one `sources/not-fetched` warning. `verify --fetch-sources`, for CI and the pre-push hook, fetches each source first, and a failed fetch exits 2. `issues sources fetch` refreshes the cache by hand. A ref may be a branch, a tag or a full commit; a tag or commit keeps CI reproducible. `verify --json` records the commit each source resolved to. `link`, `new --parent`/`--depends-on` and `close --duplicate-of` into a cached source refuse a missing target (`issue/reference-missing`, exit 1); into an uncached one they write with a note. `issues list --source platform` lists a cached source's issues with its numbers.
+References into `[[sources]]` logs (`platform:m4p8x2kd`) are checked against a local cache kept in the repository's git directory. Plain `verify`, the pre-commit hook and every read and write use only the cache and never the network: a referenced source that isn't cached gives one `sources/not-fetched` warning. `verify --fetch-sources`, for CI and the pre-push hook, fetches each source first, and a failed fetch exits 2. `issues sources fetch` refreshes the cache by hand. A ref may be a branch, a tag or a full commit; a tag or commit keeps CI reproducible. `verify --json` records the commit each source resolved to. `link`, `new --parent`/`--depends-on` and `close --duplicate-of` into a cached source refuse a missing target (`issue/reference-missing`, exit 1); into an uncached one they write with a note. `issues list --source platform` lists a cached source's issues with its numbers, and `issues search <query> --source platform` searches them.
 
 Fetching uses plain git and its credentials. For a private source in CI, use an `insteadOf` URL with a token from the CI secret store (`git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"`) or an SSH deploy key.
 
@@ -215,7 +218,7 @@ const { issues } = readyIssues(read, { labels: ["type:bug"] });
 const findings = await verifyIssues(log, { type: "full" });
 ```
 
-`initIssueLog`, `openIssue`, `editIssue`, `startIssue`, `stopIssue`, `closeIssue`, `reopenIssue`, `assignIssue`, `labelIssue`, `scopeIssue`, `commentIssue`, `linkIssue` and `unlinkIssue` write; `listIssues`, `showIssue`, `readyIssues`, `issuesFor` and `issueCommits` read; `resolveIssue` and `resolveTarget` turn arguments into ids; `setCurrentIssue`, `readCurrentIssue` and `clearCurrentIssue` manage the current issue; `stateHeader` gives the header `show` prints.
+`initIssueLog`, `openIssue`, `editIssue`, `startIssue`, `stopIssue`, `closeIssue`, `reopenIssue`, `assignIssue`, `labelIssue`, `scopeIssue`, `commentIssue`, `linkIssue` and `unlinkIssue` write; `listIssues`, `showIssue`, `readyIssues`, `searchIssues`, `issuesFor` and `issueCommits` read; `resolveIssue` and `resolveTarget` turn arguments into ids; `setCurrentIssue`, `readCurrentIssue` and `clearCurrentIssue` manage the current issue; `stateHeader` gives the header `show` prints.
 
 `@nikovirtala/issues/kind` exports only the issue kind (`issueKind`, made with ledger's `defineKind`), its relation graph (`issueGraph`) and their types, without any CLI code, for tools that fold issue logs themselves:
 
@@ -225,4 +228,4 @@ import { issueKind } from "@nikovirtala/issues/kind";
 
 ## Not yet included
 
-- **Agents:** `issues mcp`, `issues init --skill` and `issues search`.
+- **Agents:** `issues mcp` and `issues init --skill`.
