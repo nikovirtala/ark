@@ -1,5 +1,11 @@
 # @nikovirtala/ledger
 
+## 0.8.0
+
+### Minor Changes
+
+- 1a82955: Add `foldText`, `searchTerms`, `countOccurrences` and `searchExcerpt` (and the `FoldedText` type) to ledger's root entry: the case- and accent-insensitive folding, query rules and excerpts of adr's search, shared so every ledger-based tool's search matches the same way. adr's search now uses them; its results and messages are unchanged.
+
 ## 0.7.1
 
 ### Patch Changes
