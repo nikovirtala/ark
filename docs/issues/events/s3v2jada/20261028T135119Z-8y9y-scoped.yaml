@@ -1,0 +1,23 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M61CF4BMW64JQDC70GB28Y9Y
+subject: s3v2jada
+type: scoped
+at: 2026-10-28T13:51:19Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - docs/02-issues-v1.md
+    - packages/issues/README.md
+    - packages/issues/src/cli/init.ts
+    - packages/issues/src/commit-actions.ts
+    - packages/issues/src/init.ts
+    - packages/issues/src/mcp/prompts.ts
+    - packages/issues/src/mcp/server.ts
+    - packages/issues/src/skill.ts
