@@ -3,11 +3,13 @@ import { join } from "node:path";
 import type { TempRepo } from "@nikovirtala/ledger/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import { openIssueLog, readIssues, readSourceIssues, resolveIssue } from "../log.js";
+import { issuesFor } from "../scope.js";
 import { searchIssues } from "../search.js";
+import { listTemplates } from "../templates/list.js";
 import { cliRepo, newIssue, runIssues } from "../test-support/cli.js";
 import { connectMcp, type McpIssues, ME, mcpRepo, structured, text } from "../test-support/mcp.js";
 import { issueSource, networkCommands, sourceToml } from "../test-support/sources.js";
-import { listIssues, showIssue } from "../views.js";
+import { listIssues, readyIssues, showIssue } from "../views.js";
 
 const repos: TempRepo[] = [];
 const closes: (() => Promise<void>)[] = [];
@@ -37,7 +39,14 @@ describe("issues mcp read tools", { timeout: 60_000 }, () => {
     repos.push(r);
     const client = await connect(r);
     const tools = (await client.listTools()).tools;
-    expect(tools.map((t) => t.name)).toEqual(["issues_search", "issues_get", "issues_list"]);
+    expect(tools.map((t) => t.name)).toEqual([
+      "issues_search",
+      "issues_get",
+      "issues_list",
+      "issues_ready",
+      "issues_for_path",
+      "issues_templates",
+    ]);
     for (const t of tools) {
       expect(t.annotations, t.name).toMatchObject({ readOnlyHint: true, openWorldHint: false });
       const extra = await client.callTool({ name: t.name, arguments: { nope: 1 } });
@@ -241,8 +250,83 @@ describe("issues mcp read tools", { timeout: 60_000 }, () => {
     expect(structured(me)).toMatchObject({
       error: { code: "config", message: expect.stringMatching(/^no git identity/) },
     });
+    const mine = await nobody.callTool({ name: "issues_ready", arguments: { mine: true } });
+    expect(structured(mine)).toMatchObject({
+      error: { code: "config", message: expect.stringMatching(/^no git identity/) },
+    });
     const plain = await nobody.callTool({ name: "issues_list", arguments: {} });
     expect(plain.isError).toBeUndefined();
+    const ready = await nobody.callTool({ name: "issues_ready", arguments: {} });
+    expect(ready.isError).toBeUndefined();
+  });
+
+  it("issues_ready returns readyIssues' document; mine adds your assigned issues first", async () => {
+    const { r, ids } = await setup();
+    const client = await connect(r);
+    const now = await read(r);
+    const ready = await client.callTool({ name: "issues_ready", arguments: {} });
+    expect(structured(ready)).toEqual(json(readyIssues(now, {})));
+    expect(text(ready)).toBe("?5         open             Add dark mode  [type:feature]");
+
+    runIssues(r, ["assign", ids.e, "--set", ME, "--commit"]);
+    const after = await read(r);
+    const none = await client.callTool({ name: "issues_ready", arguments: {} });
+    expect(text(none)).toBe("No ready issues.");
+    const mine = await client.callTool({
+      name: "issues_ready",
+      arguments: { mine: true, label: ["type:feature"], limit: 3 },
+    });
+    expect(structured(mine)).toEqual(
+      json(readyIssues(after, { mine: ME, labels: ["type:feature"], limit: 3 })),
+    );
+    expect((structured(mine).issues as { id: string }[]).map((v) => v.id)).toEqual([ids.e]);
+  });
+
+  it("issues_for_path returns issuesFor's document, with each header's warning", async () => {
+    const { r, ids } = await setup({ "src/auth/token.ts": `// issue:${"x".repeat(8)}\n` });
+    runIssues(r, ["scope", ids.c, "--set", "src/auth/**", "--commit"]);
+    const client = await connect(r);
+    const now = await read(r);
+    const log = await openIssueLog({ cwd: r.root, gitOptions: { env: r.env } });
+    const paths = ["src/auth/session.ts", "src/auth/token.ts", "README.md", "new.ts"];
+    const res = await client.callTool({ name: "issues_for_path", arguments: { paths } });
+    expect(structured(res)).toEqual(json(await issuesFor(now, log, { paths })));
+    expect(text(res).split("\n")).toEqual([
+      "src/auth/session.ts",
+      "  ?1 in-progress Login fails on Safari (via src/auth/**)",
+      "  ?3 open Cache sessions (via src/auth/**)",
+      "    BLOCKED by ?1 (in-progress). Finish them first.",
+      "src/auth/token.ts",
+      "  ?1 in-progress Login fails on Safari (via src/auth/**)",
+      "  ?3 open Cache sessions (via src/auth/**)",
+      "    BLOCKED by ?1 (in-progress). Finish them first.",
+      "  unresolved: xxxxxxxx (line 1, not in this log)",
+      "README.md",
+      "  no issues",
+      "new.ts (untracked)",
+      "  no issues",
+    ]);
+    for (const bad of [["src/auth"], ["../outside.ts"]]) {
+      const err = await client.callTool({ name: "issues_for_path", arguments: { paths: bad } });
+      expect(err.isError, bad[0]).toBe(true);
+      expect(structured(err)).toMatchObject({ error: { code: "usage" } });
+    }
+  });
+
+  it("issues_templates returns listTemplates' document", async () => {
+    const { r } = await setup();
+    const client = await connect(r);
+    const res = await client.callTool({ name: "issues_templates", arguments: {} });
+    expect(structured(res)).toEqual(json(await listTemplates(await read(r))));
+    const lines = text(res).split("\n");
+    expect(lines).toContain("task v1 (repo) default");
+    expect(lines).toContain("bug v1 (builtin)");
+    expect(lines).toContain(
+      "  done: Done when (required) — Observable conditions that make this issue finished.",
+    );
+    expect(lines).toContain(
+      "  notes: Notes (optional) — Context, links and anything the person doing it should know.",
+    );
   });
 
   it("source reads a [[sources]] log from the cache only", async () => {
