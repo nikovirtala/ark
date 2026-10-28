@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M61F3GDTEGHAT4M1ZGRDWC6Q
+subject: 1fgqfkf3
+type: opened
+at: 2026-10-28T14:37:24Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Say which field matched when a search result has no excerpt
+  template: task
+  template_version: 1
