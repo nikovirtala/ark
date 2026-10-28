@@ -6,8 +6,15 @@ import { renderStateHeader, type StateHeader } from "@nikovirtala/ledger";
 import type { McpToolResult } from "@nikovirtala/ledger/mcp";
 import type { IssueView } from "../kind.js";
 import type { IssuesRead } from "../log.js";
+import type { IssuesForJson } from "../scope.js";
 import type { IssueSearchJson } from "../search.js";
-import { type IssueListJson, type IssueShowJson, stateHeader } from "../views.js";
+import type { IssueTemplatesJson } from "../templates/list.js";
+import {
+  type IssueListJson,
+  type IssueReadyJson,
+  type IssueShowJson,
+  stateHeader,
+} from "../views.js";
 import { issueUri } from "./resources.js";
 
 type Text = Omit<McpToolResult, "document">;
@@ -109,3 +116,39 @@ const lines = (views: readonly IssueView[], none: string): Text => ({
 
 /** `issues_list`: one line per issue. */
 export const listText = (doc: IssueListJson): Text => lines(doc.issues, "No issues.");
+
+/** `issues_ready`: one line per issue, in ready order. */
+export const readyText = (doc: IssueReadyJson): Text => lines(doc.issues, "No ready issues.");
+
+/** `issues_for_path`: per path, each issue with how it matched and its header's warning. */
+export function forText(doc: IssuesForJson, read: IssuesRead): Text {
+  const out: string[] = [];
+  for (const p of doc.paths) {
+    out.push(`${p.path}${p.tracked ? "" : " (untracked)"}`);
+    if (p.issues.length === 0 && p.unresolved.length === 0) out.push("  no issues");
+    for (const i of p.issues) {
+      const via = i.via.map((x) => (x.type === "glob" ? x.glob : `line ${x.line}`)).join(", ");
+      out.push(`  ${i.display} ${i.state} ${i.title} (via ${via})`);
+      const view = read.projection.views.get(i.id);
+      const warning = view === undefined ? i.warning : mcpHeader(view, read).warning;
+      if (warning !== null) out.push(`    ${warning}`);
+    }
+    for (const u of p.unresolved) {
+      const why = u.reason === "other-log" ? "in another log" : "not in this log";
+      out.push(`  unresolved: ${u.ref} (line ${u.line}, ${why})`);
+    }
+  }
+  return { headers: [], text: out.join("\n") };
+}
+
+/** `issues_templates`: each template, then its sections. */
+export function templatesText(doc: IssueTemplatesJson): Text {
+  const out = doc.templates.flatMap((t) => [
+    `${t.name} v${t.version} (${t.source})${t.name === doc.default ? " default" : ""}`,
+    ...t.sections.map(
+      (s) =>
+        `  ${s.id}: ${s.heading} (${s.required ? "required" : "optional"})${s.guidance === null ? "" : ` — ${s.guidance}`}`,
+    ),
+  ]);
+  return { headers: [], text: out.length === 0 ? "No templates." : out.join("\n") };
+}

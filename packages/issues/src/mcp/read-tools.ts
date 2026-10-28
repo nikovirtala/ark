@@ -1,9 +1,11 @@
 import { type McpContext, type McpTool, mcpAttribution } from "@nikovirtala/ledger/mcp";
 import type { IssueStatus } from "../kind.js";
 import { type IssueLog, readIssues, resolveIssue } from "../log.js";
+import { issuesFor } from "../scope.js";
 import { searchIssues } from "../search.js";
-import { listIssues, myAddress, showIssue } from "../views.js";
-import { getText, listText, searchText } from "./text.js";
+import { listTemplates } from "../templates/list.js";
+import { listIssues, myAddress, readyIssues, showIssue } from "../views.js";
+import { forText, getText, listText, readyText, searchText, templatesText } from "./text.js";
 import {
   ASSIGNEES,
   doc,
@@ -107,6 +109,60 @@ export function readTools(e: IssuesMcpEnv): McpTool[] {
           limit: int(input.limit) ?? null,
         });
         return { document: doc(d), ...listText(d) };
+      },
+    },
+    {
+      name: "issues_ready",
+      title: "Ready issues",
+      description:
+        "Work that can be picked up now: open, not blocked, unassigned issues with no open children, highest priority first. mine adds the issues assigned to the person you act for, first.",
+      inputSchema: object({ label: LABELS(20), mine: { type: "boolean" }, limit: LIMIT }),
+      annotations: READ,
+      async run(input, ctx) {
+        const log = await openLog(e);
+        const mine = input.mine === true ? await me(log, ctx, "mine") : null;
+        const d = readyIssues(await readIssues(log), {
+          labels: strings(input.label) ?? [],
+          mine,
+          limit: int(input.limit) ?? null,
+        });
+        return { document: doc(d), ...readyText(d) };
+      },
+    },
+    {
+      name: "issues_for_path",
+      title: "Issues for paths",
+      description:
+        "The open issues that concern each file, from scope globs and issue: code anchors. Call it for the files you will touch.",
+      inputSchema: object(
+        {
+          paths: {
+            type: "array",
+            items: { type: "string", minLength: 1, maxLength: 4096 },
+            minItems: 1,
+            maxItems: 100,
+          },
+        },
+        ["paths"],
+      ),
+      annotations: READ,
+      async run(input) {
+        const log = await openLog(e);
+        const read = await readIssues(log);
+        const d = await issuesFor(read, log, { paths: strings(input.paths) ?? [] });
+        return { document: doc(d), ...forText(d, read) };
+      },
+    },
+    {
+      name: "issues_templates",
+      title: "List templates",
+      description:
+        "The templates issues_open can use, with each section's id, heading, whether it is required, and guidance for filling it in.",
+      inputSchema: object({}),
+      annotations: READ,
+      async run() {
+        const d = await listTemplates(await readIssues(await openLog(e)));
+        return { document: doc(d), ...templatesText(d) };
       },
     },
   ];
