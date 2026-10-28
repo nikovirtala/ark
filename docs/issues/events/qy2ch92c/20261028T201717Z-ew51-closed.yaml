@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M622HVBBZGPXR7EE0NAPEW51
+subject: qy2ch92c
+type: closed
+at: 2026-10-28T20:17:17Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "(1) issues mcp (cli/mcp.ts, mcp/server.ts) serves issues_search, issues_get, issues_list, issues_ready, issues_for_path and issues_templates over stdio, and the resources issues://index, issues://ready and issues://issue/{id}; mcp-e2e.test.ts reads the issue resource as the id, the number, 0002 and %3F2 with identical results, and ?2 gives -32002. (2) The e2e test deep-equals each tool's structuredContent with the built CLI's --json for the same operation, and issues_templates returns issues-templates/v1 (templates/list.ts); read-tools.test.ts and the e2e test check that invalid input, an unknown issue and an unreadable log or issues.toml give isError with ark-error/v1. (3) mcpHeader (mcp/text.ts) leads every response that shows a description: a duplicate's header names its canonical issue and issues://issue/<number>, a blocked issue's lists its open blockers; text.test.ts, read-tools.test.ts, resources.test.ts and the e2e test check it. (4) issues_search and issues_list read a source through readSourceIssues, the local cache only; the git trace has no fetch or ls-remote, and the e2e test reads the source after its repository was moved away. (5) Unit tests (templates/list, mcp/read-tools, mcp/resources, mcp/text, cli/mcp, layers) and the e2e test on the built binary with StdioClientTransport cover the above; the issues README has an MCP server section; .changeset/issues-mcp-read.md records the minor release. (6) This commit closes ?14 in the PR that does the work (#34)."
+data:
+  resolution: done
