@@ -45,6 +45,12 @@ export type {
 } from "./plan.js";
 export { type IssueForJson, type IssuesForJson, issuesFor } from "./scope.js";
 export {
+  type IssueSearchField,
+  type IssueSearchJson,
+  type IssueSearchResultJson,
+  searchIssues,
+} from "./search.js";
+export {
   type DecisionLogRead,
   type IssueSources,
   readDecisionLog,
