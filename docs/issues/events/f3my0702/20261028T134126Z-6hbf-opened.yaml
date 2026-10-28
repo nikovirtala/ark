@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M61BX1GB5DX6DC686RFV6HBF
+subject: f3my0702
+type: opened
+at: 2026-10-28T13:41:26Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Ask the installed git whether a -m message ends in trailers
+  template: bug
+  template_version: 1

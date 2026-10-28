@@ -12,6 +12,7 @@
 | ?11 | [Name the real reason when a source's numbers are unavailable](items/vpq5v23q-name-the-real-reason-when-a-sources-numbers-are-unavailable.md) |  |  | 2026-10-27 |
 | ?12 | [Share the index-numbering and source-name helpers in ledger](items/3gyr85xq-share-the-index-numbering-and-source-name-helpers-in-ledger.md) |  |  | 2026-10-27 |
 | ?13 | [Add full-text search to issues](items/0megpv2e-add-full-text-search-to-issues.md) |  |  | 2026-10-28 |
+| ?17 | [Ask the installed git whether a -m message ends in trailers](items/f3my0702-ask-the-installed-git-whether-a-m-message-ends-in-trailers.md) |  |  | 2026-10-28 |
 
 ## Blocked
 
@@ -37,4 +38,4 @@
 | ?7 | [Decide when an unmatched scope glob fails verify](items/m5xh8bkd-decide-when-an-unmatched-scope-glob-fails-verify.md) |  |  | 2026-10-27 |
 | ?8 | [Let init replace a placeholder and write the index key](items/cqpzxvcs-let-init-replace-a-placeholder-and-write-the-index-key.md) |  |  | 2026-10-27 |
 
-<!-- ledger-index/v1 numbers: 65qt4pp3=1 pcmzc2dz=2 1w06qws8=3 6930v8w9=4 f4f25st2=5 jdpc6bn7=6 m5xh8bkd=7 cqpzxvcs=8 984qb8rg=9 wy4r966a=10 vpq5v23q=11 3gyr85xq=12 0megpv2e=13 qy2ch92c=14 516asy8r=15 s3v2jada=16 -->
+<!-- ledger-index/v1 numbers: 65qt4pp3=1 pcmzc2dz=2 1w06qws8=3 6930v8w9=4 f4f25st2=5 jdpc6bn7=6 m5xh8bkd=7 cqpzxvcs=8 984qb8rg=9 wy4r966a=10 vpq5v23q=11 3gyr85xq=12 0megpv2e=13 qy2ch92c=14 516asy8r=15 s3v2jada=16 f3my0702=17 -->
