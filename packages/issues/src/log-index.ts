@@ -28,7 +28,7 @@ import {
 import { INDEX_ACTION, INDEX_TITLE } from "./commit-actions.js";
 import type { IssuesConfig } from "./config.js";
 import { type IssueView, issueKind } from "./kind.js";
-import { type IssueLog, readIssuesFrom } from "./log.js";
+import { type IssueLog, type IssuesRead, readIssuesFrom } from "./log.js";
 import type { WriteOptions } from "./write.js";
 
 /** `issues index --json`: adr-index/v1's shape. */
@@ -155,6 +155,15 @@ export async function renderIssueIndex(
   });
   const views = [...read.projection.views.values()];
   return renderIndex(ISSUE_INDEX(layout.root, recentlyClosedOf(views)), views, numbering);
+}
+
+/**
+ * The index table of `read`, as `index.md` holds it, numbered like every other read (the
+ * `issues://index` resource). Works with `[log] index = "none"` too.
+ */
+export function renderIssueIndexText(read: IssuesRead): string {
+  const views = [...read.projection.views.values()];
+  return renderIndex(ISSUE_INDEX(read.root, recentlyClosedOf(views)), views, read.numbering);
 }
 
 /** At most this many paths are named in the unstaged-files `index/stale` message. */

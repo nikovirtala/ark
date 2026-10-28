@@ -2,6 +2,7 @@ import { parseOnBehalfOf } from "@nikovirtala/ledger";
 import { type McpServeOptions, serveMcp } from "@nikovirtala/ledger/mcp";
 import { openIssueLog } from "../log.js";
 import { readTools } from "./read-tools.js";
+import { indexResource, issueResource, readyResource } from "./resources.js";
 import type { IssuesMcpEnv } from "./tools.js";
 
 export const INSTRUCTIONS =
@@ -28,6 +29,8 @@ export async function serveIssuesMcp(o: {
       version: o.version,
       instructions: INSTRUCTIONS,
       tools: readTools(e),
+      resources: [indexResource(e), readyResource(e)],
+      resourceTemplates: [issueResource(e)],
     },
     {
       env: o.env,

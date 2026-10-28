@@ -32,6 +32,7 @@ export {
   indexIssueLog,
   issueIndexCheck,
   renderIssueIndex,
+  renderIssueIndexText,
 } from "./log-index.js";
 export type {
   CloseInput,
