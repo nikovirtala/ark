@@ -20,11 +20,6 @@
 | ADR-0013 | [Gate agents' deciding and rescoping behind mcp\_can\_decide](decisions/htb7aax6-gate-agents-deciding-and-rescoping-behind-mcp-can-decide.md) | accepted | 2026-10-26 |
 | ADR-0014 | [Let agents close issues unless the issue log's policy says otherwise](decisions/8gs2s4at-let-agents-close-issues-unless-the-issue-logs-policy-says.md) | accepted | 2026-10-26 |
 | ADR-0015 | [Display issue numbers with a ? prefix](decisions/553365xh-display-issue-numbers-with-a-prefix.md) | accepted | 2026-10-26 |
+| ADR-0016 | [Read other repositories' logs from a local cache, fetching only when asked](decisions/dhpvv3yt-read-other-repositories-logs-from-a-local-cache-fetching.md) | accepted | 2026-10-28 |
 
-## Proposed
-
-| Decision | Title | Status | Since |
-| --- | --- | --- | --- |
-| dhpvv3yt | [Read other repositories' logs from a local cache, fetching only when asked](decisions/dhpvv3yt-read-other-repositories-logs-from-a-local-cache-fetching.md) | proposed | 2026-10-27 |
-
-<!-- ledger-index/v1 numbers: gyspf3an=1 c6qyr1jz=2 9z41kzez=3 ew1emghd=4 28dj3jdc=5 fv88cd54=6 e2ye7ng3=7 q76pmwsw=8 5v1w33jg=9 btjpf9g1=10 rg1aka5e=11 28dd1x6r=12 htb7aax6=13 8gs2s4at=14 553365xh=15 -->
+<!-- ledger-index/v1 numbers: gyspf3an=1 c6qyr1jz=2 9z41kzez=3 ew1emghd=4 28dj3jdc=5 fv88cd54=6 e2ye7ng3=7 q76pmwsw=8 5v1w33jg=9 btjpf9g1=10 rg1aka5e=11 28dd1x6r=12 htb7aax6=13 8gs2s4at=14 553365xh=15 dhpvv3yt=16 -->
