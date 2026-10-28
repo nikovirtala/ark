@@ -1,0 +1,21 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M61F4VXKTMJPTJ7EJZWRW0GE
+subject: 0megpv2e
+type: closed
+at: 2026-10-28T14:38:08Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: |-
+  Done in issues PR 3a (#31: @nikovirtala/issues 0.3.0, ledger 0.8.0, adr 0.5.1). Commits are named by subject because the fixups are squashed before merge.
+  1. `issues search <query>… [--all] [--source <name>]` ("feat(issues): add issues search with --all and --source") lists the issues in which every word appears, folded for case and accents by ledger's `foldText` and `searchTerms`, which `adr search` now uses too ("feat(ledger): share text folding, search terms and excerpts", "refactor(adr): build adr search on ledger's text search helpers"; adr's search tests pass unedited). `searchIssues` ("feat(issues): search ids, titles, descriptions and comments") matches the id, number, title, description and comments. Without `--all` it lists only open and in-progress issues with a note counting the closed matches it left out (for example "1 closed issue also matches; add --all to see it"); `--json` prints `issues-search/v1`.
+  2. `--source <name>` reads that `[[sources]]` issue log from the local cache only: an unfetched source gives no results and the note to run `issues sources fetch`, and cli/search.test.ts asserts the git trace has no fetch or ls-remote.
+  3. Unit tests in ledger/src/surfaces/text-search.test.ts and issues/src/search.test.ts, and CLI tests in issues/src/cli/search.test.ts, cover matching, ranking, the closed filter and `--source`. The issues README documents the command ("docs(issues): document issues search"). Changesets record the issues minor and the ledger minor (with an adr patch) ("chore: add changesets for issues search and ledger's text search").
+  4. This close is the last commit of the same PR (#31)
+data:
+  resolution: done
