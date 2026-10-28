@@ -80,6 +80,9 @@ issues list [--state closed] [--all] [--assignee me] [--label type:bug] [--since
 issues show 42 [--history] [--commits] [--no-comments]
 issues search session cookie [--all] [--source platform]
 issues verify [--staged | --base origin/main] [--fetch-sources] [--format text|json|github]
+
+# Serve the log to agents over stdio (see MCP server).
+issues mcp
 ```
 
 Every command takes `--json`, `--root <dir>` (the log directory) and `--help`; reads also take `--ref <ref>`, and writes refuse it. Every write stages what it writes and commits only with `--commit` (or `[policy] auto_commit`), with a Conventional Commits subject (see [Commit subjects](#commit-subjects)) and one `Issue:`/`Issue-Event:` trailer pair per issue and event type. `-m` gives your own message; the trailers join its last paragraph when that is a trailer block. An event write commits the issue's events directory, so an unstaged edit of a committed issue's description never blocks `close --commit` and is never swept into it. When the commit takes an issue's `opened` event (the issue was opened without `--commit`), it also takes that issue's staged description and template, and the same for any issue it references that isn't committed yet. It refuses with exit 2, writing nothing, when one of those files has unstaged changes, isn't tracked or is missing.
@@ -205,9 +208,42 @@ An agent using the CLI sets `ARK_AGENT=<agent-id>`, and `ARK_ON_BEHALF_OF=<email
 
 Agents may close issues they finished, unlike accepting decisions, because a closed issue reopens. An agent's `closed` event must have a reason saying how the issue's Done when conditions were met (`issue/agent-reason-required`). With `close_requires_human = true` or `mcp_can_close = false`, an agent's close is refused with exit 1 (`issue/agent-closed`). These are rules of the log: `verify` checks every applied close, so after you turn either key on, a full `verify` reports earlier agent closes too, while `verify --base` reports only the issues a change touches.
 
+## MCP server
+
+`issues mcp` serves the issue log to agents over stdio, in the repository it starts in (`--root` works as for every command). Add it to your MCP client's server config:
+
+```json
+{
+  "mcpServers": {
+    "issues": {
+      "command": "npx",
+      "args": ["-y", "@nikovirtala/issues", "mcp"],
+      "env": { "ARK_ON_BEHALF_OF": "you@example.com" }
+    }
+  }
+}
+```
+
+Set `ARK_ON_BEHALF_OF` in that `env`: stdio clients pass only a few environment variables (`HOME`, `PATH` and the like) to the server, so a value exported in your shell doesn't reach it. `assignee: ["me"]` and `mine` mean that address, or the git user's email without it. An invalid `ARK_ON_BEHALF_OF`, a directory outside a repository or a broken `issues.toml` makes `issues mcp` exit 2 before serving.
+
+| Tool | Same document as |
+| --- | --- |
+| `issues_search` (`query`, `include_closed`, `limit`, `source`) | `issues search <query> [--all] [--source]` (`issues-search/v1`) |
+| `issues_get` (`id`, `include_history`, `include_comments`, `ref`) | `issues show <id> [--history] [--no-comments] [--ref]` (`issues-show/v1`) |
+| `issues_list` (`state`, `label`, `assignee`, `limit`, `source`) | `issues list` with the same filters (`issues-list/v1`) |
+| `issues_ready` (`label`, `mine`, `limit`) | `issues ready` (`issues-ready/v1`) |
+| `issues_for_path` (`paths`, relative to the repository root) | `issues for <path>…` (`issues-for/v1`) |
+| `issues_templates` | `issues-templates/v1`: each template's sections, required or not, with guidance |
+
+- Every tool returns that JSON document as `structuredContent`, with a readable text. Errors (invalid input, an unknown issue, a log that can't be read) are `isError` results with `ark-error/v1`.
+- Every response that shows an issue's description leads with its state header. A duplicate's names the issue to work on instead and where to read it (`DUPLICATE of ?1 (in-progress). Track work on ?1; read issues://issue/1.`); a blocked issue's lists its open blockers.
+- Resources: `issues://index` (the table `index.md` holds), `issues://ready` (the ready list) and `issues://issue/{id}`, one issue's state header and description. `{id}` is the id, the number (`42`, `0042`) or `%3F42` for `?42`: a literal `?` starts a URI's query, so `issues://issue/?42` names no issue.
+- `source` reads a `[[sources]]` issue log from the local cache only, as `verify` does; run `issues sources fetch` to update it.
+- Each call reads the log again, so edits, pulls and `issues.toml` changes apply to the next call.
+
 ## Library
 
-The CLI is a thin layer over the library, which returns the same JSON documents.
+The CLI is a thin layer over the library, and the MCP server uses the same functions and returns the same JSON documents.
 
 ```ts
 import { closeIssue, listIssues, openIssueLog, readIssues, readyIssues, verifyIssues } from "@nikovirtala/issues";
@@ -218,7 +254,7 @@ const { issues } = readyIssues(read, { labels: ["type:bug"] });
 const findings = await verifyIssues(log, { type: "full" });
 ```
 
-`initIssueLog`, `openIssue`, `editIssue`, `startIssue`, `stopIssue`, `closeIssue`, `reopenIssue`, `assignIssue`, `labelIssue`, `scopeIssue`, `commentIssue`, `linkIssue` and `unlinkIssue` write; `listIssues`, `showIssue`, `readyIssues`, `searchIssues`, `issuesFor` and `issueCommits` read; `resolveIssue` and `resolveTarget` turn arguments into ids; `setCurrentIssue`, `readCurrentIssue` and `clearCurrentIssue` manage the current issue; `stateHeader` gives the header `show` prints.
+`initIssueLog`, `openIssue`, `editIssue`, `startIssue`, `stopIssue`, `closeIssue`, `reopenIssue`, `assignIssue`, `labelIssue`, `scopeIssue`, `commentIssue`, `linkIssue` and `unlinkIssue` write; `listIssues`, `showIssue`, `readyIssues`, `searchIssues`, `issuesFor`, `issueCommits` and `listTemplates` (`issues-templates/v1`) read; `renderIssueIndexText` renders the index table of a read; `resolveIssue` and `resolveTarget` turn arguments into ids; `setCurrentIssue`, `readCurrentIssue` and `clearCurrentIssue` manage the current issue; `stateHeader` gives the header `show` prints.
 
 `@nikovirtala/issues/kind` exports only the issue kind (`issueKind`, made with ledger's `defineKind`), its relation graph (`issueGraph`) and their types, without any CLI code, for tools that fold issue logs themselves:
 
@@ -228,4 +264,4 @@ import { issueKind } from "@nikovirtala/issues/kind";
 
 ## Not yet included
 
-- **Agents:** `issues mcp` and `issues init --skill`.
+- **Agents:** the MCP write tools and prompts, and `issues init --skill`.
