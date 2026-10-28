@@ -57,6 +57,7 @@ export {
   readIssueSources,
   readSourceLogs,
 } from "./sources.js";
+export { type IssueTemplatesJson, listTemplates } from "./templates/list.js";
 export { issuesChecks, issueVerifyInputs, verifyIssues } from "./verify.js";
 export {
   type IssueCommentJson,
