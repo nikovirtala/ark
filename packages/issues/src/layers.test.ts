@@ -9,7 +9,9 @@ import { describe, expect, it } from "vitest";
 // - only cli.ts and cli/** import @nikovirtala/ledger/cli or ./cli/**;
 // - only tests and test-support/** import @nikovirtala/ledger/testing or ./test-support/**;
 // - the library imports adr only as @nikovirtala/adr/kind; tests and test-support/** may import
-//   @nikovirtala/adr to set up decision logs.
+//   @nikovirtala/adr to set up decision logs;
+// - only mcp/**, tests and test-support/** import @nikovirtala/ledger/mcp or the MCP SDK, and only
+//   cli/mcp.ts, tests and test-support/** import ./mcp/**, so only `issues mcp` loads MCP code.
 
 const SPECIFIER = /\b(?:from|import)\s*\(?\s*["']([^"']+)["']/g;
 const isTest = (file: string) => file.endsWith(".test.ts");
@@ -18,6 +20,9 @@ const isCliFile = (file: string) => file === "cli.ts" || file.startsWith("cli/")
 const isTestSupport = (file: string) => file.startsWith("test-support/");
 const isAdrPackage = (spec: string) =>
   spec === "@nikovirtala/adr" || spec.startsWith("@nikovirtala/adr/");
+const isMcpFile = (file: string) => file.startsWith("mcp/");
+const isMcpPackage = (spec: string) =>
+  spec === "@nikovirtala/ledger/mcp" || /^@modelcontextprotocol\/sdk(?:\/|$)/.test(spec);
 
 /** Import targets: relative ones as src-relative `.ts` paths, packages as given. */
 function importsOf(file: string, source: string): string[] {
@@ -54,6 +59,12 @@ function violations(graph: ReadonlyMap<string, readonly string[]>): string[] {
           `${file}: the library may import adr only as @nikovirtala/adr/kind, not ${target}`,
         );
       }
+      if (isMcpPackage(target) && !isMcpFile(file) && !testing) {
+        out.push(`${file}: only mcp/ may import ${target}`);
+      }
+      if (isMcpFile(target) && !isMcpFile(file) && file !== "cli/mcp.ts" && !testing) {
+        out.push(`${file}: only cli/mcp.ts may import ${target}`);
+      }
     }
   }
   return out;
@@ -89,6 +100,11 @@ describe("issues layering", () => {
       ["cli.ts", ["cli/commands.ts"]],
       ["test-support/cli.ts", ["@nikovirtala/ledger/testing", "@nikovirtala/adr", "kind.ts"]],
       ["e2e.test.ts", ["test-support/events.ts", "@nikovirtala/adr"]],
+      ["write.ts", ["@nikovirtala/ledger/mcp", "@modelcontextprotocol/sdk/types.js"]],
+      ["cli/show.ts", ["mcp/server.ts"]],
+      ["cli/mcp.ts", ["mcp/server.ts", "@nikovirtala/ledger/cli"]],
+      ["mcp/server.ts", ["@nikovirtala/ledger/mcp", "mcp/tools.ts", "cli/text.ts"]],
+      ["mcp/read-tools.test.ts", ["@modelcontextprotocol/sdk/client/index.js", "mcp/server.ts"]],
     ]);
     expect(violations(graph)).toEqual([
       "kind.ts: the kind may import only @nikovirtala/ledger and kind/, not log.ts",
@@ -99,6 +115,10 @@ describe("issues layering", () => {
       "log.ts: the library may import adr only as @nikovirtala/adr/kind, not @nikovirtala/adr",
       "views.ts: only tests and test-support/ may import @nikovirtala/ledger/testing",
       "views.ts: only tests and test-support/ may import test-support/events.ts",
+      "write.ts: only mcp/ may import @nikovirtala/ledger/mcp",
+      "write.ts: only mcp/ may import @modelcontextprotocol/sdk/types.js",
+      "cli/show.ts: only cli/mcp.ts may import mcp/server.ts",
+      "mcp/server.ts: only cli.ts and cli/ may import cli/text.ts",
     ]);
   });
 });
