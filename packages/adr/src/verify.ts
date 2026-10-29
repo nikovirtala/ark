@@ -17,6 +17,7 @@ import {
   templateHistoryRef,
   type VerifyMode,
   verifyLog,
+  withGitOperation,
 } from "@nikovirtala/ledger";
 import { adrKind, type DecisionView } from "./kind.js";
 import { type DecisionLog, numberDecisions } from "./log.js";
@@ -188,16 +189,18 @@ export function decisionVerifyInputs(log: DecisionLog): string[] {
  * sources from the local cache only.
  */
 export async function verifyDecisions(log: DecisionLog, mode: VerifyMode): Promise<Finding[]> {
-  return verifyLog({
-    git: log.git,
-    kind: adrKind,
-    layout: log.layout,
-    mode,
-    checks: adrChecks(
-      log,
-      await templateHistoryRef(log.git, mode),
-      await readDecisionSources(log, { fetch: "cache" }),
-    ),
-    widenOn: decisionVerifyInputs(log),
+  return withGitOperation(async () => {
+    return verifyLog({
+      git: log.git,
+      kind: adrKind,
+      layout: log.layout,
+      mode,
+      checks: adrChecks(
+        log,
+        await templateHistoryRef(log.git, mode),
+        await readDecisionSources(log, { fetch: "cache" }),
+      ),
+      widenOn: decisionVerifyInputs(log),
+    });
   });
 }

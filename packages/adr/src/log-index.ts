@@ -22,6 +22,7 @@ import {
   type TreeReader,
   UsageError,
   verifyLog,
+  withGitOperation,
   worktreeReader,
   writeIndexCopy,
 } from "@nikovirtala/ledger";
@@ -138,23 +139,27 @@ export async function renderDecisionIndex(
     readonly history: string | null;
   },
 ): Promise<string | null> {
-  const { layout, history } = o;
-  const mergeHead =
-    o.tree.commit === null && history !== null ? await git.resolveCommit("MERGE_HEAD") : null;
-  const numbering = await projectNumbering(git, {
-    kind: adrKind,
-    layout,
-    history,
-    tree: o.tree,
-    mainRef: o.adr.mainBranch,
-    merging: mergeHead === null ? [] : [mergeHead],
-    recorded: async () =>
-      history === null ? null : readIndexNumbers(await refReader(git, history), indexPath(layout)),
+  return withGitOperation(async () => {
+    const { layout, history } = o;
+    const mergeHead =
+      o.tree.commit === null && history !== null ? await git.resolveCommit("MERGE_HEAD") : null;
+    const numbering = await projectNumbering(git, {
+      kind: adrKind,
+      layout,
+      history,
+      tree: o.tree,
+      mainRef: o.adr.mainBranch,
+      merging: mergeHead === null ? [] : [mergeHead],
+      recorded: async () =>
+        history === null
+          ? null
+          : readIndexNumbers(await refReader(git, history), indexPath(layout)),
+    });
+    if (!numbering.available) return null;
+    const read = await readDecisionsFrom(o.tree, { layout, adr: o.adr, numbering });
+    const views = read.projection.views;
+    return renderIndex(DECISION_INDEX(layout.root, views), [...views.values()], numbering);
   });
-  if (!numbering.available) return null;
-  const read = await readDecisionsFrom(o.tree, { layout, adr: o.adr, numbering });
-  const views = read.projection.views;
-  return renderIndex(DECISION_INDEX(layout.root, views), [...views.values()], numbering);
 }
 
 /** At most this many paths are named in the unstaged-files `index/stale` message. */
@@ -252,114 +257,116 @@ export async function runDecisionIndex(
   log: DecisionLog,
   o: WriteOptions & { readonly check?: boolean } = {},
 ): Promise<IndexRun> {
-  const path = indexPath(log.layout);
-  const root = log.layout.root;
-  const check = o.check === true;
-  const notes = [...log.notes, ...(o.notes ?? [])];
-  if (log.adr.index !== "committed") {
-    throw new UsageError('adr index needs [log] index = "committed" in adr.toml');
-  }
-  if (check) {
-    if (o.commit === true || (o.message !== undefined && o.message !== null)) {
-      throw new UsageError("--check writes nothing; drop --commit and --message");
+  return withGitOperation(async () => {
+    const path = indexPath(log.layout);
+    const root = log.layout.root;
+    const check = o.check === true;
+    const notes = [...log.notes, ...(o.notes ?? [])];
+    if (log.adr.index !== "committed") {
+      throw new UsageError('adr index needs [log] index = "committed" in adr.toml');
     }
-    const findings = await verifyLog({
-      git: log.git,
-      kind: adrKind,
-      layout: log.layout,
-      mode: { type: "full", ...(log.ref === null ? {} : { head: log.ref }) },
-      checks: [decisionIndexCheck(log)],
-    });
-    const doc: IndexResultJson = {
-      format: "adr-index/v1",
-      path,
-      check: true,
-      fresh: findings.length === 0,
-      written: [],
-      commit: null,
-      findings,
-      notes,
+    if (check) {
+      if (o.commit === true || (o.message !== undefined && o.message !== null)) {
+        throw new UsageError("--check writes nothing; drop --commit and --message");
+      }
+      const findings = await verifyLog({
+        git: log.git,
+        kind: adrKind,
+        layout: log.layout,
+        mode: { type: "full", ...(log.ref === null ? {} : { head: log.ref }) },
+        checks: [decisionIndexCheck(log)],
+      });
+      const doc: IndexResultJson = {
+        format: "adr-index/v1",
+        path,
+        check: true,
+        fresh: findings.length === 0,
+        written: [],
+        commit: null,
+        findings,
+        notes,
+      };
+      return { doc, refreshed: false };
+    }
+    if (log.ref !== null || log.tree.label !== "worktree") {
+      throw new UsageError("adr index writes the work tree; use --ref only with --check");
+    }
+    const { git } = log;
+    const commit = o.commit ?? log.adr.autoCommit;
+    if (commit && ((await git.identity()) === null || (await git.committerIdentity()) === null)) {
+      throw new ConfigError("--commit needs a git identity; set git user.name and user.email");
+    }
+    const head = await git.resolveCommit("HEAD");
+    const render = (tree: TreeReader, history: string | null) =>
+      renderDecisionIndex(git, { layout: log.layout, adr: log.adr, tree, history });
+    const shallow = () =>
+      new UsageError("numbers need history in this shallow clone; run git fetch --unshallow");
+    let written = false;
+    const place = async (text: string): Promise<boolean> => {
+      const r = await writeIndexCopy(git, path, text);
+      if (r.stage) await git.add([path]);
+      written ||= r.wrote;
+      return r.wrote || r.stage;
     };
-    return { doc, refreshed: false };
-  }
-  if (log.ref !== null || log.tree.label !== "worktree") {
-    throw new UsageError("adr index writes the work tree; use --ref only with --check");
-  }
-  const { git } = log;
-  const commit = o.commit ?? log.adr.autoCommit;
-  if (commit && ((await git.identity()) === null || (await git.committerIdentity()) === null)) {
-    throw new ConfigError("--commit needs a git identity; set git user.name and user.email");
-  }
-  const head = await git.resolveCommit("HEAD");
-  const render = (tree: TreeReader, history: string | null) =>
-    renderDecisionIndex(git, { layout: log.layout, adr: log.adr, tree, history });
-  const shallow = () =>
-    new UsageError("numbers need history in this shallow clone; run git fetch --unshallow");
-  let written = false;
-  const place = async (text: string): Promise<boolean> => {
-    const r = await writeIndexCopy(git, path, text);
-    if (r.stage) await git.add([path]);
-    written ||= r.wrote;
-    return r.wrote || r.stage;
-  };
 
-  if (!commit) {
-    const text = await render(worktreeReader(git), head);
+    if (!commit) {
+      const text = await render(worktreeReader(git), head);
+      if (text === null) throw shallow();
+      const changed = await place(text);
+      const doc: IndexResultJson = {
+        format: "adr-index/v1",
+        path,
+        check: false,
+        fresh: !changed,
+        written: written ? [path] : [],
+        commit: null,
+        findings: [],
+        notes,
+      };
+      return { doc, refreshed: false };
+    }
+
+    // The commit's only path is index.md, which the render doesn't read, so it renders HEAD's tree;
+    // HEAD's copy decides whether there is anything to commit.
+    const text = await render(await headTree(git, head), head);
     if (text === null) throw shallow();
-    const changed = await place(text);
+    const fresh = holdsText(await headBytes(git, path), text);
+    let sha: string | null = null;
+    if (!fresh) {
+      await place(text);
+      const message =
+        o.message ??
+        renderCommitMessage(log.adr.commitSubject, {
+          title: INDEX_TITLE,
+          vars: { action: INDEX_ACTION, id: "index.md", display: "index.md", command: "index" },
+        }).message;
+      sha = await commitWithRecovery(git, {
+        message,
+        only: [path],
+        rerun: INDEX_RERUN,
+        after: INDEX_AFTER(root),
+      });
+    }
+    // Step 5: other decisions' uncommitted entries go back into the work tree and the index.
+    let refreshed = false;
+    try {
+      const again = await render(worktreeReader(git), sha ?? head);
+      if (again !== null) refreshed = await place(again);
+    } catch (err) {
+      notes.push(`${path} may be stale: ${firstLine(err)}; run adr index`);
+    }
     const doc: IndexResultJson = {
       format: "adr-index/v1",
       path,
       check: false,
-      fresh: !changed,
+      fresh,
       written: written ? [path] : [],
-      commit: null,
+      commit: sha,
       findings: [],
       notes,
     };
-    return { doc, refreshed: false };
-  }
-
-  // The commit's only path is index.md, which the render doesn't read, so it renders HEAD's tree;
-  // HEAD's copy decides whether there is anything to commit.
-  const text = await render(await headTree(git, head), head);
-  if (text === null) throw shallow();
-  const fresh = holdsText(await headBytes(git, path), text);
-  let sha: string | null = null;
-  if (!fresh) {
-    await place(text);
-    const message =
-      o.message ??
-      renderCommitMessage(log.adr.commitSubject, {
-        title: INDEX_TITLE,
-        vars: { action: INDEX_ACTION, id: "index.md", display: "index.md", command: "index" },
-      }).message;
-    sha = await commitWithRecovery(git, {
-      message,
-      only: [path],
-      rerun: INDEX_RERUN,
-      after: INDEX_AFTER(root),
-    });
-  }
-  // Step 5: other decisions' uncommitted entries go back into the work tree and the index.
-  let refreshed = false;
-  try {
-    const again = await render(worktreeReader(git), sha ?? head);
-    if (again !== null) refreshed = await place(again);
-  } catch (err) {
-    notes.push(`${path} may be stale: ${firstLine(err)}; run adr index`);
-  }
-  const doc: IndexResultJson = {
-    format: "adr-index/v1",
-    path,
-    check: false,
-    fresh,
-    written: written ? [path] : [],
-    commit: sha,
-    findings: [],
-    notes,
-  };
-  return { doc, refreshed };
+    return { doc, refreshed };
+  });
 }
 
 /**

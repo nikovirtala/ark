@@ -4,6 +4,7 @@ import {
   type Finding,
   type StateHeader,
   UsageError,
+  withGitOperation,
 } from "@nikovirtala/ledger";
 import type { DecisionStatus, DecisionView } from "./kind.js";
 import { type ChangedSince, type DecisionsRead, listingNotes } from "./log.js";
@@ -118,38 +119,42 @@ export async function showDecision(
   id: string,
   o: { readonly history?: boolean } = {},
 ): Promise<DecisionShowJson> {
-  const view = read.projection.views.get(id);
-  if (view === undefined) {
-    if (read.projection.unreadable.includes(id)) {
-      throw new UsageError(`decision ${id} uses a newer format; upgrade adr`);
+  return withGitOperation(async () => {
+    const view = read.projection.views.get(id);
+    if (view === undefined) {
+      if (read.projection.unreadable.includes(id)) {
+        throw new UsageError(`decision ${id} uses a newer format; upgrade adr`);
+      }
+      if (read.projection.unfoldable.includes(id)) {
+        throw new UsageError(`decision ${id} can't be read; run adr verify`);
+      }
+      throw new UsageError(`unknown decision ${id}`);
     }
-    if (read.projection.unfoldable.includes(id)) {
-      throw new UsageError(`decision ${id} can't be read; run adr verify`);
-    }
-    throw new UsageError(`unknown decision ${id}`);
-  }
-  const loaded = read.folded.subjects.get(id)?.loaded;
-  const body = loaded?.body ?? null;
-  const events =
-    o.history === true
-      ? (loaded?.events ?? [])
-          .flatMap((e) => (e.event === null ? [] : [{ path: e.path, event: e.event }]))
-          .sort((a, b) => compareEvents({ ...a.event, path: a.path }, { ...b.event, path: b.path }))
-          .map((e) => e.event)
-      : null;
-  return {
-    format: "adr-show/v1",
-    root: read.root,
-    ref: read.ref,
-    commit: read.commit,
-    numbering: numberingJson(read),
-    header: stateHeader(view, read),
-    decision: view,
-    body: body === null ? null : decoder.decode(body.bytes),
-    events,
-    findings: read.findings.filter((f) => f.subject === id),
-    notes: read.notes,
-  };
+    const loaded = read.folded.subjects.get(id)?.loaded;
+    const body = loaded?.body ?? null;
+    const events =
+      o.history === true
+        ? (loaded?.events ?? [])
+            .flatMap((e) => (e.event === null ? [] : [{ path: e.path, event: e.event }]))
+            .sort((a, b) =>
+              compareEvents({ ...a.event, path: a.path }, { ...b.event, path: b.path }),
+            )
+            .map((e) => e.event)
+        : null;
+    return {
+      format: "adr-show/v1",
+      root: read.root,
+      ref: read.ref,
+      commit: read.commit,
+      numbering: numberingJson(read),
+      header: stateHeader(view, read),
+      decision: view,
+      body: body === null ? null : decoder.decode(body.bytes),
+      events,
+      findings: read.findings.filter((f) => f.subject === id),
+      notes: read.notes,
+    };
+  });
 }
 
 const day = (at: string | null) => (at ?? "").slice(0, 10);

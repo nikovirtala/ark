@@ -26,6 +26,7 @@ import {
   type TreeReader,
   transitions,
   UsageError,
+  withGitOperation,
 } from "@nikovirtala/ledger";
 import { type AdrConfig, parseAdrConfig } from "./config.js";
 import { adrKind, type DecisionView } from "./kind.js";
@@ -79,14 +80,16 @@ export interface DecisionsRead {
  * copy, which may number acceptances that exist only there (design 2b D1, §4.6).
  */
 export async function readDecisions(log: DecisionLog): Promise<DecisionsRead> {
-  return readDecisionsFrom(log.tree, {
-    layout: log.layout,
-    adr: log.adr,
-    numbering: await numberDecisions(log),
-    ref: log.ref,
-    commit: log.commit,
-    notes: log.notes,
-    sources: (log.config?.sources ?? []).map((s) => s.name),
+  return withGitOperation(async () => {
+    return readDecisionsFrom(log.tree, {
+      layout: log.layout,
+      adr: log.adr,
+      numbering: await numberDecisions(log),
+      ref: log.ref,
+      commit: log.commit,
+      notes: log.notes,
+      sources: (log.config?.sources ?? []).map((s) => s.name),
+    });
   });
 }
 
@@ -244,16 +247,18 @@ export interface ChangedSince {
  * Throws `RefNotFoundError` when either revision doesn't resolve.
  */
 export async function changedSince(log: DecisionLog, rev: string): Promise<ChangedSince> {
-  const base = await refReader(log.git, rev);
-  const head = await refReader(log.git, log.ref ?? "HEAD");
-  const changes = await diffTrees(base, head, `${log.layout.root}/${log.layout.events}`);
-  const events = changes.flatMap((c) => {
-    if (c.status !== "added") return [];
-    const p = classifyPath(log.layout, c.path);
-    if (p.area !== "event" || p.subject === null || p.file.includes("/")) return [];
-    const name = parseEventFileName(p.file);
-    return name === null ? [] : [{ subject: p.subject, type: name.type, path: c.path }];
+  return withGitOperation(async () => {
+    const base = await refReader(log.git, rev);
+    const head = await refReader(log.git, log.ref ?? "HEAD");
+    const changes = await diffTrees(base, head, `${log.layout.root}/${log.layout.events}`);
+    const events = changes.flatMap((c) => {
+      if (c.status !== "added") return [];
+      const p = classifyPath(log.layout, c.path);
+      if (p.area !== "event" || p.subject === null || p.file.includes("/")) return [];
+      const name = parseEventFileName(p.file);
+      return name === null ? [] : [{ subject: p.subject, type: name.type, path: c.path }];
+    });
+    events.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+    return { rev, commit: base.commit ?? "", events };
   });
-  events.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
-  return { rev, commit: base.commit ?? "", events };
 }
