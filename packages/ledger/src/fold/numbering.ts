@@ -1,6 +1,7 @@
 import { RefNotFoundError } from "../errors.js";
 import type { Git } from "../git/git.js";
 import { firstParentAdditions } from "../git/history.js";
+import { withGitOperation } from "../git/operation.js";
 import type { TreeReader } from "../git/tree.js";
 import { parseEventFileName } from "../identity/files.js";
 import { classifyPath, type LogLayout } from "../identity/layout.js";
@@ -138,28 +139,34 @@ export async function numberLog(
     readonly fallback?: () => Promise<ReadonlyMap<string, number> | null>;
   },
 ): Promise<Numbering> {
-  const numbering = o.kind.def.numbering;
-  if (numbering === undefined) return NO_NUMBERING;
-  if (await git.isShallow()) {
-    const recorded = (await o.fallback?.()) ?? null;
-    if (recorded === null) return { ...NO_NUMBERING, reason: "shallow" };
-    const byId = new Map(recorded);
-    return {
-      available: true,
-      reason: "index",
-      ref: null,
-      commit: null,
-      byId,
-      byNumber: byNumberOf(byId),
-    };
-  }
-  const ref = await resolveMainRef(git, o.mainRef);
-  if (ref === null) return NO_NUMBERING;
-  const commit = await git.resolveCommit(ref);
-  if (commit === null) throw new RefNotFoundError(ref);
-  const additions = await firstParentAdditions(git, commit, `${o.layout.root}/${o.layout.events}`);
-  const byId = assignNumbers(additions, { layout: o.layout, on: numbering.on });
-  return { available: true, reason: null, ref, commit, byId, byNumber: byNumberOf(byId) };
+  return withGitOperation(async () => {
+    const numbering = o.kind.def.numbering;
+    if (numbering === undefined) return NO_NUMBERING;
+    if (await git.isShallow()) {
+      const recorded = (await o.fallback?.()) ?? null;
+      if (recorded === null) return { ...NO_NUMBERING, reason: "shallow" };
+      const byId = new Map(recorded);
+      return {
+        available: true,
+        reason: "index",
+        ref: null,
+        commit: null,
+        byId,
+        byNumber: byNumberOf(byId),
+      };
+    }
+    const ref = await resolveMainRef(git, o.mainRef);
+    if (ref === null) return NO_NUMBERING;
+    const commit = await git.resolveCommit(ref);
+    if (commit === null) throw new RefNotFoundError(ref);
+    const additions = await firstParentAdditions(
+      git,
+      commit,
+      `${o.layout.root}/${o.layout.events}`,
+    );
+    const byId = assignNumbers(additions, { layout: o.layout, on: numbering.on });
+    return { available: true, reason: null, ref, commit, byId, byNumber: byNumberOf(byId) };
+  });
 }
 
 /**
@@ -252,51 +259,53 @@ export async function projectNumbering(
     readonly merging?: readonly string[];
   },
 ): Promise<Numbering> {
-  const numbering = o.kind.def.numbering;
-  if (numbering === undefined) return NO_NUMBERING;
-  const events = `${o.layout.root}/${o.layout.events}`;
-  const rule = { layout: o.layout, on: numbering.on };
-  const shallow = await git.isShallow();
-  const recorded = shallow ? ((await o.recorded?.()) ?? null) : null;
-  if (shallow && recorded === null) return { ...NO_NUMBERING, reason: "shallow" };
-  const pending = (await o.tree.list(events)).map((e) => e.path);
-  if (recorded !== null) {
-    // assignNumbers can't continue from recorded numbers, so the pending group is numbered here,
-    // in the same order.
-    const byId = new Map(recorded);
-    let next = [...byId.values()].reduce((max, n) => Math.max(max, n), 0);
-    const keys = pending.flatMap((path) => numberingKey(path, rule) ?? []);
-    for (const { subject } of keys.sort(compareNumberingKeys)) {
-      if (!byId.has(subject)) byId.set(subject, ++next);
+  return withGitOperation(async () => {
+    const numbering = o.kind.def.numbering;
+    if (numbering === undefined) return NO_NUMBERING;
+    const events = `${o.layout.root}/${o.layout.events}`;
+    const rule = { layout: o.layout, on: numbering.on };
+    const shallow = await git.isShallow();
+    const recorded = shallow ? ((await o.recorded?.()) ?? null) : null;
+    if (shallow && recorded === null) return { ...NO_NUMBERING, reason: "shallow" };
+    const pending = (await o.tree.list(events)).map((e) => e.path);
+    if (recorded !== null) {
+      // assignNumbers can't continue from recorded numbers, so the pending group is numbered here,
+      // in the same order.
+      const byId = new Map(recorded);
+      let next = [...byId.values()].reduce((max, n) => Math.max(max, n), 0);
+      const keys = pending.flatMap((path) => numberingKey(path, rule) ?? []);
+      for (const { subject } of keys.sort(compareNumberingKeys)) {
+        if (!byId.has(subject)) byId.set(subject, ++next);
+      }
+      return {
+        available: true,
+        reason: "index",
+        ref: null,
+        commit: o.history,
+        byId,
+        byNumber: byNumberOf(byId),
+      };
     }
+    const additions =
+      o.history === null
+        ? []
+        : await projectedAdditions(git, {
+            history: o.history,
+            merging: o.merging ?? [],
+            events,
+            mainRef: o.mainRef,
+          });
+    const byId = assignNumbers(
+      [...additions, ...pending.map((path) => ({ path, commit: PENDING_COMMIT }))],
+      rule,
+    );
     return {
       available: true,
-      reason: "index",
+      reason: null,
       ref: null,
       commit: o.history,
       byId,
       byNumber: byNumberOf(byId),
     };
-  }
-  const additions =
-    o.history === null
-      ? []
-      : await projectedAdditions(git, {
-          history: o.history,
-          merging: o.merging ?? [],
-          events,
-          mainRef: o.mainRef,
-        });
-  const byId = assignNumbers(
-    [...additions, ...pending.map((path) => ({ path, commit: PENDING_COMMIT }))],
-    rule,
-  );
-  return {
-    available: true,
-    reason: null,
-    ref: null,
-    commit: o.history,
-    byId,
-    byNumber: byNumberOf(byId),
-  };
+  });
 }

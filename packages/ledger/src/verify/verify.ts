@@ -3,6 +3,7 @@ import { InvalidArgumentError, RefNotFoundError, VerifyUsageError } from "../err
 import { type Finding, sortFindings } from "../findings/finding.js";
 import { foldLog } from "../fold/fold.js";
 import type { Git } from "../git/git.js";
+import { withGitOperation } from "../git/operation.js";
 import { indexReader, refReader, type TreeReader, worktreeReader } from "../git/tree.js";
 import { parseBodyFileName } from "../identity/files.js";
 import { classifyPath, type LogLayout } from "../identity/layout.js";
@@ -133,52 +134,54 @@ export async function verifyLog(o: {
   /** Inputs outside the log whose staged change widens a `staged` verify to every subject. */
   readonly widenOn?: readonly string[];
 }): Promise<Finding[]> {
-  const { git, mode } = o;
-  let base: TreeReader | null;
-  let head: TreeReader;
-  let scope: "changed" | "all" = "all";
-  let repo: RepoContext;
-  if (mode.type === "staged") {
-    head = await indexReader(git);
-    const sha = await git.resolveCommit("HEAD");
-    base = sha === null ? null : await refReader(git, sha);
-    const touched = await touchedInputs(git, mode, o.widenOn ?? []);
-    scope = touched.length === 0 ? "changed" : "all";
-    repo = { git, mode: "staged", head: "index", base: sha };
-  } else if (mode.type === "range") {
-    const baseSha = await commitOf(git, mode.base);
-    const headSha = await commitOf(git, mode.head ?? "HEAD");
-    const mergeBase = await git.mergeBase(baseSha, headSha);
-    if (mergeBase === null) {
-      throw new VerifyUsageError(
-        `no common ancestor between ${mode.base} and ${mode.head ?? "HEAD"}`,
-      );
+  return withGitOperation(async () => {
+    const { git, mode } = o;
+    let base: TreeReader | null;
+    let head: TreeReader;
+    let scope: "changed" | "all" = "all";
+    let repo: RepoContext;
+    if (mode.type === "staged") {
+      head = await indexReader(git);
+      const sha = await git.resolveCommit("HEAD");
+      base = sha === null ? null : await refReader(git, sha);
+      const touched = await touchedInputs(git, mode, o.widenOn ?? []);
+      scope = touched.length === 0 ? "changed" : "all";
+      repo = { git, mode: "staged", head: "index", base: sha };
+    } else if (mode.type === "range") {
+      const baseSha = await commitOf(git, mode.base);
+      const headSha = await commitOf(git, mode.head ?? "HEAD");
+      const mergeBase = await git.mergeBase(baseSha, headSha);
+      if (mergeBase === null) {
+        throw new VerifyUsageError(
+          `no common ancestor between ${mode.base} and ${mode.head ?? "HEAD"}`,
+        );
+      }
+      base = await refReader(git, mergeBase);
+      head = mode.head === undefined ? worktreeReader(git) : await refReader(git, mode.head);
+      repo = {
+        git,
+        mode: "range",
+        head: mode.head === undefined ? "worktree" : { commit: headSha },
+        base: mergeBase,
+      };
+    } else {
+      base = null;
+      head = mode.head === undefined ? worktreeReader(git) : await refReader(git, mode.head);
+      repo = {
+        git,
+        mode: "full",
+        head: head.commit === null ? "worktree" : { commit: head.commit },
+        base: null,
+      };
     }
-    base = await refReader(git, mergeBase);
-    head = mode.head === undefined ? worktreeReader(git) : await refReader(git, mode.head);
-    repo = {
-      git,
-      mode: "range",
-      head: mode.head === undefined ? "worktree" : { commit: headSha },
-      base: mergeBase,
-    };
-  } else {
-    base = null;
-    head = mode.head === undefined ? worktreeReader(git) : await refReader(git, mode.head);
-    repo = {
-      git,
-      mode: "full",
-      head: head.commit === null ? "worktree" : { commit: head.commit },
-      base: null,
-    };
-  }
-  return verifySnapshots({
-    kind: compileKind(o.kind),
-    layout: o.layout,
-    base,
-    head,
-    scope,
-    repo,
-    ...(o.checks === undefined ? {} : { checks: o.checks }),
+    return verifySnapshots({
+      kind: compileKind(o.kind),
+      layout: o.layout,
+      base,
+      head,
+      scope,
+      repo,
+      ...(o.checks === undefined ? {} : { checks: o.checks }),
+    });
   });
 }
