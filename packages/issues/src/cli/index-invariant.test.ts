@@ -1,7 +1,7 @@
 /**
- * CLI spot rows of the index × `--commit` invariant (`write.index.test.ts` runs the full matrix
- * in-process): one row per precondition with the built binary. After each commit, `index --check
- * --ref HEAD` and `verify --ref HEAD` pass, and the work tree's index is current.
+ * CLI spot rows of the index × `--commit` invariant (`write.index.pre<n>.test.ts` run the full
+ * matrix in-process): one row per precondition with the built binary. After each commit,
+ * `index --check --ref HEAD` and `verify --ref HEAD` pass, and the work tree's index is current.
  */
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";

@@ -1,30 +1,28 @@
 /**
- * The index × `--commit` invariant (design addendum §6.3, §9.1): every committing write, crossed
- * with the preconditions below, leaves HEAD's `index.md` equal to HEAD's render, `verify --ref
- * HEAD` clean, the work-tree and staged copies current (or a documented note), and nothing it
- * wrote unstaged. In-process through the library writes, which the CLI calls with the same
- * options; `cli/index-invariant.test.ts` runs one row per precondition with the built binary.
+ * Shared setup for the index × `--commit` invariant (design addendum §6.3, §9.1): every committing
+ * write, crossed with the preconditions below, leaves HEAD's `index.md` equal to HEAD's render,
+ * `verify --ref HEAD` clean, the work-tree and staged copies current (or a documented note), and
+ * nothing it wrote unstaged. In-process through the library writes, which the CLI calls with the
+ * same options. `write.index.pre<n>.test.ts` runs the matrix for precondition <n>, one file each so
+ * the preconditions run in parallel; `write.index.failures.test.ts` and
+ * `write.index.property.test.ts` run the failure cases and the property;
+ * `cli/index-invariant.test.ts` runs one row per precondition with the built binary.
  */
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type Actor,
-  type EventEnvelope,
   type Finding,
   indexReader,
   refReader,
   worktreeReader,
 } from "@nikovirtala/ledger";
 import { createTempRepo, type TempRepo } from "@nikovirtala/ledger/testing";
-import fc from "fast-check";
 import { afterEach, describe, expect, it } from "vitest";
-import type { AppliedPlan } from "./apply.js";
-import { applyPlan } from "./apply.js";
-import { initIssueLog } from "./init.js";
-import { type IssueLog, openIssueLog, readIssues } from "./log.js";
-import { indexIssueLog, renderIssueIndex } from "./log-index.js";
-import { REPO_HUMAN } from "./test-support/cli.js";
-import { verifyIssues } from "./verify.js";
+import { initIssueLog } from "../init.js";
+import { openIssueLog, readIssues } from "../log.js";
+import { indexIssueLog, renderIssueIndex } from "../log-index.js";
+import { verifyIssues } from "../verify.js";
 import {
   assignIssue,
   closeIssue,
@@ -41,35 +39,36 @@ import {
   startIssue,
   stopIssue,
   unlinkIssue,
-  type WriteDeps,
   type WriteOptions,
-} from "./write.js";
+} from "../write.js";
+import { REPO_HUMAN } from "./cli.js";
 
-const ROOT = "docs/issues";
-const INDEX = `${ROOT}/index.md`;
-const CONFIG = '[log]\nindex = "committed"\n';
-const SECTIONS = { goal: "Do the thing.", done: "The thing is done." };
-const me: Actor = REPO_HUMAN;
+export const ROOT = "docs/issues";
+export const INDEX = `${ROOT}/index.md`;
+export const CONFIG = '[log]\nindex = "committed"\n';
+export const SECTIONS = { goal: "Do the thing.", done: "The thing is done." };
+export const me: Actor = REPO_HUMAN;
 
-const repos: TempRepo[] = [];
-afterEach(async () => {
+/** The temp repos the current test made; `disposeRepos` (an `afterEach`) removes them. */
+export const repos: TempRepo[] = [];
+export async function disposeRepos(): Promise<void> {
   for (const r of repos.splice(0)) await r.dispose();
-});
+}
 
-const open = (r: TempRepo) => openIssueLog({ cwd: r.root, gitOptions: { env: r.env } });
-async function git(r: TempRepo, ...args: string[]): Promise<string> {
+export const open = (r: TempRepo) => openIssueLog({ cwd: r.root, gitOptions: { env: r.env } });
+export async function git(r: TempRepo, ...args: string[]): Promise<string> {
   return Buffer.from((await r.git.run(args)).stdout).toString("utf8");
 }
 
 /** Opens an issue through the library; `commit` false leaves it staged. */
-async function newIssue(r: TempRepo, title: string, commit: boolean): Promise<string> {
+export async function newIssue(r: TempRepo, title: string, commit: boolean): Promise<string> {
   const doc = await openIssue(await open(r), { title, sections: SECTIONS, actor: me }, { commit });
   if (!doc.ok || doc.issue === null) throw new Error(`can't open ${title}`);
   return doc.issue.id;
 }
 
 /** An editor that leaves the file, or one that changes its `# ` heading. */
-const keep: Editor = async () => null;
+export const keep: Editor = async () => null;
 const retitle =
   (title: string): Editor =>
   async (abs) => {
@@ -78,7 +77,7 @@ const retitle =
     return null;
   };
 
-type Pre = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+export type Pre = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 const PRECONDITIONS: Readonly<Record<Pre, string>> = {
   1: "other issues have uncommitted changes, staged and unstaged-new",
   2: "the subject's earlier events and description are uncommitted",
@@ -101,7 +100,7 @@ interface Ctx {
 }
 
 /** One committing write: `prep` brings the subject into the state the write needs. */
-interface Row {
+export interface Row {
   readonly name: string;
   readonly prep?: (c: Ctx, o: WriteOptions) => Promise<unknown>;
   readonly run: (c: Ctx, o: WriteOptions) => Promise<IssueWriteJson | null>;
@@ -113,7 +112,7 @@ interface Row {
   readonly mayNotCommit?: boolean;
 }
 
-const ROWS: readonly Row[] = [
+export const ROWS: readonly Row[] = [
   {
     name: "new",
     run: async (c, o) =>
@@ -307,7 +306,7 @@ const EVENT_ROWS: ReadonlySet<string> = new Set([
 ]);
 
 /** The staged entries (`git ls-files -s`) by path. */
-async function stagedBlobs(r: TempRepo): Promise<Map<string, string>> {
+export async function stagedBlobs(r: TempRepo): Promise<Map<string, string>> {
   const out = await git(r, "ls-files", "-s");
   return new Map(
     out
@@ -321,7 +320,7 @@ async function stagedBlobs(r: TempRepo): Promise<Map<string, string>> {
 }
 
 /** Sets up a repository in precondition `pre`; returns the context for the write. */
-async function arrange(pre: Pre, row: Row): Promise<{ c: Ctx; o: WriteOptions }> {
+export async function arrange(pre: Pre, row: Row): Promise<{ c: Ctx; o: WriteOptions }> {
   const config = pre === 8 ? `${CONFIG}\n[policy]\nauto_commit = true\n` : CONFIG;
   const unborn = pre === 7;
   const r = await createTempRepo(
@@ -396,7 +395,7 @@ async function headChange(r: TempRepo): Promise<string[]> {
 }
 
 /** Invariants (a)–(d) of §6.3 after a committing write. */
-async function assertInvariants(
+export async function assertInvariants(
   r: TempRepo,
   doc: {
     readonly commit: string | null;
@@ -448,9 +447,10 @@ async function assertInvariants(
   }
 }
 
-describe("index × --commit invariant", { timeout: 600_000 }, () => {
-  for (const row of ROWS) {
-    for (const pre of [1, 2, 3, 4, 5, 6, 7, 8] as const) {
+export function invariantSuite(pre: Pre): void {
+  describe("index × --commit invariant", { timeout: 600_000 }, () => {
+    afterEach(disposeRepos);
+    for (const row of ROWS) {
       const skipped = row.skip?.[pre];
       const title = `${row.name} × ${pre}: ${PRECONDITIONS[pre]}`;
       if (skipped !== undefined) {
@@ -483,160 +483,5 @@ describe("index × --commit invariant", { timeout: 600_000 }, () => {
         }
       });
     }
-  }
-});
-
-describe("index failures", { timeout: 120_000 }, () => {
-  async function base(): Promise<{ r: TempRepo; x: string }> {
-    const { c } = await arrange(1, ROWS[0] as Row);
-    return { r: c.r, x: c.x };
-  }
-  const failing =
-    (when: number): WriteDeps["apply"] =>
-    (log, plan, o) => {
-      let n = 0;
-      const index = o.index;
-      return applyPlan(log, plan, {
-        ...o,
-        ...(index === undefined
-          ? {}
-          : {
-              index: async (tree, history) => {
-                n += 1;
-                if (n === when) throw new Error("render failed");
-                return index(tree, history);
-              },
-            }),
-      });
-    };
-  const deps = (apply: WriteDeps["apply"]): WriteDeps => ({ now: Date.now, apply });
-
-  it("leaves nothing behind when the first render fails", async () => {
-    const { r, x } = await base();
-    const status = await git(r, "status", "--porcelain");
-    const log = await open(r);
-    await expect(
-      commentIssue(
-        log,
-        { id: x, text: "A comment.", actor: me },
-        { commit: true },
-        deps(failing(1)),
-      ),
-    ).rejects.toThrow("render failed");
-    expect(await git(r, "status", "--porcelain")).toBe(status);
   });
-
-  it("commits and notes a stale work-tree copy when the render after the commit fails", async () => {
-    const { r, x } = await base();
-    const doc = await commentIssue(
-      await open(r),
-      { id: x, text: "A comment.", actor: me },
-      { commit: true },
-      deps(failing(2)),
-    );
-    expect(doc.commit).not.toBeNull();
-    expect(doc.notes).toContain(`${INDEX} may be stale: render failed; run issues index`);
-  });
-
-  it("throws CommitFailedError with the index step when the editor-step render fails", async () => {
-    const r = await createTempRepo({ files: { [`${ROOT}/issues.toml`]: CONFIG } });
-    repos.push(r);
-    await initIssueLog(await open(r), { commit: true });
-    await expect(
-      openIssue(
-        await open(r),
-        { title: "Drafted", sections: SECTIONS, actor: me },
-        { commit: true, edit: keep },
-        deps(failing(2)),
-      ),
-    ).rejects.toMatchObject({ name: "CommitFailedError" });
-    expect(await git(r, "diff", "--cached", "--name-only")).toContain(INDEX);
-  });
-
-  it("restores the old index bytes and removes a new index when a write fails after placing it", async () => {
-    const { r, x } = await base();
-    const old = await readFile(join(r.root, INDEX), "utf8");
-    const apply: WriteDeps["apply"] = (log, plan, o) =>
-      applyPlan(
-        log,
-        { ...plan, events: [...plan.events, { ...(plan.events[0] as EventEnvelope), id: "bad" }] },
-        o,
-      );
-    await expect(
-      commentIssue(
-        await open(r),
-        { id: x, text: "A comment.", actor: me },
-        { commit: true },
-        deps(apply),
-      ),
-    ).rejects.toThrow();
-    expect(await readFile(join(r.root, INDEX), "utf8")).toBe(old);
-    await git(r, "rm", "-qf", "--", INDEX);
-    await git(r, "commit", "-qm", "chore: drop the index", "--", INDEX);
-    await expect(
-      commentIssue(
-        await open(r),
-        { id: x, text: "Again.", actor: me },
-        { commit: true },
-        deps(apply),
-      ),
-    ).rejects.toThrow();
-    await expect(readFile(join(r.root, INDEX))).rejects.toThrow();
-  });
-});
-
-describe("index property", { timeout: 600_000 }, () => {
-  it("keeps the invariant over random write sequences", async () => {
-    type Step = { readonly op: number; readonly who: number; readonly commit: boolean };
-    const step = fc.record({
-      op: fc.integer({ min: 0, max: 5 }),
-      who: fc.integer({ min: 0, max: 2 }),
-      commit: fc.boolean(),
-    });
-    await fc.assert(
-      fc.asyncProperty(fc.array(step, { minLength: 3, maxLength: 6 }), async (steps: Step[]) => {
-        const r = await createTempRepo({
-          files: { "README.md": "readme\n", [`${ROOT}/issues.toml`]: CONFIG },
-        });
-        repos.push(r);
-        await initIssueLog(await open(r), { commit: true });
-        const ids = [
-          await newIssue(r, "First", true),
-          await newIssue(r, "Second", true),
-          await newIssue(r, "Third", false),
-        ];
-        for (const s of steps) {
-          const log: IssueLog = await open(r);
-          const id = ids[s.who] as string;
-          const o = { commit: s.commit };
-          const before = await stagedBlobs(r);
-          let doc: IssueWriteJson | AppliedPlan | null = null;
-          switch (s.op) {
-            case 0:
-              doc = await commentIssue(log, { id, text: "Note.", actor: me }, o);
-              break;
-            case 1:
-              doc = await labelIssue(log, { id, op: { add: ["type:bug"] }, actor: me }, o);
-              break;
-            case 2:
-              doc = await editIssue(log, { id, title: `Title ${s.who} ${s.op}` }, o);
-              break;
-            case 3:
-              doc = await linkIssue(log, { id, to: ids[(s.who + 1) % 3] as string, actor: me }, o);
-              break;
-            case 4:
-              doc = await openIssue(log, { title: "Another", sections: SECTIONS, actor: me }, o);
-              break;
-            default:
-              doc = await assignIssue(log, { id, op: { add: ["ada@example.com"] }, actor: me }, o);
-          }
-          if (doc !== null && "ok" in doc && doc.ok && doc.commit !== null) {
-            await assertInvariants(r, doc, before);
-          }
-        }
-        await rm(r.root, { recursive: true, force: true });
-      }),
-      { numRuns: 20 },
-    );
-  });
-});
+}
