@@ -58,6 +58,10 @@ If step 3 fails, fix the offending commit (fixup + autosquash), then rerun steps
 - Use `gh pr ready <number>` or the GraphQL `markPullRequestReadyForReview` mutation. The REST API can't remove draft status. If your environment can't run either, say so explicitly when you hand off, and ask the maintainer to click "Ready for review".
 - If review requires more work, move the PR back to draft, make the changes with ordinary pushes, and repeat the "Before marking ready for review" steps once before marking it ready again.
 
+## Test file durations
+
+vitest runs one file's tests one after another in one worker. A file that takes longer than its package's summed file time divided by the worker count finishes last, however the other files are scheduled. `pnpm test:durations` runs every package's suite and lists the files that break this rule (`scripts/check-test-durations.mjs` explains the options, and also reads saved vitest JSON reports). Split a file that breaks it along the outermost loop of its test matrix, and give each property test its own file. Shared setup goes in the package's `src/test-support/` (`src/testing/` in ledger).
+
 ## Review findings
 
 ark tracks its open work in `docs/issues/` with its own `issues` tool (`node packages/issues/dist/cli.js` after `pnpm build`). Code reviews use it for findings that don't block:
