@@ -7,6 +7,7 @@ import {
   assertRev,
   catFileBatch,
   type Git,
+  hashWorktreeFiles,
   operationMemo,
   requireWorkTree,
 } from "./git.js";
@@ -82,8 +83,9 @@ async function readSpecs(
 
 /**
  * The files on disk. `.gitignore` doesn't apply: a file under a log is part of it. Oids come from
- * one `git hash-object --stdin-paths` per `list`, which applies the same clean and eol filters as
- * `git add`, so they compare equal to the blobs a ref or the index holds.
+ * `git hash-object --stdin-paths` (one per `list`, or the git operation's resident one), which
+ * applies the same clean and eol filters as `git add`, so they compare equal to the blobs a ref or
+ * the index holds.
  */
 export function worktreeReader(git: Git): TreeReader {
   const root = requireWorkTree(git);
@@ -122,15 +124,7 @@ export function worktreeReader(git: Git): TreeReader {
       const found: { path: string; type: TreeEntry["type"] }[] = [];
       await walk(p, found);
       const files = found.filter((e) => e.type === "file").map((e) => e.path);
-      const oids =
-        files.length === 0
-          ? []
-          : Buffer.from(
-              (await git.run(["hash-object", "--stdin-paths"], { input: `${files.join("\n")}\n` }))
-                .stdout,
-            )
-              .toString("utf8")
-              .split("\n");
+      const oids = await hashWorktreeFiles(git, files);
       const oidOf = new Map(files.map((f, i) => [f, oids[i] ?? null]));
       return found
         .map((e): TreeEntry => ({ path: e.path, oid: oidOf.get(e.path) ?? null, type: e.type }))

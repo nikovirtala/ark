@@ -9,7 +9,13 @@ import {
   NotARepositoryError,
 } from "../errors.js";
 import { currentGitOperation, isReadOnlyGitCommand, type SpawnSpec, specKey } from "./operation.js";
-import { CatFileParser, CatFileProcess, type CatObject, ResidentGone } from "./resident.js";
+import {
+  CatFileParser,
+  CatFileProcess,
+  type CatObject,
+  HashObjectProcess,
+  ResidentGone,
+} from "./resident.js";
 
 export interface GitOptions {
   /** The git executable, default `"git"`. */
@@ -222,6 +228,33 @@ function residentCatFile(git: Git, specs: readonly string[]): Promise<(CatObject
     op.residentFailed(key, r);
     return null;
   });
+}
+
+/**
+ * The blob oids of work-tree `files` (relative to the work tree root, without `\n`), as `git add`
+ * would store them. Inside a git operation the operation's `hash-object --stdin-paths` answers;
+ * otherwise, or when that process failed (a file that can't be read makes it exit), one
+ * `hash-object` runs and throws today's `GitError`. Internal.
+ */
+export async function hashWorktreeFiles(git: Git, files: readonly string[]): Promise<string[]> {
+  if (files.length === 0) return [];
+  const op = currentGitOperation();
+  if (op !== null) {
+    const key = `hash-object\0${specKey(spawnSpec(git, []))}`;
+    const r = op.resident(key, () =>
+      HashObjectProcess.start(spawnSpec(git, ["hash-object", "--stdin-paths"])),
+    );
+    if (r !== null) {
+      try {
+        return await r.hash(files);
+      } catch (e) {
+        if (!(e instanceof ResidentGone)) throw e;
+        op.residentFailed(key, r);
+      }
+    }
+  }
+  const r = await git.run(["hash-object", "--stdin-paths"], { input: `${files.join("\n")}\n` });
+  return Buffer.from(r.stdout).toString("utf8").split("\n");
 }
 
 const versionCache = new Map<string, Promise<void>>();

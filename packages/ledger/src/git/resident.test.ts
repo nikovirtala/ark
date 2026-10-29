@@ -2,11 +2,13 @@ import { existsSync } from "node:fs";
 import { chmod, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { GitError } from "../errors.js";
 import { createSpawnLog, realGit, type SpawnLog } from "../testing/spawn-log.js";
 import { createTempRepo, type TempRepo } from "../testing/temp-repo.js";
 import { catFileBatch, Git, spawnSpec } from "./git.js";
 import { liveResidentCount, withGitOperation } from "./operation.js";
 import { CatFileProcess, ResidentGone } from "./resident.js";
+import { indexReader, worktreeReader } from "./tree.js";
 
 const cleanup: (() => Promise<void>)[] = [];
 
@@ -279,5 +281,97 @@ if (process.env.GIT_FLUSH === "1" && args.join(" ").endsWith("cat-file --batch")
     p.end();
     await expect(p.read(["HEAD"])).rejects.toBeInstanceOf(ResidentGone);
     await p.exited;
+  });
+});
+
+const HASH = "hash-object --stdin-paths";
+
+describe("the resident hash-object", () => {
+  it("hashes every work-tree listing of one operation in one process", async () => {
+    const r = await repo({
+      files: { "log/a.txt": "a\n", "log/b/c.txt": "c\n", "other.txt": "o\n" },
+    });
+    const log = await spawnLog();
+    const git = await Git.open(r.root, { binary: log.binary, env: r.env });
+    const tree = worktreeReader(git);
+    const lists = async () => [
+      await tree.list("log"),
+      await tree.list(""),
+      await tree.list("log/b"),
+    ];
+    const outside = await lists();
+    expect(await log.count(HASH)).toBe(3);
+    const inside = await withGitOperation(async () => {
+      const first = await lists();
+      // Work-tree writes between lists are seen.
+      await r.write("log/a.txt", "changed\n");
+      const changed = await tree.list("log");
+      expect(changed).not.toEqual(first[0]);
+      expect(changed).toEqual(await worktreeReader(r.git).list("log"));
+      await r.write("log/a.txt", "a\n");
+      return lists();
+    });
+    expect(inside).toEqual(outside);
+    expect(await log.count(HASH)).toBe(4);
+    expect(liveResidentCount()).toBe(0);
+  });
+
+  it("gives the one-shot oids under core.autocrlf and a .gitattributes text rule", async () => {
+    const r = await repo({ files: { ".gitattributes": "*.txt text\n*.dat -text\n" } });
+    await r.git.run(["config", "core.autocrlf", "true"]);
+    await r.write("log/crlf.txt", "a\r\nb\r\n");
+    await r.write("log/lf.txt", "a\nb\n");
+    await r.write("log/bin.dat", "a\r\nb\r\n");
+    const log = await spawnLog();
+    const git = await Git.open(r.root, { binary: log.binary, env: r.env });
+    const outside = await worktreeReader(git).list("log");
+    const inside = await withGitOperation(() => worktreeReader(git).list("log"));
+    expect(inside).toEqual(outside);
+    expect(await log.count(HASH)).toBe(2);
+    await r.stage("log/crlf.txt", "log/lf.txt", "log/bin.dat");
+    expect(inside).toEqual(await (await indexReader(r.git)).list("log"));
+    const oid = (path: string) => inside.find((e) => e.path === path)?.oid;
+    expect(oid("log/crlf.txt")).toBe(oid("log/lf.txt"));
+    expect(oid("log/bin.dat")).not.toBe(oid("log/lf.txt"));
+  });
+
+  it("throws today's GitError for a file deleted between the walk and the hash", async () => {
+    const r = await repo({ files: { "log/a.txt": "a\n", "log/gone.txt": "g\n" } });
+    const log = await spawnLog();
+    // Deletes log/gone.txt whenever hash-object starts, after worktreeReader walked the tree.
+    const binary = join(log.dir, "deleting-git");
+    await writeFile(
+      binary,
+      [
+        "#!/bin/sh",
+        `printf '%s\\n' "$*" >> '${join(log.dir, "spawns.log")}'`,
+        `case "$*" in *"${HASH}") rm -f '${join(r.root, "log/gone.txt")}' ;; esac`,
+        `exec '${realGit()}' "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await chmod(binary, 0o755);
+    const git = await Git.open(r.root, { binary, env: r.env });
+    const failure = async (list: () => Promise<unknown>) => {
+      await r.write("log/gone.txt", "g\n");
+      const e = await list().then(
+        () => null,
+        (err: unknown) => err,
+      );
+      expect(e).toBeInstanceOf(GitError);
+      const { message, args, exitCode, stderr } = e as GitError;
+      return { message, args, exitCode, stderr };
+    };
+    const outside = await failure(() => worktreeReader(git).list("log"));
+    const inside = await withGitOperation(async () => {
+      const err = await failure(() => worktreeReader(git).list("log"));
+      // The failed resident isn't restarted in this generation: the next list runs one-shot.
+      expect(await worktreeReader(git).list("log")).toMatchObject([{ path: "log/a.txt" }]);
+      return err;
+    });
+    expect(inside).toEqual(outside);
+    // Outside: one. Inside: the resident, its one-shot fallback and the next list's one-shot.
+    expect(await log.count(HASH)).toBe(4);
+    expect(liveResidentCount()).toBe(0);
   });
 });
