@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M640GK6VCB4NZSWX42Z46Q4R
+subject: na46n52h
+type: closed
+at: 2026-10-29T14:20:07Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: 'Fixed in ledger''s serializeEvent (PR #39): a custom str tag writes a string with " and no '' single-quoted, a string with both kinds as ''it''''s: "both"'', and quotes the multi-line and Unicode-whitespace forms biome would rewrite. biome check reports nothing for events written by issues close with double, single and both quote kinds, 7n5e4nkf''s reason and a multi-line reason, and for this close event, which was written unaided. yaml.test.ts covers double, single and both quote kinds (as values and keys, round-tripped through parse). Every existing event in docs/adr and docs/issues re-serializes to its exact bytes, and adr verify and issues verify report no findings.'
+data:
+  resolution: done
