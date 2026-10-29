@@ -156,6 +156,17 @@ describe("writeText", () => {
     );
     expect(updated.text).toBe(`Updated ?2 (${B}): goal, done, title\nCommitted 0123456`);
     expect((await write({})).text).toBe(`Commented on ?2 (${B})\nStaged 1 file`);
+    expect((await write({ command: "start" })).text.split("\n")[0]).toBe(`Started ?2 (${B})`);
+    expect((await write({ command: "stop" })).text.split("\n")[0]).toBe(`Stopped ?2 (${B})`);
+    const read = await readOf(SUBJECTS, numbering);
+    const dup = await write({
+      command: "close",
+      issue: read.projection.views.get(A) ?? null,
+      affected: [read.projection.views.get(B)].filter((v) => v !== undefined),
+    });
+    expect(dup.text.split("\n")[0]).toBe(`Closed ?1 (${A}) as a duplicate of ?2`);
+    const obsolete = await write({ command: "close", issue: read.projection.views.get(C) ?? null });
+    expect(obsolete.text.split("\n")[0]).toBe(`Closed ?3 (${C}) as obsolete`);
     const unchanged = await write({ written: [], notes: ["nothing changed"] });
     expect(unchanged.text).toBe(`Unchanged: ?2 (${B})\nNote: nothing changed`);
     const unnumbered = await write({

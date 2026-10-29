@@ -85,12 +85,15 @@ export interface WriteIssues extends McpIssues {
   readonly g: string;
   /** ?8 "Move session code": open, part of ?7. */
   readonly h: string;
+  /** ?9 "Release the login fix": depends on ?3 and ?5, so blocked. */
+  readonly i: string;
 }
 
 /**
  * `mcpRepo` with an issue in every state the write tools distinguish (design §7.3): open (e),
  * open and blocked (c), in progress (a), closed done (d), closed wontfix (f), closed duplicate
- * (b), and open with an open child (g).
+ * (b), and open with an open child (g); i depends on c and e, so closing either as a duplicate
+ * of i folds a dependency onto i (a cycle).
  */
 export async function writeRepo(
   files: Readonly<Record<string, string>> = {},
@@ -100,7 +103,8 @@ export async function writeRepo(
   cli(r, ["close", f, "--resolution", "wontfix", "--reason", "no users left", "--commit"]);
   const g = newIssue(r, "Split the auth module");
   const h = newIssue(r, "Move session code", ["--parent", g]);
-  return { r, ids: { ...ids, f, g, h } };
+  const i = newIssue(r, "Release the login fix", ["--depends-on", ids.c, "--depends-on", ids.e]);
+  return { r, ids: { ...ids, f, g, h, i } };
 }
 
 /** The `McpError` `p` rejects with. */
