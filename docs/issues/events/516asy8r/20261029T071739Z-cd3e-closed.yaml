@@ -1,0 +1,46 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M638B0S79N5VHQZVW5RHCD3E
+subject: 516asy8r
+type: closed
+at: 2026-10-29T07:17:39Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: |-
+  Done in issues PR 3c (#36). Commits are named by subject because the
+  fixups are squashed before merge. (1) issues mcp adds issues_open,
+  issues_update, issues_comment ("feat(issues): add the issues mcp tools
+  that open, update and comment"), issues_start, issues_stop,
+  issues_close ("feat(issues): add issues_start, issues_stop and
+  issues_close") and issues_link, issues_unlink, issues_label,
+  issues_assign, issues_scope ("feat(issues): add the link, label, assign
+  and scope tools"); each records the MCP client's name as actor.agent
+  through mcpAttribution, on behalf of ARK_ON_BEHALF_OF, else the git
+  user with the ADR-0007 note; mcp-e2e.test.ts sessions W1, W6 and W9
+  assert the actors and notes on the built binary. (2) Each tool returns
+  the library's issues-write/v1 document unchanged as structuredContent;
+  write-tools.test.ts compares its issue with issues show --json, rule
+  refusals are ok: false with the findings (Table B, W7 over stdio), and
+  errors are ark-error/v1 results (W8: every write without an identity is
+  an isError config result). (3) issues_close is listed only when
+  [policy] mcp_can_close = true at startup, otherwise a call gets -32602
+  naming the key and issues.toml (W2); mcp_can_close turned off while
+  running and close_requires_human = true give issue/agent-closed (W3,
+  W4, Table B crh and shared rows); a close without a reason gives
+  issue/agent-reason-required (W1); there is no reopen tool, and
+  issues_reopen gets -32602 saying reopening is left to people (W1-W3).
+  (4) Unit tests (mcp/write-tools, mcp/policy, mcp/text, plan, write) and
+  the stdio e2e test on the built binary ("test(issues): run the built
+  issues mcp writes end to end over stdio") cover every write tool and
+  both policy keys; the issues README documents the write tools and the
+  close policy ("docs(issues): document the issues mcp write tools and
+  close policy"); .changeset records the minor release ("chore: add a
+  changeset for the issues mcp write side"). (5) This close is the last
+  commit of the same PR (#36).
+data:
+  resolution: done
