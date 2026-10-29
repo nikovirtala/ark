@@ -9,6 +9,7 @@ import {
   NotARepositoryError,
 } from "../errors.js";
 import { currentGitOperation, isReadOnlyGitCommand, type SpawnSpec, specKey } from "./operation.js";
+import { CatFileParser, CatFileProcess, type CatObject, ResidentGone } from "./resident.js";
 
 export interface GitOptions {
   /** The git executable, default `"git"`. */
@@ -200,6 +201,29 @@ export function operationMemo<T>(git: Git, name: string, compute: () => Promise<
   return op.memo(`${specKey(spawnSpec(git, []))}\0${name}`, compute);
 }
 
+/** Revs the resident `cat-file` answers exactly as `rev-parse --verify` does. */
+const RESIDENT_REV = (rev: string): boolean =>
+  !/[\r\n]/.test(rev) && !rev.startsWith("^") && !rev.includes("@{") && !rev.includes(":");
+
+/**
+ * Looks `specs` up with the current git operation's `cat-file --batch` for `git`'s spawn spec,
+ * started on first use. `null` outside an operation, or when that process failed in this
+ * generation (the caller then runs its one-shot command). Getting the process and writing to it
+ * happen in one synchronous step, so the request never goes to a process that was already ended.
+ */
+function residentCatFile(git: Git, specs: readonly string[]): Promise<(CatObject | null)[] | null> {
+  const op = currentGitOperation();
+  if (op === null) return Promise.resolve(null);
+  const key = `cat-file\0${specKey(spawnSpec(git, []))}`;
+  const r = op.resident(key, () => CatFileProcess.start(spawnSpec(git, ["cat-file", "--batch"])));
+  if (r === null) return Promise.resolve(null);
+  return r.read(specs).catch((e: unknown) => {
+    if (!(e instanceof ResidentGone)) throw e;
+    op.residentFailed(key, r);
+    return null;
+  });
+}
+
 const versionCache = new Map<string, Promise<void>>();
 
 /** Runs `git version` once per binary; the promise is shared and evicted when it rejects. */
@@ -387,6 +411,10 @@ export class Git {
   /** The commit `rev` names, or `null` when it doesn't resolve to one. */
   async resolveCommit(rev: string): Promise<string | null> {
     assertRev(rev);
+    if (RESIDENT_REV(rev)) {
+      const found = await residentCatFile(this, [`${rev}^{commit}`]);
+      if (found !== null) return found[0]?.type === "commit" ? found[0].oid : null;
+    }
     const r = await this.run(
       ["rev-parse", "--verify", "--quiet", "--end-of-options", `${rev}^{commit}`],
       { okCodes: [0, 1, 128] },
@@ -690,8 +718,9 @@ export class Git {
 }
 
 /**
- * Runs one `cat-file --batch` for `specs` (oids or `<rev>:<path>`), returning results in input
- * order: `null` for a missing object or a spec that can't be sent (contains a newline).
+ * Looks `specs` (oids or `<rev>:<path>`) up with `cat-file --batch`, returning results in input
+ * order: `null` for a missing object or a spec that can't be sent (contains a newline). Inside a
+ * git operation the operation's resident `cat-file` answers; otherwise one `cat-file` runs.
  */
 export async function catFileBatch(
   git: Git,
@@ -699,29 +728,26 @@ export async function catFileBatch(
 ): Promise<({ type: string; bytes: Uint8Array } | null)[]> {
   const sendable = specs.filter((s) => !/[\r\n]/.test(s));
   if (sendable.length === 0) return specs.map(() => null);
-  const r = await git.run(["cat-file", "--batch"], { input: `${sendable.join("\n")}\n` });
-  const buf = Buffer.from(r.stdout);
-  const results: ({ type: string; bytes: Uint8Array } | null)[] = [];
-  let pos = 0;
-  for (let i = 0; i < sendable.length; i++) {
-    const eol = buf.indexOf(0x0a, pos);
-    if (eol < 0)
-      throw new GitError("truncated cat-file output", {
-        args: ["cat-file", "--batch"],
-        exitCode: r.code,
-        stderr: r.stderr,
-      });
-    const header = buf.subarray(pos, eol).toString("utf8");
-    pos = eol + 1;
-    const m = /^[0-9a-f]+ (\S+) (\d+)$/.exec(header);
-    if (m === null) {
-      results.push(null);
-      continue;
-    }
-    const size = Number(m[2]);
-    results.push({ type: m[1] ?? "", bytes: new Uint8Array(buf.subarray(pos, pos + size)) });
-    pos += size + 1;
-  }
+  const results = (await residentCatFile(git, sendable)) ?? (await oneShotCatFile(git, sendable));
   let next = 0;
-  return specs.map((s) => (/[\r\n]/.test(s) ? null : (results[next++] ?? null)));
+  return specs.map((s) => {
+    if (/[\r\n]/.test(s)) return null;
+    const obj = results[next++] ?? null;
+    return obj === null ? null : { type: obj.type, bytes: obj.bytes };
+  });
+}
+
+/** One `cat-file --batch` process for `specs`; throws `GitError` when answers are missing. */
+async function oneShotCatFile(git: Git, specs: readonly string[]): Promise<(CatObject | null)[]> {
+  const r = await git.run(["cat-file", "--batch"], { input: `${specs.join("\n")}\n` });
+  const parser = new CatFileParser();
+  const results = [...parser.push(r.stdout), ...parser.end()];
+  if (results.length < specs.length) {
+    throw new GitError("truncated cat-file output", {
+      args: ["cat-file", "--batch"],
+      exitCode: r.code,
+      stderr: r.stderr,
+    });
+  }
+  return results.slice(0, specs.length);
 }

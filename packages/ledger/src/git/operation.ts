@@ -32,6 +32,21 @@ export interface Resident {
   readonly exited: Promise<void>;
 }
 
+let live = 0;
+
+/** Counts a long-lived process from its spawn until `exited` settles. Internal. */
+export function residentStarted(exited: Promise<void>): void {
+  live++;
+  void exited.then(() => {
+    live--;
+  });
+}
+
+/** Long-lived git processes started and not yet exited, in this process. Internal, for tests. */
+export function liveResidentCount(): number {
+  return live;
+}
+
 const storage = new AsyncLocalStorage<GitOperation>();
 
 /** One git operation: a generation number, its memo map and its long-lived processes. */
