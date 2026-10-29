@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M64B8D86MGKR8HDFEWED99N2
+subject: def9qp6q
+type: opened
+at: 2026-10-29T17:27:53Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Run ledger's Git.open test with the temp repo's environment
+  template: bug
+  template_version: 1
