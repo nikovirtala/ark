@@ -423,16 +423,20 @@ export async function openIssue(
  * `issues edit`: with `title` or `sections`, replaces the `# ` heading and the sections in the
  * body; without them, runs `o.edit` on the body (a `UsageError` without an editor). Stages the
  * body and, with `commit`, commits the body alone with an `Issue:` trailer. An unchanged body
- * writes nothing, with the note "nothing changed".
+ * writes nothing, with the note "nothing changed". `refuseIncomplete` (direct edits only) refuses
+ * a body that fails template lint when the write commits; unstaged, it is staged as usual.
  */
 export async function editIssue(
   log: IssueLog,
   input: EditInput & { readonly actor?: Actor },
-  o: WriteOptions & { readonly edit?: Editor } = {},
+  o: WriteOptions & { readonly edit?: Editor; readonly refuseIncomplete?: boolean } = {},
   deps: WriteDeps = DEFAULT_DEPS,
 ): Promise<IssueWriteJson> {
   const direct = (input.title ?? null) !== null || Object.keys(input.sections ?? {}).length > 0;
-  if (direct) return write(log, "edit", (read, c) => planEdit(read, input, c), o, deps);
+  if (direct) {
+    const refuseIncomplete = o.refuseIncomplete === true && (o.commit ?? log.issues.autoCommit);
+    return write(log, "edit", (read, c) => planEdit(read, input, c, { refuseIncomplete }), o, deps);
+  }
   if (o.edit === undefined) throw new UsageError("no editor: set VISUAL or EDITOR");
   checkWorkTree(log);
   const commit = o.commit ?? log.issues.autoCommit;

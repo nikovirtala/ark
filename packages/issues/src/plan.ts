@@ -690,12 +690,14 @@ function retitle(text: string, title: string): string {
  * replaced, every other line kept, written only if the body still holds the bytes read. Works in
  * every state; the commit takes the body alone, plus the issue's staged events and template when
  * its `opened` event isn't in `HEAD` yet (see `applyPlan`). An unknown section or a missing heading is a
- * `UsageError`; an unchanged body plans nothing, with a note.
+ * `UsageError`; an unchanged body plans nothing, with a note. With `refuseIncomplete` (a commit
+ * of an agent's edit), a body that fails its template lint is refused with those findings.
  */
 export async function planEdit(
   read: IssuesRead,
   input: EditInput,
   c: PlanContext,
+  o: { readonly refuseIncomplete?: boolean } = {},
 ): Promise<PlanResult> {
   const id = resolveIssue(read, input.id);
   const view = viewOf(read, id);
@@ -771,6 +773,9 @@ export async function planEdit(
           ...f,
           kind: issueKind.name,
         }));
+  if (o.refuseIncomplete === true && lint.length > 0) {
+    return { ok: false, issue: view, findings: lint };
+  }
   return {
     ok: true,
     plan: {
