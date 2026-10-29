@@ -105,8 +105,8 @@ describe("issues mcp over stdio (built)", () => {
       const { a, b, c, d, e } = ids;
       const s = await startMcp(r, { ARK_ON_BEHALF_OF: ME });
 
-      // 1. The six read tools; a write tool is unknown until the write side ships.
-      expect((await s.client.listTools()).tools.map((t) => t.name)).toEqual([
+      // 1. The six read tools come first; a tool issues doesn't have is unknown.
+      expect((await s.client.listTools()).tools.map((t) => t.name).slice(0, 6)).toEqual([
         "issues_search",
         "issues_get",
         "issues_list",
@@ -114,9 +114,9 @@ describe("issues mcp over stdio (built)", () => {
         "issues_for_path",
         "issues_templates",
       ]);
-      const open = await mcpError(call(s, "issues_open", { title: "x" }));
-      expect(open.code).toBe(-32602);
-      expect(open.message).toContain("unknown tool issues_open");
+      const work = await mcpError(call(s, "issues_work", { id: "1" }));
+      expect(work.code).toBe(-32602);
+      expect(work.message).toContain("unknown tool issues_work");
 
       // 2. issues_list is issues list --json, also for a cached source whose repository is gone.
       expect(doc(await call(s, "issues_list"))).toEqual(cliJson(["list"]));

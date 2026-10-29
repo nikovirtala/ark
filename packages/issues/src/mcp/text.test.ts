@@ -1,4 +1,4 @@
-import { MemoryTree, NO_NUMBERING, type Numbering } from "@nikovirtala/ledger";
+import { type Finding, MemoryTree, NO_NUMBERING, type Numbering } from "@nikovirtala/ledger";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_ISSUES_CONFIG } from "../config.js";
 import { type IssuesRead, readIssuesFrom } from "../log.js";
@@ -10,8 +10,9 @@ import {
   numberingOf,
   type SubjectSpec,
 } from "../test-support/events.js";
+import type { IssueWriteJson } from "../write.js";
 import { issueUri } from "./resources.js";
-import { mcpHeader } from "./text.js";
+import { mcpHeader, writeText } from "./text.js";
 
 const { A, B, C, D, E, F } = IDS;
 
@@ -98,6 +99,117 @@ describe("mcpHeader", () => {
     const read = await readOf(SUBJECTS);
     expect(header(read, A).warning).toBe(
       `DUPLICATE of ${B} (in-progress). Track work on ${B}; read issues://issue/${B}.`,
+    );
+  });
+});
+
+const finding = (rule: string, message: string, severity: "error" | "warning" = "error"): Finding =>
+  ({ rule, message, severity, file: "docs/issues/items/x.md", line: null, subject: B }) as Finding;
+
+describe("writeText", () => {
+  const numbering = numberingOf({ [A]: 1, [B]: 2, [C]: 3, [D]: 4 });
+  const write = async (
+    d: Partial<IssueWriteJson>,
+    o: Partial<Parameters<typeof writeText>[1]> = {},
+  ) => {
+    const read = await readOf(SUBJECTS, numbering);
+    const doc: IssueWriteJson = {
+      format: "issues-write/v1",
+      command: "comment",
+      ok: true,
+      issue: read.projection.views.get(B) ?? null,
+      affected: [],
+      written: ["docs/issues/events/x.json"],
+      commit: null,
+      findings: [],
+      notes: [],
+      ...d,
+    };
+    return writeText(doc, { read, tool: "issues_comment", ...o });
+  };
+
+  it("says what was written and how, then lint, warnings and notes", async () => {
+    const opened = await write(
+      {
+        command: "new",
+        written: ["a", "b", "c"],
+        findings: [
+          finding("template/section-empty", "required section Done when is empty"),
+          finding("issue/started-blocked", "?2 is blocked", "warning"),
+        ],
+        notes: ["on_behalf_of taken from the git identity x@example.com"],
+      },
+      { tool: "issues_open" },
+    );
+    expect(opened.headers).toEqual([{ line: `?2 (${B}) · in-progress`, warning: null }]);
+    expect(opened.text.split("\n")).toEqual([
+      `Opened ?2 (${B}): Issue ${B}`,
+      `  docs/issues/items/${B}.md`,
+      "Staged 3 files",
+      "Fill in: Done when (required section Done when is empty)",
+      "Warning: ?2 is blocked [issue/started-blocked]",
+      "Note: on_behalf_of taken from the git identity x@example.com",
+    ]);
+    const updated = await write(
+      { command: "edit", commit: "0123456789abcdef" },
+      { tool: "issues_update", sections: ["goal", "done"], title: true },
+    );
+    expect(updated.text).toBe(`Updated ?2 (${B}): goal, done, title\nCommitted 0123456`);
+    expect((await write({})).text).toBe(`Commented on ?2 (${B})\nStaged 1 file`);
+    const unchanged = await write({ written: [], notes: ["nothing changed"] });
+    expect(unchanged.text).toBe(`Unchanged: ?2 (${B})\nNote: nothing changed`);
+    const unnumbered = await write({
+      issue: (await readOf(SUBJECTS)).projection.views.get(E) ?? null,
+    });
+    expect(unnumbered.text).toBe(`Commented on ${E}\nStaged 1 file`);
+  });
+
+  it("lists a refusal's findings with the hint of its first rule", async () => {
+    const lint = finding("template/section-empty", "required section Done when is empty");
+    const refused = await write(
+      { command: "new", ok: false, issue: null, written: [], findings: [lint] },
+      { tool: "issues_open" },
+    );
+    expect(refused.headers).toEqual([]);
+    expect(refused.text.split("\n")).toEqual([
+      "Refused:",
+      "  docs/issues/items/x.md: required section Done when is empty [template/section-empty]",
+      "Fill in every required section and call issues_open again.",
+    ]);
+    const closed = await write({
+      command: "close",
+      ok: false,
+      written: [],
+      findings: [
+        finding("issue/agent-closed", "closed by agent kiro"),
+        finding("issue/agent-reason-required", "no reason"),
+      ],
+      notes: ["n"],
+    });
+    expect(closed.headers).toHaveLength(1);
+    expect(closed.text.split("\n").slice(-2)).toEqual([
+      "The issue log's policy keeps closing to people: tell the user the issue is ready to close and how each Done when condition was met.",
+      "Note: n",
+    ]);
+    const reason = await write({
+      command: "close",
+      ok: false,
+      written: [],
+      findings: [finding("issue/agent-reason-required", "no reason")],
+    });
+    expect(reason.text.split("\n").at(-1)).toBe(
+      "Call issues_close again with a reason that says how each Done when condition was met.",
+    );
+    const illegal = await write({
+      command: "close",
+      ok: false,
+      written: [],
+      findings: [
+        { ...finding("transition/illegal", "closed is not allowed while closed"), file: null },
+      ],
+    });
+    expect(illegal.text).toBe(
+      "Refused:\n  closed is not allowed while closed [transition/illegal]",
     );
   });
 });

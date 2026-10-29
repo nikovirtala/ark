@@ -1,8 +1,8 @@
 /**
- * The readable text of each MCP tool result (design §6.4, last column). The documents are the
- * CLI's; these texts are MCP's own, and their state headers point at `issues://issue/…`.
+ * The readable text of each MCP tool result (design §6.4, last column, and §7.4). The documents
+ * are the CLI's; these texts are MCP's own, and their state headers point at `issues://issue/…`.
  */
-import { renderStateHeader, type StateHeader } from "@nikovirtala/ledger";
+import { type Finding, renderStateHeader, type StateHeader } from "@nikovirtala/ledger";
 import type { McpToolResult } from "@nikovirtala/ledger/mcp";
 import type { IssueView } from "../kind.js";
 import type { IssuesRead } from "../log.js";
@@ -15,6 +15,7 @@ import {
   type IssueShowJson,
   stateHeader,
 } from "../views.js";
+import type { IssueWriteJson } from "../write.js";
 import { issueUri } from "./resources.js";
 
 type Text = Omit<McpToolResult, "document">;
@@ -151,4 +152,100 @@ export function templatesText(doc: IssueTemplatesJson): Text {
     ),
   ]);
   return { headers: [], text: out.length === 0 ? "No templates." : out.join("\n") };
+}
+
+/** `<display> (<id>)`, or the id when the issue has no number. */
+const named = (v: IssueView) => (v.display === v.id ? v.id : `${v.display} (${v.id})`);
+
+/** What a write's text needs besides the document. */
+export interface WriteTextOptions {
+  /** The log read after the write, for the header. */
+  readonly read: IssuesRead;
+  /** The tool, for the refusal's last line. */
+  readonly tool: string;
+  /** For `issues_update`: the section ids sent. */
+  readonly sections?: readonly string[];
+  /** For `issues_update`: whether a title was sent. */
+  readonly title?: boolean;
+}
+
+const SECTION_FINDING =
+  /^(?:required )?section (.+?) (is missing|is empty|still contains its guidance text)$/;
+
+/** Template lint as `Fill in: <heading> (<message>)`, other findings as `Warning: …`. */
+function findingLines(findings: readonly Finding[]): string[] {
+  return findings.map((f) => {
+    const m = f.rule.startsWith("template/") ? SECTION_FINDING.exec(f.message) : null;
+    if (m === null) return `Warning: ${f.message} [${f.rule}]`;
+    return `Fill in: ${m[1]} (${f.message})`;
+  });
+}
+
+/** The hint after a refusal's findings, for the first rule that has one. */
+function refusalHint(findings: readonly Finding[], tool: string): string[] {
+  const rules = findings.map((f) => f.rule);
+  if (rules.includes("issue/agent-closed")) {
+    return [
+      "The issue log's policy keeps closing to people: tell the user the issue is ready to close and how each Done when condition was met.",
+    ];
+  }
+  if (rules.includes("issue/agent-reason-required")) {
+    return [
+      "Call issues_close again with a reason that says how each Done when condition was met.",
+    ];
+  }
+  if (rules.length > 0 && rules.every((r) => r.startsWith("template/"))) {
+    return [`Fill in every required section and call ${tool} again.`];
+  }
+  return [];
+}
+
+/** The line saying what an ok write did. */
+function doneLines(doc: IssueWriteJson, v: IssueView, o: WriteTextOptions): string[] {
+  const who = named(v);
+  switch (doc.command) {
+    case "new":
+      return [`Opened ${who}: ${v.title}`, ...(v.body_path === null ? [] : [`  ${v.body_path}`])];
+    case "edit":
+      return [
+        `Updated ${who}: ${[...(o.sections ?? []), ...(o.title === true ? ["title"] : [])].join(", ")}`,
+      ];
+    case "comment":
+      return [`Commented on ${who}`];
+    default:
+      return [`${doc.command} ${who}`];
+  }
+}
+
+/**
+ * A write's text (design §7.4): what was written and how it was recorded, or `Refused:` with the
+ * findings and a hint; the lint findings and warnings; then the document's notes.
+ */
+export function writeText(doc: IssueWriteJson, o: WriteTextOptions): Text {
+  const view = doc.issue === null ? null : (o.read.projection.views.get(doc.issue.id) ?? doc.issue);
+  const headers = view === null ? [] : [mcpHeader(view, o.read)];
+  const out: string[] = [];
+  if (!doc.ok) {
+    out.push(
+      "Refused:",
+      ...doc.findings.map(
+        (f) => `  ${f.file === null ? "" : `${f.file}: `}${f.message} [${f.rule}]`,
+      ),
+      ...refusalHint(doc.findings, o.tool),
+    );
+  } else if (view !== null) {
+    if (doc.written.length === 0) out.push(`Unchanged: ${named(view)}`);
+    else {
+      const n = doc.written.length;
+      out.push(
+        ...doneLines(doc, view, o),
+        doc.commit === null
+          ? `Staged ${n} file${n === 1 ? "" : "s"}`
+          : `Committed ${doc.commit.slice(0, 7)}`,
+      );
+    }
+    out.push(...findingLines(doc.findings));
+  }
+  out.push(...doc.notes.map((n) => `Note: ${n}`));
+  return { headers, text: out.join("\n") };
 }
