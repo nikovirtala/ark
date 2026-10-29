@@ -1,0 +1,18 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M64TVG67HDEE30K1WK0YF7GF
+subject: 0vckaxpf
+type: scoped
+at: 2026-10-29T22:00:28Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/issues/src/mcp-e2e*.test.ts
+    - packages/issues/src/mcp/write-tools*.test.ts
+    - packages/issues/src/test-support/mcp*.ts
