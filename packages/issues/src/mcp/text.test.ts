@@ -167,6 +167,22 @@ describe("writeText", () => {
     expect(dup.text.split("\n")[0]).toBe(`Closed ?1 (${A}) as a duplicate of ?2`);
     const obsolete = await write({ command: "close", issue: read.projection.views.get(C) ?? null });
     expect(obsolete.text.split("\n")[0]).toBe(`Closed ?3 (${C}) as obsolete`);
+    const linked = await write(
+      { command: "link", affected: [read.projection.views.get(D)].filter((v) => v !== undefined) },
+      { rel: "depends-on", to: D },
+    );
+    expect(linked.text.split("\n")[0]).toBe(`Linked ?2 (${B}) depends-on ?4`);
+    const unlinked = await write({ command: "unlink" }, { rel: "implements", to: "ADR-0012" });
+    expect(unlinked.text.split("\n")[0]).toBe(`Unlinked ?2 (${B}) implements ADR-0012`);
+    expect((await write({ command: "label" })).text.split("\n")[0]).toBe(
+      `Labels of ?2 (${B}): none`,
+    );
+    expect((await write({ command: "assign" })).text.split("\n")[0]).toBe(
+      `Assignees of ?2 (${B}): none`,
+    );
+    expect((await write({ command: "scope" })).text.split("\n")[0]).toBe(
+      `Scope of ?2 (${B}): none`,
+    );
     const unchanged = await write({ written: [], notes: ["nothing changed"] });
     expect(unchanged.text).toBe(`Unchanged: ?2 (${B})\nNote: nothing changed`);
     const unnumbered = await write({

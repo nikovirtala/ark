@@ -21,11 +21,11 @@ export function issueIn(s: IssueState, ids: WriteIssues): string {
 }
 
 /**
- * One cell: `ok: true` with the warnings it must carry (`rules`, contained); or a refusal whose
- * rules equal `exact` or contain `contains`, and whose messages contain `messages`.
+ * One cell: `ok: true` with the findings it must carry (`rules`, contained; `exact`, equal); or
+ * a refusal whose rules equal `exact` or contain `contains`, and whose messages contain `messages`.
  */
 export type Cell =
-  | { readonly ok: true; readonly rules?: readonly string[] }
+  | { readonly ok: true; readonly rules?: readonly string[]; readonly exact?: readonly string[] }
   | {
       readonly ok: false;
       readonly exact?: readonly string[];
@@ -52,8 +52,67 @@ export interface TableBRow {
 
 const REASON = "Every Done when condition is met: checked by the test.";
 const closed = { Cd: ILLEGAL, Cx: ILLEGAL, Cdup: ILLEGAL } as const;
+const every = (c: Cell) => ({ O: c, OB: c, P: c, Cd: c, Cx: c, Cdup: c });
+const LINT: Cell = { ok: true, rules: ["template/section-empty"] };
 
 export const TABLE_B: readonly TableBRow[] = [
+  {
+    row: "issues_update",
+    tool: "issues_update",
+    repo: "shared",
+    args: (id) => ({ id, sections: { done: "" } }),
+    // Closed issues aren't linted.
+    cells: {
+      O: LINT,
+      OB: LINT,
+      P: LINT,
+      Cd: { ok: true, exact: [] },
+      Cx: { ok: true, exact: [] },
+      Cdup: { ok: true, exact: [] },
+    },
+  },
+  {
+    row: "issues_comment",
+    tool: "issues_comment",
+    repo: "shared",
+    args: (id) => ({ id, text: "Checked by the test." }),
+    cells: every(OK),
+  },
+  {
+    row: "issues_link",
+    tool: "issues_link",
+    repo: "shared",
+    args: (id, ids) => ({ id, to: ids.h, rel: "relates-to" }),
+    cells: every(OK),
+  },
+  {
+    row: "issues_unlink",
+    tool: "issues_unlink",
+    repo: "shared",
+    args: (id, ids) => ({ id, to: ids.h, rel: "relates-to" }),
+    cells: every(OK),
+  },
+  {
+    row: "issues_label",
+    tool: "issues_label",
+    repo: "shared",
+    args: (id) => ({ id, add: ["area:auth"] }),
+    cells: every(OK),
+  },
+  {
+    row: "issues_assign",
+    tool: "issues_assign",
+    repo: "shared",
+    args: (id) => ({ id, add: ["me"] }),
+    cells: every(OK),
+  },
+  {
+    row: "issues_scope",
+    tool: "issues_scope",
+    repo: "shared",
+    args: (id) => ({ id, add: ["README.md"] }),
+    cells: every(OK),
+  },
   {
     row: "issues_start",
     tool: "issues_start",
@@ -224,12 +283,15 @@ export async function runTableB(
       expect(res.isError, `${where}: ${JSON.stringify(res.content)}`).toBeUndefined();
       const d = res.structuredContent as {
         ok: boolean;
+        written: string[];
         findings: { rule: string; message: string }[];
       };
       const rules = d.findings.map((f) => f.rule);
       expect(d.ok, `${where}: ${rules.join(", ")}`).toBe(cell.ok);
       if (cell.ok) {
         for (const r of cell.rules ?? []) expect(rules, where).toContain(r);
+        if (cell.exact !== undefined) expect(rules, where).toEqual(cell.exact);
+        expect(d.written.length, where).toBeGreaterThan(0);
       } else {
         if (cell.exact !== undefined) expect(rules, where).toEqual(cell.exact);
         for (const r of cell.contains ?? []) expect(rules, where).toContain(r);

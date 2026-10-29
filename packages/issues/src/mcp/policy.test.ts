@@ -40,11 +40,12 @@ describe("closeAvailability (design §7.3, Table A)", () => {
 describe("toolNames", () => {
   it("lists issues_close only when mcp_can_close is true", () => {
     const all = toolNames(DEFAULT_ISSUES_CONFIG);
+    expect(all).toHaveLength(17);
     expect(all).toContain("issues_close");
     expect(toolNames(policy(true, true))).toEqual(all);
     const without = toolNames(policy(false, false));
     expect(without).toEqual(all.filter((t) => t !== "issues_close"));
-    expect(without).toHaveLength(all.length - 1);
+    expect(without).toHaveLength(16);
     expect(all).not.toContain("issues_reopen");
   });
 });

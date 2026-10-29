@@ -1,24 +1,34 @@
-import { type JsonValue, UsageError } from "@nikovirtala/ledger";
+import { type JsonValue, type SetOp, UsageError } from "@nikovirtala/ledger";
 import { type McpTool, type McpToolResult, mcpAttribution } from "@nikovirtala/ledger/mcp";
+import { RELS } from "../kind/schemas.js";
 import { type IssueLog, readIssues, resolveIssue } from "../log.js";
 import {
+  assignIssue,
   closeIssue,
   commentIssue,
   editIssue,
   type IssueWriteJson,
+  labelIssue,
+  linkIssue,
   openIssue,
+  type SetIssueInput,
+  scopeIssue,
   startIssue,
   stopIssue,
+  unlinkIssue,
 } from "../write.js";
 import { type WriteTextOptions, writeText } from "./text.js";
 import {
+  ASSIGNEES,
   doc,
+  GLOBS,
   ID,
   type IssuesMcpEnv,
   LABELS,
   object,
   openLog,
   REF,
+  type Schema,
   SECTIONS,
   str,
   strings,
@@ -34,6 +44,21 @@ const sectionsOf = (v: JsonValue | undefined): Record<string, string> =>
         Object.entries(v).flatMap(([k, x]) => (typeof x === "string" ? [[k, x]] : [])),
       )
     : {};
+
+/** How the set tools' messages name `set`, `add`, `remove` and clearing: as their inputs. */
+const MCP_NAMES = { set: "set", add: "add", remove: "remove", clear: "set: []" } as const;
+
+/** The set operation of `set`, `add` and `remove`, as `cli/sets.ts` builds it from the flags. */
+function setOp(input: Readonly<Record<string, JsonValue>>): SetOp {
+  const set = strings(input.set);
+  const add = strings(input.add);
+  const remove = strings(input.remove);
+  return {
+    ...(set === undefined ? {} : { set }),
+    ...(add === undefined ? {} : { add }),
+    ...(remove === undefined ? {} : { remove }),
+  };
+}
 
 /**
  * A write tool's result: the library's document, and its text rendered from a read of the log
@@ -217,5 +242,90 @@ export function writeTools(e: IssuesMcpEnv): McpTool[] {
         return writeResult(log, d, { tool: "issues_close" });
       },
     },
+    ...(["link", "unlink"] as const).map(
+      (verb): McpTool => ({
+        name: `issues_${verb}`,
+        title: verb === "link" ? "Link an issue" : "Unlink an issue",
+        description:
+          verb === "link"
+            ? "Record a relation: depends-on, part-of or relates-to another issue, or implements a decision (adr:<id> or ADR-0012)."
+            : "Remove a relation; the stored target always works.",
+        inputSchema: object({ id: ID, to: REF, rel: { type: "string", enum: [...RELS] } }, [
+          "id",
+          "to",
+        ]),
+        annotations: WRITE,
+        async run(input, ctx) {
+          const log = await openLog(e);
+          const { actor, notes } = await mcpAttribution(log.git, ctx);
+          const to = str(input.to) ?? "";
+          const rel = str(input.rel) ?? "relates-to";
+          const f = verb === "link" ? linkIssue : unlinkIssue;
+          const d = await f(log, { id: str(input.id) ?? "", to, rel, actor }, { notes });
+          return writeResult(log, d, { tool: `issues_${verb}`, rel, to });
+        },
+      }),
+    ),
+    setTool(e, {
+      name: "issues_label",
+      title: "Label an issue",
+      description:
+        "Set, add or remove labels; a label of an exclusive prefix replaces the current one.",
+      items: LABELS(),
+      write: labelIssue,
+    }),
+    setTool(e, {
+      name: "issues_assign",
+      title: "Assign an issue",
+      description: "Set, add or remove assignees; me is the person you act for.",
+      items: ASSIGNEES,
+      write: assignIssue,
+    }),
+    setTool(e, {
+      name: "issues_scope",
+      title: "Scope an issue",
+      description:
+        "Set, add or remove the globs that tie the issue to code. An open issue may name files that don't exist yet; once started, every glob must match a tracked file.",
+      items: GLOBS,
+      write: scopeIssue,
+    }),
   ];
+}
+
+/** `issues_label`, `issues_assign` and `issues_scope`: `set`, or `add` and `remove`, of `items`. */
+function setTool(
+  e: IssuesMcpEnv,
+  t: {
+    readonly name: string;
+    readonly title: string;
+    readonly description: string;
+    readonly items: Schema;
+    readonly write: (
+      log: IssueLog,
+      input: SetIssueInput,
+      o: { readonly notes: readonly string[] },
+    ) => Promise<IssueWriteJson>;
+  },
+): McpTool {
+  return {
+    name: t.name,
+    title: t.title,
+    description: t.description,
+    inputSchema: {
+      ...object({ id: ID, set: t.items, add: t.items, remove: t.items }, ["id"]),
+      minProperties: 2,
+    },
+    inputHint: `${t.name} needs id and at least one of set, add or remove`,
+    annotations: WRITE,
+    async run(input, ctx) {
+      const log = await openLog(e);
+      const { actor, notes } = await mcpAttribution(log.git, ctx);
+      const d = await t.write(
+        log,
+        { id: str(input.id) ?? "", op: setOp(input), actor, names: MCP_NAMES },
+        { notes },
+      );
+      return writeResult(log, d, { tool: t.name });
+    },
+  };
 }

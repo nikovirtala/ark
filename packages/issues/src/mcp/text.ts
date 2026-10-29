@@ -158,6 +158,8 @@ export function templatesText(doc: IssueTemplatesJson): Text {
 /** `<display> (<id>)`, or the id when the issue has no number. */
 const named = (v: IssueView) => (v.display === v.id ? v.id : `${v.display} (${v.id})`);
 
+const listOrNone = (xs: readonly string[]) => (xs.length === 0 ? "none" : xs.join(", "));
+
 /** What a write's text needs besides the document. */
 export interface WriteTextOptions {
   /** The log read after the write, for the header. */
@@ -168,6 +170,9 @@ export interface WriteTextOptions {
   readonly sections?: readonly string[];
   /** For `issues_update`: whether a title was sent. */
   readonly title?: boolean;
+  /** For `issues_link` and `issues_unlink`: the relation and the target sent. */
+  readonly rel?: string;
+  readonly to?: string;
 }
 
 const SECTION_FINDING =
@@ -225,6 +230,19 @@ function doneLines(doc: IssueWriteJson, v: IssueView, o: WriteTextOptions): stri
           : (RESOLUTION_WORDS[v.resolution ?? "done"] ?? v.resolution);
       return [`Closed ${who} as ${as}`];
     }
+    case "link":
+    case "unlink": {
+      const target = doc.affected[0]?.display ?? o.to ?? "";
+      return [
+        `${doc.command === "link" ? "Linked" : "Unlinked"} ${who} ${o.rel ?? "relates-to"} ${target}`,
+      ];
+    }
+    case "label":
+      return [`Labels of ${who}: ${listOrNone(v.labels)}`];
+    case "assign":
+      return [`Assignees of ${who}: ${listOrNone(v.assignees)}`];
+    case "scope":
+      return [`Scope of ${who}: ${listOrNone(v.applies_to)}`];
     default:
       return [`${doc.command} ${who}`];
   }

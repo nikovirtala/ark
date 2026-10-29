@@ -26,6 +26,11 @@ const WRITE_TOOLS = [
   "issues_start",
   "issues_stop",
   CLOSE_TOOL,
+  "issues_link",
+  "issues_unlink",
+  "issues_label",
+  "issues_assign",
+  "issues_scope",
 ];
 
 /** The tools `issues mcp` lists, in order: `issues_close` only when `[policy] mcp_can_close`. */

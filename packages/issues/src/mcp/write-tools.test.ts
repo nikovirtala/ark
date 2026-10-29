@@ -43,6 +43,11 @@ const WRITES = [
   "issues_start",
   "issues_stop",
   "issues_close",
+  "issues_link",
+  "issues_unlink",
+  "issues_label",
+  "issues_assign",
+  "issues_scope",
 ];
 const git = (r: TempRepo, ...args: string[]) => runGit(r, args).stdout;
 const json = (x: unknown) => JSON.parse(JSON.stringify(x));
@@ -74,7 +79,7 @@ describe("issues mcp write tools", { timeout: 120_000 }, () => {
     const { client } = await connect(r);
     const tools = (await client.listTools()).tools;
     const names = tools.map((t) => t.name);
-    for (const name of WRITES) expect(names).toContain(name);
+    expect(names.slice(6)).toEqual(WRITES);
     for (const t of tools.filter((x) => WRITES.includes(x.name))) {
       expect(t.annotations, t.name).toMatchObject({
         readOnlyHint: false,
@@ -96,14 +101,18 @@ describe("issues mcp write tools", { timeout: 120_000 }, () => {
         });
       }
     }
-    const update = await client.callTool({ name: "issues_update", arguments: { id: "1" } });
-    expect(update.isError).toBe(true);
-    expect(structured(update)).toMatchObject({
-      error: {
-        code: "usage",
-        message: expect.stringContaining("issues_update needs id and a title or sections"),
-      },
-    });
+    for (const [name, hint] of [
+      ["issues_update", "issues_update needs id and a title or sections"],
+      ["issues_label", "issues_label needs id and at least one of set, add or remove"],
+      ["issues_assign", "issues_assign needs id and at least one of set, add or remove"],
+      ["issues_scope", "issues_scope needs id and at least one of set, add or remove"],
+    ] as const) {
+      const res = await client.callTool({ name, arguments: { id: "1" } });
+      expect(res.isError, name).toBe(true);
+      expect(structured(res), name).toMatchObject({
+        error: { code: "usage", message: expect.stringContaining(hint) },
+      });
+    }
   });
 
   it("issues_open, issues_update and issues_comment return the CLI's write documents", async () => {
@@ -211,6 +220,64 @@ describe("issues mcp write tools", { timeout: 120_000 }, () => {
       "close",
     );
     expect(closed).toMatchObject({ ok: true, affected: [{ id: ids.e }] });
+  });
+
+  it("issues_link, unlink, label, assign and scope return the CLI's write documents", async () => {
+    const { r, ids } = await setup();
+    const { client } = await connect(r);
+    const linked = await write(
+      r,
+      client,
+      "issues_link",
+      { id: ids.e, to: ids.g, rel: "depends-on" },
+      "link",
+    );
+    expect(linked).toMatchObject({ ok: true, affected: [{ id: ids.g }] });
+    const again = await write(
+      r,
+      client,
+      "issues_link",
+      { id: ids.e, to: ids.g, rel: "depends-on" },
+      "link",
+    );
+    expect(again).toMatchObject({ ok: true, written: [] });
+    const unlinked = await write(
+      r,
+      client,
+      "issues_unlink",
+      { id: ids.e, to: ids.g, rel: "depends-on" },
+      "unlink",
+    );
+    expect(unlinked.ok).toBe(true);
+    const label = await client.callTool({
+      name: "issues_label",
+      arguments: { id: ids.e, add: ["type:bug"] },
+    });
+    expect(text(label)).toContain(`Labels of ?5 (${ids.e}): type:bug`);
+    const labeled = await write(r, client, "issues_label", { id: ids.e, set: [] }, "label");
+    expect(labeled).toMatchObject({ ok: true, issue: { labels: [] } });
+    const assigned = await write(r, client, "issues_assign", { id: ids.e, add: ["me"] }, "assign");
+    expect(assigned).toMatchObject({ ok: true, issue: { assignees: [ME] } });
+    const scoped = await write(
+      r,
+      client,
+      "issues_scope",
+      { id: ids.e, add: ["src/later/**"] },
+      "scope",
+    );
+    expect(scoped).toMatchObject({ ok: true, issue: { applies_to: ["src/later/**"] } });
+    expect((scoped.notes as string[]).join("\n")).toContain("src/later/** matches no tracked file");
+    const both = await client.callTool({
+      name: "issues_assign",
+      arguments: { id: ids.e, set: ["me"], add: ["x@example.com"] },
+    });
+    expect(structured(both)).toMatchObject({
+      error: { code: "usage", message: "set can't be combined with add or remove" },
+    });
+    const none = await client.callTool({ name: "issues_scope", arguments: { id: ids.e, add: [] } });
+    expect(structured(none)).toMatchObject({
+      error: { code: "usage", message: expect.stringContaining("set, add, remove or set: []") },
+    });
   });
 
   it("issues_close's of and resolution must fit, named as the tool's inputs", async () => {
