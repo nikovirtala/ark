@@ -13,7 +13,6 @@ import {
   type WriteIssues,
   writeRepo,
 } from "../test-support/mcp.js";
-import { type RowRepo, runTableB, TABLE_B } from "../test-support/write-cells.js";
 import { REOPEN_REASON } from "./policy.js";
 
 const repos: TempRepo[] = [];
@@ -341,25 +340,4 @@ describe("issues mcp write tools", { timeout: 120_000 }, () => {
       "issues: warning: issues_close refuses agents while [policy] close_requires_human is true\n",
     );
   });
-
-  const tableB = (repo: RowRepo, files: Record<string, string> = {}) =>
-    it(`Table B: the ${repo} rows`, async () => {
-      const { r, ids } = await setup(files);
-      const { client } = await connect(r);
-      const rows = TABLE_B.filter((x) => x.repo === repo);
-      const n = await runTableB(
-        (name, args) => client.callTool({ name, arguments: args }),
-        ids,
-        rows,
-        {
-          setPolicy: (toml) => writeFile(join(r.root, "docs/issues/issues.toml"), toml),
-        },
-      );
-      expect(n).toBeGreaterThanOrEqual(rows.length * 6);
-    });
-  tableB("start");
-  tableB("stop");
-  tableB("close");
-  tableB("shared");
-  tableB("crh", { "docs/issues/issues.toml": "[policy]\nclose_requires_human = true\n" });
 });

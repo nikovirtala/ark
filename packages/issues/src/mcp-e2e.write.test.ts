@@ -1,368 +1,34 @@
 /**
- * End to end (design §6.9, §7.7): the BUILT `issues mcp`, spawned over real stdio and driven by
- * the MCP SDK's client, in a temp git repository set up with the CLI. Session R1 reads with every
- * tool and resource; session R2 checks that a bad environment stops the server before it serves.
- * Sessions W1–W9 write: every write tool, the close policy of design §7.3's Table A at startup and
- * while running, Table B over stdio, `auto_commit`, and who a write is recorded as (Table C).
+ * End to end, the write sessions: the BUILT `issues mcp`, spawned over real stdio and driven by the
+ * MCP SDK's client, in a temp git repository set up with the CLI (design §6.9, §7.7). The helpers
+ * are in `test-support/mcp-stdio.ts`. Sessions W1–W6, W8 and W9: every write tool, the close policy
+ * of design §7.3's Table A at startup and while running, `auto_commit`, and who a write is recorded
+ * as (Table C). `mcp-e2e.table-b.test.ts` runs session W7.
  */
-import type { ChildProcess } from "node:child_process";
-import { readFile, rename, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { TempRepo } from "@nikovirtala/ledger/testing";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
+import { linkBins, REPO_HUMAN, runIssues } from "./test-support/cli.js";
+import { cli, ME, mcpError, type WriteIssues, writeRepo } from "./test-support/mcp.js";
 import {
-  CLI,
-  cliEnv,
-  linkBins,
-  REPO_HUMAN,
-  requireBuilt,
-  runGit,
-  runIssues,
-  WRITE_KEYS,
-} from "./test-support/cli.js";
-import {
-  cli,
-  type McpIssues,
-  ME,
-  mcpError,
-  mcpRepo,
-  type WriteIssues,
-  writeRepo,
-} from "./test-support/mcp.js";
-import { type IssueSourceFixture, issueSource, sourceToml } from "./test-support/sources.js";
-import { type RowRepo, runTableB, TABLE_B } from "./test-support/write-cells.js";
-
-const TIMEOUT = 120_000;
-
-interface Session {
-  readonly client: Client;
-  readonly stderr: () => string;
-  readonly exit: Promise<number | null>;
-  close(): Promise<number | null>;
-}
-
-/** Starts the built `issues mcp` in `repo` with the SDK's stdio client, named `e2e-agent`. */
-function spawnMcp(repo: TempRepo, env: NodeJS.ProcessEnv, clientName = "e2e-agent") {
-  const transport = new StdioClientTransport({
-    command: process.execPath,
-    args: [requireBuilt(CLI), "mcp"],
-    cwd: repo.root,
-    // P7: a stdio client passes only a few variables unless given env explicitly.
-    env: cliEnv(repo, env) as Record<string, string>,
-    stderr: "pipe",
-  });
-  let stderr = "";
-  transport.stderr?.on("data", (d: Buffer) => {
-    stderr += d.toString("utf8");
-  });
-  const client = new Client({ name: clientName, version: "1.0.0" });
-  return { transport, client, stderr: () => stderr };
-}
-
-/** The exit code of the transport's child process, once it has started. */
-function exitOf(transport: StdioClientTransport): Promise<number | null> {
-  // The SDK keeps the child private; its exit code is what `issues mcp` returns.
-  const child = (transport as unknown as { _process?: ChildProcess })._process;
-  return new Promise((resolve) => {
-    if (child === undefined) resolve(null);
-    else if (child.exitCode !== null) resolve(child.exitCode);
-    else child.once("exit", (code) => resolve(code));
-  });
-}
-
-async function startMcp(
-  repo: TempRepo,
-  env: NodeJS.ProcessEnv = {},
-  clientName?: string,
-): Promise<Session> {
-  const { transport, client, stderr } = spawnMcp(repo, env, clientName);
-  await client.connect(transport);
-  const exit = exitOf(transport);
-  return {
-    client,
-    stderr,
-    exit,
-    async close() {
-      await client.close();
-      return exit;
-    },
-  };
-}
-
-const call = (s: Session, name: string, args: Record<string, unknown> = {}) =>
-  s.client.callTool({ name, arguments: args });
-const doc = (r: unknown) => (r as { structuredContent: Record<string, unknown> }).structuredContent;
-const text = (r: unknown) => (r as { content: { text: string }[] }).content[0]?.text ?? "";
-const read = async (s: Session, uri: string) =>
-  ((await s.client.readResource({ uri })).contents[0] as { text: string }).text;
-
-describe("issues mcp over stdio (built)", () => {
-  let r: TempRepo;
-  let source: IssueSourceFixture;
-  let ids: McpIssues;
-  const cliJson = (args: string[], env: NodeJS.ProcessEnv = {}) =>
-    JSON.parse(cli(r, [...args, "--json"], env)) as Record<string, unknown>;
-
-  beforeAll(async () => {
-    source = await issueSource(["Remote Safari bug"]);
-    const s = await mcpRepo({
-      "docs/issues/issues.toml": `[log]\nindex = "committed"\n${sourceToml("platform", source.url)}`,
-    });
-    r = s.r;
-    ids = s.ids;
-    cli(r, ["sources", "fetch", "platform"]);
-    // P6: the cached copy is what is read; the source repository itself is gone.
-    await rename(source.bare.root, `${source.bare.root}.moved`);
-  }, TIMEOUT);
-
-  afterAll(async () => {
-    await r?.dispose();
-    await source?.src.dispose();
-    await source?.bare.dispose();
-  });
-
-  it(
-    "session R1: every read tool and resource",
-    async () => {
-      const { a, b, c, d, e } = ids;
-      const s = await startMcp(r, { ARK_ON_BEHALF_OF: ME });
-
-      // 1. The six read tools come first; a tool issues doesn't have is unknown.
-      expect((await s.client.listTools()).tools.map((t) => t.name).slice(0, 6)).toEqual([
-        "issues_search",
-        "issues_get",
-        "issues_list",
-        "issues_ready",
-        "issues_for_path",
-        "issues_templates",
-      ]);
-      const work = await mcpError(call(s, "issues_work", { id: "1" }));
-      expect(work.code).toBe(-32602);
-      expect(work.message).toContain("unknown tool issues_work");
-
-      // 2. issues_list is issues list --json, also for a cached source whose repository is gone.
-      expect(doc(await call(s, "issues_list"))).toEqual(cliJson(["list"]));
-      const all = await call(s, "issues_list", { state: ["open", "in-progress", "closed"] });
-      expect(doc(all)).toEqual(cliJson(["list", "--all"]));
-      const platform = await call(s, "issues_list", { source: "platform" });
-      expect(doc(platform)).toEqual(cliJson(["list", "--source", "platform"]));
-      expect((doc(platform).issues as { id: string }[]).map((v) => v.id)).toEqual(source.issues);
-
-      // 3. issues_search: open ones by default, the closed matches counted.
-      const search = await call(s, "issues_search", { query: "safari" });
-      expect(doc(search)).toEqual(cliJson(["search", "safari"]));
-      expect(doc(search)).toMatchObject({ total: 1, closed_omitted: 2 });
-      expect((doc(search).results as { issue: { id: string } }[]).map((x) => x.issue.id)).toEqual([
-        a,
-      ]);
-      const closed = await call(s, "issues_search", { query: "safari", include_closed: true });
-      expect(doc(closed)).toEqual(cliJson(["search", "safari", "--all"]));
-      expect(
-        (doc(closed).results as { issue: { id: string } }[]).map((x) => x.issue.id).sort(),
-      ).toEqual([a, b, d].sort());
-      expect(text(closed)).toContain(
-        "DUPLICATE of ?1 (in-progress). Track work on ?1; read issues://issue/1.",
-      );
-      const remote = await call(s, "issues_search", { query: "safari", source: "platform" });
-      expect(doc(remote)).toEqual(cliJson(["search", "safari", "--source", "platform"]));
-      expect(doc(remote).total).toBe(1);
-
-      // 4. issues_get: the state header first, the document as issues show prints it.
-      const dup = await call(s, "issues_get", { id: "2" });
-      expect(text(dup).split("\n").slice(0, 2)).toEqual([
-        `?2 (${b}) · closed`,
-        "DUPLICATE of ?1 (in-progress). Track work on ?1; read issues://issue/1.",
-      ]);
-      expect(doc(dup)).toEqual(cliJson(["show", "2"]));
-      const blocked = await call(s, "issues_get", { id: "?3" });
-      expect(text(blocked).split("\n")[1]).toBe("BLOCKED by ?1 (in-progress). Finish them first.");
-      const history = await call(s, "issues_get", { id: d, include_history: true });
-      expect(doc(history)).toEqual(cliJson(["show", d, "--history"]));
-      expect((doc(history).events as unknown[]).length).toBeGreaterThan(0);
-      const bare = await call(s, "issues_get", { id: c, include_comments: false });
-      expect(doc(bare)).toEqual(cliJson(["show", c, "--no-comments"]));
-      const old = await call(s, "issues_get", { id: d, ref: "HEAD~1" });
-      expect(doc(old)).toEqual(cliJson(["show", d, "--ref", "HEAD~1"]));
-
-      // 5. issues_ready: E is ready, C (blocked) isn't; mine puts your assigned issues first.
-      const ready = await call(s, "issues_ready");
-      expect(doc(ready)).toEqual(cliJson(["ready"]));
-      expect((doc(ready).issues as { id: string }[]).map((v) => v.id)).toEqual([e]);
-      cli(r, ["assign", e, "--set", ME, "--commit"]);
-      const mine = await call(s, "issues_ready", { mine: true });
-      const agent = { ARK_AGENT: "e2e-agent", ARK_ON_BEHALF_OF: ME };
-      expect(doc(mine)).toEqual(cliJson(["ready", "--mine"], agent));
-      expect((doc(mine).issues as { id: string }[]).map((v) => v.id)).toEqual([e]);
-      expect(text(await call(s, "issues_ready"))).toBe("No ready issues.");
-      cli(r, ["assign", e, "--clear", "--commit"]);
-
-      // 6. issues_for_path is issues for --json.
-      const forPath = await call(s, "issues_for_path", { paths: ["src/auth/session.ts"] });
-      expect(doc(forPath)).toEqual(cliJson(["for", "src/auth/session.ts"]));
-      expect(text(forPath)).toContain("?1 in-progress Login fails on Safari (via src/auth/**)");
-
-      // 7. issues_templates: the repo's task template and the other built-ins.
-      const templates = await call(s, "issues_templates");
-      expect(doc(templates)).toMatchObject({ format: "issues-templates/v1", default: "task" });
-      expect(
-        (doc(templates).templates as { name: string; source: string }[]).map((t) => [
-          t.name,
-          t.source,
-        ]),
-      ).toEqual([
-        ["bug", "builtin"],
-        ["feature", "builtin"],
-        ["task", "repo"],
-      ]);
-      expect(text(templates)).toContain("  done: Done when (required)");
-
-      // 8. Resources: the index, the ready list, and an issue by each of its id forms.
-      expect((await s.client.listResources()).resources.map((x) => x.uri)).toEqual([
-        "issues://index",
-        "issues://ready",
-      ]);
-      expect(
-        (await s.client.listResourceTemplates()).resourceTemplates.map((x) => x.uriTemplate),
-      ).toEqual(["issues://issue/{id}"]);
-      const forms = await Promise.all(
-        [b, "2", "0002", "%3F2"].map((f) => read(s, `issues://issue/${f}`)),
-      );
-      expect(new Set(forms).size).toBe(1);
-      expect((forms[0] ?? "").split("\n").slice(0, 4)).toEqual([
-        `?2 (${b}) · closed`,
-        "DUPLICATE of ?1 (in-progress). Track work on ?1; read issues://issue/1.",
-        "",
-        "# Safari login loops",
-      ]);
-      const literal = await mcpError(s.client.readResource({ uri: "issues://issue/?2" }));
-      expect(literal.code).toBe(-32002);
-      expect(await read(s, "issues://ready")).toBe(
-        `# Ready issues\n\n- ?5 (${e}) Add dark mode [type:feature]\n`,
-      );
-      const index = await read(s, "issues://index");
-      expect(index).toMatch(/## In progress\n\n\| Issue \|[^\n]*\n\|[^\n]*\n\| \?1 \|/);
-
-      // 9. A log that can't be read now is an ark-error/v1 result; the next call reads it again.
-      const config = join(r.root, "docs/issues/issues.toml");
-      const good = await readFile(config, "utf8");
-      await writeFile(config, "[log\n");
-      const broken = await call(s, "issues_get", { id: "1" });
-      expect(broken.isError).toBe(true);
-      expect(doc(broken)).toMatchObject({ format: "ark-error/v1", error: { code: "config" } });
-      await writeFile(config, good);
-      expect((await call(s, "issues_get", { id: "1" })).isError).toBeUndefined();
-
-      // 10. Closing the client ends the server with exit 0.
-      expect(await s.close()).toBe(0);
-      expect(s.stderr()).toBe("");
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "session R2: an invalid ARK_ON_BEHALF_OF exits 2 before serving",
-    async () => {
-      const { transport, client, stderr } = spawnMcp(r, { ARK_ON_BEHALF_OF: "not-an-email" });
-      const connected = client.connect(transport).then(
-        () => null,
-        (err: unknown) => err,
-      );
-      expect(await exitOf(transport)).toBe(2);
-      expect(await connected).toBeInstanceOf(Error);
-      expect(stderr()).toBe(
-        'issues: error: ARK_ON_BEHALF_OF "not-an-email" is not an email address\n',
-      );
-      expect(runIssues(r, ["list"]).status).toBe(0);
-    },
-    TIMEOUT,
-  );
-});
-
-const READ_NAMES = [
-  "issues_search",
-  "issues_get",
-  "issues_list",
-  "issues_ready",
-  "issues_for_path",
-  "issues_templates",
-];
-const WRITE_NAMES = [
-  "issues_open",
-  "issues_update",
-  "issues_comment",
-  "issues_start",
-  "issues_stop",
-  "issues_close",
-  "issues_link",
-  "issues_unlink",
-  "issues_label",
-  "issues_assign",
-  "issues_scope",
-];
-const ALL_NAMES = [...READ_NAMES, ...WRITE_NAMES];
-const WITHOUT_CLOSE = ALL_NAMES.filter((n) => n !== "issues_close");
-const CONFIG = "docs/issues/issues.toml";
-const TASK = { goal: "Rotate the signing keys.", done: "Every key is rotated." };
-const REASON = "Done when is met: the test checked it.";
-const STARTUP_WARNING =
-  "issues: warning: issues_close refuses agents while [policy] close_requires_human is true\n";
-const NO_IDENTITY = {
-  GIT_AUTHOR_NAME: undefined,
-  GIT_AUTHOR_EMAIL: undefined,
-  GIT_COMMITTER_NAME: undefined,
-  GIT_COMMITTER_EMAIL: undefined,
-  GIT_CONFIG_GLOBAL: "/dev/null",
-};
-
-type WriteDoc = {
-  ok: boolean;
-  command: string;
-  issue: { id: string; state: string; assignees: string[]; labels: string[] } | null;
-  affected: { id: string }[];
-  written: string[];
-  commit: string | null;
-  findings: { rule: string; message: string }[];
-  notes: string[];
-};
-
-const names = async (s: Session) => (await s.client.listTools()).tools.map((t) => t.name);
-const rules = (d: WriteDoc) => d.findings.map((f) => f.rule);
-const git = (r: TempRepo, ...args: string[]) => {
-  const out = runGit(r, args);
-  if (out.status !== 0) throw new Error(`git ${args.join(" ")}: ${out.stderr}`);
-  return out.stdout;
-};
-const lastEvent = (r: TempRepo, id: string) => {
-  const shown = JSON.parse(cli(r, ["show", id, "--history", "--json"])) as {
-    events: { type: string; actor: Record<string, unknown> }[];
-  };
-  return shown.events.at(-1);
-};
-
-/** A write tool's call, checked to be an `issues-write/v1` result of `command` (not `isError`). */
-async function write(
-  s: Session,
-  name: string,
-  args: Record<string, unknown>,
-  command: string,
-): Promise<WriteDoc & { text: string }> {
-  const res = await call(s, name, args);
-  expect(res.isError, `${name}: ${text(res)}`).toBeUndefined();
-  const d = doc(res);
-  expect(Object.keys(d).sort(), name).toEqual([...WRITE_KEYS]);
-  expect(d, name).toMatchObject({ format: "issues-write/v1", command });
-  return { ...(d as unknown as WriteDoc), text: text(res) };
-}
-
-async function setPolicy(r: TempRepo, toml: string, commit = false): Promise<void> {
-  await writeFile(join(r.root, CONFIG), toml);
-  if (commit) {
-    git(r, "add", CONFIG);
-    git(r, "commit", "-qm", "chore: set the issue log's policy");
-  }
-}
+  ALL_NAMES,
+  CONFIG,
+  call,
+  doc,
+  git,
+  lastEvent,
+  NO_IDENTITY,
+  names,
+  REASON,
+  rules,
+  STARTUP_WARNING,
+  setPolicy,
+  startMcp,
+  TASK,
+  TIMEOUT,
+  WITHOUT_CLOSE,
+  WRITE_NAMES,
+  write,
+} from "./test-support/mcp-stdio.js";
 
 describe("issues mcp writes over stdio (built)", () => {
   const repos: TempRepo[] = [];
@@ -648,23 +314,6 @@ describe("issues mcp writes over stdio (built)", () => {
     },
     TIMEOUT,
   );
-
-  const tableB = (repo: RowRepo, files: Record<string, string> = {}) =>
-    it(`session W7: Table B over stdio, the ${repo} rows`, async () => {
-      const { r, ids } = await setup(files);
-      const s = await startMcp(r, { ARK_ON_BEHALF_OF: ME });
-      const rows = TABLE_B.filter((x) => x.repo === repo);
-      const n = await runTableB((name, args) => call(s, name, args), ids, rows, {
-        setPolicy: (toml) => setPolicy(r, toml),
-      });
-      expect(n).toBeGreaterThanOrEqual(rows.length * 6);
-      expect(await s.close()).toBe(0);
-    }, 300_000);
-  tableB("start");
-  tableB("stop");
-  tableB("close");
-  tableB("shared");
-  tableB("crh", { [CONFIG]: "[policy]\nclose_requires_human = true\n" });
 
   it(
     "session W8: without ARK_ON_BEHALF_OF and a git identity, every write is a config error",
