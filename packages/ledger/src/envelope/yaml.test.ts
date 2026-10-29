@@ -82,6 +82,29 @@ describe("serializeEvent and parseEventYaml", () => {
     expect(parse(text)).toMatchObject({ ok: true, doc: { reason: "first\nsecond" } });
   });
 
+  // Each form is the one `biome format` leaves as it is (biome 2.6.2).
+  it.each([
+    ["double quotes", 'see "Notes"', 'see "Notes"'],
+    ["double quotes that need quoting", 'see: "Notes"', `'see: "Notes"'`],
+    ["single quotes that need quoting", "it's: done", `"it's: done"`],
+    ["both quotes", `it's "both"`, `it's "both"`],
+    ["both quotes that need quoting", `it's: "both"`, `'it''s: "both"'`],
+    ["both quotes at the edges", `"it's"`, `'"it''s"'`],
+    ["both quotes and another escape", `a "b"\u0001 'c'`, `"a \\"b\\"\\x01 'c'"`],
+    ["both quotes on several lines", `one "a"\ntwo 'b'`, `|-\n  one "a"\n  two 'b'`],
+    ["an empty first line", "\nfirst", '"\\nfirst"'],
+    ["a line of only spaces", " \n", '"\\ \\n"'],
+    ["a line of only a tab", "a\n\t\nb", '"a\\n\\t\\nb"'],
+    ["two trailing newlines", "x\n\n", '"x\\n\\n"'],
+    ["a trailing no-break space", "a\u00a0", '"a\u00a0"'],
+    ["double quotes and a trailing no-break space", '"a"\u00a0', `'"a"\u00a0'`],
+    ["a byte order mark", "a\uFEFFb", '"a\\uFEFFb"'],
+  ])("write a string with %s as biome formats it", (_, reason, yaml) => {
+    const text = serializeEvent({ ...event, reason, data: { [reason]: reason } });
+    expect(text).toContain(`\nreason: ${yaml}\ndata:\n`);
+    expect(parse(text)).toMatchObject({ ok: true, doc: { reason, data: { [reason]: reason } } });
+  });
+
   it("leave a non-mapping actor alone", () => {
     expect(canonicalEvent({ actor: "x", kind: "k" })).toEqual({ kind: "k", actor: "x" });
   });
