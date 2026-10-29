@@ -2,48 +2,15 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { compileKind } from "../envelope/kind.js";
 import { InvalidArgumentError } from "../errors.js";
-import type { Finding } from "../findings/finding.js";
 import { foldLog } from "../fold/fold.js";
 import { MemoryTree } from "../git/tree.js";
 import { defineKind, eventType } from "../kind/define.js";
-import type { AnyKind } from "../kind/types.js";
 import { loadLog } from "../log/snapshot.js";
 import { verifySnapshots } from "../verify/verify.js";
 import { exampleMachineKind as widget } from "./example-machine-kind.js";
-import { arbLegalHistory, type DataArbs, type LegalHistory } from "./history.js";
-import {
-  applySemanticTamper,
-  arbSemanticTamper,
-  type SemanticTamper,
-  semanticExpectedRules,
-} from "./semantic-tamper.js";
-
-const widgetData: DataArbs<typeof widget> = {
-  created: () => fc.record({ title: fc.string({ minLength: 1, maxLength: 20 }) }),
-  noted: () => fc.record({ text: fc.string({ minLength: 1, maxLength: 20 }) }),
-  published: () => fc.constant({}),
-  retired: () => fc.constant({}),
-  revived: () => fc.constant({}),
-};
-const body = () => fc.string({ maxLength: 80 });
-const histories = () => arbLegalHistory(widget, { data: widgetData, body });
-const scopes = ["all", "changed"] as const;
-
-/** Scope `all` checks the tampered tree alone; scope `changed` checks it against the history. */
-function verify<K extends AnyKind>(
-  kind: K,
-  h: LegalHistory<K>,
-  head: Record<string, string>,
-  scope: "all" | "changed",
-): Promise<Finding[]> {
-  return verifySnapshots({
-    kind: compileKind(kind),
-    layout: h.layout,
-    base: scope === "all" ? null : new MemoryTree(h.files),
-    head: new MemoryTree(head),
-    scope,
-  });
-}
+import { arbLegalHistory, type DataArbs } from "./history.js";
+import { applySemanticTamper, arbSemanticTamper, type SemanticTamper } from "./semantic-tamper.js";
+import { body, histories, scopes, verify, widgetData } from "./semantic-tamper-support.js";
 
 describe("semantic tampers", () => {
   for (const scope of scopes) {
@@ -63,47 +30,6 @@ describe("semantic tampers", () => {
       );
     });
   }
-
-  for (const type of Object.keys(semanticExpectedRules) as SemanticTamper["type"][]) {
-    it(`detect ${type} in both scopes`, async () => {
-      await fc.assert(
-        fc.asyncProperty(histories(), fc.gen(), async (h, g) => {
-          const arb = arbSemanticTamper(h, { kind: widget, data: widgetData, only: [type] });
-          fc.pre(arb !== null);
-          const m = g(() => arb);
-          expect(m.type).toBe(type);
-          const head = applySemanticTamper(h.files, m);
-          for (const scope of scopes) {
-            const findings = await verify(widget, h, head, scope);
-            const hit = findings.some(
-              (f) =>
-                f.severity === "error" &&
-                semanticExpectedRules[type].includes(f.rule) &&
-                f.file === m.path,
-            );
-            expect(hit, JSON.stringify({ m, findings }, null, 2)).toBe(true);
-          }
-        }),
-      );
-    });
-  }
-
-  it("give an illegal freeze a matching hash, so only the transition is reported", async () => {
-    await fc.assert(
-      fc.asyncProperty(histories(), fc.gen(), async (h, g) => {
-        const arb = arbSemanticTamper(h, {
-          kind: widget,
-          data: widgetData,
-          only: ["illegal-transition"],
-        });
-        fc.pre(arb !== null);
-        const m = g(() => arb);
-        fc.pre(m.path.endsWith("-published.yaml"));
-        const findings = await verify(widget, h, applySemanticTamper(h.files, m), "all");
-        expect(findings.map((f) => [f.rule, f.file])).toEqual([["transition/illegal", m.path]]);
-      }),
-    );
-  });
 
   it("prefer subjects in a terminal state for illegal transitions", async () => {
     const task = defineKind({
