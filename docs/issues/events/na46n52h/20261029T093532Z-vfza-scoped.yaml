@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M63G7FR7WP7A712NSQE1VFZA
+subject: na46n52h
+type: scoped
+at: 2026-10-29T09:35:32Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/ledger/src/envelope/yaml.ts
