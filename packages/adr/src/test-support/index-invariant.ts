@@ -1,20 +1,21 @@
 /**
- * The index invariant (design 2b, binding addendum after review 6): every committing write path,
- * against real temp repos, under each precondition that rounds 3–6 kept finding cases in. After
- * each write: (a) HEAD's index.md is a fresh render of HEAD's tree, (b) `adr verify --ref HEAD`
- * passes, (c) the work-tree index.md is a fresh render of the work tree, and the staged copy
- * equals it.
+ * Shared setup for the index invariant (design 2b, binding addendum after review 6): every
+ * committing write path, against real temp repos, under each precondition that rounds 3–6 kept
+ * finding cases in. After each write: (a) HEAD's index.md is a fresh render of HEAD's tree, (b)
+ * `adr verify --ref HEAD` passes, (c) the work-tree index.md is a fresh render of the work tree,
+ * and the staged copy equals it. `cli/index-invariant.<precondition>.test.ts` runs every write
+ * path under one precondition, one file each so the preconditions run in parallel;
+ * `cli/index-invariant.property.test.ts` runs random paths under combined preconditions.
  */
 import { createTempRepo, type TempRepo } from "@nikovirtala/ledger/testing";
-import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { openDecisionLog } from "../log.js";
 import { indexDecisionLog } from "../log-index.js";
-import { cliRepo, NYGARD_SECTIONS, REPO_HUMAN, runAdr, seedDecision } from "../test-support/cli.js";
-import { freshIndex, INDEX, INDEX_CONFIG, indexCopies } from "../test-support/index-repo.js";
 import { scopeDecision } from "../write.js";
+import { cliRepo, NYGARD_SECTIONS, REPO_HUMAN, runAdr, seedDecision } from "./cli.js";
+import { freshIndex, INDEX, INDEX_CONFIG, indexCopies } from "./index-repo.js";
 
-const PATHS = [
+export const PATHS = [
   "new",
   "accept",
   "accept --copy-scope",
@@ -28,12 +29,19 @@ const PATHS = [
   "init",
   "index --commit",
 ] as const;
-type WritePath = (typeof PATHS)[number];
+export type WritePath = (typeof PATHS)[number];
 
-const PRECONDITIONS = ["others", "subject", "stale-head", "absent", "unborn", "auto"] as const;
-type Precondition = (typeof PRECONDITIONS)[number];
+export const PRECONDITIONS = [
+  "others",
+  "subject",
+  "stale-head",
+  "absent",
+  "unborn",
+  "auto",
+] as const;
+export type Precondition = (typeof PRECONDITIONS)[number];
 
-const DESCRIBED: Record<Precondition, string> = {
+export const DESCRIBED: Record<Precondition, string> = {
   others: "other decisions have staged and unstaged-new changes",
   subject: "the subject's earlier events and body are uncommitted",
   "stale-head": "index.md is current in the work tree but stale in HEAD",
@@ -43,7 +51,7 @@ const DESCRIBED: Record<Precondition, string> = {
 };
 
 /** Combinations that can't exist, with the reason; every other one runs. */
-const SKIPS: Partial<Record<`${WritePath} / ${Precondition}`, string>> = {
+export const SKIPS: Partial<Record<`${WritePath} / ${Precondition}`, string>> = {
   "new / subject": "a new decision has no earlier events",
   "init / subject": "init writes no events, so it has no subject",
   "index --commit / subject": "index --commit writes no events, so it has no subject",
@@ -57,23 +65,23 @@ const SKIPS: Partial<Record<`${WritePath} / ${Precondition}`, string>> = {
     "the link target would be uncommitted too, so HEAD would link to a decision it lacks, which the relate check reports whatever the index holds",
 };
 
-const skipOf = (path: WritePath, pre: Precondition) => SKIPS[`${path} / ${pre}`];
+export const skipOf = (path: WritePath, pre: Precondition) => SKIPS[`${path} / ${pre}`];
 
-const FULL = Object.entries(NYGARD_SECTIONS).flatMap(([k, v]) => ["--section", `${k}=${v}`]);
-const AUTO_CONFIG = `${INDEX_CONFIG}\n[policy]\nauto_commit = true\n`;
+export const FULL = Object.entries(NYGARD_SECTIONS).flatMap(([k, v]) => ["--section", `${k}=${v}`]);
+export const AUTO_CONFIG = `${INDEX_CONFIG}\n[policy]\nauto_commit = true\n`;
 
-interface Case {
+export interface Case {
   readonly path: WritePath;
   /** One or more preconditions, applied together. */
   readonly pres: readonly Precondition[];
 }
 
-async function git(r: TempRepo, ...args: string[]): Promise<string> {
+export async function git(r: TempRepo, ...args: string[]): Promise<string> {
   return Buffer.from((await r.git.run(args)).stdout).toString("utf8");
 }
 
 /** Proposes (and accepts) a decision through the library; `commit: false` leaves it staged. */
-async function seed(
+export async function seed(
   r: TempRepo,
   title: string,
   o: { accept?: boolean; commit: boolean; supersedes?: string[] },
@@ -86,7 +94,7 @@ async function seed(
 }
 
 /** Builds the repo for `c`, runs the write, and checks the invariant. */
-async function runCase(c: Case): Promise<void> {
+export async function runCase(c: Case): Promise<void> {
   const has = (p: Precondition) => c.pres.includes(p);
   const config = has("auto") ? AUTO_CONFIG : INDEX_CONFIG;
   const base = { "src/a.ts": "export {};\n", "docs/adr/adr.toml": config };
@@ -211,8 +219,9 @@ async function runCase(c: Case): Promise<void> {
   }
 }
 
-describe.concurrent("the index invariant", { timeout: 120_000 }, () => {
-  for (const pre of PRECONDITIONS) {
+/** Every write path under `pre`, run concurrently. */
+export function invariantSuite(pre: Precondition): void {
+  describe.concurrent("the index invariant", { timeout: 120_000 }, () => {
     describe(DESCRIBED[pre], () => {
       for (const path of PATHS) {
         const skip = skipOf(path, pre);
@@ -220,24 +229,5 @@ describe.concurrent("the index invariant", { timeout: 120_000 }, () => {
         else it.skip(`${path}: ${skip}`, () => {});
       }
     });
-  }
-
-  it("holds for random write paths under combined preconditions", async () => {
-    // Preconditions that combine: "absent" and "stale-head" exclude each other, and "unborn"
-    // stands alone (it rules out the committed seeds the others build on).
-    const combinable = ["others", "subject", "auto"] as const;
-    const arbCase = fc
-      .record({
-        path: fc.constantFrom(...PATHS),
-        extra: fc.subarray([...combinable]),
-        index: fc.constantFrom<Precondition | null>("stale-head", "absent", null),
-      })
-      .map(({ path, extra, index }) => ({
-        path,
-        pres: [...extra, ...(index === null ? [] : [index])].filter(
-          (p) => skipOf(path, p) === undefined,
-        ),
-      }));
-    await fc.assert(fc.asyncProperty(arbCase, runCase), { numRuns: 12 });
   });
-});
+}
