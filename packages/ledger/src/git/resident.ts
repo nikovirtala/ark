@@ -62,27 +62,29 @@ export class CatFileParser {
   }
 }
 
-interface Pending {
+interface Pending<A> {
   readonly n: number;
-  readonly results: (CatObject | null)[];
-  readonly resolve: (r: (CatObject | null)[]) => void;
+  readonly results: A[];
+  readonly resolve: (r: A[]) => void;
   readonly reject: (e: unknown) => void;
 }
 
 /** How long an ended process may take to exit before it is killed. */
 const KILL_AFTER_MS = 5000;
 
-/** A resident `cat-file --batch`: requests are answered in the order they were written. */
-export class CatFileProcess implements Resident {
+/**
+ * A long-lived git process that answers one result per input line, in the order the lines were
+ * written. Subclasses parse stdout into results.
+ */
+abstract class LineProcess<A> implements Resident {
   readonly exited: Promise<void>;
   readonly #child: ChildProcessByStdio<Writable, Readable, Readable>;
-  readonly #parser = new CatFileParser();
-  readonly #pending: Pending[] = [];
+  readonly #pending: Pending<A>[] = [];
   #ended = false;
   #gone = false;
   #killTimer: NodeJS.Timeout | undefined;
 
-  private constructor(spec: SpawnSpec) {
+  protected constructor(spec: SpawnSpec) {
     this.#child = spawn(spec.binary, [...spec.argv], {
       cwd: spec.cwd,
       // A user's GIT_FLUSH=0 would hold answers back until the process exits.
@@ -101,7 +103,7 @@ export class CatFileProcess implements Resident {
       for (const p of this.#pending.splice(0)) p.reject(new ResidentGone());
       exit();
     };
-    child.stdout.on("data", (b: Buffer) => this.#answer(this.#parser.push(b)));
+    child.stdout.on("data", (b: Buffer) => this.#answer(this.parse(b)));
     // Warnings (ambiguous names) would otherwise fill the pipe and stall the process.
     child.stderr.resume();
     // A process that exits closes the pipe; `close` reports it.
@@ -110,18 +112,16 @@ export class CatFileProcess implements Resident {
     child.on("close", gone);
   }
 
-  /** Starts `spec`, whose argv ends in `cat-file --batch`. */
-  static start(spec: SpawnSpec): CatFileProcess {
-    return new CatFileProcess(spec);
-  }
+  /** The results `chunk` of stdout completes. */
+  protected abstract parse(chunk: Uint8Array): A[];
 
-  /** Looks up `specs`, which must not contain `\r` or `\n`. */
-  read(specs: readonly string[]): Promise<(CatObject | null)[]> {
+  /** Sends `lines`, which must not contain line breaks; one result per line. */
+  protected request(lines: readonly string[]): Promise<A[]> {
     if (this.#ended || this.#gone) return Promise.reject(new ResidentGone());
-    if (specs.length === 0) return Promise.resolve([]);
+    if (lines.length === 0) return Promise.resolve([]);
     return new Promise((resolve, reject) => {
-      this.#pending.push({ n: specs.length, results: [], resolve, reject });
-      this.#child.stdin.write(`${specs.join("\n")}\n`);
+      this.#pending.push({ n: lines.length, results: [], resolve, reject });
+      this.#child.stdin.write(`${lines.join("\n")}\n`);
     });
   }
 
@@ -132,7 +132,7 @@ export class CatFileProcess implements Resident {
     if (!this.#gone) this.#killTimer = setTimeout(() => this.#child.kill("SIGKILL"), KILL_AFTER_MS);
   }
 
-  #answer(results: (CatObject | null)[]): void {
+  #answer(results: A[]): void {
     for (const r of results) {
       const head = this.#pending[0];
       if (head === undefined) return;
@@ -142,5 +142,48 @@ export class CatFileProcess implements Resident {
         head.resolve(head.results);
       }
     }
+  }
+}
+
+/** A resident `cat-file --batch`: requests are answered in the order they were written. */
+export class CatFileProcess extends LineProcess<CatObject | null> {
+  readonly #parser = new CatFileParser();
+
+  /** Starts `spec`, whose argv ends in `cat-file --batch`. */
+  static start(spec: SpawnSpec): CatFileProcess {
+    return new CatFileProcess(spec);
+  }
+
+  /** Looks up `specs`, which must not contain `\r` or `\n`. */
+  read(specs: readonly string[]): Promise<(CatObject | null)[]> {
+    return this.request(specs);
+  }
+
+  protected parse(chunk: Uint8Array): (CatObject | null)[] {
+    return this.#parser.push(chunk);
+  }
+}
+
+/**
+ * A resident `hash-object --stdin-paths`: one oid line per path. A path it can't read makes it
+ * exit, which rejects the request with `ResidentGone`.
+ */
+export class HashObjectProcess extends LineProcess<string> {
+  #buf = "";
+
+  /** Starts `spec`, whose argv ends in `hash-object --stdin-paths`. */
+  static start(spec: SpawnSpec): HashObjectProcess {
+    return new HashObjectProcess(spec);
+  }
+
+  /** The blob oids of `paths` (relative to the spec's cwd), which must not contain `\n`. */
+  hash(paths: readonly string[]): Promise<string[]> {
+    return this.request(paths);
+  }
+
+  protected parse(chunk: Uint8Array): string[] {
+    const lines = (this.#buf + Buffer.from(chunk).toString("utf8")).split("\n");
+    this.#buf = lines.pop() ?? "";
+    return lines;
   }
 }
