@@ -1,5 +1,5 @@
 import { RefNotFoundError } from "../errors.js";
-import { assertPath, assertRev, type Git, type Trailer } from "./git.js";
+import { assertPath, assertRev, type Git, operationMemo, type Trailer } from "./git.js";
 
 export interface CommitInfo {
   readonly sha: string;
@@ -88,33 +88,38 @@ export async function firstParentAdditions(
   const not = await Promise.all((o.not ?? []).map((rev) => resolveOrThrow(git, rev)));
   assertPath(prefix);
   const p = prefix.replace(/\/+$/, "");
-  const r = await git.run([
-    "log",
-    "--first-parent",
-    "--reverse",
-    "--diff-filter=A",
-    "--name-only",
-    "-z",
-    "--no-ext-diff",
-    "--no-textconv",
-    "--format=%x1e%H",
-    "--end-of-options",
-    sha,
-    ...not.map((n) => `^${n}`),
-    "--",
-    ...(p === "" ? [] : [p]),
-  ]);
-  const seen = new Set<string>();
-  const out: { path: string; commit: string }[] = [];
-  for (const record of Buffer.from(r.stdout).toString("utf8").split("\x1e")) {
-    const [commit = "", ...names] = record.split("\0");
-    if (commit === "") continue;
-    for (const [i, raw] of names.entries()) {
-      const path = i === 0 ? raw.replace(/^\n/, "") : raw;
-      if (path === "" || seen.has(path)) continue;
-      seen.add(path);
-      out.push({ path, commit });
+  const key = `first-parent-additions\0${sha}\0${p}\0${not.join("\0")}`;
+  const additions = await operationMemo(git, key, async () => {
+    const r = await git.run([
+      "log",
+      "--first-parent",
+      "--reverse",
+      "--diff-filter=A",
+      "--name-only",
+      "-z",
+      "--no-ext-diff",
+      "--no-textconv",
+      "--format=%x1e%H",
+      "--end-of-options",
+      sha,
+      ...not.map((n) => `^${n}`),
+      "--",
+      ...(p === "" ? [] : [p]),
+    ]);
+    const seen = new Set<string>();
+    const out: { path: string; commit: string }[] = [];
+    for (const record of Buffer.from(r.stdout).toString("utf8").split("\x1e")) {
+      const [commit = "", ...names] = record.split("\0");
+      if (commit === "") continue;
+      for (const [i, raw] of names.entries()) {
+        const path = i === 0 ? raw.replace(/^\n/, "") : raw;
+        if (path === "" || seen.has(path)) continue;
+        seen.add(path);
+        out.push({ path, commit });
+      }
     }
-  }
-  return out;
+    return out;
+  });
+  // A git operation shares one result between callers: each gets its own copy.
+  return additions.map((a) => ({ ...a }));
 }
