@@ -9,6 +9,7 @@ import {
   readToolConfig,
   renderCommitMessage,
   UsageError,
+  withGitOperation,
   worktreeReader,
   writeNewFile,
 } from "@nikovirtala/ledger";
@@ -85,132 +86,134 @@ export async function initIssueLog(
     readonly message?: string | null;
   } = {},
 ): Promise<IssuesInitJson> {
-  if (log.ref !== null || log.tree.label !== "worktree") {
-    throw new InvalidArgumentError("init writes the work tree; open the log without a ref");
-  }
-  const known = Object.keys(BUILTIN_TEMPLATES);
-  const templates = [
-    ...new Set(o.templates === undefined || o.templates.length === 0 ? ["task"] : o.templates),
-  ];
-  for (const name of templates) {
-    if (!known.includes(name)) {
-      throw new UsageError(`unknown built-in template ${name}; use ${known.sort().join(", ")}`);
+  return withGitOperation(async () => {
+    if (log.ref !== null || log.tree.label !== "worktree") {
+      throw new InvalidArgumentError("init writes the work tree; open the log without a ref");
     }
-  }
-  const root = log.layout.root;
-  const notes = [...log.notes];
-  const files: [string, string][] = [];
-  const kept: string[] = [];
-  let config = log.configPath;
-  if (config !== null) {
-    kept.push(config);
-  } else {
-    const template = templates[0] ?? "task";
-    const repo = await readToolConfig(log.tree, CONFIG);
-    if (root === DEFAULT_ROOT) {
-      config = `${root}/${CONFIG}`;
-      files.push([config, starterConfig({ root: null, template })]);
-    } else if (repo === null) {
-      config = CONFIG;
-      files.push([config, starterConfig({ root, template })]);
-    } else {
-      // The repo file names another log (openToolLog ignored it with a note); leave it alone.
-      const section = repo.raw.log as { root?: unknown } | undefined;
-      const other = typeof section?.root === "string" ? section.root : DEFAULT_ROOT;
-      config = `${root}/${CONFIG}`;
-      files.push([config, starterConfig({ root: null, template })]);
-      notes.push(`${CONFIG} names ${other}; pass --root ${root} to use this log`);
-    }
-  }
-  for (const name of templates) {
-    const path = `${root}/templates/${name}.md`;
-    if ((await log.tree.read(path)) !== null) kept.push(path);
-    else files.push([path, BUILTIN_TEMPLATES[name] ?? ""]);
-  }
-  // A kept config with `[log] index = "committed"` gets its index, as adr's init does; an
-  // existing index.md is kept.
-  if (log.issues.index === "committed") {
-    const path = indexPath(log.layout);
-    if ((await log.tree.read(path)) !== null) {
-      kept.push(path);
-    } else {
-      const text = await renderIssueIndex(log.git, {
-        layout: log.layout,
-        issues: log.issues,
-        tree: log.tree,
-        history: await log.git.resolveCommit("HEAD"),
-      });
-      if (text === null) {
-        notes.push(
-          `${path} not written: numbers need history in this shallow clone; run git fetch --unshallow, then issues index`,
-        );
-      } else {
-        files.push([path, text]);
+    const known = Object.keys(BUILTIN_TEMPLATES);
+    const templates = [
+      ...new Set(o.templates === undefined || o.templates.length === 0 ? ["task"] : o.templates),
+    ];
+    for (const name of templates) {
+      if (!known.includes(name)) {
+        throw new UsageError(`unknown built-in template ${name}; use ${known.sort().join(", ")}`);
       }
     }
-  }
-  const commit = files.length > 0 && (o.commit ?? log.issues.autoCommit);
-  if (
-    commit &&
-    ((await log.git.identity()) === null || (await log.git.committerIdentity()) === null)
-  ) {
-    throw new ConfigError("--commit needs a git identity; set git user.name and user.email");
-  }
-  const written: string[] = [];
-  try {
-    for (const [path, text] of files) {
-      await writeNewFile(log.git, path, encoder.encode(text));
-      written.push(path);
+    const root = log.layout.root;
+    const notes = [...log.notes];
+    const files: [string, string][] = [];
+    const kept: string[] = [];
+    let config = log.configPath;
+    if (config !== null) {
+      kept.push(config);
+    } else {
+      const template = templates[0] ?? "task";
+      const repo = await readToolConfig(log.tree, CONFIG);
+      if (root === DEFAULT_ROOT) {
+        config = `${root}/${CONFIG}`;
+        files.push([config, starterConfig({ root: null, template })]);
+      } else if (repo === null) {
+        config = CONFIG;
+        files.push([config, starterConfig({ root, template })]);
+      } else {
+        // The repo file names another log (openToolLog ignored it with a note); leave it alone.
+        const section = repo.raw.log as { root?: unknown } | undefined;
+        const other = typeof section?.root === "string" ? section.root : DEFAULT_ROOT;
+        config = `${root}/${CONFIG}`;
+        files.push([config, starterConfig({ root: null, template })]);
+        notes.push(`${CONFIG} names ${other}; pass --root ${root} to use this log`);
+      }
     }
-  } catch (err) {
-    const top = log.git.root ?? "";
-    for (const path of written) await rm(join(top, path), { force: true });
-    throw err;
-  }
-  if (written.length > 0) await log.git.add(written);
-  // The placeholder goes once the log has real files: after the writes, so a failed write leaves
-  // it alone.
-  const removed: string[] = [];
-  const tracked: string[] = [];
-  if (written.length > 0) {
-    const keep = `${root}/.gitkeep`;
-    const work = await worktreeReader(log.git).read(keep);
-    const head = await headBytes(log.git, keep);
-    const staged = await (await indexReader(log.git)).read(keep);
-    const bytes = work ?? staged ?? head;
-    if (bytes !== null && bytes.byteLength > 0) {
-      notes.push(`kept ${keep}: it isn't empty`);
-    } else if (bytes !== null) {
-      if (work !== null) await rm(join(log.git.root ?? "", keep), { force: true });
-      if (staged !== null) await log.git.add([keep]);
-      removed.push(keep);
-      // Only HEAD's placeholder has a deletion to commit; a new or untracked one is just gone.
-      if (head !== null) tracked.push(keep);
+    for (const name of templates) {
+      const path = `${root}/templates/${name}.md`;
+      if ((await log.tree.read(path)) !== null) kept.push(path);
+      else files.push([path, BUILTIN_TEMPLATES[name] ?? ""]);
     }
-  }
-  let sha: string | null = null;
-  if (commit) {
-    const message =
-      o.message ??
-      renderCommitMessage(log.issues.commitSubject, {
-        title: INIT_TITLE,
-        vars: { action: ACTIONS.init, id: "", display: "", command: "init" },
-      }).message;
-    sha = await commitWithRecovery(log.git, {
-      message,
-      only: [...written, ...tracked],
-      rerun: INIT_RERUN,
-    });
-  }
-  return {
-    format: "issues-init/v1",
-    root,
-    config,
-    written,
-    kept,
-    removed,
-    skill: null,
-    commit: sha,
-    notes,
-  };
+    // A kept config with `[log] index = "committed"` gets its index, as adr's init does; an
+    // existing index.md is kept.
+    if (log.issues.index === "committed") {
+      const path = indexPath(log.layout);
+      if ((await log.tree.read(path)) !== null) {
+        kept.push(path);
+      } else {
+        const text = await renderIssueIndex(log.git, {
+          layout: log.layout,
+          issues: log.issues,
+          tree: log.tree,
+          history: await log.git.resolveCommit("HEAD"),
+        });
+        if (text === null) {
+          notes.push(
+            `${path} not written: numbers need history in this shallow clone; run git fetch --unshallow, then issues index`,
+          );
+        } else {
+          files.push([path, text]);
+        }
+      }
+    }
+    const commit = files.length > 0 && (o.commit ?? log.issues.autoCommit);
+    if (
+      commit &&
+      ((await log.git.identity()) === null || (await log.git.committerIdentity()) === null)
+    ) {
+      throw new ConfigError("--commit needs a git identity; set git user.name and user.email");
+    }
+    const written: string[] = [];
+    try {
+      for (const [path, text] of files) {
+        await writeNewFile(log.git, path, encoder.encode(text));
+        written.push(path);
+      }
+    } catch (err) {
+      const top = log.git.root ?? "";
+      for (const path of written) await rm(join(top, path), { force: true });
+      throw err;
+    }
+    if (written.length > 0) await log.git.add(written);
+    // The placeholder goes once the log has real files: after the writes, so a failed write leaves
+    // it alone.
+    const removed: string[] = [];
+    const tracked: string[] = [];
+    if (written.length > 0) {
+      const keep = `${root}/.gitkeep`;
+      const work = await worktreeReader(log.git).read(keep);
+      const head = await headBytes(log.git, keep);
+      const staged = await (await indexReader(log.git)).read(keep);
+      const bytes = work ?? staged ?? head;
+      if (bytes !== null && bytes.byteLength > 0) {
+        notes.push(`kept ${keep}: it isn't empty`);
+      } else if (bytes !== null) {
+        if (work !== null) await rm(join(log.git.root ?? "", keep), { force: true });
+        if (staged !== null) await log.git.add([keep]);
+        removed.push(keep);
+        // Only HEAD's placeholder has a deletion to commit; a new or untracked one is just gone.
+        if (head !== null) tracked.push(keep);
+      }
+    }
+    let sha: string | null = null;
+    if (commit) {
+      const message =
+        o.message ??
+        renderCommitMessage(log.issues.commitSubject, {
+          title: INIT_TITLE,
+          vars: { action: ACTIONS.init, id: "", display: "", command: "init" },
+        }).message;
+      sha = await commitWithRecovery(log.git, {
+        message,
+        only: [...written, ...tracked],
+        rerun: INIT_RERUN,
+      });
+    }
+    return {
+      format: "issues-init/v1",
+      root,
+      config,
+      written,
+      kept,
+      removed,
+      skill: null,
+      commit: sha,
+      notes,
+    };
+  });
 }

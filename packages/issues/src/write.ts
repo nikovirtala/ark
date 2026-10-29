@@ -10,6 +10,7 @@ import {
   historyTemplates,
   InvalidArgumentError,
   indexReader,
+  invalidateGitOperation,
   lintDocument,
   type RenderedCommit,
   refReader,
@@ -19,6 +20,7 @@ import {
   type TreeReader,
   templateHistoryRef,
   UsageError,
+  withGitOperation,
 } from "@nikovirtala/ledger";
 import { type AfterStage, applyPlan, type ComposeInput } from "./apply.js";
 import { ACTIONS, composeSubject, UPDATE_ACTION } from "./commit-actions.js";
@@ -240,75 +242,77 @@ async function write(
     commit: boolean,
   ) => (scope: readonly string[]) => Promise<AfterStage>,
 ): Promise<IssueWriteJson> {
-  checkWorkTree(log);
-  const commit = o.commit ?? log.issues.autoCommit;
-  if (commit) await checkCommitIdentity(log);
-  const notes = [...log.notes, ...(o.notes ?? [])];
-  for (let attempt = 0; ; attempt++) {
-    const read = await readIssues(log);
-    const r = await plan(read, await planContext(log, read, deps));
-    if (!r.ok) {
-      return {
-        format: "issues-write/v1",
-        command,
-        ok: false,
-        issue: r.issue,
-        affected: [],
-        written: [],
-        commit: null,
-        findings: r.findings,
-        notes: [...notes, ...(r.notes ?? [])],
-      };
-    }
-    const empty =
-      r.plan.events.length === 0 &&
-      Object.keys(r.plan.files).length === 0 &&
-      Object.keys(r.plan.replace ?? {}).length === 0;
-    if (empty) {
-      return {
-        format: "issues-write/v1",
-        command,
-        ok: true,
-        issue: r.plan.issue,
-        affected: r.plan.affected,
-        written: [],
-        commit: null,
-        findings: r.plan.findings,
-        notes: [...notes, ...(r.plan.notes ?? [])],
-      };
-    }
-    const options = applyOptions(log, command, r.plan, { ...o, commit });
-    try {
-      const applied = await deps.apply(log, r.plan, {
-        ...options,
-        ...(afterStage === undefined ? {} : { afterStage: afterStage(r.plan, commit) }),
-      });
-      const views = await viewsAfter(log, r.plan, applied.commit);
-      return {
-        format: "issues-write/v1",
-        command,
-        ok: true,
-        issue: views.issue,
-        affected: views.affected,
-        written: applied.written,
-        commit: applied.commit,
-        findings: applied.findings,
-        notes: [
-          ...notes,
-          ...(r.plan.notes ?? []),
-          ...applied.notes,
-          ...(applied.commit !== null && applied.rendered?.note != null
-            ? [applied.rendered.note]
-            : []),
-        ],
-      };
-    } catch (err) {
-      if (err instanceof CommitFailedError) {
-        throw err.withNotes([...notes, ...(r.plan.notes ?? [])]);
+  return withGitOperation(async () => {
+    checkWorkTree(log);
+    const commit = o.commit ?? log.issues.autoCommit;
+    if (commit) await checkCommitIdentity(log);
+    const notes = [...log.notes, ...(o.notes ?? [])];
+    for (let attempt = 0; ; attempt++) {
+      const read = await readIssues(log);
+      const r = await plan(read, await planContext(log, read, deps));
+      if (!r.ok) {
+        return {
+          format: "issues-write/v1",
+          command,
+          ok: false,
+          issue: r.issue,
+          affected: [],
+          written: [],
+          commit: null,
+          findings: r.findings,
+          notes: [...notes, ...(r.notes ?? [])],
+        };
       }
-      if (!(err instanceof EventExistsError) || attempt > 0) throw err;
+      const empty =
+        r.plan.events.length === 0 &&
+        Object.keys(r.plan.files).length === 0 &&
+        Object.keys(r.plan.replace ?? {}).length === 0;
+      if (empty) {
+        return {
+          format: "issues-write/v1",
+          command,
+          ok: true,
+          issue: r.plan.issue,
+          affected: r.plan.affected,
+          written: [],
+          commit: null,
+          findings: r.plan.findings,
+          notes: [...notes, ...(r.plan.notes ?? [])],
+        };
+      }
+      const options = applyOptions(log, command, r.plan, { ...o, commit });
+      try {
+        const applied = await deps.apply(log, r.plan, {
+          ...options,
+          ...(afterStage === undefined ? {} : { afterStage: afterStage(r.plan, commit) }),
+        });
+        const views = await viewsAfter(log, r.plan, applied.commit);
+        return {
+          format: "issues-write/v1",
+          command,
+          ok: true,
+          issue: views.issue,
+          affected: views.affected,
+          written: applied.written,
+          commit: applied.commit,
+          findings: applied.findings,
+          notes: [
+            ...notes,
+            ...(r.plan.notes ?? []),
+            ...applied.notes,
+            ...(applied.commit !== null && applied.rendered?.note != null
+              ? [applied.rendered.note]
+              : []),
+          ],
+        };
+      } catch (err) {
+        if (err instanceof CommitFailedError) {
+          throw err.withNotes([...notes, ...(r.plan.notes ?? [])]);
+        }
+        if (!(err instanceof EventExistsError) || attempt > 0) throw err;
+      }
     }
-  }
+  });
 }
 
 const sameBytes = (a: Uint8Array, b: Uint8Array) =>
@@ -341,6 +345,8 @@ function editorStep(
     if (d === null) return { findings: null, commit: true };
     const abs = join(log.git.root ?? "", d.path);
     const note = await edit(abs);
+    // The editor may run other processes or wait on a person: drop what the operation cached.
+    invalidateGitOperation();
     const bytes = await readIfPresent(abs);
     let commit: boolean;
     if (bytes === null) {
@@ -432,82 +438,94 @@ export async function editIssue(
   o: WriteOptions & { readonly edit?: Editor; readonly refuseIncomplete?: boolean } = {},
   deps: WriteDeps = DEFAULT_DEPS,
 ): Promise<IssueWriteJson> {
-  const direct = (input.title ?? null) !== null || Object.keys(input.sections ?? {}).length > 0;
-  if (direct) {
-    const refuseIncomplete = o.refuseIncomplete === true && (o.commit ?? log.issues.autoCommit);
-    return write(log, "edit", (read, c) => planEdit(read, input, c, { refuseIncomplete }), o, deps);
-  }
-  if (o.edit === undefined) throw new UsageError("no editor: set VISUAL or EDITOR");
-  checkWorkTree(log);
-  const commit = o.commit ?? log.issues.autoCommit;
-  if (commit) await checkCommitIdentity(log);
-  const notes = [...log.notes, ...(o.notes ?? [])];
-  const read = await readIssues(log);
-  const id = resolveIssue(read, input.id);
-  const view = read.projection.views.get(id) as IssueView;
-  const path = view.body_path;
-  if (path === null) throw new UsageError(`${view.display} has no body file; run issues verify`);
-  const abs = join(log.git.root ?? "", path);
-  const before = await readIfPresent(abs);
-  const note = await o.edit(abs);
-  const after = await readIfPresent(abs);
-  const result = (extra: Partial<IssueWriteJson>): IssueWriteJson => ({
-    format: "issues-write/v1",
-    command: "edit",
-    ok: true,
-    issue: view,
-    affected: [],
-    written: [],
-    commit: null,
-    findings: [],
-    notes,
-    ...extra,
-  });
-  if (after === null) return result({ notes: [...notes, `${path} was removed while editing`] });
-  if (before !== null && sameBytes(before, after)) {
-    return result({ notes: [...notes, ...(note === null ? [] : [note]), "nothing changed"] });
-  }
-  if (note !== null) {
+  return withGitOperation(async () => {
+    const direct = (input.title ?? null) !== null || Object.keys(input.sections ?? {}).length > 0;
+    if (direct) {
+      const refuseIncomplete = o.refuseIncomplete === true && (o.commit ?? log.issues.autoCommit);
+      return write(
+        log,
+        "edit",
+        (read, c) => planEdit(read, input, c, { refuseIncomplete }),
+        o,
+        deps,
+      );
+    }
+    if (o.edit === undefined) throw new UsageError("no editor: set VISUAL or EDITOR");
+    checkWorkTree(log);
+    const commit = o.commit ?? log.issues.autoCommit;
+    if (commit) await checkCommitIdentity(log);
+    const notes = [...log.notes, ...(o.notes ?? [])];
+    const read = await readIssues(log);
+    const id = resolveIssue(read, input.id);
+    const view = read.projection.views.get(id) as IssueView;
+    const path = view.body_path;
+    if (path === null) throw new UsageError(`${view.display} has no body file; run issues verify`);
+    const abs = join(log.git.root ?? "", path);
+    const before = await readIfPresent(abs);
+    const note = await o.edit(abs);
+    // The editor may run other processes or wait on a person: drop what the operation cached.
+    invalidateGitOperation();
+    const after = await readIfPresent(abs);
+    const result = (extra: Partial<IssueWriteJson>): IssueWriteJson => ({
+      format: "issues-write/v1",
+      command: "edit",
+      ok: true,
+      issue: view,
+      affected: [],
+      written: [],
+      commit: null,
+      findings: [],
+      notes,
+      ...extra,
+    });
+    if (after === null) return result({ notes: [...notes, `${path} was removed while editing`] });
+    if (before !== null && sameBytes(before, after)) {
+      return result({ notes: [...notes, ...(note === null ? [] : [note]), "nothing changed"] });
+    }
+    if (note !== null) {
+      return result({
+        notes: [
+          ...notes,
+          note,
+          `${path} changed while the editor failed; review it, then git add it`,
+        ],
+      });
+    }
+    await log.git.add([path]);
+    // Through applyPlan like every other write: ?5's commit scope (an uncommitted `opened` of this
+    // issue joins the commit) and the index, rendered from the edited body.
+    const fresh = await readIssues(log);
+    const now = fresh.projection.views.get(id) ?? view;
+    const plan: WritePlan = {
+      command: "edit",
+      subject: id,
+      files: {},
+      events: [],
+      stage: [path],
+      commitScope: [path],
+      eventDirs: [],
+      reach: reachOf(fresh, id),
+      draft: null,
+      commit: slotOf(now, ACTIONS.edit),
+      trailers: [["Issue", id]],
+      issue: now,
+      affected: [],
+      findings: [],
+    };
+    const applied = await deps.apply(log, plan, applyOptions(log, "edit", plan, { ...o, commit }));
+    const views = await viewsAfter(log, plan, applied.commit);
     return result({
+      issue: views.issue ?? now,
+      written: [path, ...applied.written.filter((p) => p !== path)],
+      commit: applied.commit,
       notes: [
         ...notes,
-        note,
-        `${path} changed while the editor failed; review it, then git add it`,
+        ...applied.notes,
+        ...(applied.commit !== null && applied.rendered?.note != null
+          ? [applied.rendered.note]
+          : []),
       ],
     });
-  }
-  await log.git.add([path]);
-  // Through applyPlan like every other write: ?5's commit scope (an uncommitted `opened` of this
-  // issue joins the commit) and the index, rendered from the edited body.
-  const fresh = await readIssues(log);
-  const now = fresh.projection.views.get(id) ?? view;
-  const plan: WritePlan = {
-    command: "edit",
-    subject: id,
-    files: {},
-    events: [],
-    stage: [path],
-    commitScope: [path],
-    eventDirs: [],
-    reach: reachOf(fresh, id),
-    draft: null,
-    commit: slotOf(now, ACTIONS.edit),
-    trailers: [["Issue", id]],
-    issue: now,
-    affected: [],
-    findings: [],
-  };
-  const applied = await deps.apply(log, plan, applyOptions(log, "edit", plan, { ...o, commit }));
-  const views = await viewsAfter(log, plan, applied.commit);
-  return result({
-    issue: views.issue ?? now,
-    written: [path, ...applied.written.filter((p) => p !== path)],
-    commit: applied.commit,
-    notes: [
-      ...notes,
-      ...applied.notes,
-      ...(applied.commit !== null && applied.rendered?.note != null ? [applied.rendered.note] : []),
-    ],
   });
 }
 
@@ -665,47 +683,49 @@ export async function followScopeRenames(
   o: WriteOptions & { readonly dryRun?: boolean } = {},
   deps: WriteDeps = DEFAULT_DEPS,
 ): Promise<IssueWriteJson> {
-  if (o.commit === true) {
-    throw new InvalidArgumentError("followScopeRenames never commits; don't pass commit: true");
-  }
-  if (o.message !== undefined && o.message !== null) {
-    throw new InvalidArgumentError("followScopeRenames never commits, so it takes no message");
-  }
-  const renames = await stagedRenames(log.git);
-  const staged: StagedRenames =
-    renames.length === 0
-      ? { renames, before: [], after: [] }
-      : {
-          renames,
-          before: await filePaths(await refReader(log.git, "HEAD")),
-          after: await filePaths(await indexReader(log.git)),
-        };
-  const plan = (read: IssuesRead, c: PlanContext) =>
-    planFollowRenames(read, { id: input.id ?? null, actor: input.actor }, staged, c);
-  if (o.dryRun === true) {
-    checkWorkTree(log);
-    const read = await readIssues(log);
-    const r = await plan(read, await planContext(log, read, deps));
-    return {
-      format: "issues-write/v1",
-      command: "scope",
-      ok: r.ok,
-      issue: r.ok ? r.plan.issue : r.issue,
-      affected: r.ok ? r.plan.affected : [],
-      written: [],
-      commit: null,
-      findings: r.ok ? r.plan.findings : r.findings,
-      notes: [...log.notes, ...(o.notes ?? []), ...((r.ok ? r.plan.notes : r.notes) ?? [])],
-    };
-  }
-  const doc = await write(log, "scope", plan, { ...o, commit: false }, deps);
-  return log.issues.autoCommit && doc.ok && doc.affected.length > 0
-    ? {
-        ...doc,
-        notes: [
-          ...doc.notes,
-          "--follow-renames never commits; commit the scoped events with the renames",
-        ],
-      }
-    : doc;
+  return withGitOperation(async () => {
+    if (o.commit === true) {
+      throw new InvalidArgumentError("followScopeRenames never commits; don't pass commit: true");
+    }
+    if (o.message !== undefined && o.message !== null) {
+      throw new InvalidArgumentError("followScopeRenames never commits, so it takes no message");
+    }
+    const renames = await stagedRenames(log.git);
+    const staged: StagedRenames =
+      renames.length === 0
+        ? { renames, before: [], after: [] }
+        : {
+            renames,
+            before: await filePaths(await refReader(log.git, "HEAD")),
+            after: await filePaths(await indexReader(log.git)),
+          };
+    const plan = (read: IssuesRead, c: PlanContext) =>
+      planFollowRenames(read, { id: input.id ?? null, actor: input.actor }, staged, c);
+    if (o.dryRun === true) {
+      checkWorkTree(log);
+      const read = await readIssues(log);
+      const r = await plan(read, await planContext(log, read, deps));
+      return {
+        format: "issues-write/v1",
+        command: "scope",
+        ok: r.ok,
+        issue: r.ok ? r.plan.issue : r.issue,
+        affected: r.ok ? r.plan.affected : [],
+        written: [],
+        commit: null,
+        findings: r.ok ? r.plan.findings : r.findings,
+        notes: [...log.notes, ...(o.notes ?? []), ...((r.ok ? r.plan.notes : r.notes) ?? [])],
+      };
+    }
+    const doc = await write(log, "scope", plan, { ...o, commit: false }, deps);
+    return log.issues.autoCommit && doc.ok && doc.affected.length > 0
+      ? {
+          ...doc,
+          notes: [
+            ...doc.notes,
+            "--follow-renames never commits; commit the scoped events with the renames",
+          ],
+        }
+      : doc;
+  });
 }

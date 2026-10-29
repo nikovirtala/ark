@@ -32,6 +32,7 @@ import {
   type TreeReader,
   transitions,
   UsageError,
+  withGitOperation,
 } from "@nikovirtala/ledger";
 import { type IssuesConfig, parseIssuesConfig } from "./config.js";
 import {
@@ -104,18 +105,20 @@ export interface IssuesRead {
  * network), then `readIssuesFrom(log.tree, …)`.
  */
 export async function readIssues(log: IssueLog): Promise<IssuesRead> {
-  const decisions = await readDecisionLog(log);
-  const sources = await readIssueSources(log, { decisions });
-  return readIssuesFrom(log.tree, {
-    layout: log.layout,
-    issues: log.issues,
-    numbering: await numberIssues(log),
-    sources: sources.logs,
-    decisions,
-    ref: log.ref,
-    commit: log.commit,
-    notes: log.notes,
-    configured: (log.config?.sources ?? []).map((s) => s.name),
+  return withGitOperation(async () => {
+    const decisions = await readDecisionLog(log);
+    const sources = await readIssueSources(log, { decisions });
+    return readIssuesFrom(log.tree, {
+      layout: log.layout,
+      issues: log.issues,
+      numbering: await numberIssues(log),
+      sources: sources.logs,
+      decisions,
+      ref: log.ref,
+      commit: log.commit,
+      notes: log.notes,
+      configured: (log.config?.sources ?? []).map((s) => s.name),
+    });
   });
 }
 
@@ -218,53 +221,55 @@ const SOURCE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
  * fetch`. Throws `UsageError` for a name that isn't configured or names a decision log.
  */
 export async function readSourceIssues(log: IssueLog, name: string): Promise<IssuesRead> {
-  if (!SOURCE_NAME.test(name)) {
-    throw new UsageError(`--source must match ${SOURCE_NAME.source}: ${name}`);
-  }
-  const configs = log.config?.sources ?? [];
-  const config = configs.find((s) => s.name === name);
-  if (config === undefined) {
-    const known = configs.map((s) => s.name);
-    throw new UsageError(
-      known.length === 0
-        ? `unknown source ${name}; there are no sources`
-        : `unknown source ${name}; the sources are ${known.join(", ")}`,
-    );
-  }
-  if (config.kind !== "issues") {
-    throw new UsageError(`source ${name} is a decision log; --source reads issue logs`);
-  }
-  const [r] = await readSources(log.git, [config], { fetch: "cache" });
-  const base = { issues: log.issues, sources: null, source: name } as const;
-  if (r?.source === undefined || r.source === null) {
-    return readIssuesFrom(new MemoryTree({}), {
-      ...base,
-      layout: issueKind.layoutAt(config.root ?? issueKind.def.defaultRoot),
-      numbering: NO_NUMBERING,
-      notes: [...log.notes, `${name} not fetched; run issues sources fetch`],
+  return withGitOperation(async () => {
+    if (!SOURCE_NAME.test(name)) {
+      throw new UsageError(`--source must match ${SOURCE_NAME.source}: ${name}`);
+    }
+    const configs = log.config?.sources ?? [];
+    const config = configs.find((s) => s.name === name);
+    if (config === undefined) {
+      const known = configs.map((s) => s.name);
+      throw new UsageError(
+        known.length === 0
+          ? `unknown source ${name}; there are no sources`
+          : `unknown source ${name}; the sources are ${known.join(", ")}`,
+      );
+    }
+    if (config.kind !== "issues") {
+      throw new UsageError(`source ${name} is a decision log; --source reads issue logs`);
+    }
+    const [r] = await readSources(log.git, [config], { fetch: "cache" });
+    const base = { issues: log.issues, sources: null, source: name } as const;
+    if (r?.source === undefined || r.source === null) {
+      return readIssuesFrom(new MemoryTree({}), {
+        ...base,
+        layout: issueKind.layoutAt(config.root ?? issueKind.def.defaultRoot),
+        numbering: NO_NUMBERING,
+        notes: [...log.notes, `${name} not fetched; run issues sources fetch`],
+      });
+    }
+    const ref = sourceLogRef(r.source, {
+      layout: issueKind.def.layout,
+      defaultRoot: issueKind.def.defaultRoot,
     });
-  }
-  const ref = sourceLogRef(r.source, {
-    layout: issueKind.def.layout,
-    defaultRoot: issueKind.def.defaultRoot,
-  });
-  const byId = await readIndexNumbers(ref.tree, `${ref.layout.root}/index.md`);
-  return readIssuesFrom(ref.tree, {
-    ...base,
-    layout: ref.layout,
-    numbering:
-      byId === null
-        ? NO_NUMBERING
-        : {
-            available: true,
-            reason: "index",
-            ref: null,
-            commit: null,
-            byId,
-            byNumber: new Map([...byId].map(([id, n]) => [n, id])),
-          },
-    commit: r.source.commit,
-    notes: [...log.notes],
+    const byId = await readIndexNumbers(ref.tree, `${ref.layout.root}/index.md`);
+    return readIssuesFrom(ref.tree, {
+      ...base,
+      layout: ref.layout,
+      numbering:
+        byId === null
+          ? NO_NUMBERING
+          : {
+              available: true,
+              reason: "index",
+              ref: null,
+              commit: null,
+              byId,
+              byNumber: new Map([...byId].map(([id, n]) => [n, id])),
+            },
+      commit: r.source.commit,
+      notes: [...log.notes],
+    });
   });
 }
 
@@ -448,16 +453,18 @@ export interface ChangedSince {
  * (`ORIG_HEAD` is the tip before them). Throws `RefNotFoundError` when either doesn't resolve.
  */
 export async function changedSince(log: IssueLog, rev: string): Promise<ChangedSince> {
-  const base = await refReader(log.git, rev);
-  const head = await refReader(log.git, log.ref ?? "HEAD");
-  const changes = await diffTrees(base, head, `${log.layout.root}/${log.layout.events}`);
-  const events = changes.flatMap((c) => {
-    if (c.status !== "added") return [];
-    const p = classifyPath(log.layout, c.path);
-    if (p.area !== "event" || p.subject === null || p.file.includes("/")) return [];
-    const name = parseEventFileName(p.file);
-    return name === null ? [] : [{ subject: p.subject, type: name.type, path: c.path }];
+  return withGitOperation(async () => {
+    const base = await refReader(log.git, rev);
+    const head = await refReader(log.git, log.ref ?? "HEAD");
+    const changes = await diffTrees(base, head, `${log.layout.root}/${log.layout.events}`);
+    const events = changes.flatMap((c) => {
+      if (c.status !== "added") return [];
+      const p = classifyPath(log.layout, c.path);
+      if (p.area !== "event" || p.subject === null || p.file.includes("/")) return [];
+      const name = parseEventFileName(p.file);
+      return name === null ? [] : [{ subject: p.subject, type: name.type, path: c.path }];
+    });
+    events.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+    return { rev, commit: base.commit ?? "", events };
   });
-  events.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
-  return { rev, commit: base.commit ?? "", events };
 }
