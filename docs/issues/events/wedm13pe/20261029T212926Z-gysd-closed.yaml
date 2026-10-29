@@ -1,0 +1,21 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M64S2PNF0Y2XYT8H4RJBGYSD
+subject: wedm13pe
+type: closed
+at: 2026-10-29T21:29:26Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: |-
+  Every child issue is closed: ?21, ?22, ?23 and ?24 (closed in #47).
+  Re-timed on #47 (head 9579221, the same code as this close), against the issue's numbers at e5fe532:
+  - pnpm test (8 cores, Node 24.22): 6m38s at e5fe532 (ledger 13s, adr 131s, issues 254s), now 4m05s (ledger 12.9s, adr 82.2s, issues 148.6s, vitest Duration; 1342, 650 and 754 tests passed).
+  - CI test step (4-core runners): one "Test affected packages" step of 10.5 minutes at e5fe532; now one job per package (?22), run 40956190551: Test ledger 27s, Test adr 3m57s, Test issues 7m06s, in parallel, so the tests take 7m06s and the whole run 8m05s. At 2dcad86 the same steps took 38s, 2m41s and 4m47s; hosted-runner times vary by minutes between runs of the same code.
+  - pnpm test:durations passes: no file over its package's share.
+data:
+  resolution: done

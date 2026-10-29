@@ -14,7 +14,6 @@
 | ?16 | [Add issues' MCP prompts and agent skill](items/s3v2jada-add-issues-mcp-prompts-and-agent-skill.md) |  |  | 2026-10-28 |
 | ?18 | [Say which field matched when a search result has no excerpt](items/1fgqfkf3-say-which-field-matched-when-a-search-result-has-no-excerpt.md) |  |  | 2026-10-28 |
 | ?19 | [Test the remaining Table B cells of the issues mcp writes](items/exnj9tym-test-the-remaining-table-b-cells-of-the-issues-mcp-writes.md) |  | type:test | 2026-10-29 |
-| ?20 | [Make the test suites faster](items/wedm13pe-make-the-test-suites-faster.md) |  |  | 2026-10-29 |
 | ?26 | [Run ledger's Git.open test with the temp repo's environment](items/def9qp6q-run-ledgers-git-open-test-with-the-temp-repos-environment.md) |  | type:bug | 2026-10-29 |
 
 ## Open
@@ -36,6 +35,7 @@
 | ?14 | [Add the read side of issues mcp](items/qy2ch92c-add-the-read-side-of-issues-mcp.md) |  |  | 2026-10-28 |
 | ?15 | [Add the write side of issues mcp](items/516asy8r-add-the-write-side-of-issues-mcp.md) |  |  | 2026-10-29 |
 | ?17 | [Ask the installed git whether a -m message ends in trailers](items/f3my0702-ask-the-installed-git-whether-a-m-message-ends-in-trailers.md) |  |  | 2026-10-28 |
+| ?20 | [Make the test suites faster](items/wedm13pe-make-the-test-suites-faster.md) |  |  | 2026-10-29 |
 | ?21 | [Keep every test file under its package's per-worker share](items/7n5e4nkf-keep-every-test-file-under-its-packages-per-worker-share.md) | nikovirtala@users.noreply.github.com |  | 2026-10-29 |
 | ?22 | [Run each package's tests in its own CI job](items/bd0nsd5s-run-each-packages-tests-in-its-own-ci-job.md) | nikovirtala@users.noreply.github.com |  | 2026-10-29 |
 | ?23 | [Compile kind schemas on first use](items/j897bps4-compile-kind-schemas-on-first-use.md) | nikovirtala@users.noreply.github.com |  | 2026-10-29 |
