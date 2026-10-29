@@ -1,4 +1,5 @@
-import { Ajv2020, type ErrorObject, type ValidateFunction } from "ajv/dist/2020.js";
+import { createRequire } from "node:module";
+import type { Ajv2020, ErrorObject, ValidateFunction } from "ajv/dist/2020.js";
 import { KindDefinitionError } from "../errors.js";
 import { type Finding, finding } from "../findings/finding.js";
 import { isAt } from "../identity/time.js";
@@ -45,14 +46,24 @@ export type ValidationResult =
 
 export interface CompiledKind {
   readonly kind: KindSchema;
-  /** Validates a parsed event document in the order of design §4.3.2. */
+  /**
+   * Validates a parsed event document in the order of design §4.3.2. Compiles the event type's
+   * data schema on first use; throws `KindDefinitionError` when it doesn't compile.
+   */
   validate(doc: unknown, ctx: { readonly file: string | null }): ValidationResult;
+  /** Compiles every data schema now; throws `KindDefinitionError` for the first that fails. */
+  compileAll(): void;
 }
 
 const NAME = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const MAX_FINDINGS_PER_FILE = 10;
 
+// ajv takes ~50ms to import and its compiler most of a CLI's startup, so it loads on the first
+// validation: commands that validate no event (`--help`, most git hooks) never pay for it.
+const requireCjs = createRequire(import.meta.url);
+
 function newAjv(): Ajv2020 {
+  const { Ajv2020 } = requireCjs("ajv/dist/2020.js") as typeof import("ajv/dist/2020.js");
   return new Ajv2020({
     strict: true,
     allowUnionTypes: true,
@@ -137,7 +148,11 @@ export function envelopeFailure(
 
 const compiled = new WeakMap<KindSchema, CompiledKind>();
 
-/** Compiles a kind's data schemas once per kind object; throws `KindDefinitionError`. */
+/**
+ * Checks a kind's names and data schemas' top level once per kind object; throws
+ * `KindDefinitionError`. Each data schema is compiled on its type's first validation (or by
+ * `compileAll`), so a schema ajv rejects throws `KindDefinitionError` then.
+ */
 export function compileKind(kind: KindSchema): CompiledKind {
   const cached = compiled.get(kind);
   if (cached !== undefined) return cached;
@@ -149,14 +164,14 @@ export function compileKind(kind: KindSchema): CompiledKind {
     throw fail(`invalid kind name ${JSON.stringify(kind.name)}`);
   }
   const schemaKey = new RegExp(`^${name}/v[1-9][0-9]*$`);
-  const ajv = newAjv();
-  const validators = new Map<string, Map<string, ValidateFunction>>();
+  let ajv: Ajv2020 | undefined;
+  const validators = new Map<string, Map<string, () => ValidateFunction>>();
   const reasonRequired = new Map<string, Set<string>>();
   for (const [key, version] of Object.entries(kind.schemas)) {
     if (!schemaKey.test(key)) {
       throw fail(`kind ${name}: schema key ${JSON.stringify(key)} must be "${name}/v<n>"`);
     }
-    const types = new Map<string, ValidateFunction>();
+    const types = new Map<string, () => ValidateFunction>();
     const required = new Set<string>();
     for (const [type, { data, reason }] of Object.entries(version.events)) {
       if (reason === "required") required.add(type);
@@ -168,11 +183,17 @@ export function compileKind(kind: KindSchema): CompiledKind {
       if (data.additionalProperties === false || data.unevaluatedProperties === false) {
         throw fail(`${where}: data schema must allow unknown fields at the top level`);
       }
-      try {
-        types.set(type, ajv.compile(data));
-      } catch (e) {
-        throw fail(`${where}: ${e instanceof Error ? e.message : String(e)}`, e);
-      }
+      let validator: ValidateFunction | undefined;
+      types.set(type, () => {
+        if (validator !== undefined) return validator;
+        try {
+          ajv ??= newAjv();
+          validator = ajv.compile(data);
+          return validator;
+        } catch (e) {
+          throw fail(`${where}: ${e instanceof Error ? e.message : String(e)}`, e);
+        }
+      });
     }
     validators.set(key, types);
     reasonRequired.set(key, required);
@@ -219,8 +240,8 @@ export function compileKind(kind: KindSchema): CompiledKind {
           false,
         );
       }
-      const validateData = types.get(String(e.type));
-      if (validateData === undefined) {
+      const validatorOf = types.get(String(e.type));
+      if (validatorOf === undefined) {
         return failed(
           one(
             "envelope/unknown-type",
@@ -228,6 +249,7 @@ export function compileKind(kind: KindSchema): CompiledKind {
           ),
         );
       }
+      const validateData = validatorOf();
       if (!validateData(e.data)) {
         return failed(schemaFindings(validateData.errors, "data/schema", file, "/data"));
       }
@@ -239,6 +261,10 @@ export function compileKind(kind: KindSchema): CompiledKind {
         return failed(one("event/reason-required", `${type} events need a reason`));
       }
       return { ok: true, event: e as unknown as EventEnvelope, findings: [] };
+    },
+    compileAll() {
+      for (const types of validators.values())
+        for (const validatorOf of types.values()) validatorOf();
     },
   };
   compiled.set(kind, result);

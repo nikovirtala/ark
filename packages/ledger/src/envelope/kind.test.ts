@@ -393,7 +393,9 @@ describe("compileKind", () => {
     expect(compileKind({ ...kind })).not.toBe(compiled);
   });
 
-  const invalid: [name: string, kind: KindSchema][] = [
+  // `first use`: ajv rejects the schema, so compileKind defers the error to the type's first
+  // validation (or compileAll); every other check fails when the kind is defined.
+  const invalid: [name: string, kind: KindSchema, when?: "first use"][] = [
     ["an invalid kind name", { ...withData({ type: "object" }), name: "Widget" }],
     [
       "a schema key without a version",
@@ -421,10 +423,11 @@ describe("compileKind", () => {
       "a top-level unevaluatedProperties: false",
       withData({ type: "object", unevaluatedProperties: false }),
     ],
-    ["an unknown keyword (strict mode)", withData({ type: "object", colour: "red" })],
+    ["an unknown keyword (strict mode)", withData({ type: "object", colour: "red" }), "first use"],
     [
       "a keyword without its type (strict mode)",
       withData({ type: "object", properties: { a: { minLength: 1 } } }),
+      "first use",
     ],
     [
       "a freezeOn type no version defines",
@@ -432,16 +435,40 @@ describe("compileKind", () => {
     ],
   ];
 
-  for (const [name, k] of invalid) {
-    it(`throws KindDefinitionError for ${name}`, () => {
-      expect(() => compileKind(k)).toThrow(KindDefinitionError);
+  for (const [name, k, when] of invalid) {
+    it(`throws KindDefinitionError for ${name} ${when === undefined ? "when defined" : "on first use"}`, () => {
+      const compile = when === undefined ? () => compileKind(k) : () => compileKind(k).compileAll();
+      if (when !== undefined) expect(() => compileKind(k)).not.toThrow();
+      expect(compile).toThrow(KindDefinitionError);
       try {
-        compileKind(k);
+        compile();
       } catch (e) {
         expect(e).toMatchObject({ code: "kind-definition", kind: k.name });
       }
     });
   }
+
+  it("compiles a data schema on its type's first validation", () => {
+    const k = compileKind({
+      name: "widget",
+      schemas: {
+        "widget/v1": {
+          events: {
+            created: { data: { type: "object" } },
+            painted: { data: { type: "object", colour: "red" } },
+          },
+        },
+      },
+      body: "none",
+    });
+    const event = (type: string) => ({ ...base, type, data: {} });
+    expect(k.validate(event("created"), { file: null }).ok).toBe(true);
+    expect(() => k.validate(event("painted"), { file: null })).toThrow(KindDefinitionError);
+    expect(() => k.validate(event("painted"), { file: null })).toThrow(
+      'kind widget: widget/v1 event type "painted": strict mode: unknown keyword: "colour"',
+    );
+    expect(() => k.compileAll()).toThrow(KindDefinitionError);
+  });
 
   it("keeps nested additionalProperties: false", () => {
     expect(() =>

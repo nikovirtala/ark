@@ -135,7 +135,8 @@ function definitionProblem<S extends string, E extends EventDefs<S>, St, P, O>(
 /**
  * Turns a kind definition into a `Kind`: a `KindSchema` whose current data-schema version is
  * `def.schema`, plus the state machine. Throws `KindDefinitionError` for an invalid definition,
- * including the data-schema errors `compileKind` finds.
+ * including the data-schema errors `compileKind` finds; a data schema ajv rejects throws on its
+ * type's first validation instead, or from `compileKind(kind).compileAll()`.
  */
 export function defineKind<
   const S extends string,

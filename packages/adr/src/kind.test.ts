@@ -16,6 +16,7 @@ it("defines the decision kind with defineKind", () => {
 
 it("compiles, with exactly the 9 event types of decision/v1 (AC 2)", () => {
   expect(compileKind(adrKind).kind).toBe(adrKind);
+  expect(() => compileKind(adrKind).compileAll()).not.toThrow();
   expect(Object.keys(adrKind.schemas)).toEqual(["decision/v1"]);
   expect(Object.keys(adrKind.schemas["decision/v1"]?.events ?? {}).sort()).toEqual([
     "accepted",
