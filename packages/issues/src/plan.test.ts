@@ -678,6 +678,23 @@ describe("edit", () => {
       await usage(run(log(), (read, c) => planEdit(read, { id: A, sections: { nope: "x" } }, c))),
     ).toContain("has no section nope");
   });
+
+  it("refuses an incomplete body when asked, except on a closed issue", async () => {
+    const empty = { id: A, sections: { done: "" } };
+    const refused = await run(log(), (read, c) =>
+      planEdit(read, empty, c, { refuseIncomplete: true }),
+    );
+    expect(refused.ok).toBe(false);
+    expect(refusedRules(refused).length).toBeGreaterThan(0);
+    expect(refusedRules(refused).every((r) => r.startsWith("template/"))).toBe(true);
+    const unasked = plan(await run(log(), (read, c) => planEdit(read, empty, c)));
+    expect(unasked.findings.map((f) => f.rule)).toEqual(refusedRules(refused));
+    const closedLog = memory([{ id: A, events: [opened(A, "Old"), closed(A, "done")], body }]);
+    const onClosed = plan(
+      await run(closedLog, (read, c) => planEdit(read, empty, c, { refuseIncomplete: true })),
+    );
+    expect(onClosed.findings).toEqual([]);
+  });
 });
 
 describe("comment and commit scopes", () => {

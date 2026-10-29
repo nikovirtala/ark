@@ -376,6 +376,30 @@ describe("writes", () => {
     expect(unchanged.notes).toContain("nothing changed");
   });
 
+  it("refuses an incomplete edit with refuseIncomplete only when it commits", async () => {
+    const r = await repo();
+    const one = await newIssue(r);
+    const path = one.body_path ?? "";
+    const before = await readFile(join(r.root, path), "utf8");
+    const refused = await editIssue(
+      await open(r),
+      { id: one.id, sections: { done: "" } },
+      { refuseIncomplete: true, commit: true },
+    );
+    expect(refused).toMatchObject({ ok: false, written: [], commit: null });
+    expect(refused.findings.every((f) => f.rule.startsWith("template/"))).toBe(true);
+    expect(await readFile(join(r.root, path), "utf8")).toBe(before);
+    expect(await git(r, "status", "--porcelain")).toBe("");
+    const staged = await editIssue(
+      await open(r),
+      { id: one.id, sections: { done: "" } },
+      { refuseIncomplete: true, commit: false },
+    );
+    expect(staged.ok).toBe(true);
+    expect(staged.findings.length).toBeGreaterThan(0);
+    expect((await git(r, "diff", "--cached", "--name-only")).trim()).toBe(path);
+  });
+
   it("commits with [policy] auto_commit", async () => {
     const r = await repo({ "docs/issues/issues.toml": "[policy]\nauto_commit = true\n" });
     const doc = await openIssue(await open(r), { title: "Auto", sections: TASK, actor: HUMAN });
