@@ -15,6 +15,7 @@
 | ?18 | [Say which field matched when a search result has no excerpt](items/1fgqfkf3-say-which-field-matched-when-a-search-result-has-no-excerpt.md) |  |  | 2026-10-28 |
 | ?19 | [Test the remaining Table B cells of the issues mcp writes](items/exnj9tym-test-the-remaining-table-b-cells-of-the-issues-mcp-writes.md) |  | type:test | 2026-10-29 |
 | ?26 | [Run ledger's Git.open test with the temp repo's environment](items/def9qp6q-run-ledgers-git-open-test-with-the-temp-repos-environment.md) |  | type:bug | 2026-10-29 |
+| ?27 | [Split the issues MCP tests that sit at their duration share](items/0vckaxpf-split-the-issues-mcp-tests-that-sit-at-their-duration-share.md) |  |  | 2026-10-29 |
 
 ## Open
 
@@ -42,4 +43,4 @@
 | ?24 | [Cut the git processes one write spawns](items/688fexss-cut-the-git-processes-one-write-spawns.md) | nikovirtala@users.noreply.github.com |  | 2026-10-29 |
 | ?25 | [Write event YAML that biome leaves as it is](items/na46n52h-write-event-yaml-that-biome-leaves-as-it-is.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-29 |
 
-<!-- ledger-index/v1 numbers: 65qt4pp3=1 pcmzc2dz=2 1w06qws8=3 6930v8w9=4 f4f25st2=5 jdpc6bn7=6 m5xh8bkd=7 cqpzxvcs=8 984qb8rg=9 wy4r966a=10 vpq5v23q=11 3gyr85xq=12 0megpv2e=13 qy2ch92c=14 516asy8r=15 s3v2jada=16 f3my0702=17 1fgqfkf3=18 exnj9tym=19 wedm13pe=20 7n5e4nkf=21 bd0nsd5s=22 j897bps4=23 688fexss=24 na46n52h=25 def9qp6q=26 -->
+<!-- ledger-index/v1 numbers: 65qt4pp3=1 pcmzc2dz=2 1w06qws8=3 6930v8w9=4 f4f25st2=5 jdpc6bn7=6 m5xh8bkd=7 cqpzxvcs=8 984qb8rg=9 wy4r966a=10 vpq5v23q=11 3gyr85xq=12 0megpv2e=13 qy2ch92c=14 516asy8r=15 s3v2jada=16 f3my0702=17 1fgqfkf3=18 exnj9tym=19 wedm13pe=20 7n5e4nkf=21 bd0nsd5s=22 j897bps4=23 688fexss=24 na46n52h=25 def9qp6q=26 0vckaxpf=27 -->
