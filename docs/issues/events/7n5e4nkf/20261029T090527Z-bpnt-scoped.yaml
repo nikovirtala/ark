@@ -1,0 +1,19 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M63EGDN5XCC460SZWA7FBPNT
+subject: 7n5e4nkf
+type: scoped
+at: 2026-10-29T09:05:27Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/*/vitest.config.ts
+    - packages/adr/src/cli/index-invariant*.test.ts
+    - packages/issues/src/write.index*.test.ts
+    - scripts/**
