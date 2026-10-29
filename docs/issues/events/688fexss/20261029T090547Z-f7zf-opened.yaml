@@ -1,0 +1,18 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M63EH1CTE0ZSG8HZEMF3F7ZF
+subject: 688fexss
+type: opened
+at: 2026-10-29T09:05:47Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Cut the git processes one write spawns
+  template: task
+  template_version: 1
+  parent: wedm13pe
