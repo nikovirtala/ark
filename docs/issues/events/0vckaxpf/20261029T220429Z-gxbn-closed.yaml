@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M64V2WBXY9W8CYEAM5HNGXBN
+subject: 0vckaxpf
+type: closed
+at: 2026-10-29T22:04:29Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "(1) packages/issues/src/mcp-e2e.test.ts is split into mcp-e2e.read.test.ts (R1, R2), mcp-e2e.write.test.ts (W1-W6, W8, W9) and mcp-e2e.table-b.test.ts (W7), with the stdio helpers in test-support/mcp-stdio.ts, and the Table B tests of mcp/write-tools.test.ts are in mcp/write-tools.table-b.test.ts; no test body changed. (2) issues still runs 754 tests with 14 skipped, and pnpm test:durations reports no file over its share. (3) In a full 8-core run the new files took 9s (read), 76s (write), 35s (Table B over stdio) and 35s (Table B in memory), and write-tools.test.ts 74s; the longest issues file is now 76s against a 133s share, down from 142s against 143s in #47."
+data:
+  resolution: done
