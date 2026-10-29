@@ -22,6 +22,7 @@ it("defines the issue kind with defineKind", () => {
 
 it("compiles on the ledger envelope, with the eleven event types of issue/v1", () => {
   expect(compileKind(issueKind).kind).toBe(issueKind);
+  expect(() => compileKind(issueKind).compileAll()).not.toThrow();
   expect(ENVELOPE_VERSION).toBe("ledger/v1");
   expect(Object.keys(issueKind.schemas)).toEqual(["issue/v1"]);
   expect(Object.keys(issueKind.def.events)).toEqual([
