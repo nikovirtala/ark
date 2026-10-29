@@ -1,0 +1,18 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M63EH04AXNKWGS78H9W5X3W3
+subject: j897bps4
+type: opened
+at: 2026-10-29T09:05:46Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Compile kind schemas on first use
+  template: task
+  template_version: 1
+  parent: wedm13pe
