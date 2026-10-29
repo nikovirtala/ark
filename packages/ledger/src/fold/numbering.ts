@@ -1,5 +1,5 @@
 import { RefNotFoundError } from "../errors.js";
-import type { Git } from "../git/git.js";
+import { type Git, operationMemo } from "../git/git.js";
 import { firstParentAdditions } from "../git/history.js";
 import { withGitOperation } from "../git/operation.js";
 import type { TreeReader } from "../git/tree.js";
@@ -179,18 +179,21 @@ async function mainBase(
   history: string,
   merging: readonly string[],
 ): Promise<string | null> {
-  const r = await git.run([
-    "rev-list",
-    "--first-parent",
-    "--parents",
-    "--end-of-options",
-    main,
-    ...[history, ...merging].map((c) => `^${c}`),
-  ]);
-  const lines = Buffer.from(r.stdout).toString("utf8").trim().split("\n").filter(Boolean);
-  const last = lines.at(-1);
-  if (last === undefined) return main;
-  return last.split(" ")[1] ?? null;
+  const key = `main-base\0${main}\0${[history, ...merging].join("\0")}`;
+  return operationMemo(git, key, async () => {
+    const r = await git.run([
+      "rev-list",
+      "--first-parent",
+      "--parents",
+      "--end-of-options",
+      main,
+      ...[history, ...merging].map((c) => `^${c}`),
+    ]);
+    const lines = Buffer.from(r.stdout).toString("utf8").trim().split("\n").filter(Boolean);
+    const last = lines.at(-1);
+    if (last === undefined) return main;
+    return last.split(" ")[1] ?? null;
+  });
 }
 
 /**

@@ -9,6 +9,7 @@ import { serializeEvent } from "../envelope/yaml.js";
 import { RefNotFoundError } from "../errors.js";
 import { Git } from "../git/git.js";
 import { firstParentAdditions } from "../git/history.js";
+import { withGitOperation } from "../git/operation.js";
 import { indexReader, refReader, type TreeReader, worktreeReader } from "../git/tree.js";
 import { eventPath } from "../identity/layout.js";
 import { createUlidFactory } from "../identity/ulid.js";
@@ -16,6 +17,7 @@ import { defineKind } from "../kind/define.js";
 import { arbSubjectId } from "../testing/arbitraries.js";
 import { exampleMachineKind as kind } from "../testing/example-machine-kind.js";
 import { TEST_HUMAN } from "../testing/history.js";
+import { createSpawnLog } from "../testing/spawn-log.js";
 import { createTempRepo, type TempRepo } from "../testing/temp-repo.js";
 import {
   assignNumbers,
@@ -573,5 +575,65 @@ describe("numberLog in a shallow clone", () => {
     expect(n.reason).toBeNull();
     expect(Object.fromEntries(n.byId)).toEqual({ [A]: 1 });
     expect(called).toBe(false);
+  });
+});
+
+describe("history reads in a git operation", () => {
+  it("lists history and trees once per generation, and again after a commit", async () => {
+    const r = await repo();
+    await publish(r, A, "2026-01-01T00:00:00Z");
+    await r.checkout("feature", { create: true });
+    await publish(r, B, "2026-01-02T00:00:00Z");
+    await r.checkout("main");
+    await publish(r, C, "2026-01-03T00:00:00Z");
+    await r.checkout("feature");
+    const updated = await r.merge("main", { noFf: true });
+    const log = await createSpawnLog();
+    try {
+      const git = await Git.open(r.root, { ...r.git.options, binary: log.binary });
+      const both = async () => [
+        Object.fromEntries((await numberLog(git, { kind, layout })).byId),
+        Object.fromEntries(
+          (
+            await projectNumbering(git, {
+              kind,
+              layout,
+              history: updated,
+              tree: await refReader(git, updated),
+            })
+          ).byId,
+        ),
+      ];
+      const counts = async () => ({
+        log: await log.count(" log "),
+        revList: await log.count(" rev-list "),
+        lsTree: await log.count(" ls-tree "),
+      });
+      const outside = await both();
+      const once = await counts();
+      await withGitOperation(async () => {
+        expect(await both()).toEqual(outside);
+        const first = await counts();
+        // numberLog and the projection share main's additions: 2 logs where 3 ran outside.
+        expect(first).toEqual({ log: once.log + 2, revList: 2, lsTree: 2 });
+        expect(once).toEqual({ log: 3, revList: 1, lsTree: 1 });
+        expect(await both()).toEqual(outside);
+        expect(await counts()).toEqual(first);
+        // Each caller gets its own array.
+        const a = await firstParentAdditions(git, updated, "log/events");
+        a.pop();
+        expect(await firstParentAdditions(git, updated, "log/events")).toHaveLength(a.length + 1);
+        const t = await refReader(git, updated);
+        (await t.list("log")).pop();
+        expect(await t.list("log")).toEqual(await (await refReader(r.git, updated)).list("log"));
+        await git.run(["commit", "-q", "--allow-empty", "-m", "empty"]);
+        await both();
+        const after = await counts();
+        expect(after.log).toBeGreaterThan(first.log);
+        expect(after.revList).toBeGreaterThan(first.revList);
+      });
+    } finally {
+      await log.dispose();
+    }
   });
 });

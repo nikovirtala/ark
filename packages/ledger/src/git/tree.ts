@@ -2,7 +2,14 @@ import { createHash } from "node:crypto";
 import { lstat, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { RefNotFoundError } from "../errors.js";
-import { assertPath, assertRev, catFileBatch, type Git, requireWorkTree } from "./git.js";
+import {
+  assertPath,
+  assertRev,
+  catFileBatch,
+  type Git,
+  operationMemo,
+  requireWorkTree,
+} from "./git.js";
 
 export interface TreeEntry {
   /** Repo-relative POSIX path. */
@@ -145,25 +152,29 @@ export async function refReader(git: Git, ref: string): Promise<TreeReader> {
     commit: sha,
     async list(prefix) {
       const p = normalizePrefix(prefix);
-      const r = await git.run([
-        "ls-tree",
-        "-z",
-        "-r",
-        "--full-tree",
-        "--end-of-options",
-        sha,
-        ...(p === "" ? [] : ["--", p]),
-      ]);
-      const entries: TreeEntry[] = [];
-      for (const record of Buffer.from(r.stdout).toString("utf8").split("\0")) {
-        const m = /^(\d+) (\S+) ([0-9a-f]+)\t(.*)$/s.exec(record);
-        if (m === null) continue;
-        const [, mode = "", , oid = "", path = ""] = m;
-        if (!underPrefix(path, p)) continue;
-        const type = typeOfMode(mode);
-        entries.push({ path, oid: type === "file" ? oid : null, type });
-      }
-      return entries.sort(comparePaths);
+      const entries = await operationMemo(git, `ls-tree\0${sha}\0${p}`, async () => {
+        const r = await git.run([
+          "ls-tree",
+          "-z",
+          "-r",
+          "--full-tree",
+          "--end-of-options",
+          sha,
+          ...(p === "" ? [] : ["--", p]),
+        ]);
+        const found: TreeEntry[] = [];
+        for (const record of Buffer.from(r.stdout).toString("utf8").split("\0")) {
+          const m = /^(\d+) (\S+) ([0-9a-f]+)\t(.*)$/s.exec(record);
+          if (m === null) continue;
+          const [, mode = "", , oid = "", path = ""] = m;
+          if (!underPrefix(path, p)) continue;
+          const type = typeOfMode(mode);
+          found.push({ path, oid: type === "file" ? oid : null, type });
+        }
+        return found.sort(comparePaths);
+      });
+      // A git operation shares one listing between callers: each gets its own array.
+      return [...entries];
     },
     async read(path) {
       return (await readMany([path])).get(path) ?? null;
