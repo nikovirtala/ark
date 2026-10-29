@@ -13,6 +13,7 @@ import {
   sourceLogRef,
   sourcesOfKinds,
   UsageError,
+  withGitOperation,
 } from "@nikovirtala/ledger";
 import { type AdrSource, adrKind, type ForeignDecision } from "./kind.js";
 import { type DecisionLog, type DecisionsRead, readDecisionsFrom } from "./log.js";
@@ -111,41 +112,43 @@ const SOURCE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
  * name that isn't configured or whose kind adr doesn't read.
  */
 export async function readSourceDecisions(log: DecisionLog, name: string): Promise<DecisionsRead> {
-  if (!SOURCE_NAME.test(name)) {
-    throw new UsageError(`--source must match ${SOURCE_NAME.source}: ${name}`);
-  }
-  const { sources, skipped } = decisionSourceConfigs(log);
-  const other = skipped.find((s) => s.name === name);
-  if (other !== undefined) {
-    throw new UsageError(`source ${name} has kind ${other.kind}, which adr doesn't read`);
-  }
-  const config = sources.find((s) => s.name === name);
-  if (config === undefined) {
-    const known = [...sources, ...skipped].map((s) => s.name);
-    throw new UsageError(
-      known.length === 0
-        ? `unknown source ${name}; there are no sources`
-        : `unknown source ${name}; the sources are ${known.join(", ")}`,
-    );
-  }
-  const [r] = await readSources(log.git, [config], { fetch: "cache" });
-  const base = { adr: log.adr, notes: [...log.notes], source: name };
-  if (r?.source === undefined || r.source === null) {
-    return readDecisionsFrom(new MemoryTree({}), {
-      ...base,
-      layout: adrKind.layoutAt(config.root ?? adrKind.def.defaultRoot),
-      numbering: NO_NUMBERING,
-      notes: [...base.notes, `${name} not fetched; run adr sources fetch`],
+  return withGitOperation(async () => {
+    if (!SOURCE_NAME.test(name)) {
+      throw new UsageError(`--source must match ${SOURCE_NAME.source}: ${name}`);
+    }
+    const { sources, skipped } = decisionSourceConfigs(log);
+    const other = skipped.find((s) => s.name === name);
+    if (other !== undefined) {
+      throw new UsageError(`source ${name} has kind ${other.kind}, which adr doesn't read`);
+    }
+    const config = sources.find((s) => s.name === name);
+    if (config === undefined) {
+      const known = [...sources, ...skipped].map((s) => s.name);
+      throw new UsageError(
+        known.length === 0
+          ? `unknown source ${name}; there are no sources`
+          : `unknown source ${name}; the sources are ${known.join(", ")}`,
+      );
+    }
+    const [r] = await readSources(log.git, [config], { fetch: "cache" });
+    const base = { adr: log.adr, notes: [...log.notes], source: name };
+    if (r?.source === undefined || r.source === null) {
+      return readDecisionsFrom(new MemoryTree({}), {
+        ...base,
+        layout: adrKind.layoutAt(config.root ?? adrKind.def.defaultRoot),
+        numbering: NO_NUMBERING,
+        notes: [...base.notes, `${name} not fetched; run adr sources fetch`],
+      });
+    }
+    const ref = sourceLogRef(r.source, {
+      layout: adrKind.def.layout,
+      defaultRoot: adrKind.def.defaultRoot,
     });
-  }
-  const ref = sourceLogRef(r.source, {
-    layout: adrKind.def.layout,
-    defaultRoot: adrKind.def.defaultRoot,
-  });
-  return readDecisionsFrom(ref.tree, {
-    ...base,
-    layout: ref.layout,
-    numbering: indexNumbering(await readIndexNumbers(ref.tree, `${ref.layout.root}/index.md`)),
-    commit: r.source.commit,
+    return readDecisionsFrom(ref.tree, {
+      ...base,
+      layout: ref.layout,
+      numbering: indexNumbering(await readIndexNumbers(ref.tree, `${ref.layout.root}/index.md`)),
+      commit: r.source.commit,
+    });
   });
 }

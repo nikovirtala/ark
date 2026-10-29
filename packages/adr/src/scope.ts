@@ -8,6 +8,7 @@ import {
   scopeLookup,
   type TreeReader,
   UsageError,
+  withGitOperation,
 } from "@nikovirtala/ledger";
 import type { DecisionStatus, DecisionView } from "./kind.js";
 import { type DecisionLog, type DecisionsRead, listingNotes } from "./log.js";
@@ -108,107 +109,109 @@ export async function decisionsFor(
   log: DecisionLog,
   o: { readonly paths: readonly string[]; readonly cwd?: string },
 ): Promise<DecisionsForJson> {
-  const root = log.git.root;
-  if (root === null) throw new UsageError("adr for needs a work tree");
-  if (o.paths.length === 0 || o.paths.length > MAX_PATHS) {
-    throw new UsageError(`adr for takes 1 to ${MAX_PATHS} paths`);
-  }
-  let index: Promise<TreeReader> | null = null;
-  const indexed = () => {
-    index ??= indexReader(log.git);
-    return index;
-  };
-  const hasUnder = async (tree: TreeReader, path: string) =>
-    (await tree.list(path)).some((e) => e.path !== path);
-  const paths: string[] = [];
-  for (const given of o.paths) {
-    const path = await repoPath(root, o.cwd ?? root, given);
-    // A work-tree directory is found with lstat, before anything is listed or hashed (a symlink
-    // is a file); a path missing from the work tree is a directory when the index has paths under
-    // it. At a ref, the commit's tree is listed, which hashes nothing.
-    let directory = path === "";
-    if (!directory && read.ref === null) {
-      const st = await lstat(join(root, path)).catch(() => null);
-      directory = st === null ? await hasUnder(await indexed(), path) : st.isDirectory();
-    } else if (!directory) {
-      directory = await hasUnder(read.tree, path);
+  return withGitOperation(async () => {
+    const root = log.git.root;
+    if (root === null) throw new UsageError("adr for needs a work tree");
+    if (o.paths.length === 0 || o.paths.length > MAX_PATHS) {
+      throw new UsageError(`adr for takes 1 to ${MAX_PATHS} paths`);
     }
-    if (directory) {
-      throw new UsageError(
-        `${given} is a directory; adr for takes file paths, for example adr for $(git ls-files ${given})`,
-      );
-    }
-    if (!paths.includes(path)) paths.push(path);
-  }
-
-  const atRef = read.ref !== null && read.commit !== null;
-  const trackedIn = atRef ? read.tree : await indexed();
-  const tracked = new Set<string>();
-  for (const p of paths) {
-    if ((await trackedIn.list(p)).some((e) => e.path === p)) tracked.add(p);
-  }
-  const anchors = await scanAnchors(log.git, {
-    keyword: read.adr.anchorKeyword,
-    tree: atRef ? { commit: read.commit as string } : "worktree",
-    paths,
-    excludeDirs: [read.layout.root],
-    exclude: read.adr.anchorExclude,
-  });
-  const views = read.projection.views;
-  const lookup = scopeLookup({
-    subjects: [...views.values()]
-      .filter((v) => GLOBS_APPLY.has(v.status))
-      .map((v) => ({ id: v.id, globs: v.applies_to })),
-    anchors,
-  });
-
-  const listed = new Set<string>();
-  const out = paths.map((path) => {
-    const decisions: { view: DecisionView; via: readonly ScopeVia[] }[] = [];
-    const unresolved: UnresolvedAnchorJson[] = [];
-    for (const m of lookup(path)) {
-      const view = m.source === null ? views.get(m.id) : undefined;
-      if (view === undefined) {
-        for (const v of m.via) {
-          if (v.type !== "anchor") continue;
-          unresolved.push({
-            ref: m.source === null ? m.id : `${m.source}:${m.id}`,
-            line: v.line,
-            reason: m.source === null ? "not-found" : "other-log",
-          });
-        }
-        continue;
+    let index: Promise<TreeReader> | null = null;
+    const indexed = () => {
+      index ??= indexReader(log.git);
+      return index;
+    };
+    const hasUnder = async (tree: TreeReader, path: string) =>
+      (await tree.list(path)).some((e) => e.path !== path);
+    const paths: string[] = [];
+    for (const given of o.paths) {
+      const path = await repoPath(root, o.cwd ?? root, given);
+      // A work-tree directory is found with lstat, before anything is listed or hashed (a symlink
+      // is a file); a path missing from the work tree is a directory when the index has paths under
+      // it. At a ref, the commit's tree is listed, which hashes nothing.
+      let directory = path === "";
+      if (!directory && read.ref === null) {
+        const st = await lstat(join(root, path)).catch(() => null);
+        directory = st === null ? await hasUnder(await indexed(), path) : st.isDirectory();
+      } else if (!directory) {
+        directory = await hasUnder(read.tree, path);
       }
-      decisions.push({ view, via: m.via });
-      listed.add(view.id);
+      if (directory) {
+        throw new UsageError(
+          `${given} is a directory; adr for takes file paths, for example adr for $(git ls-files ${given})`,
+        );
+      }
+      if (!paths.includes(path)) paths.push(path);
     }
-    decisions.sort((a, b) => compareFor(a.view, b.view));
-    unresolved.sort((a, b) => a.line - b.line);
+
+    const atRef = read.ref !== null && read.commit !== null;
+    const trackedIn = atRef ? read.tree : await indexed();
+    const tracked = new Set<string>();
+    for (const p of paths) {
+      if ((await trackedIn.list(p)).some((e) => e.path === p)) tracked.add(p);
+    }
+    const anchors = await scanAnchors(log.git, {
+      keyword: read.adr.anchorKeyword,
+      tree: atRef ? { commit: read.commit as string } : "worktree",
+      paths,
+      excludeDirs: [read.layout.root],
+      exclude: read.adr.anchorExclude,
+    });
+    const views = read.projection.views;
+    const lookup = scopeLookup({
+      subjects: [...views.values()]
+        .filter((v) => GLOBS_APPLY.has(v.status))
+        .map((v) => ({ id: v.id, globs: v.applies_to })),
+      anchors,
+    });
+
+    const listed = new Set<string>();
+    const out = paths.map((path) => {
+      const decisions: { view: DecisionView; via: readonly ScopeVia[] }[] = [];
+      const unresolved: UnresolvedAnchorJson[] = [];
+      for (const m of lookup(path)) {
+        const view = m.source === null ? views.get(m.id) : undefined;
+        if (view === undefined) {
+          for (const v of m.via) {
+            if (v.type !== "anchor") continue;
+            unresolved.push({
+              ref: m.source === null ? m.id : `${m.source}:${m.id}`,
+              line: v.line,
+              reason: m.source === null ? "not-found" : "other-log",
+            });
+          }
+          continue;
+        }
+        decisions.push({ view, via: m.via });
+        listed.add(view.id);
+      }
+      decisions.sort((a, b) => compareFor(a.view, b.view));
+      unresolved.sort((a, b) => a.line - b.line);
+      return {
+        path,
+        tracked: tracked.has(path),
+        decisions: decisions.map(
+          ({ view: v, via }): DecisionForJson => ({
+            id: v.id,
+            display: v.display,
+            title: v.title,
+            status: v.status,
+            effective: v.effective,
+            warning: stateHeader(v, read).warning,
+            via,
+          }),
+        ),
+        unresolved,
+      };
+    });
     return {
-      path,
-      tracked: tracked.has(path),
-      decisions: decisions.map(
-        ({ view: v, via }): DecisionForJson => ({
-          id: v.id,
-          display: v.display,
-          title: v.title,
-          status: v.status,
-          effective: v.effective,
-          warning: stateHeader(v, read).warning,
-          via,
-        }),
-      ),
-      unresolved,
+      format: "adr-for/v1",
+      root: read.root,
+      ref: read.ref,
+      commit: read.commit,
+      numbering: numberingJson(read),
+      paths: out,
+      findings: read.findings.filter((f) => f.subject === null || listed.has(f.subject)),
+      notes: listingNotes(read),
     };
   });
-  return {
-    format: "adr-for/v1",
-    root: read.root,
-    ref: read.ref,
-    commit: read.commit,
-    numbering: numberingJson(read),
-    paths: out,
-    findings: read.findings.filter((f) => f.subject === null || listed.has(f.subject)),
-    notes: listingNotes(read),
-  };
 }

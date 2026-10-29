@@ -20,6 +20,7 @@ import {
   stagedRenames,
   UsageError,
   uninstallHooks,
+  withGitOperation,
   writeIndexFile,
 } from "@nikovirtala/ledger";
 import { adrKind } from "./kind.js";
@@ -198,64 +199,66 @@ export async function runPreCommitHook(o: {
   readonly notes: readonly string[];
   readonly failOn: Severity;
 }> {
-  const { worktree, index, env } = o;
-  const config = index.adr;
-  const failOn = config.failOn;
-  const notes: string[] = [...index.notes];
-  const done = (exit: 0 | 1, findings: readonly Finding[]) => ({
-    exit,
-    findings,
-    notes: [...new Set(notes)],
-    failOn,
-  });
-  const safe = stagingSafe(index.git, env);
-
-  // 1. Renames, on the work-tree log.
-  if (config.scopeFollowRenames !== "off" && (await stagedRenames(worktree.git)).length > 0) {
-    const { actor, notes: attribution } = await resolveAttribution(worktree.git, { env });
-    if (config.scopeFollowRenames === "warn") {
-      const dry = await followScopeRenames(worktree, { actor }, { dryRun: true });
-      for (const v of dry.affected) {
-        notes.push(
-          `${v.display}'s globs don't follow the renames in this commit (scope_follow_renames = "warn"); run adr scope --follow-renames`,
-        );
-      }
-    } else if (safe) {
-      const doc = await followScopeRenames(
-        worktree,
-        { actor },
-        { index: "skip", notes: attribution },
-      );
-      notes.push(...doc.notes);
-      if (!doc.ok) return done(1, doc.findings);
-    } else {
-      const dry = await followScopeRenames(worktree, { actor }, { dryRun: true });
-      if (dry.affected.length > 0) {
-        notes.push(
-          `the renames in this commit change the scope of ${displays(dry.affected)}; git commit <paths> can't take the scoped events. Run adr scope --follow-renames, then commit again including the files it lists, or set [hooks] scope_follow_renames = "warn"`,
-        );
-        return done(1, []);
-      }
-    }
-  }
-
-  // 2. The index, on the index log: regenerated only with [hooks] index = "stage".
-  if (config.index === "committed" && config.hookIndex === "stage" && safe) {
-    const path = indexPath(index.layout);
-    const text = await renderDecisionIndex(index.git, {
-      layout: index.layout,
-      adr: config,
-      tree: index.tree,
-      history: await index.git.resolveCommit("HEAD"),
+  return withGitOperation(async () => {
+    const { worktree, index, env } = o;
+    const config = index.adr;
+    const failOn = config.failOn;
+    const notes: string[] = [...index.notes];
+    const done = (exit: 0 | 1, findings: readonly Finding[]) => ({
+      exit,
+      findings,
+      notes: [...new Set(notes)],
+      failOn,
     });
-    if (text !== null && !holdsText(await index.tree.read(path), text)) {
-      await writeIndexFile(index.git, path, text);
-      await index.git.add([path]);
-      notes.push(`regenerated and staged ${path}`);
-    }
-  }
+    const safe = stagingSafe(index.git, env);
 
-  // 3. verify --staged, which also reports a stale index.md in check mode.
-  const findings = await verifyDecisions(index, { type: "staged" });
-  return done(exitCode(findings, { failOn }), findings);
+    // 1. Renames, on the work-tree log.
+    if (config.scopeFollowRenames !== "off" && (await stagedRenames(worktree.git)).length > 0) {
+      const { actor, notes: attribution } = await resolveAttribution(worktree.git, { env });
+      if (config.scopeFollowRenames === "warn") {
+        const dry = await followScopeRenames(worktree, { actor }, { dryRun: true });
+        for (const v of dry.affected) {
+          notes.push(
+            `${v.display}'s globs don't follow the renames in this commit (scope_follow_renames = "warn"); run adr scope --follow-renames`,
+          );
+        }
+      } else if (safe) {
+        const doc = await followScopeRenames(
+          worktree,
+          { actor },
+          { index: "skip", notes: attribution },
+        );
+        notes.push(...doc.notes);
+        if (!doc.ok) return done(1, doc.findings);
+      } else {
+        const dry = await followScopeRenames(worktree, { actor }, { dryRun: true });
+        if (dry.affected.length > 0) {
+          notes.push(
+            `the renames in this commit change the scope of ${displays(dry.affected)}; git commit <paths> can't take the scoped events. Run adr scope --follow-renames, then commit again including the files it lists, or set [hooks] scope_follow_renames = "warn"`,
+          );
+          return done(1, []);
+        }
+      }
+    }
+
+    // 2. The index, on the index log: regenerated only with [hooks] index = "stage".
+    if (config.index === "committed" && config.hookIndex === "stage" && safe) {
+      const path = indexPath(index.layout);
+      const text = await renderDecisionIndex(index.git, {
+        layout: index.layout,
+        adr: config,
+        tree: index.tree,
+        history: await index.git.resolveCommit("HEAD"),
+      });
+      if (text !== null && !holdsText(await index.tree.read(path), text)) {
+        await writeIndexFile(index.git, path, text);
+        await index.git.add([path]);
+        notes.push(`regenerated and staged ${path}`);
+      }
+    }
+
+    // 3. verify --staged, which also reports a stale index.md in check mode.
+    const findings = await verifyDecisions(index, { type: "staged" });
+    return done(exitCode(findings, { failOn }), findings);
+  });
 }

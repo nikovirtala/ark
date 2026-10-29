@@ -30,6 +30,7 @@ import {
   holdsText,
   InvalidArgumentError,
   indexReader,
+  invalidateGitOperation,
   isSubjectId,
   joinActions,
   type LogLayout,
@@ -59,6 +60,7 @@ import {
   type TreeReader,
   templateHistoryRef,
   UsageError,
+  withGitOperation,
   withoutPaths,
   worktreeReader,
   writeEvents,
@@ -1974,105 +1976,107 @@ async function write(
   deps: WriteDeps,
   afterStage?: (plan: WritePlan, commit: boolean) => () => Promise<AfterStage>,
 ): Promise<WriteResultJson> {
-  if (log.ref !== null) {
-    throw new InvalidArgumentError("writes read the work tree; open the log without a ref");
-  }
-  if (log.tree.label !== "worktree") {
-    throw new InvalidArgumentError(
-      "writes read the work tree; open the log with the worktree reader",
-    );
-  }
-  const commit = o.commit ?? log.adr.autoCommit;
-  if (commit) await checkCommitIdentity(log);
-  const notes = [...log.notes, ...(o.notes ?? [])];
-  for (let attempt = 0; ; attempt++) {
-    const read = await readDecisions(log);
-    const ref = await templateHistoryRef(log.git, { type: "full" });
-    const c: PlanContext = {
-      now: deps.now,
-      ...(deps.random === undefined ? {} : { random: deps.random }),
-      templates: historyTemplates(log.git, log.tree, `${read.root}/templates`, { ref }),
-      builtins: BUILTIN_TEMPLATES,
-    };
-    const r = await plan(read, c);
-    if (!r.ok) {
-      return {
-        format: "adr-write/v1",
-        command,
-        ok: false,
-        decision: r.decision,
-        affected: [],
-        written: [],
-        commit: null,
-        findings: r.findings,
-        notes,
+  return withGitOperation(async () => {
+    if (log.ref !== null) {
+      throw new InvalidArgumentError("writes read the work tree; open the log without a ref");
+    }
+    if (log.tree.label !== "worktree") {
+      throw new InvalidArgumentError(
+        "writes read the work tree; open the log with the worktree reader",
+      );
+    }
+    const commit = o.commit ?? log.adr.autoCommit;
+    if (commit) await checkCommitIdentity(log);
+    const notes = [...log.notes, ...(o.notes ?? [])];
+    for (let attempt = 0; ; attempt++) {
+      const read = await readDecisions(log);
+      const ref = await templateHistoryRef(log.git, { type: "full" });
+      const c: PlanContext = {
+        now: deps.now,
+        ...(deps.random === undefined ? {} : { random: deps.random }),
+        templates: historyTemplates(log.git, log.tree, `${read.root}/templates`, { ref }),
+        builtins: BUILTIN_TEMPLATES,
       };
+      const r = await plan(read, c);
+      if (!r.ok) {
+        return {
+          format: "adr-write/v1",
+          command,
+          ok: false,
+          decision: r.decision,
+          affected: [],
+          written: [],
+          commit: null,
+          findings: r.findings,
+          notes,
+        };
+      }
+      const empty =
+        r.plan.events.length === 0 &&
+        Object.keys(r.plan.files).length === 0 &&
+        Object.keys(r.plan.replace ?? {}).length === 0;
+      if (empty || o.dryRun === true) {
+        return {
+          format: "adr-write/v1",
+          command,
+          ok: true,
+          decision: r.plan.decision,
+          affected: r.plan.affected,
+          written: [],
+          commit: null,
+          findings: r.plan.findings,
+          notes: [...notes, ...(r.plan.notes ?? [])],
+        };
+      }
+      if (commit && r.plan.commit === null) {
+        throw new InvalidArgumentError("this write can't be committed");
+      }
+      const given = o.message ?? null;
+      try {
+        const applied = await deps.apply(log, r.plan, {
+          commit,
+          ...(!commit
+            ? {}
+            : given !== null
+              ? { message: given, mergeTrailers: true }
+              : { compose: (c) => commitMessage(log, command, read, r.plan, c) }),
+          ...(afterStage === undefined ? {} : { afterStage: afterStage(r.plan, commit) }),
+          ...(log.adr.index === "committed" && o.index !== "skip"
+            ? {
+                index: (tree: TreeReader, history: string | null) =>
+                  renderDecisionIndex(log.git, { layout: log.layout, adr: log.adr, tree, history }),
+              }
+            : {}),
+        });
+        const views = await viewsAfter(log, r.plan, applied.commit);
+        const own = [
+          ...(r.plan.notes ?? []),
+          ...applied.notes,
+          ...(applied.commit !== null && applied.rendered?.note != null
+            ? [applied.rendered.note]
+            : []),
+        ];
+        return {
+          format: "adr-write/v1",
+          command,
+          ok: true,
+          decision: views.decision,
+          affected: views.affected,
+          written: applied.written,
+          commit: applied.commit,
+          findings: applied.findings,
+          notes: [...notes, ...own],
+        };
+      } catch (err) {
+        // A refused commit keeps the notes a successful write would report, before applyPlan's.
+        if (err instanceof CommitFailedError)
+          throw err.withNotes([...notes, ...(r.plan.notes ?? [])]);
+        // Another process wrote the same event path in the same instant: writeEvents removed this
+        // batch and applyPlan the new body and template, so plan again with a fresh clock, once.
+        if (!(err instanceof EventExistsError) || attempt > 0) throw err;
+      }
     }
-    const empty =
-      r.plan.events.length === 0 &&
-      Object.keys(r.plan.files).length === 0 &&
-      Object.keys(r.plan.replace ?? {}).length === 0;
-    if (empty || o.dryRun === true) {
-      return {
-        format: "adr-write/v1",
-        command,
-        ok: true,
-        decision: r.plan.decision,
-        affected: r.plan.affected,
-        written: [],
-        commit: null,
-        findings: r.plan.findings,
-        notes: [...notes, ...(r.plan.notes ?? [])],
-      };
-    }
-    if (commit && r.plan.commit === null) {
-      throw new InvalidArgumentError("this write can't be committed");
-    }
-    const given = o.message ?? null;
-    try {
-      const applied = await deps.apply(log, r.plan, {
-        commit,
-        ...(!commit
-          ? {}
-          : given !== null
-            ? { message: given, mergeTrailers: true }
-            : { compose: (c) => commitMessage(log, command, read, r.plan, c) }),
-        ...(afterStage === undefined ? {} : { afterStage: afterStage(r.plan, commit) }),
-        ...(log.adr.index === "committed" && o.index !== "skip"
-          ? {
-              index: (tree: TreeReader, history: string | null) =>
-                renderDecisionIndex(log.git, { layout: log.layout, adr: log.adr, tree, history }),
-            }
-          : {}),
-      });
-      const views = await viewsAfter(log, r.plan, applied.commit);
-      const own = [
-        ...(r.plan.notes ?? []),
-        ...applied.notes,
-        ...(applied.commit !== null && applied.rendered?.note != null
-          ? [applied.rendered.note]
-          : []),
-      ];
-      return {
-        format: "adr-write/v1",
-        command,
-        ok: true,
-        decision: views.decision,
-        affected: views.affected,
-        written: applied.written,
-        commit: applied.commit,
-        findings: applied.findings,
-        notes: [...notes, ...own],
-      };
-    } catch (err) {
-      // A refused commit keeps the notes a successful write would report, before applyPlan's.
-      if (err instanceof CommitFailedError)
-        throw err.withNotes([...notes, ...(r.plan.notes ?? [])]);
-      // Another process wrote the same event path in the same instant: writeEvents removed this
-      // batch and applyPlan the new body and template, so plan again with a fresh clock, once.
-      if (!(err instanceof EventExistsError) || attempt > 0) throw err;
-    }
-  }
+  });
 }
 
 const sameBytes = (a: Uint8Array, b: Uint8Array) =>
@@ -2104,6 +2108,8 @@ function editorStep(
     if (d === null) return { findings: null, commit: true };
     const abs = join(log.git.root ?? "", d.path);
     const note = await edit(abs);
+    // The editor may run other processes or wait on a person: drop what the operation cached.
+    invalidateGitOperation();
     const bytes = await readIfPresent(abs);
     let commit: boolean;
     if (bytes === null) {
@@ -2166,17 +2172,19 @@ export async function proposeDecision(
   } = {},
   deps: WriteDeps = DEFAULT_DEPS,
 ): Promise<WriteResultJson> {
-  return write(
-    log,
-    "new",
-    (read, c) =>
-      planPropose(read, input, c, {
-        refuseIncomplete: (o.commit ?? log.adr.autoCommit) && o.edit === undefined,
-      }),
-    o,
-    deps,
-    o.edit === undefined ? undefined : editorStep(log, o.edit, o.onNote),
-  );
+  return withGitOperation(async () => {
+    return write(
+      log,
+      "new",
+      (read, c) =>
+        planPropose(read, input, c, {
+          refuseIncomplete: (o.commit ?? log.adr.autoCommit) && o.edit === undefined,
+        }),
+      o,
+      deps,
+      o.edit === undefined ? undefined : editorStep(log, o.edit, o.onNote),
+    );
+  });
 }
 
 /**
@@ -2205,7 +2213,13 @@ export async function acceptDecision(
       const offer = scopeToCopy(read, id);
       if (offer.globs.length === 0) return plain;
       if (copy === null) {
-        copy = typeof copyScope === "function" ? await copyScope(offer) : copyScope === "copy";
+        if (typeof copyScope === "function") {
+          copy = await copyScope(offer);
+          // The callback may prompt a person or run other processes: drop what was cached.
+          invalidateGitOperation();
+        } else {
+          copy = copyScope === "copy";
+        }
       }
       if (copy) return planAccept(read, input, c, { copyGlobs: offer.globs, tracked });
       if (copyScope === "skip") return plain;
@@ -2331,21 +2345,23 @@ export async function updateDraft(
   o: WriteOptions = {},
   deps: WriteDeps = DEFAULT_DEPS,
 ): Promise<WriteResultJson> {
-  const read = await readDecisions(log);
-  const view = viewOf(read, resolveDecision(read, input.id));
-  if (view.body_path !== null && (await log.git.unstagedPaths([view.body_path])).length > 0) {
-    throw new UsageError(
-      `${view.body_path} has unstaged changes; stage or discard them, or edit the draft by hand`,
+  return withGitOperation(async () => {
+    const read = await readDecisions(log);
+    const view = viewOf(read, resolveDecision(read, input.id));
+    if (view.body_path !== null && (await log.git.unstagedPaths([view.body_path])).length > 0) {
+      throw new UsageError(
+        `${view.body_path} has unstaged changes; stage or discard them, or edit the draft by hand`,
+      );
+    }
+    return write(
+      log,
+      "update",
+      (read, c) =>
+        planUpdateDraft(read, input, c, { refuseIncomplete: o.commit ?? log.adr.autoCommit }),
+      o,
+      deps,
     );
-  }
-  return write(
-    log,
-    "update",
-    (read, c) =>
-      planUpdateDraft(read, input, c, { refuseIncomplete: o.commit ?? log.adr.autoCommit }),
-    o,
-    deps,
-  );
+  });
 }
 
 const FOLLOW_NO_COMMIT_NOTE =
@@ -2364,29 +2380,31 @@ export async function followScopeRenames(
   o: WriteOptions & { readonly dryRun?: boolean } = {},
   deps: WriteDeps = DEFAULT_DEPS,
 ): Promise<WriteResultJson> {
-  if (o.commit === true) {
-    throw new InvalidArgumentError("followScopeRenames never commits; don't pass commit: true");
-  }
-  if (o.message !== undefined && o.message !== null) {
-    throw new InvalidArgumentError("followScopeRenames never commits, so it takes no message");
-  }
-  const renames = await stagedRenames(log.git);
-  const staged: StagedRenames =
-    renames.length === 0
-      ? { renames, before: [], after: [] }
-      : {
-          renames,
-          before: await filePaths(await refReader(log.git, "HEAD")),
-          after: await filePaths(await indexReader(log.git)),
-        };
-  const doc = await write(
-    log,
-    "scope",
-    (read, c) => planFollowRenames(read, { id: input.id ?? null, actor: input.actor }, staged, c),
-    { ...o, commit: false },
-    deps,
-  );
-  return log.adr.autoCommit && doc.ok && doc.affected.length > 0
-    ? { ...doc, notes: [...doc.notes, FOLLOW_NO_COMMIT_NOTE] }
-    : doc;
+  return withGitOperation(async () => {
+    if (o.commit === true) {
+      throw new InvalidArgumentError("followScopeRenames never commits; don't pass commit: true");
+    }
+    if (o.message !== undefined && o.message !== null) {
+      throw new InvalidArgumentError("followScopeRenames never commits, so it takes no message");
+    }
+    const renames = await stagedRenames(log.git);
+    const staged: StagedRenames =
+      renames.length === 0
+        ? { renames, before: [], after: [] }
+        : {
+            renames,
+            before: await filePaths(await refReader(log.git, "HEAD")),
+            after: await filePaths(await indexReader(log.git)),
+          };
+    const doc = await write(
+      log,
+      "scope",
+      (read, c) => planFollowRenames(read, { id: input.id ?? null, actor: input.actor }, staged, c),
+      { ...o, commit: false },
+      deps,
+    );
+    return log.adr.autoCommit && doc.ok && doc.affected.length > 0
+      ? { ...doc, notes: [...doc.notes, FOLLOW_NO_COMMIT_NOTE] }
+      : doc;
+  });
 }
