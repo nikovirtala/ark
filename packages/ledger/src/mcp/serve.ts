@@ -14,6 +14,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import type { ValidateFunction } from "ajv/dist/2020.js";
 import { InvalidArgumentError, type JsonValue, LedgerError, UsageError } from "../errors.js";
+import { invalidateGitOperation, withNewGitOperation } from "../git/operation.js";
 import { renderStateHeader } from "../surfaces/header.js";
 import { errorResult, toolResult } from "./results.js";
 import type {
@@ -166,6 +167,9 @@ function listedTool(t: McpTool): Record<string, unknown> {
  */
 export async function serveMcp(spec: McpServerSpec, o: McpServeOptions = {}): Promise<void> {
   const { validators, templates } = checkSpec(spec);
+  // Each request runs in its own git operation, even under a CLI command's (`issues mcp`). End
+  // the outer operation's generation here, so its resident processes exit instead of idling.
+  invalidateGitOperation();
   const env = o.env ?? process.env;
   const stderr = o.stderr ?? process.stderr;
   const tools = new Map(spec.tools.map((t) => [t.name, t]));
@@ -199,28 +203,30 @@ export async function serveMcp(spec: McpServerSpec, o: McpServeOptions = {}): Pr
     tools: spec.tools.map(listedTool) as never,
   }));
   server.setRequestHandler(CallToolRequestSchema, (req) =>
-    queue.run(async () => {
-      const { name } = req.params;
-      const tool = tools.get(name);
-      if (tool === undefined) {
-        const reason = Object.hasOwn(unavailable, name) ? unavailable[name] : undefined;
-        throw new McpError(
-          ErrorCode.InvalidParams,
-          reason === undefined ? `unknown tool ${name}` : `${name} is not available: ${reason}`,
-        );
-      }
-      const input = (req.params.arguments ?? {}) as Record<string, JsonValue>;
-      const validate = validators.get(name);
-      if (validate !== undefined && !validate(input)) {
-        const message = formatInputErrors(tool, validate.errors ?? []);
-        return errorResult(new UsageError(message), fail);
-      }
-      try {
-        return toolResult(name, await tool.run(input, context()));
-      } catch (err) {
-        return errorResult(err, fail);
-      }
-    }),
+    queue.run(() =>
+      withNewGitOperation(async () => {
+        const { name } = req.params;
+        const tool = tools.get(name);
+        if (tool === undefined) {
+          const reason = Object.hasOwn(unavailable, name) ? unavailable[name] : undefined;
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            reason === undefined ? `unknown tool ${name}` : `${name} is not available: ${reason}`,
+          );
+        }
+        const input = (req.params.arguments ?? {}) as Record<string, JsonValue>;
+        const validate = validators.get(name);
+        if (validate !== undefined && !validate(input)) {
+          const message = formatInputErrors(tool, validate.errors ?? []);
+          return errorResult(new UsageError(message), fail);
+        }
+        try {
+          return toolResult(name, await tool.run(input, context()));
+        } catch (err) {
+          return errorResult(err, fail);
+        }
+      }),
+    ),
   );
 
   if (resources.length > 0 || resourceTemplates.length > 0) {
@@ -243,29 +249,31 @@ export async function serveMcp(spec: McpServerSpec, o: McpServeOptions = {}): Pr
       })),
     }));
     server.setRequestHandler(ReadResourceRequestSchema, (req) =>
-      queue.run(async () => {
-        const { uri } = req.params;
-        const notFound = () => new McpError(RESOURCE_NOT_FOUND, `resource not found: ${uri}`);
-        let content: McpResourceContent | null = null;
-        let mimeType = "";
-        try {
-          const exact = resources.find((r) => r.uri === uri);
-          if (exact !== undefined) {
-            mimeType = exact.mimeType;
-            content = await exact.read(context());
-          } else {
-            const i = templates.findIndex((t) => t.match(uri) !== null);
-            const template = resourceTemplates[i];
-            if (template === undefined) throw notFound();
-            mimeType = template.mimeType;
-            content = await template.read(templates[i]?.match(uri) ?? {}, context());
+      queue.run(() =>
+        withNewGitOperation(async () => {
+          const { uri } = req.params;
+          const notFound = () => new McpError(RESOURCE_NOT_FOUND, `resource not found: ${uri}`);
+          let content: McpResourceContent | null = null;
+          let mimeType = "";
+          try {
+            const exact = resources.find((r) => r.uri === uri);
+            if (exact !== undefined) {
+              mimeType = exact.mimeType;
+              content = await exact.read(context());
+            } else {
+              const i = templates.findIndex((t) => t.match(uri) !== null);
+              const template = resourceTemplates[i];
+              if (template === undefined) throw notFound();
+              mimeType = template.mimeType;
+              content = await template.read(templates[i]?.match(uri) ?? {}, context());
+            }
+          } catch (err) {
+            throw requestError(err, fail);
           }
-        } catch (err) {
-          throw requestError(err, fail);
-        }
-        if (content === null) throw notFound();
-        return { contents: [{ uri, mimeType, text: resourceText(content) }] };
-      }),
+          if (content === null) throw notFound();
+          return { contents: [{ uri, mimeType, text: resourceText(content) }] };
+        }),
+      ),
     );
   }
   if (prompts.length > 0) {
@@ -278,23 +286,25 @@ export async function serveMcp(spec: McpServerSpec, o: McpServeOptions = {}): Pr
       })),
     }));
     server.setRequestHandler(GetPromptRequestSchema, (req) =>
-      queue.run(async () => {
-        const prompt = prompts.find((p) => p.name === req.params.name);
-        if (prompt === undefined) {
-          throw new McpError(ErrorCode.InvalidParams, `unknown prompt ${req.params.name}`);
-        }
-        const args = promptArguments(prompt, req.params.arguments);
-        let text: string;
-        try {
-          text = await prompt.get(args, context());
-        } catch (err) {
-          throw requestError(err, fail);
-        }
-        return {
-          description: prompt.description,
-          messages: [{ role: "user" as const, content: { type: "text" as const, text } }],
-        };
-      }),
+      queue.run(() =>
+        withNewGitOperation(async () => {
+          const prompt = prompts.find((p) => p.name === req.params.name);
+          if (prompt === undefined) {
+            throw new McpError(ErrorCode.InvalidParams, `unknown prompt ${req.params.name}`);
+          }
+          const args = promptArguments(prompt, req.params.arguments);
+          let text: string;
+          try {
+            text = await prompt.get(args, context());
+          } catch (err) {
+            throw requestError(err, fail);
+          }
+          return {
+            description: prompt.description,
+            messages: [{ role: "user" as const, content: { type: "text" as const, text } }],
+          };
+        }),
+      ),
     );
   }
 

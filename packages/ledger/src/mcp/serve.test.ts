@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
@@ -9,6 +10,13 @@ import {
   type JsonValue,
   UsageError,
 } from "../errors.js";
+import {
+  currentGitOperation,
+  type GitOperation,
+  liveResidentCount,
+  withGitOperation,
+} from "../git/operation.js";
+import { createTempRepo } from "../testing/temp-repo.js";
 import { serveMcp } from "./serve.js";
 import type {
   McpPrompt,
@@ -428,5 +436,72 @@ describe("serveMcp prompts", () => {
     const err = await mcpError(client.getPrompt({ name, arguments: args }));
     expect(err.code).toBe(-32602);
     expect(err.message).toContain(message);
+  });
+});
+
+describe("serveMcp git operations", () => {
+  // `issues mcp` and `adr mcp` run the server inside runCli's git operation. The client calls
+  // are made inside that operation too, because InMemoryTransport hands messages over
+  // synchronously, so the handlers run in the sender's async context, as stdio requests do
+  // under runCli. A server whose requests joined the outer operation would fail here.
+  it("runs each request in its own operation and retires the outer one's residents", async () => {
+    const r = await createTempRepo({ files: { "a.txt": "a\n" } });
+    open.push(() => r.dispose());
+    await r.git.run(["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    await r.git.run(["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"]);
+    const seen: { op: GitOperation | null; outerResidents: number | undefined }[] = [];
+    let outer = null as GitOperation | null;
+    const head: McpTool = {
+      name: "t_head",
+      description: "Returns origin/HEAD's target.",
+      inputSchema: { type: "object", additionalProperties: false },
+      run: async () => {
+        seen.push({ op: currentGitOperation(), outerResidents: outer?.residentCount });
+        const target = await r.git.symbolicRef("refs/remotes/origin/HEAD");
+        return { document: { target }, headers: [], text: String(target) };
+      },
+    };
+    const env: Record<string, string> = {};
+    for (const [k, v] of Object.entries({ ...process.env, ...r.env })) {
+      if (v !== undefined) env[k] = v;
+    }
+    const targets: unknown[] = [];
+    await withGitOperation(async () => {
+      outer = currentGitOperation();
+      await r.git.resolveCommit("HEAD"); // the outer operation now holds a resident
+      expect(liveResidentCount()).toBe(1);
+      expect(outer?.residentCount).toBe(1);
+      const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+      const served = serveMcp(
+        { name: "t", version: "1.2.3", tools: [head] },
+        { transport: serverSide },
+      );
+      const client = new Client({ name: "test-client", version: "9.9.9" });
+      await client.connect(clientSide);
+      const call = () => client.callTool({ name: "t_head", arguments: {} });
+      targets.push((await call()).structuredContent);
+      // Outside any operation, as a user's terminal would.
+      execFileSync("git", ["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/x"], {
+        cwd: r.root,
+        env,
+      });
+      targets.push((await call()).structuredContent);
+      await client.close();
+      await served;
+    });
+    expect(targets).toEqual([
+      { target: "refs/remotes/origin/main" },
+      { target: "refs/remotes/origin/x" },
+    ]);
+    expect(seen).toHaveLength(2);
+    const [a, b] = seen;
+    expect(a?.op).not.toBeNull();
+    expect(b?.op).not.toBeNull();
+    expect(a?.op).not.toBe(outer);
+    expect(b?.op).not.toBe(outer);
+    expect(a?.op).not.toBe(b?.op);
+    // serveMcp's invalidateGitOperation() on entry retired the outer operation's resident.
+    expect(seen.map((s) => s.outerResidents)).toEqual([0, 0]);
+    expect(liveResidentCount()).toBe(0);
   });
 });
