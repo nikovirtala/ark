@@ -15,6 +15,7 @@
 | ?18 | [Say which field matched when a search result has no excerpt](items/1fgqfkf3-say-which-field-matched-when-a-search-result-has-no-excerpt.md) |  |  | 2026-10-28 |
 | ?19 | [Test the remaining Table B cells of the issues mcp writes](items/exnj9tym-test-the-remaining-table-b-cells-of-the-issues-mcp-writes.md) |  | type:test | 2026-10-29 |
 | ?21 | [Keep every test file under its package's per-worker share](items/7n5e4nkf-keep-every-test-file-under-its-packages-per-worker-share.md) |  |  | 2026-10-29 |
+| ?22 | [Run each package's tests in its own CI job](items/bd0nsd5s-run-each-packages-tests-in-its-own-ci-job.md) |  |  | 2026-10-29 |
 
 ## Open
 
@@ -37,4 +38,4 @@
 | ?15 | [Add the write side of issues mcp](items/516asy8r-add-the-write-side-of-issues-mcp.md) |  |  | 2026-10-29 |
 | ?17 | [Ask the installed git whether a -m message ends in trailers](items/f3my0702-ask-the-installed-git-whether-a-m-message-ends-in-trailers.md) |  |  | 2026-10-28 |
 
-<!-- ledger-index/v1 numbers: 65qt4pp3=1 pcmzc2dz=2 1w06qws8=3 6930v8w9=4 f4f25st2=5 jdpc6bn7=6 m5xh8bkd=7 cqpzxvcs=8 984qb8rg=9 wy4r966a=10 vpq5v23q=11 3gyr85xq=12 0megpv2e=13 qy2ch92c=14 516asy8r=15 s3v2jada=16 f3my0702=17 1fgqfkf3=18 exnj9tym=19 wedm13pe=20 7n5e4nkf=21 -->
+<!-- ledger-index/v1 numbers: 65qt4pp3=1 pcmzc2dz=2 1w06qws8=3 6930v8w9=4 f4f25st2=5 jdpc6bn7=6 m5xh8bkd=7 cqpzxvcs=8 984qb8rg=9 wy4r966a=10 vpq5v23q=11 3gyr85xq=12 0megpv2e=13 qy2ch92c=14 516asy8r=15 s3v2jada=16 f3my0702=17 1fgqfkf3=18 exnj9tym=19 wedm13pe=20 7n5e4nkf=21 bd0nsd5s=22 -->
