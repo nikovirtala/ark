@@ -8,6 +8,7 @@ import {
   InvalidArgumentError,
   NotARepositoryError,
 } from "../errors.js";
+import { currentGitOperation, isReadOnlyGitCommand, type SpawnSpec, specKey } from "./operation.js";
 
 export interface GitOptions {
   /** The git executable, default `"git"`. */
@@ -179,6 +180,26 @@ function spawnGit(
   });
 }
 
+/** What `git.run(args)` spawns: binary, argv with the fixed prefix, cwd and merged environment. */
+export function spawnSpec(git: Git, args: readonly string[], env?: NodeJS.ProcessEnv): SpawnSpec {
+  return {
+    binary: git.options.binary ?? "git",
+    argv: [...(git.root === null ? [`--git-dir=${git.gitDir}`] : []), ...READ_SAFETY, ...args],
+    cwd: git.root ?? git.gitDir,
+    env: mergeEnv(git.options.env, env),
+  };
+}
+
+/**
+ * `compute()`, memoized by `name` for the current git operation generation and `git`'s spawn
+ * spec; outside an operation, `compute()` each time. Internal.
+ */
+export function operationMemo<T>(git: Git, name: string, compute: () => Promise<T>): Promise<T> {
+  const op = currentGitOperation();
+  if (op === null) return compute();
+  return op.memo(`${specKey(spawnSpec(git, []))}\0${name}`, compute);
+}
+
 const versionCache = new Map<string, Promise<void>>();
 
 /** Runs `git version` once per binary; the promise is shared and evicted when it rejects. */
@@ -246,14 +267,12 @@ export class Git {
   readonly root: string | null;
   readonly gitDir: string;
   readonly commonDir: string;
-  readonly #prefix: readonly string[];
 
   private constructor(options: GitOptions, root: string | null, gitDir: string, commonDir: string) {
     this.options = options;
     this.root = root;
     this.gitDir = gitDir;
     this.commonDir = commonDir;
-    this.#prefix = root === null ? [`--git-dir=${gitDir}`] : [];
   }
 
   /** Opens the repository containing `cwd`. It must have a work tree. */
@@ -306,7 +325,14 @@ export class Git {
     const abs = resolve(dir);
     await mkdir(dirname(abs), { recursive: true });
     const args = ["init", "--bare", "-q", "--", abs];
-    const r = await spawnGit(binary, args, { cwd: dirname(abs), env: mergeEnv(opts.env) });
+    const op = currentGitOperation();
+    op?.endGeneration();
+    let r: SpawnResult;
+    try {
+      r = await spawnGit(binary, args, { cwd: dirname(abs), env: mergeEnv(opts.env) });
+    } finally {
+      op?.endGeneration();
+    }
     if (r.code !== 0) {
       throw new GitError(`git init failed: ${r.stderr.trim()}`, {
         args,
@@ -317,16 +343,28 @@ export class Git {
     return Git.openGitDir(abs, opts);
   }
 
-  /** Runs git with the output-format overrides; throws `GitError` outside `okCodes`. */
+  /**
+   * Runs git with the output-format overrides; throws `GitError` outside `okCodes`. Inside a git
+   * operation, a command that can change HEAD, a ref or the index ends the operation's generation
+   * before it starts and again when it finishes.
+   */
   async run(args: readonly string[], o: RunOptions = {}): Promise<RunResult> {
-    const binary = this.options.binary ?? "git";
-    const spawnOpts: Parameters<typeof spawnGit>[2] = {
-      cwd: this.root ?? this.gitDir,
-      env: mergeEnv(this.options.env, o.env),
-    };
+    const op = currentGitOperation();
+    if (op === null || isReadOnlyGitCommand(args)) return this.#run(args, o);
+    op.endGeneration();
+    try {
+      return await this.#run(args, o);
+    } finally {
+      op.endGeneration();
+    }
+  }
+
+  async #run(args: readonly string[], o: RunOptions): Promise<RunResult> {
+    const spec = spawnSpec(this, args, o.env);
+    const spawnOpts: Parameters<typeof spawnGit>[2] = { cwd: spec.cwd, env: { ...spec.env } };
     if (o.input !== undefined) spawnOpts.input = o.input;
     if (o.timeoutMs !== undefined) spawnOpts.timeoutMs = o.timeoutMs;
-    const r = await spawnGit(binary, [...this.#prefix, ...READ_SAFETY, ...args], spawnOpts);
+    const r = await spawnGit(spec.binary, spec.argv, spawnOpts);
     if (r.timedOut) {
       throw new GitError(`git ${args[0] ?? ""} timed out after ${o.timeoutMs} ms`, {
         code: "git-timeout",
@@ -366,13 +404,19 @@ export class Git {
   /** The ref a symbolic ref points to (`refs/remotes/origin/HEAD` → `refs/remotes/origin/main`), or `null`. */
   async symbolicRef(ref: string): Promise<string | null> {
     assertRev(ref);
-    const r = await this.run(["symbolic-ref", "-q", "--end-of-options", ref], { okCodes: [0, 1] });
-    return r.code === 0 ? (lines(r.stdout)[0] ?? null) : null;
+    return operationMemo(this, `symbolic-ref\0${ref}`, async () => {
+      const r = await this.run(["symbolic-ref", "-q", "--end-of-options", ref], {
+        okCodes: [0, 1],
+      });
+      return r.code === 0 ? (lines(r.stdout)[0] ?? null) : null;
+    });
   }
 
   async isShallow(): Promise<boolean> {
-    const r = await this.run(["rev-parse", "--is-shallow-repository"]);
-    return lines(r.stdout)[0] === "true";
+    return operationMemo(this, "is-shallow", async () => {
+      const r = await this.run(["rev-parse", "--is-shallow-repository"]);
+      return lines(r.stdout)[0] === "true";
+    });
   }
 
   async objectFormat(): Promise<"sha1" | "sha256"> {

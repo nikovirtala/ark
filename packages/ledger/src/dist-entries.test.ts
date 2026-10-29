@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 
 // Loads the built entries, as a consumer of the package would.
@@ -102,6 +102,14 @@ describe("built entries", () => {
     out.length = 0;
     expect(await cli.runCli(tool, { ...io, argv: ["--json", "nope"] })).toBe(2);
     expect(JSON.parse(out.join("")).error.code).toBe("usage");
+  });
+
+  it("share one git operation store across the entries", () => {
+    const js = readdirSync(dist(".")).filter((f) => f.endsWith(".js"));
+    const holders = js.filter((f) =>
+      readFileSync(dist(f), "utf8").includes("new AsyncLocalStorage("),
+    );
+    expect(holders).toHaveLength(1);
   });
 });
 

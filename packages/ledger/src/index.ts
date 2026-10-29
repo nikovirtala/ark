@@ -90,6 +90,7 @@ export {
   firstParentHistory,
   parseTrailerBlock,
 } from "./git/history.js";
+export { invalidateGitOperation, withGitOperation } from "./git/operation.js";
 export {
   indexReader,
   MemoryTree,
