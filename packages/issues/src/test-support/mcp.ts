@@ -77,6 +77,32 @@ export async function mcpRepo(
   return { r, ids: { a, b, c, d, e } };
 }
 
+/** The issues of `writeRepo`: `mcpRepo`'s, and three more. */
+export interface WriteIssues extends McpIssues {
+  /** ?6 "Drop IE11 support": closed as wontfix, "no users left". */
+  readonly f: string;
+  /** ?7 "Split the auth module": open, the parent of ?8. */
+  readonly g: string;
+  /** ?8 "Move session code": open, part of ?7. */
+  readonly h: string;
+}
+
+/**
+ * `mcpRepo` with an issue in every state the write tools distinguish (design §7.3): open (e),
+ * open and blocked (c), in progress (a), closed done (d), closed wontfix (f), closed duplicate
+ * (b), and open with an open child (g).
+ */
+export async function writeRepo(
+  files: Readonly<Record<string, string>> = {},
+): Promise<{ r: TempRepo; ids: WriteIssues }> {
+  const { r, ids } = await mcpRepo(files);
+  const f = newIssue(r, "Drop IE11 support");
+  cli(r, ["close", f, "--resolution", "wontfix", "--reason", "no users left", "--commit"]);
+  const g = newIssue(r, "Split the auth module");
+  const h = newIssue(r, "Move session code", ["--parent", g]);
+  return { r, ids: { ...ids, f, g, h } };
+}
+
 /** The `McpError` `p` rejects with. */
 export async function mcpError(p: Promise<unknown>): Promise<McpError> {
   const err = await p.then(

@@ -4,9 +4,10 @@ import { openIssueLog } from "../log.js";
 import { readTools } from "./read-tools.js";
 import { indexResource, issueResource, readyResource } from "./resources.js";
 import type { IssuesMcpEnv } from "./tools.js";
+import { writeTools } from "./write-tools.js";
 
 export const INSTRUCTIONS =
-  "Issues in this repository are tracked with issues. Issue files don't show their state: read issues with issues_get or issues://issue/{id}, find work with issues_ready, issues_search and issues_for_path.";
+  "Issues in this repository are tracked with issues. Issue files don't show their state: read issues with issues_get or issues://issue/{id}, find work with issues_ready, issues_search and issues_for_path, start it with issues_start, and record progress with issues_comment. Close an issue only when every Done when condition is met, with a reason saying how.";
 
 /**
  * `issues mcp` (design §4.2): checks `ARK_ON_BEHALF_OF` and opens the log first, so a bad
@@ -28,7 +29,7 @@ export async function serveIssuesMcp(o: {
       name: "issues",
       version: o.version,
       instructions: INSTRUCTIONS,
-      tools: readTools(e),
+      tools: [...readTools(e), ...writeTools(e)],
       resources: [indexResource(e), readyResource(e)],
       resourceTemplates: [issueResource(e)],
     },

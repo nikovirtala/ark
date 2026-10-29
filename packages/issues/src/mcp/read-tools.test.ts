@@ -34,11 +34,11 @@ const read = async (r: TempRepo, ref: string | null = null) =>
   readIssues(await openIssueLog({ cwd: r.root, ref, gitOptions: { env: r.env } }));
 
 describe("issues mcp read tools", { timeout: 60_000 }, () => {
-  it("lists the read tools, and every schema refuses a wrong type and an extra property", async () => {
+  it("lists the read tools first, and every schema refuses a wrong type and an extra property", async () => {
     const r = await cliRepo();
     repos.push(r);
     const client = await connect(r);
-    const tools = (await client.listTools()).tools;
+    const tools = (await client.listTools()).tools.slice(0, 6);
     expect(tools.map((t) => t.name)).toEqual([
       "issues_search",
       "issues_get",
