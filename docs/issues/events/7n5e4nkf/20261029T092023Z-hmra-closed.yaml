@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M63FBR3QD6DVKSYDSTPDHMRA
+subject: 7n5e4nkf
+type: closed
+at: 2026-10-29T09:20:23Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: '(1) scripts/check-test-durations.mjs lists every test file that takes longer than its package''s summed file time divided by the worker count (files under 10s always pass); pnpm test:durations runs it, and AGENTS.md''s "Test file durations" says how to run it and how to split a file that breaks it. (2) On 8 cores (7 workers) no file breaks it: adr''s longest file takes 56s against a 105s share, issues'' 66s against 139s, ledger''s 9s against 10s. issues/src/write.index.test.ts became write.index.pre1–pre8, .failures and .property (52s together instead of 255s), and adr/src/cli/index-invariant.test.ts one file per precondition plus .property (28s instead of 108s), with the same tests passing and skipped. (3) pnpm test went from 398s (ledger 13s, adr 131s, issues 254s) to 271s (13s, 111s, 146s) on the same machine'
+data:
+  resolution: done
