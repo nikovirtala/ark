@@ -1,4 +1,4 @@
-import { isMap, LineCounter, parseDocument, stringify, visit } from "yaml";
+import { isMap, LineCounter, parseDocument, Scalar, stringify, type Tags, visit } from "yaml";
 import { type Finding, finding } from "../findings/finding.js";
 import { ACTOR_KEYS, ENVELOPE_KEYS, type EventEnvelope, unknownFields } from "./types.js";
 
@@ -11,6 +11,8 @@ export type ParseResult =
 
 const encoder = new TextEncoder();
 const NULLABLE_ACTOR_KEYS = ["email", "agent", "on_behalf_of"] as const;
+const STR_TAG = "tag:yaml.org,2002:str";
+const BOM = "\uFEFF";
 
 function isMapping(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -116,7 +118,49 @@ function canonicalActor(actor: Record<string, unknown>): Record<string, unknown>
   return Object.fromEntries(entries);
 }
 
-/** YAML for `canonicalEvent(e)`, ending with a newline. */
+/** A one-line double-quoted scalar with no escapes other than `\"`. */
+const ONLY_QUOTE_ESCAPES = /^"(?:[^"\\\n]|\\")*"$/;
+/** An empty first line, two or more trailing newlines, or a line of only spaces and tabs. */
+const BLANK_LINES = /^\n|\n\n$|(?:^|\n)[ \t]+(?:\n|$)/;
+/** Unicode whitespace that YAML doesn't count as whitespace, at the start or end. */
+const EDGE_SPACE = /^[^\S\t\n ]|[^\S\t\n ]$/u;
+
+/** Whether yaml's form of `value` is one biome would change, so it gets double quotes. */
+function needsDoubleQuotes(value: string): boolean {
+  return value.includes(BOM) || EDGE_SPACE.test(value) || BLANK_LINES.test(value);
+}
+
+/**
+ * yaml's string tag, written the way `biome format` leaves it. yaml's form stays, except:
+ * - A string with `BLANK_LINES` is quoted, with `\n` escapes. As a block scalar, biome would
+ *   strip the whitespace of such a line or drop a trailing empty line, and yaml writes `" \n"` as
+ *   a block that reads back as `"\n"`.
+ * - A string with `EDGE_SPACE` is quoted: biome trims that whitespace off a plain scalar.
+ * - A string with U+FEFF is double-quoted with that character escaped: YAML allows a byte order
+ *   mark only at the start of a stream, and yaml writes it as it is.
+ * - A double-quoted scalar with only `\"` escapes is single-quoted, as biome writes it.
+ */
+function biomeStrings(tags: Tags): Tags {
+  return tags.map((tag) => {
+    if (typeof tag !== "object" || tag.tag !== STR_TAG || tag.stringify === undefined) return tag;
+    const stringifyStr = tag.stringify;
+    return {
+      ...tag,
+      stringify(item, ctx, onComment, onChompKeep) {
+        let scalar = item;
+        if (typeof item.value === "string" && needsDoubleQuotes(item.value)) {
+          scalar = new Scalar(item.value);
+          scalar.type = Scalar.QUOTE_DOUBLE;
+        }
+        const text = stringifyStr(scalar, ctx, onComment, onChompKeep).replaceAll(BOM, "\\uFEFF");
+        if (!text.includes('\\"') || !ONLY_QUOTE_ESCAPES.test(text)) return text;
+        return `'${text.slice(1, -1).replaceAll('\\"', '"').replaceAll("'", "''")}'`;
+      },
+    };
+  });
+}
+
+/** YAML for `canonicalEvent(e)`, ending with a newline, formatted as `biome format` would. */
 export function serializeEvent(e: EventEnvelope | Record<string, unknown>): string {
-  return stringify(canonicalEvent(e), { lineWidth: 0, nullStr: "null" });
+  return stringify(canonicalEvent(e), { lineWidth: 0, nullStr: "null", customTags: biomeStrings });
 }
