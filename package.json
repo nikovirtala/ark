@@ -12,6 +12,7 @@
     "lint": "biome check . && node scripts/check-test-inputs.mjs",
     "format": "biome check --write .",
     "test": "pnpm -r run test",
+    "test:durations": "node scripts/check-test-durations.mjs",
     "check": "pnpm lint && pnpm build && pnpm test",
     "check:commit": "scripts/check-commit.sh",
     "clean": "pnpm -r run clean",
