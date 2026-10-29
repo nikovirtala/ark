@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ConfigError, type JsonValue } from "../errors.js";
+import { currentGitOperation, type GitOperation } from "../git/operation.js";
 import type { CliIO } from "./output.js";
 import { type CommandSpec, type Outcome, runCli, type ToolCli } from "./run.js";
 
@@ -288,5 +289,22 @@ describe("runCli outcomes", () => {
 
   it("exits 0 on success", async () => {
     expect((await call(["show", "x"])).code).toBe(0);
+  });
+});
+
+describe("runCli git operation", () => {
+  it("runs the command in a git operation and closes it after", async () => {
+    let seen = null as GitOperation | null;
+    const op = command({
+      name: "op",
+      run: async (ctx) => {
+        seen = currentGitOperation();
+        return echo(ctx);
+      },
+    });
+    expect((await call(["op"], { ...TOOL, commands: [op] })).code).toBe(0);
+    expect(seen).not.toBeNull();
+    expect(seen?.closed).toBe(true);
+    expect(currentGitOperation()).toBeNull();
   });
 });

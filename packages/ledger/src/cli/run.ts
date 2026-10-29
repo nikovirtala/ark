@@ -6,6 +6,7 @@ import {
   LedgerError,
   UsageError,
 } from "../errors.js";
+import { withGitOperation } from "../git/operation.js";
 import {
   GLOBAL_OPTIONS,
   type GlobalFlags,
@@ -267,7 +268,7 @@ export async function runCli(tool: ToolCli, io: CliIO): Promise<0 | 1 | 2> {
     const own: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(values)) if (!Object.hasOwn(GLOBAL_OPTIONS, k)) own[k] = v;
 
-    const outcome = await spec.run({ io, flags, values: own, positionals });
+    const outcome = await withGitOperation(() => spec.run({ io, flags, values: own, positionals }));
     if (json) {
       io.stdout.write(`${JSON.stringify(outcome.json, null, 2)}\n`);
     } else if (outcome.text !== "") {
