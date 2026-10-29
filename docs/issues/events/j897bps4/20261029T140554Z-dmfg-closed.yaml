@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M63ZPJBQNXP4F9GK511JDMFG
+subject: j897bps4
+type: closed
+at: 2026-10-29T14:05:54Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "Startup: median of 30 interleaved --help runs on the same shared machine, before (fee531f) and after (b1ed1bd) back to back. issues --help went from 151.7ms to 74.9ms (76.8ms faster) and adr --help from 128.8ms to 71.7ms (57.1ms faster), both past the 50ms target. An uncompilable schema still fails a test: the adr and issues kind tests call compileAll(), which compiles every data schema, and ledger kind.test.ts covers the strict-mode cases through compileAll() and checks that a bad type throws on its first validation. PR #38 closes the issue and lists the times before and after."
+data:
+  resolution: done
