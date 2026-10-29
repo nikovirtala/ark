@@ -1,0 +1,15 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M64M23379Z4MP8QW9KRZJF4N
+subject: 688fexss
+type: commented
+at: 2026-10-29T20:01:44Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  text: "PR 2 (#46) runs every adr and issues entry point, CLI command and MCP request in one git operation. comment × 1 now spawns 235 git processes (338 after PR 1, 428 at the start): rev-parse 41, cat-file 21, symbolic-ref 12, hash-object 40. PR 3 (history and tree memo, resident hash-object) is still needed for the 214 target."
