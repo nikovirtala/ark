@@ -208,6 +208,17 @@ An agent using the CLI sets `ARK_AGENT=<agent-id>`, and `ARK_ON_BEHALF_OF=<email
 
 Agents may close issues they finished, unlike accepting decisions, because a closed issue reopens. An agent's `closed` event must have a reason saying how the issue's Done when conditions were met (`issue/agent-reason-required`). With `close_requires_human = true` or `mcp_can_close = false`, an agent's close is refused with exit 1 (`issue/agent-closed`). These are rules of the log: `verify` checks every applied close, so after you turn either key on, a full `verify` reports earlier agent closes too, while `verify --base` reports only the issues a change touches.
 
+Over MCP, every write is an agent's. `issues mcp` reads `[policy]` when it starts to decide whether it lists `issues_close`:
+
+| `mcp_can_close` | `close_requires_human` | `issues_close` | At startup |
+| --- | --- | --- | --- |
+| `true` (the default) | `false` (the default) | listed | |
+| `true` | `true` | listed; every call is refused (`issue/agent-closed`) | stderr: `issues: warning: issues_close refuses agents while [policy] close_requires_human is true` |
+| `false` | `false` | not listed; a call is a JSON-RPC −32602 error naming the key and the config file | |
+| `false` | `true` | not listed, as above | |
+
+The tool list is fixed at startup, so after turning `mcp_can_close` on, restart `issues mcp` before `issues_close` is listed. Every other change applies to the next call, because each call reads `issues.toml` again: turning `mcp_can_close` off or `close_requires_human` on makes the next `issues_close` an `ok: false` result with `issue/agent-closed`, and turning `close_requires_human` off lets the next close through. No tool reopens: `issues_reopen` answers −32602 saying that reopening is left to people, and an agent explains with `issues_comment` why an issue should be reopened. The CLI still lets agents reopen.
+
 ## MCP server
 
 `issues mcp` serves the issue log to agents over stdio, in the repository it starts in (`--root` works as for every command). Add it to your MCP client's server config:
@@ -235,11 +246,26 @@ Set `ARK_ON_BEHALF_OF` in that `env`: stdio clients pass only a few environment 
 | `issues_for_path` (`paths`, relative to the repository root) | `issues for <path>…` (`issues-for/v1`) |
 | `issues_templates` | `issues-templates/v1`: each template's sections, required or not, with guidance |
 
+| Write tool | Same `issues-write/v1` document as |
+| --- | --- |
+| `issues_open` (`title`, `template`, `sections`, `labels`, `parent`, `depends_on`) | `issues new` with `--section` for each section |
+| `issues_update` (`id`, `title`, `sections`) | `issues edit <id> --title/--section` |
+| `issues_comment` (`id`, `text`) | `issues comment` |
+| `issues_start` (`id`) | `issues start` |
+| `issues_stop` (`id`, `reason`) | `issues stop` |
+| `issues_close` (`id`, `resolution`, `reason`, `of`) | `issues close [--resolution] [--duplicate-of]`; listed per `[policy]` (see Agents) |
+| `issues_link`, `issues_unlink` (`id`, `to`, `rel`) | `issues link`, `issues unlink` |
+| `issues_label`, `issues_assign`, `issues_scope` (`id`, `set`, `add`, `remove`) | `issues label`, `issues assign`, `issues scope` |
+
 - Every tool returns that JSON document as `structuredContent`, with a readable text. Errors (invalid input, an unknown issue, a log that can't be read) are `isError` results with `ark-error/v1`.
 - Every response that shows an issue's description leads with its state header. A duplicate's names the issue to work on instead and where to read it (`DUPLICATE of ?1 (in-progress). Track work on ?1; read issues://issue/1.`); a blocked issue's lists its open blockers.
 - Resources: `issues://index` (the table `index.md` holds), `issues://ready` (the ready list) and `issues://issue/{id}`, one issue's state header and description. `{id}` is the id, the number (`42`, `0042`) or `%3F42` for `?42`: a literal `?` starts a URI's query, so `issues://issue/?42` names no issue.
 - `source` reads a `[[sources]]` issue log from the local cache only, as `verify` does; run `issues sources fetch` to update it.
 - Each call reads the log again, so edits, pulls and `issues.toml` changes apply to the next call.
+- Writes are recorded as an agent named by the MCP client (else `ARK_AGENT`, else `mcp-client`, with a note), acting on behalf of `ARK_ON_BEHALF_OF`; without it, on behalf of the git user, with a note in the result. Without either address, every write is an `isError` `config` result.
+- Writes stage their files and keep `index.md` fresh as the CLI does; they commit only with `[policy] auto_commit = true`. Then `issues_open` and `issues_update` refuse a description that fails its template's lint instead of committing it; without `auto_commit` the lint comes back in `findings`, to fix with `issues_update`.
+- `issues_update` refuses a description with unstaged changes (`isError` `usage`), so a person's unsaved edit isn't staged by an agent.
+- A write the issue log refuses (an illegal transition, the close policy, a missing reason, a duplicate of a duplicate, a cycle) is an `ok: false` result with the findings and a readable hint, not an error. `set: []` clears a set; `set` can't be combined with `add` or `remove`.
 
 ## Library
 
@@ -264,4 +290,4 @@ import { issueKind } from "@nikovirtala/issues/kind";
 
 ## Not yet included
 
-- **Agents:** the MCP write tools and prompts, and `issues init --skill`.
+- **Agents:** the MCP prompts and `issues init --skill`.
