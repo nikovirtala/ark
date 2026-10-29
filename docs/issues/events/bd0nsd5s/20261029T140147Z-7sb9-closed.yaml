@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M63ZF0CE7VV94P1AQ8X87SB9
+subject: bd0nsd5s
+type: closed
+at: 2026-10-29T14:01:47Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "(1) CI's test step is now a matrix: one test (<package>) job per selected package, fail-fast off. The check job keeps the old required-status name and fails unless select, lint/build/verify and every test job passed (test may be skipped only when no package was selected). (2) The select job uses the old step's rules unchanged: every package on a push to main or when workspace-level files change, otherwise changed packages and their dependents, never the root ark package. (3) Test wall time went from 10.5 min at e5fe532 and 11m20s on PR 37's last push (one step, all packages) to 6m30s on PR 40's run 40885855758 (issues 6m29s, adr 5m12s, ledger 39s in parallel); the whole run took 7m12s."
+data:
+  resolution: done
