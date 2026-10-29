@@ -1,0 +1,21 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M64S2599DQYXSEG2B23WWNTJ
+subject: 688fexss
+type: closed
+at: 2026-10-29T21:29:09Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: |-
+  Done in three PRs: #44 (git operations, resident cat-file), #46 (every adr and issues entry point, CLI command and MCP request in a git operation) and #47 (history and tree listings memoized per operation generation, one resident hash-object --stdin-paths).
+  1. packages/issues/src/write.index.pre1.test.ts -t "comment × 1", counted with a git wrapper first on PATH that logs argv: 428 at dc969ea, 235 at 2dcad86, 186 with #47 (target 214). By subcommand, dc969ea / 2dcad86 / #47: rev-parse 218/41/41, hash-object 40/40/8, cat-file 28/21/21, ls-tree 22/22/15, log 22/22/13, symbolic-ref 21/12/12, rev-list 13/13/12; unchanged: ls-files 19, diff 18, var 8, add 7, commit 5, grep 2, and one each of version, show, rm, init, config.
+  2. The ledger, adr and issues suites pass, and no existing adr or issues test was changed in any of the three PRs. #47 run: ledger 1342 passed, adr 650 passed (7 skipped), issues 754 passed (14 skipped).
+  3. Suite times. Local (8 cores, one package at a time, vitest Duration), dc969ea / 2dcad86 / #47: ledger 13.5s/14.0s/12.8s, adr 102.5s/88.6s/81.9s, issues 182.8s/155.0s/149.6s. CI "Test <pkg>" step (4-core runner), dc969ea (run 40921087798) / 2dcad86 / #47 (run 40956190551): ledger 38s/38s/27s, adr 4m44s/2m41s/3m57s, issues 8m22s/4m47s/7m06s. Hosted-runner times vary by minutes between runs of the same code (#46 measured 4m49s and 7m18s for one tree); the local times are the steadier comparison.
+  4. pnpm test:durations passes on #47: no file over its package's share (issues longest 142s, share 143s).
+data:
+  resolution: done
