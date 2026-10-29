@@ -12,6 +12,7 @@ import {
   templateHistoryRef,
   type VerifyMode,
   verifyLog,
+  withGitOperation,
 } from "@nikovirtala/ledger";
 import { issueKind, type SourceLog } from "./kind.js";
 import type { IssueLog } from "./log.js";
@@ -113,19 +114,21 @@ export function issueVerifyInputs(log: IssueLog, decisions: DecisionLogRead | nu
  * so open it with the index reader for `staged`.
  */
 export async function verifyIssues(log: IssueLog, mode: VerifyMode): Promise<Finding[]> {
-  const decisions = await readDecisionLog(log);
-  const sources = await readIssueSources(log, { decisions, fetch: "cache" });
-  return verifyLog({
-    git: log.git,
-    kind: issueKind,
-    layout: log.layout,
-    mode,
-    checks: issuesChecks(
-      log,
-      await templateHistoryRef(log.git, mode),
-      sources.logs,
-      sources.statuses,
-    ),
-    widenOn: issueVerifyInputs(log, decisions),
+  return withGitOperation(async () => {
+    const decisions = await readDecisionLog(log);
+    const sources = await readIssueSources(log, { decisions, fetch: "cache" });
+    return verifyLog({
+      git: log.git,
+      kind: issueKind,
+      layout: log.layout,
+      mode,
+      checks: issuesChecks(
+        log,
+        await templateHistoryRef(log.git, mode),
+        sources.logs,
+        sources.statuses,
+      ),
+      widenOn: issueVerifyInputs(log, decisions),
+    });
   });
 }

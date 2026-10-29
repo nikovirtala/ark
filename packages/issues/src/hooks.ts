@@ -21,6 +21,7 @@ import {
   type Trailer,
   UsageError,
   uninstallHooks,
+  withGitOperation,
   writeIndexFile,
 } from "@nikovirtala/ledger";
 import { issueKind } from "./kind.js";
@@ -161,64 +162,66 @@ function prose(message: string): string {
  * `UsageError` when the file is missing.
  */
 export async function addHookTrailers(log: IssueLog, messageFile: string): Promise<IssueHooksJson> {
-  const { git, layout } = log;
-  const file = resolve(git.root ?? git.gitDir, messageFile);
-  try {
-    await access(file, constants.R_OK | constants.W_OK);
-  } catch {
-    throw new UsageError(`no commit message file at ${messageFile}`);
-  }
-  const parsed = Buffer.from(
-    (await git.run(["interpret-trailers", "--parse", "--", file])).stdout,
-  ).toString("utf8");
-  if (ISSUE_EVENT.test(parsed)) return result(log, "trailers", null);
-  if ((await git.resolveCommit("MERGE_HEAD")) !== null) return result(log, "trailers", null);
-  const added = await git.stagedPaths([`${layout.root}/${layout.events}`], { addedOnly: true });
-  const refs = added.flatMap((p): EventRef[] => {
-    const c = classifyPath(layout, p);
-    const name = c.area === "event" && !c.file.includes("/") ? parseEventFileName(c.file) : null;
-    return c.area === "event" && c.subject !== null && name !== null
-      ? [{ subject: c.subject, type: name.type }]
-      : [];
-  });
-  const trailers: Trailer[] = eventTrailers(refs, { subject: "Issue", event: "Issue-Event" });
-  const notes: string[] = [];
-  const read = await readIssues(log);
-  const current = await readCurrentIssue(log);
-  const view = current === null ? undefined : read.projection.views.get(current);
-  if (view !== undefined) {
-    const named = new Set([
-      ...[...parsed.matchAll(ISSUE_TRAILER)].map((m) => m[1]),
-      ...trailers.filter(([k]) => k === "Issue").map(([, v]) => v),
-    ]);
-    if (view.state === "closed") {
-      notes.push(`the current issue ${view.display} is closed; run issues work --clear`);
-    } else if (!named.has(view.id)) {
-      trailers.push(["Issue", view.id]);
-    }
-  }
-  if (trailers.length > 0) await git.appendTrailers(file, trailers, { ifExists: "add" });
-
-  const closing = new Set(refs.filter((r) => r.type === "closed").map((r) => r.subject));
-  const text = prose(await readFile(file, "utf8"));
-  const warned = new Set<string>();
-  for (const m of text.matchAll(FIXES)) {
-    let id: string;
+  return withGitOperation(async () => {
+    const { git, layout } = log;
+    const file = resolve(git.root ?? git.gitDir, messageFile);
     try {
-      id = resolveIssue(read, m[1] as string);
-    } catch (err) {
-      if (err instanceof UsageError) continue;
-      throw err;
+      await access(file, constants.R_OK | constants.W_OK);
+    } catch {
+      throw new UsageError(`no commit message file at ${messageFile}`);
     }
-    if (closing.has(id) || warned.has(id)) continue;
-    warned.add(id);
-    const v = read.projection.views.get(id);
-    const display = v?.display ?? id;
-    notes.push(
-      `the message says "${m[0]}", but ${display} has no staged closed event; issues don't close from commit messages, so run issues close ${display.replace(/^\?/, "")} in this pull request`,
-    );
-  }
-  return result(log, "trailers", null, { trailers, notes });
+    const parsed = Buffer.from(
+      (await git.run(["interpret-trailers", "--parse", "--", file])).stdout,
+    ).toString("utf8");
+    if (ISSUE_EVENT.test(parsed)) return result(log, "trailers", null);
+    if ((await git.resolveCommit("MERGE_HEAD")) !== null) return result(log, "trailers", null);
+    const added = await git.stagedPaths([`${layout.root}/${layout.events}`], { addedOnly: true });
+    const refs = added.flatMap((p): EventRef[] => {
+      const c = classifyPath(layout, p);
+      const name = c.area === "event" && !c.file.includes("/") ? parseEventFileName(c.file) : null;
+      return c.area === "event" && c.subject !== null && name !== null
+        ? [{ subject: c.subject, type: name.type }]
+        : [];
+    });
+    const trailers: Trailer[] = eventTrailers(refs, { subject: "Issue", event: "Issue-Event" });
+    const notes: string[] = [];
+    const read = await readIssues(log);
+    const current = await readCurrentIssue(log);
+    const view = current === null ? undefined : read.projection.views.get(current);
+    if (view !== undefined) {
+      const named = new Set([
+        ...[...parsed.matchAll(ISSUE_TRAILER)].map((m) => m[1]),
+        ...trailers.filter(([k]) => k === "Issue").map(([, v]) => v),
+      ]);
+      if (view.state === "closed") {
+        notes.push(`the current issue ${view.display} is closed; run issues work --clear`);
+      } else if (!named.has(view.id)) {
+        trailers.push(["Issue", view.id]);
+      }
+    }
+    if (trailers.length > 0) await git.appendTrailers(file, trailers, { ifExists: "add" });
+
+    const closing = new Set(refs.filter((r) => r.type === "closed").map((r) => r.subject));
+    const text = prose(await readFile(file, "utf8"));
+    const warned = new Set<string>();
+    for (const m of text.matchAll(FIXES)) {
+      let id: string;
+      try {
+        id = resolveIssue(read, m[1] as string);
+      } catch (err) {
+        if (err instanceof UsageError) continue;
+        throw err;
+      }
+      if (closing.has(id) || warned.has(id)) continue;
+      warned.add(id);
+      const v = read.projection.views.get(id);
+      const display = v?.display ?? id;
+      notes.push(
+        `the message says "${m[0]}", but ${display} has no staged closed event; issues don't close from commit messages, so run issues close ${display.replace(/^\?/, "")} in this pull request`,
+      );
+    }
+    return result(log, "trailers", null, { trailers, notes });
+  });
 }
 
 /**
@@ -254,64 +257,66 @@ export async function runPreCommitHook(o: {
   readonly notes: readonly string[];
   readonly failOn: Severity;
 }> {
-  const { worktree, index, env } = o;
-  const config = index.issues;
-  const failOn = config.failOn;
-  const notes: string[] = [...index.notes];
-  const done = (exit: 0 | 1, findings: readonly Finding[]) => ({
-    exit,
-    findings,
-    notes: [...new Set(notes)],
-    failOn,
-  });
-  const safe = stagingSafe(index.git, env);
-
-  // 1. Renames, on the work-tree log.
-  if (config.scopeFollowRenames !== "off" && (await stagedRenames(worktree.git)).length > 0) {
-    const { actor, notes: attribution } = await resolveAttribution(worktree.git, { env });
-    if (config.scopeFollowRenames === "warn") {
-      const dry = await followScopeRenames(worktree, { actor }, { dryRun: true });
-      for (const v of dry.affected) {
-        notes.push(
-          `${v.display}'s globs don't follow the renames in this commit (scope_follow_renames = "warn"); run issues scope --follow-renames`,
-        );
-      }
-    } else if (safe) {
-      const doc = await followScopeRenames(
-        worktree,
-        { actor },
-        { index: "skip", notes: attribution },
-      );
-      notes.push(...doc.notes.filter((n) => !worktree.notes.includes(n)));
-      if (!doc.ok) return done(1, doc.findings);
-    } else {
-      const dry = await followScopeRenames(worktree, { actor }, { dryRun: true });
-      if (dry.affected.length > 0) {
-        notes.push(
-          `the renames in this commit change the scope of ${displays(dry.affected)}; git commit <paths> can't take the scoped events. Run issues scope --follow-renames, then commit again including the files it lists, or set [hooks] scope_follow_renames = "warn"`,
-        );
-        return done(1, []);
-      }
-    }
-  }
-
-  // 2. The index, on the index log: regenerated only with [hooks] index = "stage".
-  if (config.index === "committed" && config.hookIndex === "stage" && safe) {
-    const path = indexPath(index.layout);
-    const text = await renderIssueIndex(index.git, {
-      layout: index.layout,
-      issues: config,
-      tree: index.tree,
-      history: await index.git.resolveCommit("HEAD"),
+  return withGitOperation(async () => {
+    const { worktree, index, env } = o;
+    const config = index.issues;
+    const failOn = config.failOn;
+    const notes: string[] = [...index.notes];
+    const done = (exit: 0 | 1, findings: readonly Finding[]) => ({
+      exit,
+      findings,
+      notes: [...new Set(notes)],
+      failOn,
     });
-    if (text !== null && !holdsText(await index.tree.read(path), text)) {
-      await writeIndexFile(index.git, path, text);
-      await index.git.add([path]);
-      notes.push(`regenerated and staged ${path}`);
-    }
-  }
+    const safe = stagingSafe(index.git, env);
 
-  // 3. verify --staged, which also reports a stale index.md.
-  const findings = await verifyIssues(index, { type: "staged" });
-  return done(exitCode(findings, { failOn }), findings);
+    // 1. Renames, on the work-tree log.
+    if (config.scopeFollowRenames !== "off" && (await stagedRenames(worktree.git)).length > 0) {
+      const { actor, notes: attribution } = await resolveAttribution(worktree.git, { env });
+      if (config.scopeFollowRenames === "warn") {
+        const dry = await followScopeRenames(worktree, { actor }, { dryRun: true });
+        for (const v of dry.affected) {
+          notes.push(
+            `${v.display}'s globs don't follow the renames in this commit (scope_follow_renames = "warn"); run issues scope --follow-renames`,
+          );
+        }
+      } else if (safe) {
+        const doc = await followScopeRenames(
+          worktree,
+          { actor },
+          { index: "skip", notes: attribution },
+        );
+        notes.push(...doc.notes.filter((n) => !worktree.notes.includes(n)));
+        if (!doc.ok) return done(1, doc.findings);
+      } else {
+        const dry = await followScopeRenames(worktree, { actor }, { dryRun: true });
+        if (dry.affected.length > 0) {
+          notes.push(
+            `the renames in this commit change the scope of ${displays(dry.affected)}; git commit <paths> can't take the scoped events. Run issues scope --follow-renames, then commit again including the files it lists, or set [hooks] scope_follow_renames = "warn"`,
+          );
+          return done(1, []);
+        }
+      }
+    }
+
+    // 2. The index, on the index log: regenerated only with [hooks] index = "stage".
+    if (config.index === "committed" && config.hookIndex === "stage" && safe) {
+      const path = indexPath(index.layout);
+      const text = await renderIssueIndex(index.git, {
+        layout: index.layout,
+        issues: config,
+        tree: index.tree,
+        history: await index.git.resolveCommit("HEAD"),
+      });
+      if (text !== null && !holdsText(await index.tree.read(path), text)) {
+        await writeIndexFile(index.git, path, text);
+        await index.git.add([path]);
+        notes.push(`regenerated and staged ${path}`);
+      }
+    }
+
+    // 3. verify --staged, which also reports a stale index.md.
+    const findings = await verifyIssues(index, { type: "staged" });
+    return done(exitCode(findings, { failOn }), findings);
+  });
 }
