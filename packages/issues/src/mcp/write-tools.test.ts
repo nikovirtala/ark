@@ -1,10 +1,20 @@
-import { appendFile, readFile } from "node:fs/promises";
+import { appendFile, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { TempRepo } from "@nikovirtala/ledger/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import { runGit, runJson, WRITE_KEYS } from "../test-support/cli.js";
-import { connectMcp, structured, text, type WriteIssues, writeRepo } from "../test-support/mcp.js";
+import {
+  connectMcp,
+  ME,
+  mcpError,
+  structured,
+  text,
+  type WriteIssues,
+  writeRepo,
+} from "../test-support/mcp.js";
+import { type RowRepo, runTableB, TABLE_B } from "../test-support/write-cells.js";
+import { REOPEN_REASON } from "./policy.js";
 
 const repos: TempRepo[] = [];
 const closes: (() => Promise<void>)[] = [];
@@ -26,7 +36,14 @@ async function connect(r: TempRepo, env?: NodeJS.ProcessEnv) {
   return c;
 }
 
-const WRITES = ["issues_open", "issues_update", "issues_comment"];
+const WRITES = [
+  "issues_open",
+  "issues_update",
+  "issues_comment",
+  "issues_start",
+  "issues_stop",
+  "issues_close",
+];
 const git = (r: TempRepo, ...args: string[]) => runGit(r, args).stdout;
 const json = (x: unknown) => JSON.parse(JSON.stringify(x));
 
@@ -178,4 +195,104 @@ describe("issues mcp write tools", { timeout: 120_000 }, () => {
     expect(git(r, "status", "--porcelain")).toBe(status);
     expect(git(r, "rev-parse", "HEAD")).toBe(head);
   });
+
+  it("issues_start, issues_stop and issues_close return the CLI's write documents", async () => {
+    const { r, ids } = await setup();
+    const { client } = await connect(r);
+    const started = await write(r, client, "issues_start", { id: ids.e }, "start");
+    expect(started).toMatchObject({ ok: true, issue: { state: "in-progress", assignees: [ME] } });
+    const stopped = await write(r, client, "issues_stop", { id: ids.e, reason: "later" }, "stop");
+    expect(stopped).toMatchObject({ ok: true, issue: { state: "open" } });
+    const closed = await write(
+      r,
+      client,
+      "issues_close",
+      { id: ids.g, resolution: "duplicate", of: ids.e, reason: "same work" },
+      "close",
+    );
+    expect(closed).toMatchObject({ ok: true, affected: [{ id: ids.e }] });
+  });
+
+  it("issues_close's of and resolution must fit, named as the tool's inputs", async () => {
+    const { r, ids } = await setup();
+    const { client } = await connect(r);
+    const of = await client.callTool({
+      name: "issues_close",
+      arguments: { id: ids.e, resolution: "wontfix", of: ids.a, reason: "x" },
+    });
+    expect(of.isError).toBe(true);
+    expect(structured(of)).toMatchObject({
+      error: { code: "usage", message: "of needs resolution duplicate (or no resolution)" },
+    });
+    const dup = await client.callTool({
+      name: "issues_close",
+      arguments: { id: ids.e, resolution: "duplicate", reason: "x" },
+    });
+    expect(structured(dup)).toMatchObject({
+      error: {
+        code: "usage",
+        message: "resolution duplicate needs of, the issue this one duplicates",
+      },
+    });
+    for (const res of [of, dup]) expect(text(res)).not.toContain("--");
+  });
+
+  it("issues_reopen isn't a tool: it says reopening is left to people", async () => {
+    const { r, ids } = await setup();
+    const { client } = await connect(r);
+    expect((await client.listTools()).tools.map((t) => t.name)).not.toContain("issues_reopen");
+    const err = await mcpError(
+      client.callTool({ name: "issues_reopen", arguments: { id: ids.d, reason: "x" } }),
+    );
+    expect(err.code).toBe(-32602);
+    expect(err.message).toContain(`issues_reopen is not available: ${REOPEN_REASON}`);
+    expect(err.message).toContain("reopening is left to people");
+  });
+
+  it("lists issues_close only with mcp_can_close, and warns when close_requires_human", async () => {
+    const { r, ids } = await setup({
+      "docs/issues/issues.toml": "[policy]\nmcp_can_close = false\n",
+    });
+    const off = await connect(r);
+    expect((await off.client.listTools()).tools.map((t) => t.name)).not.toContain("issues_close");
+    const err = await mcpError(
+      off.client.callTool({ name: "issues_close", arguments: { id: ids.e, reason: "x" } }),
+    );
+    expect(err.code).toBe(-32602);
+    expect(err.message).toContain(
+      "issues_close is not available: [policy] mcp_can_close is false in docs/issues/issues.toml; a person closes issues with the issues CLI, or set it to true and restart issues mcp",
+    );
+    expect(off.stderr).toEqual([]);
+
+    await writeFile(
+      join(r.root, "docs/issues/issues.toml"),
+      "[policy]\nclose_requires_human = true\n",
+    );
+    const human = await connect(r);
+    expect((await human.client.listTools()).tools.map((t) => t.name)).toContain("issues_close");
+    expect(human.stderr.join("")).toBe(
+      "issues: warning: issues_close refuses agents while [policy] close_requires_human is true\n",
+    );
+  });
+
+  const tableB = (repo: RowRepo, files: Record<string, string> = {}) =>
+    it(`Table B: the ${repo} rows`, async () => {
+      const { r, ids } = await setup(files);
+      const { client } = await connect(r);
+      const rows = TABLE_B.filter((x) => x.repo === repo);
+      const n = await runTableB(
+        (name, args) => client.callTool({ name, arguments: args }),
+        ids,
+        rows,
+        {
+          setPolicy: (toml) => writeFile(join(r.root, "docs/issues/issues.toml"), toml),
+        },
+      );
+      expect(n).toBeGreaterThanOrEqual(rows.length * 6);
+    });
+  tableB("start");
+  tableB("stop");
+  tableB("close");
+  tableB("shared");
+  tableB("crh", { "docs/issues/issues.toml": "[policy]\nclose_requires_human = true\n" });
 });

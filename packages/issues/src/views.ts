@@ -407,7 +407,8 @@ export function readyIssues(
 }
 
 const day = (at: string | null) => (at ?? "").slice(0, 10);
-const RESOLUTION_WORDS: Readonly<Record<string, string>> = {
+/** A resolution as the closed header says it: `CLOSED on … as <words>`. */
+export const RESOLUTION_WORDS: Readonly<Record<string, string>> = {
   done: "done",
   wontfix: "won't fix",
   duplicate: "a duplicate",

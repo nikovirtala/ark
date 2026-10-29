@@ -1,7 +1,15 @@
 import { type JsonValue, UsageError } from "@nikovirtala/ledger";
 import { type McpTool, type McpToolResult, mcpAttribution } from "@nikovirtala/ledger/mcp";
 import { type IssueLog, readIssues, resolveIssue } from "../log.js";
-import { commentIssue, editIssue, type IssueWriteJson, openIssue } from "../write.js";
+import {
+  closeIssue,
+  commentIssue,
+  editIssue,
+  type IssueWriteJson,
+  openIssue,
+  startIssue,
+  stopIssue,
+} from "../write.js";
 import { type WriteTextOptions, writeText } from "./text.js";
 import {
   doc,
@@ -140,6 +148,73 @@ export function writeTools(e: IssuesMcpEnv): McpTool[] {
           { notes },
         );
         return writeResult(log, d, { tool: "issues_comment" });
+      },
+    },
+    {
+      name: "issues_start",
+      title: "Start an issue",
+      description:
+        "Mark work begun; assigns the person you act for if the issue is unassigned. A BLOCKED issue can be started, with a warning; finish its blockers first.",
+      inputSchema: object({ id: ID }, ["id"]),
+      annotations: WRITE,
+      async run(input, ctx) {
+        const log = await openLog(e);
+        const { actor, notes } = await mcpAttribution(log.git, ctx);
+        const d = await startIssue(log, { id: str(input.id) ?? "", actor }, { notes });
+        return writeResult(log, d, { tool: "issues_start" });
+      },
+    },
+    {
+      name: "issues_stop",
+      title: "Stop work on an issue",
+      description: "Pause work without finishing; say what is left in reason.",
+      inputSchema: object({ id: ID, reason: TEXT }, ["id"]),
+      annotations: WRITE,
+      async run(input, ctx) {
+        const log = await openLog(e);
+        const { actor, notes } = await mcpAttribution(log.git, ctx);
+        const d = await stopIssue(
+          log,
+          { id: str(input.id) ?? "", reason: str(input.reason) ?? null, actor },
+          { notes },
+        );
+        return writeResult(log, d, { tool: "issues_stop" });
+      },
+    },
+    {
+      name: "issues_close",
+      title: "Close an issue",
+      description:
+        "Close an issue whose Done when conditions are all met. resolution defaults to done; reason is required from agents and must say how each condition was met; duplicate needs of. Refused when the issue log's policy keeps closing to people. There is no reopen tool.",
+      // `reason` is optional on purpose: the kind reports a missing one (issue/agent-reason-required).
+      inputSchema: object(
+        {
+          id: ID,
+          resolution: { type: "string", enum: ["done", "wontfix", "obsolete", "duplicate"] },
+          reason: TEXT,
+          of: ID,
+        },
+        ["id"],
+      ),
+      annotations: WRITE,
+      async run(input, ctx) {
+        const log = await openLog(e);
+        const { actor, notes } = await mcpAttribution(log.git, ctx);
+        const resolution = str(input.resolution) ?? null;
+        const of = str(input.of) ?? null;
+        // planClose's own messages name --resolution and --duplicate-of; catch those cases first.
+        if (of !== null && resolution !== null && resolution !== "duplicate") {
+          throw new UsageError("of needs resolution duplicate (or no resolution)");
+        }
+        if (of === null && resolution === "duplicate") {
+          throw new UsageError("resolution duplicate needs of, the issue this one duplicates");
+        }
+        const d = await closeIssue(
+          log,
+          { id: str(input.id) ?? "", resolution, of, reason: str(input.reason) ?? null, actor },
+          { notes },
+        );
+        return writeResult(log, d, { tool: "issues_close" });
       },
     },
   ];

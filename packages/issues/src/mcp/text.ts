@@ -13,6 +13,7 @@ import {
   type IssueListJson,
   type IssueReadyJson,
   type IssueShowJson,
+  RESOLUTION_WORDS,
   stateHeader,
 } from "../views.js";
 import type { IssueWriteJson } from "../write.js";
@@ -212,6 +213,18 @@ function doneLines(doc: IssueWriteJson, v: IssueView, o: WriteTextOptions): stri
       ];
     case "comment":
       return [`Commented on ${who}`];
+    case "start":
+      return [`Started ${who}`];
+    case "stop":
+      return [`Stopped ${who}`];
+    case "close": {
+      const canonical = doc.affected[0];
+      const as =
+        v.resolution === "duplicate"
+          ? `a duplicate of ${canonical?.display ?? o.read.projection.views.get(v.duplicate_of ?? "")?.display ?? v.duplicate_of}`
+          : (RESOLUTION_WORDS[v.resolution ?? "done"] ?? v.resolution);
+      return [`Closed ${who} as ${as}`];
+    }
     default:
       return [`${doc.command} ${who}`];
   }
