@@ -7,23 +7,17 @@
 | --- | --- | --- | --- | --- |
 | ?1 | [Garbage-collect unused source caches](items/65qt4pp3-garbage-collect-unused-source-caches.md) |  |  | 2026-10-26 |
 | ?2 | [Support SHA-256 source repositories](items/pcmzc2dz-support-sha-256-source-repositories.md) |  |  | 2026-10-26 |
+| ?4 | [Add the MCP server, agent skill and search to issues](items/6930v8w9-add-the-mcp-server-agent-skill-and-search-to-issues.md) |  |  | 2026-10-26 |
 | ?9 | [Fix the subcommand help and two show messages](items/984qb8rg-fix-the-subcommand-help-and-two-show-messages.md) |  |  | 2026-10-27 |
 | ?10 | [Drop empty optional sections from issue descriptions](items/wy4r966a-drop-empty-optional-sections-from-issue-descriptions.md) |  |  | 2026-10-27 |
 | ?11 | [Name the real reason when a source's numbers are unavailable](items/vpq5v23q-name-the-real-reason-when-a-sources-numbers-are-unavailable.md) |  |  | 2026-10-27 |
 | ?12 | [Share the index-numbering and source-name helpers in ledger](items/3gyr85xq-share-the-index-numbering-and-source-name-helpers-in-ledger.md) |  |  | 2026-10-27 |
-| ?16 | [Add issues' MCP prompts and agent skill](items/s3v2jada-add-issues-mcp-prompts-and-agent-skill.md) |  |  | 2026-10-28 |
 | ?18 | [Say which field matched when a search result has no excerpt](items/1fgqfkf3-say-which-field-matched-when-a-search-result-has-no-excerpt.md) |  |  | 2026-10-28 |
 | ?19 | [Test the remaining Table B cells of the issues mcp writes](items/exnj9tym-test-the-remaining-table-b-cells-of-the-issues-mcp-writes.md) |  | type:test | 2026-10-29 |
 | ?26 | [Run ledger's Git.open test with the temp repo's environment](items/def9qp6q-run-ledgers-git-open-test-with-the-temp-repos-environment.md) |  | type:bug | 2026-10-29 |
 | ?28 | [Name the skipped CI test job without an unfilled expression](items/9v1rd2xt-name-the-skipped-ci-test-job-without-an-unfilled-expression.md) |  | type:bug | 2026-10-30 |
 | ?29 | [Find what adr and issues implement the same way](items/mvz52a5s-find-what-adr-and-issues-implement-the-same-way.md) |  |  | 2026-10-30 |
 | ?30 | [Add init --skill's AGENTS.md pointer when the skill sits at the repository root](items/c181sywx-add-init-skills-agents-md-pointer-when-the-skill-sits-at-the.md) |  | type:bug | 2026-10-30 |
-
-## Open
-
-| Issue | Title | Assignees | Labels | Since |
-| --- | --- | --- | --- | --- |
-| ?4 | [Add the MCP server, agent skill and search to issues](items/6930v8w9-add-the-mcp-server-agent-skill-and-search-to-issues.md) |  |  | 2026-10-26 |
 
 ## Recently closed
 
@@ -37,6 +31,7 @@
 | ?13 | [Add full-text search to issues](items/0megpv2e-add-full-text-search-to-issues.md) |  |  | 2026-10-28 |
 | ?14 | [Add the read side of issues mcp](items/qy2ch92c-add-the-read-side-of-issues-mcp.md) |  |  | 2026-10-28 |
 | ?15 | [Add the write side of issues mcp](items/516asy8r-add-the-write-side-of-issues-mcp.md) |  |  | 2026-10-29 |
+| ?16 | [Add issues' MCP prompts and agent skill](items/s3v2jada-add-issues-mcp-prompts-and-agent-skill.md) |  |  | 2026-10-30 |
 | ?17 | [Ask the installed git whether a -m message ends in trailers](items/f3my0702-ask-the-installed-git-whether-a-m-message-ends-in-trailers.md) |  |  | 2026-10-28 |
 | ?20 | [Make the test suites faster](items/wedm13pe-make-the-test-suites-faster.md) |  |  | 2026-10-29 |
 | ?21 | [Keep every test file under its package's per-worker share](items/7n5e4nkf-keep-every-test-file-under-its-packages-per-worker-share.md) | nikovirtala@users.noreply.github.com |  | 2026-10-29 |
