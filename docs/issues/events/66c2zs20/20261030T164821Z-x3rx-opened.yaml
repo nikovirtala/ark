@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M66VCQ4A7JMV3CYFB83TX3RX
+subject: 66c2zs20
+type: opened
+at: 2026-10-30T16:48:21Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: List what a pull brought in log order
+  template: bug
+  template_version: 1
