@@ -307,6 +307,7 @@ export {
   type TemplateParse,
 } from "./templates/parse.js";
 export {
+  type EmptyOptional,
   extractSections,
   normalizeSection,
   renderTemplate,
