@@ -173,6 +173,11 @@ describe("adr's cross-repository references", { timeout: 120_000 }, () => {
     expect(before.status).toBe(0);
     expect(json(before.stdout)).toMatchObject({ source: "platform", decisions: [] });
     expect(before.stderr).toContain("platform not fetched; run adr sources fetch");
+    expect(before.stderr).not.toContain("no main branch");
+    const unfetched = runAdr(r, ["search", "aurora", "--source", "platform"]);
+    expect(unfetched.status).toBe(0);
+    expect(unfetched.stderr).toContain("platform not fetched; run adr sources fetch");
+    expect(unfetched.stderr).not.toContain("no main branch");
     expect(runAdr(r, ["sources", "fetch", "platform"]).status).toBe(0);
     const list = runAdr(r, ["list", "--source", "platform", "--json"]);
     const decisions = json(list.stdout).decisions as { id: string; display: string }[];
