@@ -15,7 +15,14 @@ import {
   type SubjectSpec,
 } from "./test-support/events.js";
 import { arbIssueHistory } from "./test-support/history.js";
-import { listIssues, myAddress, readyIssues, showIssue, stateHeader } from "./views.js";
+import {
+  historyActor,
+  listIssues,
+  myAddress,
+  readyIssues,
+  showIssue,
+  stateHeader,
+} from "./views.js";
 
 const { A, B, C, D, E, F, G } = IDS;
 
@@ -266,6 +273,14 @@ describe("stateHeader", () => {
     expect(h(E).warning).toBe(`BLOCKED by ?2 (in-progress), ${F} (open). Finish them first.`);
     expect(h(G).warning).toBe("BLOCKED by ?2 (in-progress). Finish it first.");
     expect(h(F)).toEqual({ line: `${F} · open`, warning: null });
+  });
+});
+
+describe("historyActor", () => {
+  it("names on whose behalf an agent acted, when the event says", () => {
+    expect(historyActor(TEST_HUMAN)).toBe("Test");
+    expect(historyActor(TEST_AGENT)).toBe("test-agent on behalf of test@example.com");
+    expect(historyActor({ ...TEST_AGENT, on_behalf_of: null })).toBe("test-agent");
   });
 });
 

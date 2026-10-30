@@ -10,6 +10,7 @@ import type { IssuesForJson } from "../scope.js";
 import type { IssueSearchJson } from "../search.js";
 import type { IssueTemplatesJson } from "../templates/list.js";
 import {
+  historyActor,
   type IssueListJson,
   type IssueReadyJson,
   type IssueShowJson,
@@ -104,7 +105,7 @@ export function getText(doc: IssueShowJson, read: IssuesRead): Text {
     out.push("History:");
     for (const e of doc.events) {
       const reason = typeof e.reason === "string" ? `: ${e.reason}` : "";
-      out.push(`  ${e.at} ${e.type} by ${e.actor.name}${reason}`);
+      out.push(`  ${e.at} ${e.type} by ${historyActor(e.actor)}${reason}`);
     }
     out.push("");
   }

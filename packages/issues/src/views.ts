@@ -161,6 +161,14 @@ export function myAddress(actor: Actor, flag = "--mine"): string {
   return address;
 }
 
+/** Who an event's history line names: `<agent> on behalf of <address>` for an agent, if known. */
+export function historyActor(actor: Actor): string {
+  const behalf = actor.on_behalf_of;
+  return actor.kind === "agent" && typeof behalf === "string" && behalf !== ""
+    ? `${actor.name} on behalf of ${behalf}`
+    : actor.name;
+}
+
 /** Findings of the listed issues and of the log as a whole. */
 const findingsOf = (read: IssuesRead, ids: ReadonlySet<string>) =>
   read.findings.filter((f) => f.subject === null || ids.has(f.subject));
