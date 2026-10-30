@@ -180,17 +180,21 @@ export function listingNotes(read: DecisionsRead): readonly string[] {
 }
 
 /**
- * The note a read command adds about where numbers come from: the shallow-clone index, or why
- * they are unavailable (`unavailable: false` leaves that one out, except for a `--source` log
- * without a committed index; a `--source` log that isn't fetched never gets it, its "not fetched"
- * note says why); `null` for none.
+ * The note a read command adds about where numbers come from: the shallow-clone index, a
+ * `--source` log's committed index, or why they are unavailable (`unavailable: false` leaves that
+ * one out, except for a `--source` log without a committed index; a `--source` log that isn't
+ * fetched never gets it, its "not fetched" note says why); `null` for none.
  */
 export function numberingNote(
   read: DecisionsRead,
   o: { readonly unavailable: boolean },
 ): string | null {
   const n = read.numbering;
-  if (n.reason === "index") return `numbers come from ${read.root}/index.md (shallow clone)`;
+  if (n.reason === "index") {
+    return read.source === null
+      ? `numbers come from ${read.root}/index.md (shallow clone)`
+      : `numbers come from ${read.source}'s committed index.md`;
+  }
   // Only a --source read has no-index; it says why the source shows ids even for search.
   if (n.reason === "no-index") {
     return `numbers are unavailable (${unavailableReason(n, read.source)}); decisions display by id`;
