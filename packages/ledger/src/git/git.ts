@@ -375,13 +375,18 @@ export class Git {
     return new Git(opts, null, absGitDir, resolve(dir, commonDir));
   }
 
-  /** Creates a bare repository at `dir` and opens it with `openGitDir`. */
-  static async initBare(dir: string, opts: GitOptions = {}): Promise<Git> {
+  /** Creates a bare repository at `dir` (in `o.objectFormat` when given) and opens it with `openGitDir`. */
+  static async initBare(
+    dir: string,
+    opts: GitOptions = {},
+    o: { readonly objectFormat?: "sha1" | "sha256" } = {},
+  ): Promise<Git> {
     const binary = opts.binary ?? "git";
     await ensureVersion(binary, opts.env);
     const abs = resolve(dir);
     await mkdir(dirname(abs), { recursive: true });
-    const args = ["init", "--bare", "-q", "--", abs];
+    const format = o.objectFormat === undefined ? [] : [`--object-format=${o.objectFormat}`];
+    const args = ["init", "--bare", "-q", ...format, "--", abs];
     const op = currentGitOperation();
     op?.endGeneration();
     let r: SpawnResult;
