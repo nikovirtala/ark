@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M67FEZZRAX6V3P6KCFAYD542
+subject: r2nj95bs
+type: closed
+at: 2026-10-30T22:39:07Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: (1) numberingNote in packages/adr/src/log.ts now says 'numbers come from <source>'s committed index.md' for a --source read whose numbers come from its committed index.md, and keeps '(shallow clone)' only for the local log, so adr list --source <name> and adr search --source <name> on a cached source with a committed index.md say 'numbers come from platform's committed index.md' and not 'shallow clone'. (2) packages/adr/src/cli/sources.test.ts asserts that note and the absence of 'shallow clone' for both list and search.
+data:
+  resolution: done
