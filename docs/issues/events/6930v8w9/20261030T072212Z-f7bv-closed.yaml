@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M65V02RXYZ4TMW5BSX34F7BV
+subject: 6930v8w9
+type: closed
+at: 2026-10-30T07:22:12Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "Done in issues PRs 3a (#31), 3b (#34), 3c (#36) and 3d (#52), whose children ?13, ?14, ?15 and ?16 are closed. (1) issues search shipped in issues 0.3.0 (#31) and issues mcp in 0.4.0 (#34 the read tools and resources, #36 the write tools), each with unit tests and an end-to-end test of the built binary; #52 adds the MCP prompts and init --skill with their tests, its changeset makes the next version PR release them in an issues minor with issues mcp and search, and the issues README no longer lists the MCP server or anything else as missing. (2) Every MCP tool returns the CLI's --json document as structuredContent: #34's e2e test deep-equals each read tool's with the built CLI's --json and checks that errors are isError results with ark-error/v1, and #36's write-tools tests compare each write's issues-write/v1 document with issues show --json, with rule refusals as ok: false results (Table B, and session W7 over stdio), as ADR-0012 says. (3) #36 lists issues_close only when [policy] mcp_can_close = true, refuses an agent's close with issue/agent-closed while close_requires_human = true or after mcp_can_close is turned off, reports a close without a reason as issue/agent-reason-required, and answers issues_reopen with -32602, so no tool reopens an issue (ADR-0014). (4) #34's issues_search and issues_list take source and read that log through readSourceIssues from the local cache only, as verify does after PR 2 and as #31's --source does; the e2e test reads the source after its repository was moved away. (5) #52 closes ?16 and then this issue in the same change, with this reason."
+data:
+  resolution: done
