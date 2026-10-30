@@ -182,7 +182,8 @@ export function listingNotes(read: DecisionsRead): readonly string[] {
 /**
  * The note a read command adds about where numbers come from: the shallow-clone index, or why
  * they are unavailable (`unavailable: false` leaves that one out, except for a `--source` log
- * without a committed index); `null` for none.
+ * without a committed index; a `--source` log that isn't fetched never gets it, its "not fetched"
+ * note says why); `null` for none.
  */
 export function numberingNote(
   read: DecisionsRead,
@@ -195,6 +196,8 @@ export function numberingNote(
     return `numbers are unavailable (${unavailableReason(n, read.source)}); decisions display by id`;
   }
   if (n.available || !o.unavailable) return null;
+  // Only a --source read of a source that isn't fetched has no-main-ref.
+  if (read.source !== null && n.reason === "no-main-ref") return null;
   return n.reason === "shallow"
     ? 'numbers are unavailable (shallow clone); run git fetch --unshallow, or commit an index with [log] index = "committed"'
     : `numbers are unavailable (${unavailableReason(n)}); decisions display by id`;
