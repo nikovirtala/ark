@@ -193,6 +193,11 @@ describe("adr mcp tools", { timeout: 60_000 }, () => {
     );
     expect(search.split("\n")[0]).toBe(`ADR-0002 (${b}) · accepted`);
     expect(search).toContain("1 of 1 shown");
+    const heading = text(
+      await client.callTool({ name: "adr_search", arguments: { query: "consequences" } }),
+    );
+    expect(heading).toContain("\n  ## Consequences\n");
+    expect(heading).not.toContain("( match)");
     const list = text(await client.callTool({ name: "adr_list", arguments: {} }));
     expect(list.split("\n")[0]).toBe(
       `ADR-0001 (${a}) · superseded · Use DynamoDB for orders → ADR-0002`,

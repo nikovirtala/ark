@@ -212,6 +212,15 @@ describe("searchDecisions", () => {
     expect(searchDecisions(r, { query: "alpha beta" }).results[0]?.excerpt).toBe("alpha and beta");
   });
 
+  it("falls back to a heading when only headings match", async () => {
+    const body = "# t\n\n## Consequences\nOne more service to run.\n";
+    const r = await read([{ id: A, body, events: [proposed(A, "03-01", "t")] }]);
+    expect(searchDecisions(r, { query: "consequences" }).results[0]).toMatchObject({
+      matched: ["body"],
+      excerpt: "## Consequences",
+    });
+  });
+
   it("adds the sources note", async () => {
     const r = await read(LOG(), { sources: ["platform"] });
     expect(searchDecisions(r, { query: "orders" }).notes).toEqual([
@@ -277,6 +286,13 @@ describe("searchDecisions", () => {
           for (const v of r.projection.views.values()) {
             const active = v.status === "proposed" || v.status === "accepted";
             expect(listed.has(v.id), v.id).toBe(matches(v.id) && (includeInactive || active));
+          }
+          for (const x of doc.results) {
+            if (x.excerpt === null) {
+              expect(
+                x.matched.length > 0 && x.matched.every((f) => f === "id" || f === "title"),
+              ).toBe(true);
+            }
           }
         },
       ),

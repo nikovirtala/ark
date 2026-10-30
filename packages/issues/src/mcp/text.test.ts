@@ -2,6 +2,7 @@ import { type Finding, MemoryTree, NO_NUMBERING, type Numbering } from "@nikovir
 import { describe, expect, it } from "vitest";
 import { DEFAULT_ISSUES_CONFIG } from "../config.js";
 import { type IssuesRead, readIssuesFrom } from "../log.js";
+import { searchIssues } from "../search.js";
 import {
   IDS,
   issueEvent,
@@ -12,7 +13,7 @@ import {
 } from "../test-support/events.js";
 import type { IssueWriteJson } from "../write.js";
 import { issueUri } from "./resources.js";
-import { mcpHeader, writeText } from "./text.js";
+import { mcpHeader, searchText, writeText } from "./text.js";
 
 const { A, B, C, D, E, F } = IDS;
 
@@ -238,5 +239,16 @@ describe("writeText", () => {
     expect(illegal.text).toBe(
       "Refused:\n  closed is not allowed while closed [transition/illegal]",
     );
+  });
+});
+
+describe("searchText", () => {
+  it("shows the heading when a word matches only a description heading", async () => {
+    const read = await readOf([
+      { id: E, events: [openedAt(E, 1)], body: `# Issue ${E}\n\n## Done when\nSafari keeps it.\n` },
+    ]);
+    const t = searchText(searchIssues(read, { query: "when" }), read);
+    expect(t.text).toContain("\n  ## Done when\n");
+    expect(t.text.split("\n")).not.toContain("  ( match)");
   });
 });
