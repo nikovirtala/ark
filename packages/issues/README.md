@@ -2,7 +2,7 @@
 
 Issue tracking kept as event logs in git, built on [`@nikovirtala/ledger`](https://www.npmjs.com/package/@nikovirtala/ledger). An issue is a Markdown description plus append-only event files. Its state (open, in progress, closed), resolution, assignees, labels and relations are computed from the events: what blocks it, which issue a duplicate points to, what is ready to pick up. Issues can link to the repository's architecture decisions with `implements`. See the [design doc](https://github.com/nikovirtala/ark/blob/main/docs/02-issues-v1.md).
 
-Released at 0.x. 0.1.0 brought the issue kind, the library and the `issues` CLI (`init`, `new`, `edit`, `start`, `stop`, `close`, `reopen`, `assign`, `label`, `comment`, `link`, `unlink`, `scope`, `for`, `ready`, `work`, `list`, `show`, `verify`), with `implements` links checked against the repository's own decision log. 0.2.0 adds git hooks (`issues hooks`), a generated `index.md` kept fresh on every write (`issues index`), checks over code (scope globs, anchors, stale anchors), and references into other repositories checked against a local cache (`verify --fetch-sources`, `issues sources fetch`, `list --source`). The MCP server, SKILL.md and search are not in 0.2.0.
+Released at 0.x. 0.1.0 brought the issue kind, the library and the `issues` CLI (`init`, `new`, `edit`, `start`, `stop`, `close`, `reopen`, `assign`, `label`, `comment`, `link`, `unlink`, `scope`, `for`, `ready`, `work`, `list`, `show`, `verify`), with `implements` links checked against the repository's own decision log. 0.2.0 adds git hooks (`issues hooks`), a generated `index.md` kept fresh on every write (`issues index`), checks over code (scope globs, anchors, stale anchors), and references into other repositories checked against a local cache (`verify --fetch-sources`, `issues sources fetch`, `list --source`). 0.3.0 adds full-text search (`issues search`). 0.4.0 adds the MCP server (`issues mcp`: read and write tools, resources and state headers). The next minor release adds the MCP prompts and the agent skill (`issues init --skill`).
 
 ## Install
 
@@ -31,6 +31,7 @@ Each issue has a canonical id (`m4p8x2kd`) and, once its `opened` event lands on
 ```sh
 # Set up: write issues.toml and starter templates (bug, feature, task); never overwrites a file.
 issues init --template task --template bug --commit
+issues init --skill [--skill-dir .kiro/skills/issues]   # the agent skill and an AGENTS.md pointer
 
 # Open an issue from a template; --section fills a section without an editor.
 issues new "Split the orders service" --section goal="Two services." --section done="Both deploy." --commit
@@ -267,6 +268,23 @@ Set `ARK_ON_BEHALF_OF` in that `env`: stdio clients pass only a few environment 
 - `issues_update` refuses a description with unstaged changes (`isError` `usage`), so a person's unsaved edit isn't staged by an agent.
 - A write the issue log refuses (an illegal transition, the close policy, a missing reason, a duplicate of a duplicate, a cycle) is an `ok: false` result with the findings and a readable hint, not an error. `set: []` clears a set; `set` can't be combined with `add` or `remove`.
 
+| Prompt | Arguments | What it asks the agent to do |
+| --- | --- | --- |
+| `issues_from_discussion` | `title`, `template`, `parent` (all optional) | Look for an existing issue first, then open one issue with `issues_open`, filling the template's sections (listed in the prompt) from the discussion and listing open questions |
+| `issues_breakdown` | `id` (required), `template` | Split the issue (its state header and current children are in the prompt) into children `part-of` it, with `depends-on` where order matters, after the user agrees |
+
+An unknown template or issue in a prompt's arguments is a JSON-RPC −32602 error.
+
+## Agent skill
+
+`issues init --skill` writes the agent skill, the judgment of when to use the MCP tools, to `.claude/skills/issues/SKILL.md`, or to `<dir>/SKILL.md` with `--skill-dir <dir>` (for example `.kiro/skills/issues` for Kiro). It never overwrites an existing SKILL.md; one that differs from this version's skill is kept, with a note saying how to replace it. It also adds one line to `AGENTS.md`, for agents that don't load skills, unless a line there already names the skill's path:
+
+```text
+Issues in this repository are tracked with issues: read .claude/skills/issues/SKILL.md before starting, continuing or finishing work, and follow it.
+```
+
+adr's pointer line names another path, so both can sit in one `AGENTS.md`. With `--commit`, an `AGENTS.md` with unstaged changes or not tracked is refused (exit 2); without it, the line is added but not staged, with a note. When the skill files are all it writes, the commit subject is `docs(issues): set up the issues agent skill`. The JSON `skill` is the SKILL.md path (written or kept), else `null`.
+
 ## Library
 
 The CLI is a thin layer over the library, and the MCP server uses the same functions and returns the same JSON documents.
@@ -280,14 +298,10 @@ const { issues } = readyIssues(read, { labels: ["type:bug"] });
 const findings = await verifyIssues(log, { type: "full" });
 ```
 
-`initIssueLog`, `openIssue`, `editIssue`, `startIssue`, `stopIssue`, `closeIssue`, `reopenIssue`, `assignIssue`, `labelIssue`, `scopeIssue`, `commentIssue`, `linkIssue` and `unlinkIssue` write; `listIssues`, `showIssue`, `readyIssues`, `searchIssues`, `issuesFor`, `issueCommits` and `listTemplates` (`issues-templates/v1`) read; `renderIssueIndexText` renders the index table of a read; `resolveIssue` and `resolveTarget` turn arguments into ids; `setCurrentIssue`, `readCurrentIssue` and `clearCurrentIssue` manage the current issue; `stateHeader` gives the header `show` prints.
+`initIssueLog`, `openIssue`, `editIssue`, `startIssue`, `stopIssue`, `closeIssue`, `reopenIssue`, `assignIssue`, `labelIssue`, `scopeIssue`, `commentIssue`, `linkIssue` and `unlinkIssue` write; `listIssues`, `showIssue`, `readyIssues`, `searchIssues`, `issuesFor`, `issueCommits` and `listTemplates` (`issues-templates/v1`) read; `renderIssueIndexText` renders the index table of a read; `resolveIssue` and `resolveTarget` turn arguments into ids; `setCurrentIssue`, `readCurrentIssue` and `clearCurrentIssue` manage the current issue; `stateHeader` gives the header `show` prints; `SKILL_MD` is the skill text `init --skill` writes.
 
 `@nikovirtala/issues/kind` exports only the issue kind (`issueKind`, made with ledger's `defineKind`), its relation graph (`issueGraph`) and their types, without any CLI code, for tools that fold issue logs themselves:
 
 ```ts
 import { issueKind } from "@nikovirtala/issues/kind";
 ```
-
-## Not yet included
-
-- **Agents:** the MCP prompts and `issues init --skill`.
