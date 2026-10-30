@@ -1,3 +1,4 @@
+import { GIT_ENV_ISOLATION } from "@nikovirtala/ledger";
 import { type CliIO, runCli } from "@nikovirtala/ledger/cli";
 import type { TempRepo } from "@nikovirtala/ledger/testing";
 import { afterEach, describe, expect, it } from "vitest";
@@ -59,7 +60,8 @@ async function runAtTerminal(r: TempRepo, args: string[], answers: (string | nul
   const io: CliIO = {
     argv: args,
     cwd: r.root,
-    env: cliEnv(r),
+    // git merges this over `process.env`, so a GIT_DIR cliEnv removed would come back from it.
+    env: { ...cliEnv(r), ...GIT_ENV_ISOLATION },
     stdout: { write: (s) => void out.push(s) },
     stderr: { write: (s) => void err.push(s) },
     interactive: true,
