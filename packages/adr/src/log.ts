@@ -181,7 +181,8 @@ export function listingNotes(read: DecisionsRead): readonly string[] {
 
 /**
  * The note a read command adds about where numbers come from: the shallow-clone index, or why
- * they are unavailable (`unavailable: false` leaves that one out); `null` for none.
+ * they are unavailable (`unavailable: false` leaves that one out, except for a `--source` log
+ * without a committed index); `null` for none.
  */
 export function numberingNote(
   read: DecisionsRead,
@@ -189,15 +190,24 @@ export function numberingNote(
 ): string | null {
   const n = read.numbering;
   if (n.reason === "index") return `numbers come from ${read.root}/index.md (shallow clone)`;
+  // Only a --source read has no-index; it says why the source shows ids even for search.
+  if (n.reason === "no-index") {
+    return `numbers are unavailable (${unavailableReason(n, read.source)}); decisions display by id`;
+  }
   if (n.available || !o.unavailable) return null;
   return n.reason === "shallow"
     ? 'numbers are unavailable (shallow clone); run git fetch --unshallow, or commit an index with [log] index = "committed"'
     : `numbers are unavailable (${unavailableReason(n)}); decisions display by id`;
 }
 
-/** Why numbers are unavailable, in words: `shallow clone` or `no main branch`. */
-export function unavailableReason(n: Numbering): string {
-  return n.reason === "shallow" ? "shallow clone" : "no main branch";
+/**
+ * Why numbers are unavailable, in words: `shallow clone`, `<source> has no committed index.md`
+ * (`the log` without a source name) or `no main branch`.
+ */
+export function unavailableReason(n: Numbering, source: string | null = null): string {
+  if (n.reason === "shallow") return "shallow clone";
+  if (n.reason === "no-index") return `${source ?? "the log"} has no committed index.md`;
+  return "no main branch";
 }
 
 /**
