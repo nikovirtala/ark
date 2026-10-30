@@ -15,9 +15,9 @@ export async function connectMcp(
 ): Promise<{ client: Client; stderr: string[]; close(): Promise<void> }> {
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   const stderr: string[] = [];
-  // An `undefined` in `env` removes that variable.
+  // An `undefined` in `env` removes that variable. The keys stay, so the git the server runs,
+  // which merges its env over process.env, still unsets the repo's GIT_ENV_ISOLATION variables.
   const merged: NodeJS.ProcessEnv = { ...r.env, ...env };
-  for (const [k, v] of Object.entries(merged)) if (v === undefined) delete merged[k];
   const served = serveIssuesMcp({
     cwd: r.root,
     root: null,

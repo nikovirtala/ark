@@ -59,7 +59,8 @@ async function runAtTerminal(r: TempRepo, args: string[], answers: (string | nul
   const io: CliIO = {
     argv: args,
     cwd: r.root,
-    env: cliEnv(r),
+    // r.env again: its undefined GIT_ENV_ISOLATION keys unset them in the git runCli spawns.
+    env: { ...cliEnv(r), ...r.env },
     stdout: { write: (s) => void out.push(s) },
     stderr: { write: (s) => void err.push(s) },
     interactive: true,

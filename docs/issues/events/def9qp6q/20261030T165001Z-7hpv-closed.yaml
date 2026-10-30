@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M66VFRTGX36M1XJT86BQ7HPV
+subject: def9qp6q
+type: closed
+at: 2026-10-30T16:50:01Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: '(1) packages/ledger/src/git/git.test.ts now opens every temp repo with its own options (r.git.options, or GIT_ENV_ISOLATION where there is no repo), including the "opens a work tree" test at line 58; with GIT_DIR, GIT_WORK_TREE, GIT_COMMON_DIR, GIT_INDEX_FILE, GIT_OBJECT_DIRECTORY, GIT_NAMESPACE or GIT_PREFIX set to another repository the file''s 87 tests pass. (2) The same check found one more test per package: ledger''s dist-entries.test.ts opened its repo without env, and adr''s accept-copy terminal test and issues'' in-memory MCP client (test-support/mcp.ts) dropped the undefined isolation keys, so git, which merges its env over process.env, saw GIT_DIR again (1, 1 and 22 failures). They now keep those keys; with GIT_DIR set ledger, adr and issues pass (1342, 650 and 788 tests). (3) From a linked worktree, git rebase --exec scripts/check-commit.sh over this commit passes: tests of ledger, adr and issues all green.'
+data:
+  resolution: done

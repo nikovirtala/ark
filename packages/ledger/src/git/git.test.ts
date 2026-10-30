@@ -55,7 +55,7 @@ async function fakeGit(versionLine: string, body = 'exec git "$@"'): Promise<str
 describe("Git.open", () => {
   it("opens a work tree with absolute root, gitDir and commonDir", async () => {
     const r = await repo();
-    const git = await Git.open(join(r.root));
+    const git = await Git.open(join(r.root), r.git.options);
     expect(git.root).toBe(r.root);
     expect(git.gitDir).toBe(join(r.root, ".git"));
     expect(git.commonDir).toBe(join(r.root, ".git"));
@@ -66,7 +66,9 @@ describe("Git.open", () => {
     await expect(Git.open(dir, { env: GIT_ENV_ISOLATION })).rejects.toBeInstanceOf(
       NotARepositoryError,
     );
-    await expect(Git.open(join(dir, "missing"))).rejects.toBeInstanceOf(NotARepositoryError);
+    await expect(Git.open(join(dir, "missing"), { env: GIT_ENV_ISOLATION })).rejects.toBeInstanceOf(
+      NotARepositoryError,
+    );
     const bare = await repo({ bare: true });
     await expect(Git.open(bare.root, { env: GIT_ENV_ISOLATION })).rejects.toBeInstanceOf(
       NotARepositoryError,
@@ -76,33 +78,42 @@ describe("Git.open", () => {
   it("throws GitNotFoundError for a missing binary", async () => {
     const r = await repo();
     const binary = join(await tempDir(), "no-such-git");
-    const error = await Git.open(r.root, { binary }).catch((e: unknown) => e);
+    const error = await Git.open(r.root, { ...r.git.options, binary }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(GitNotFoundError);
     expect(error).toMatchObject({ binary });
     expect((error as Error).cause).toBeInstanceOf(Error);
-    await expect(Git.openGitDir(r.git.gitDir, { binary })).rejects.toBeInstanceOf(GitNotFoundError);
-    await expect(Git.initBare(join(r.root, "x.git"), { binary })).rejects.toBeInstanceOf(
+    await expect(Git.openGitDir(r.git.gitDir, { ...r.git.options, binary })).rejects.toBeInstanceOf(
       GitNotFoundError,
     );
+    await expect(
+      Git.initBare(join(r.root, "x.git"), { ...r.git.options, binary }),
+    ).rejects.toBeInstanceOf(GitNotFoundError);
   });
 
   it("gates on git 2.32 per binary in open, openGitDir and initBare", async () => {
     const r = await repo();
     const binary = await fakeGit("git version 2.30.0");
-    const error = await Git.open(r.root, { binary }).catch((e: unknown) => e);
+    const error = await Git.open(r.root, { ...r.git.options, binary }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(GitVersionError);
     expect(error).toMatchObject({ found: "2.30.0", required: "2.32.0" });
-    await expect(Git.openGitDir(r.git.gitDir, { binary })).rejects.toBeInstanceOf(GitVersionError);
+    await expect(Git.openGitDir(r.git.gitDir, { ...r.git.options, binary })).rejects.toBeInstanceOf(
+      GitVersionError,
+    );
     const target = join(await tempDir(), "new.git");
-    await expect(Git.initBare(target, { binary })).rejects.toBeInstanceOf(GitVersionError);
+    await expect(Git.initBare(target, { ...r.git.options, binary })).rejects.toBeInstanceOf(
+      GitVersionError,
+    );
     await expect(stat(target)).rejects.toThrow();
     // The real git still opens in the same process.
-    await expect(Git.open(r.root)).resolves.toBeInstanceOf(Git);
+    await expect(Git.open(r.root, r.git.options)).resolves.toBeInstanceOf(Git);
   });
 
   it("accepts a new enough fake binary", async () => {
     const r = await repo();
-    const git = await Git.open(r.root, { binary: await fakeGit("git version 2.32.0.windows.1") });
+    const git = await Git.open(r.root, {
+      ...r.git.options,
+      binary: await fakeGit("git version 2.32.0.windows.1"),
+    });
     expect(git.root).toBe(r.root);
   });
 });
@@ -110,7 +121,7 @@ describe("Git.open", () => {
 describe("Git.openGitDir and Git.initBare", () => {
   it("opens a bare repository with root null", async () => {
     const bare = await repo({ bare: true });
-    const git = await Git.openGitDir(bare.root);
+    const git = await Git.openGitDir(bare.root, bare.git.options);
     expect(git.root).toBeNull();
     expect(git.gitDir).toBe(bare.root);
     expect(git.commonDir).toBe(bare.root);
@@ -134,7 +145,9 @@ describe("Git.openGitDir and Git.initBare", () => {
   });
 
   it("throws NotARepositoryError for a directory that isn't a git dir", async () => {
-    await expect(Git.openGitDir(await tempDir())).rejects.toBeInstanceOf(NotARepositoryError);
+    await expect(
+      Git.openGitDir(await tempDir(), { env: GIT_ENV_ISOLATION }),
+    ).rejects.toBeInstanceOf(NotARepositoryError);
   });
 
   it("refuses worktree-only operations on a git-dir handle before spawning git", async () => {
@@ -210,10 +223,13 @@ describe("environment", () => {
       Buffer.from((await git.run(["status"], { env: { LEDGER_ECHO: "1", ...env } })).stdout)
         .toString()
         .trim();
-    const inherits = await Git.open(r.root, { binary });
+    const inherits = await Git.open(r.root, { ...r.git.options, binary });
     expect(await echo(inherits, {})).toBe("outer 0");
     expect(await echo(inherits, { LEDGER_TEST_VAR: undefined })).toBe("unset 0");
-    const unsets = await Git.open(r.root, { binary, env: { LEDGER_TEST_VAR: undefined } });
+    const unsets = await Git.open(r.root, {
+      binary,
+      env: { ...r.git.options.env, LEDGER_TEST_VAR: undefined },
+    });
     expect(await echo(unsets, {})).toBe("unset 0");
     expect(await echo(unsets, { LEDGER_TEST_VAR: "call" })).toBe("call 0");
   });
@@ -240,7 +256,7 @@ describe("Git.run", () => {
       "git version 2.50.0",
       'if [ -n "$LEDGER_SLEEP" ]; then exec sleep 5; fi\nexec git "$@"',
     );
-    const git = await Git.open(r.root, { binary });
+    const git = await Git.open(r.root, { ...r.git.options, binary });
     const error = await git
       .run(["status"], { timeoutMs: 100, env: { LEDGER_SLEEP: "1" } })
       .catch((e: unknown) => e);

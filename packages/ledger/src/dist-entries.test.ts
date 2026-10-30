@@ -47,7 +47,7 @@ describe("built entries", () => {
   it("share one error class hierarchy across the root and testing entries", async () => {
     const repo = await testing.createTempRepo({ files: { "a.txt": "a\n" } });
     cleanup.push(() => repo.dispose());
-    const git = await root.Git.open(repo.root);
+    const git = await root.Git.open(repo.root, repo.git.options);
     const thrown: unknown = await root.refReader(git, "-x").catch((e: unknown) => e);
     expect(thrown).toBeInstanceOf(testing.LedgerError);
     expect(thrown).toBeInstanceOf(testing.InvalidArgumentError);

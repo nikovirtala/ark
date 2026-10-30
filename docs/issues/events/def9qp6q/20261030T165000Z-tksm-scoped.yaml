@@ -1,0 +1,19 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M66VFR74WDJ2VGH7G6XFTKSM
+subject: def9qp6q
+type: scoped
+at: 2026-10-30T16:50:00Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/adr/src/cli/accept-copy.test.ts
+    - packages/issues/src/test-support/mcp.ts
+    - packages/ledger/src/dist-entries.test.ts
+    - packages/ledger/src/git/git.test.ts
