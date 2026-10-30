@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M672J367J7NMAETRCK6AX3A4
+subject: wy4r966a
+type: closed
+at: 2026-10-30T18:53:37Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "(1) planOpen renders with ledger's new emptyOptional: 'drop', so new writes no heading for an optional section without content; packages/issues/src/cli/new.test.ts checks task's Notes and feature's Alternatives. (2) planEdit's replaceSections with 'drop' removes an optional section given empty text and inserts it back before the next present section in template order; an empty required section keeps its heading, and the CLI edit now refuses to commit it (exit 1, template/section-empty, nothing written) as new and MCP issues_update do, while an edit that only stages keeps it with a warning; cli/edit.test.ts and ledger's templates/render.test.ts cover both. (3) lintDocument skips an absent optional section and reports template/section-missing for an absent required one; verify.test.ts checks both, and cli/new.test.ts runs issues verify on the new issues. (4) This close is in the pull request that makes the change."
+data:
+  resolution: done
