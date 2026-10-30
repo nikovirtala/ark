@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M6729C3KPF0863CSY75TQTKY
+subject: tcwy0e79
+type: opened
+at: 2026-10-30T18:48:51Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Keep adr's and issues' tests from using an outer GIT_DIR
+  template: bug
+  template_version: 1
