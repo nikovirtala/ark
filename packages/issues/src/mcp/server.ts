@@ -3,6 +3,7 @@ import { type McpServeOptions, serveMcp } from "@nikovirtala/ledger/mcp";
 import type { IssuesConfig } from "../config.js";
 import { openIssueLog } from "../log.js";
 import { CLOSE_TOOL, closeAvailability, REOPEN_REASON } from "./policy.js";
+import { issuesPrompts } from "./prompts.js";
 import { readTools } from "./read-tools.js";
 import { indexResource, issueResource, readyResource } from "./resources.js";
 import type { IssuesMcpEnv } from "./tools.js";
@@ -72,6 +73,7 @@ export async function serveIssuesMcp(o: {
       unavailable,
       resources: [indexResource(e), readyResource(e)],
       resourceTemplates: [issueResource(e)],
+      prompts: issuesPrompts(e),
     },
     {
       env: o.env,
