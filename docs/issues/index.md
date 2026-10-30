@@ -6,6 +6,7 @@
 | Issue | Title | Assignees | Labels | Since |
 | --- | --- | --- | --- | --- |
 | ?18 | [Say which field matched when a search result has no excerpt](items/1fgqfkf3-say-which-field-matched-when-a-search-result-has-no-excerpt.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
+| ?19 | [Test the remaining Table B cells of the issues mcp writes](items/exnj9tym-test-the-remaining-table-b-cells-of-the-issues-mcp-writes.md) | nikovirtala@users.noreply.github.com | type:test | 2026-10-30 |
 
 ## Ready
 
@@ -14,7 +15,6 @@
 | ?1 | [Garbage-collect unused source caches](items/65qt4pp3-garbage-collect-unused-source-caches.md) |  |  | 2026-10-26 |
 | ?2 | [Support SHA-256 source repositories](items/pcmzc2dz-support-sha-256-source-repositories.md) |  |  | 2026-10-26 |
 | ?12 | [Share the index-numbering and source-name helpers in ledger](items/3gyr85xq-share-the-index-numbering-and-source-name-helpers-in-ledger.md) |  |  | 2026-10-27 |
-| ?19 | [Test the remaining Table B cells of the issues mcp writes](items/exnj9tym-test-the-remaining-table-b-cells-of-the-issues-mcp-writes.md) |  | type:test | 2026-10-29 |
 | ?29 | [Find what adr and issues implement the same way](items/mvz52a5s-find-what-adr-and-issues-implement-the-same-way.md) |  |  | 2026-10-30 |
 | ?34 | [Keep adr's and issues' tests from using an outer GIT\_DIR](items/tcwy0e79-keep-adrs-and-issues-tests-from-using-an-outer-git-dir.md) |  | type:bug | 2026-10-30 |
 | ?35 | [Drop the "no main branch" note for a source that isn't fetched](items/g84z3z2t-drop-the-no-main-branch-note-for-a-source-that-isnt-fetched.md) |  | type:bug | 2026-10-30 |
