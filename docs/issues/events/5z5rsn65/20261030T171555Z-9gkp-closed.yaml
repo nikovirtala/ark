@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M66WZ6Y0MH8AAEKVPG7V9GKP
+subject: 5z5rsn65
+type: closed
+at: 2026-10-30T17:15:55Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "(1) .github/workflows/ci.yml runs the per-package test jobs on ubuntu-24.04-arm with --maxWorkers=6; the select, verify and check jobs are unchanged, and check passed. (2) Two CI runs on the PR passed. Whole test jobs (install, build and tests): issues 288s and 279s, adr 166s and 171s, ledger 37s and 39s, against issues 346-452s and adr 178-249s for the same jobs on ubuntu-latest in the last three runs on main. In PR #56's comparison of the test step alone, issues took 331s on ubuntu-latest with 3 workers and 262s on arm with 6, adr 230s and 135s."
+data:
+  resolution: done
