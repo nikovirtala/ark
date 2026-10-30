@@ -12,7 +12,7 @@ import { loadLog } from "../log/snapshot.js";
 import { exampleKind, exampleLayout } from "../testing/example-kind.js";
 import { exampleMachineKind as kind } from "../testing/example-machine-kind.js";
 import { TEST_HUMAN } from "../testing/history.js";
-import { compareEvents, foldLog, foldSubject } from "./fold.js";
+import { compareEvents, foldLog, foldSubject, sortInLogOrder } from "./fold.js";
 
 const layout = kind.layoutAt("log");
 const S = "a7c2m9xd";
@@ -79,6 +79,45 @@ describe("compareEvents", () => {
     expect(compareEvents({ ...a, path: "b" }, { ...a, path: "a" })).toBe(1);
     expect(compareEvents({ ...a, path: "a" }, { ...a, path: "a" })).toBe(0);
     expect(compareEvents(a, a)).toBe(0);
+  });
+});
+
+describe("sortInLogOrder", () => {
+  const T = "2026-03-14T12:00:00Z";
+
+  it("orders events of one second by id, whatever their paths say", async () => {
+    // Same `at`, ids one millisecond apart: the fold applies `created` first. Find random parts
+    // that make `noted`'s path sort first, as two writes in one second can.
+    let pair: [EventEnvelope, EventEnvelope] | null = null;
+    for (let r = 0; r < 256 && pair === null; r++) {
+      const first = ev("created", T, { rand: r });
+      const second = ev("noted", T, { ms: 1, rand: 255 - r });
+      if (eventPath(layout, second) < eventPath(layout, first)) pair = [first, second];
+    }
+    if (pair === null) throw new Error("no random parts put the later event's path first");
+    const [first, second] = pair;
+    const tree = new MemoryTree(filesOf([first, second]));
+    const listed = [first, second]
+      .map((e) => ({ path: eventPath(layout, e), type: e.type }))
+      .sort((a, b) => (a.path < b.path ? -1 : 1));
+    expect(listed.map((e) => e.type)).toEqual(["noted", "created"]);
+    const sorted = await sortInLogOrder(tree, listed);
+    expect(sorted.map((e) => e.type)).toEqual(["created", "noted"]);
+  });
+
+  it("sorts files that are missing or don't parse first, by path", async () => {
+    const e = ev("created", T);
+    const tree = new MemoryTree({ ...filesOf([e]), "log/events/x/bad.yaml": "{" });
+    const sorted = await sortInLogOrder(tree, [
+      { path: eventPath(layout, e) },
+      { path: "log/events/x/missing.yaml" },
+      { path: "log/events/x/bad.yaml" },
+    ]);
+    expect(sorted.map((s) => s.path)).toEqual([
+      "log/events/x/bad.yaml",
+      "log/events/x/missing.yaml",
+      eventPath(layout, e),
+    ]);
   });
 });
 

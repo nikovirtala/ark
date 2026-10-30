@@ -22,6 +22,7 @@ import {
   relateCheck,
   resolveSubjectInput,
   sortFindings,
+  sortInLogOrder,
   type ToolLog,
   type TreeReader,
   transitions,
@@ -232,7 +233,7 @@ export interface ChangedSince {
   /** The revision as given, such as `ORIG_HEAD`. */
   readonly rev: string;
   readonly commit: string;
-  /** Event files added since `rev`, sorted by path. */
+  /** Event files added since `rev`, in log order (`(at, id)`, then path; `sortInLogOrder`). */
   readonly events: readonly {
     readonly subject: string;
     readonly type: string;
@@ -258,7 +259,6 @@ export async function changedSince(log: DecisionLog, rev: string): Promise<Chang
       const name = parseEventFileName(p.file);
       return name === null ? [] : [{ subject: p.subject, type: name.type, path: c.path }];
     });
-    events.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
-    return { rev, commit: base.commit ?? "", events };
+    return { rev, commit: base.commit ?? "", events: await sortInLogOrder(head, events) };
   });
 }

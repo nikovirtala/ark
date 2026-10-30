@@ -5,14 +5,16 @@ import { afterEach, describe, expect, it } from "vitest";
 import { openDecisionLog } from "../log.js";
 import {
   cliRepo,
+  NYGARD_SECTIONS,
   REPO_HUMAN,
   runAdr,
+  runGit,
   seedDecision,
   seedSupersession,
 } from "../test-support/cli.js";
 import { cliEnv } from "../test-support/decision-arbs.js";
 import { decisionEvent, eventFile } from "../test-support/events.js";
-import { acceptDecision } from "../write.js";
+import { acceptDecision, applyPlan, proposeDecision } from "../write.js";
 
 const run = promisify(execFile);
 
@@ -360,6 +362,38 @@ describe("adr list --since", { timeout: 60_000 }, () => {
       expect(out.stderr).toBe(`adr: error: ${message}\n`);
     }
     expect(runAdr(r, ["list", "--since", "-x"]).status).toBe(2);
+  });
+
+  it("lists events of one second in log order, whatever their paths say", async () => {
+    const r = await repo();
+    await seedDecision(r, "Use Aurora");
+    const before = await head(r);
+    const log = await openDecisionLog({ cwd: r.root, gitOptions: { env: r.env } });
+    const T = Date.parse("2026-06-01T12:00:00Z");
+    // One second for both writes; the accept's random bytes sort before the proposal's, so its
+    // file name does too, though the fold applies it second.
+    const deps = (fill: number) => ({
+      now: () => T,
+      random: (b: Uint8Array) => b.fill(fill),
+      apply: applyPlan,
+    });
+    const p = await proposeDecision(
+      log,
+      { title: "Use Redis", sections: NYGARD_SECTIONS, actor: REPO_HUMAN },
+      { commit: true },
+      deps(0xff),
+    );
+    const id = p.decision?.id ?? "";
+    await acceptDecision(log, { id, actor: REPO_HUMAN }, { commit: true }, deps(0));
+    const files = runGit(r, ["ls-files", `docs/adr/events/${id}`])
+      .stdout.trim()
+      .split("\n");
+    expect(files.map((p) => p.replace(/.*-/, ""))).toEqual(["accepted.yaml", "proposed.yaml"]);
+
+    const out = runAdr(r, ["list", "--since", before]);
+    expect(out.stdout).toMatch(/Use Redis\n {2}\[new: proposed, accepted\]$/m);
+    const doc = JSON.parse(runAdr(r, ["list", "--since", before, "--json"]).stdout);
+    expect(doc.since.events.map((e: { type: string }) => e.type)).toEqual(["proposed", "accepted"]);
   });
 });
 

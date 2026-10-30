@@ -1,6 +1,8 @@
 import type { EventEnvelope } from "../envelope/types.js";
+import { parseEventYaml } from "../envelope/yaml.js";
 import { InvalidArgumentError } from "../errors.js";
 import { type Finding, finding } from "../findings/finding.js";
+import type { TreeReader } from "../git/tree.js";
 import type {
   AnyKind,
   AppliedEvent,
@@ -21,6 +23,28 @@ export function compareEvents(
   b: { readonly at: string; readonly id: string; readonly path?: string },
 ): number {
   return cmp(a.at, b.at) || cmp(a.id, b.id) || cmp(a.path ?? "", b.path ?? "");
+}
+
+/**
+ * `events` sorted as the fold applies them (`compareEvents`), reading each file's `at` and `id`
+ * from `tree`. A file that is missing or doesn't parse sorts by path among those with an empty
+ * `at`, so the order is always deterministic.
+ */
+export async function sortInLogOrder<T extends { readonly path: string }>(
+  tree: TreeReader,
+  events: readonly T[],
+): Promise<T[]> {
+  const bytes = await tree.readMany(events.map((e) => e.path));
+  const key = (path: string): { at: string; id: string; path: string } => {
+    const b = bytes.get(path);
+    const parsed = b === undefined ? null : parseEventYaml(b, { file: path });
+    const doc = parsed?.ok === true ? parsed.doc : {};
+    const str = (v: unknown) => (typeof v === "string" ? v : "");
+    return { at: str(doc.at), id: str(doc.id), path };
+  };
+  const keyed = events.map((e) => ({ e, k: key(e.path) }));
+  keyed.sort((a, b) => compareEvents(a.k, b.k));
+  return keyed.map(({ e }) => e);
 }
 
 const error = (rule: string, message: string, file: string, subject: string) =>

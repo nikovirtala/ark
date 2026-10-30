@@ -62,7 +62,7 @@ export {
   formatJson,
   formatText,
 } from "./findings/format.js";
-export { compareEvents, foldLog, foldSubject } from "./fold/fold.js";
+export { compareEvents, foldLog, foldSubject, sortInLogOrder } from "./fold/fold.js";
 export {
   assignNumbers,
   compareNumberingKeys,
