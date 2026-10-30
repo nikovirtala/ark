@@ -28,7 +28,7 @@ describe("issues search", { timeout: 120_000 }, () => {
     expect(out.stdout).toBe(
       [
         `?2 (${b})  open         Safari login loops`,
-        "  BLOCKED by ?1 (in-progress). Finish them first.",
+        "  BLOCKED by ?1 (in-progress). Finish it first.",
         "  (title match)",
         `?1 (${a})  in-progress  Session cookie`,
         "  The cookie is dropped on Safari after a redirect.",

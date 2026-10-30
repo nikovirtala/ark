@@ -17,7 +17,7 @@ import {
 import { arbIssueHistory } from "./test-support/history.js";
 import { listIssues, myAddress, readyIssues, showIssue, stateHeader } from "./views.js";
 
-const { A, B, C, D, E, F } = IDS;
+const { A, B, C, D, E, F, G } = IDS;
 
 const at = (n: number) => `2026-10-2${n}T09:00:00Z`;
 const event = (id: string, type: string, n: number, o: Parameters<typeof issueEvent>[2] = {}) =>
@@ -242,6 +242,10 @@ describe("stateHeader", () => {
           ],
         },
         { id: F, events: [openedAt(F, 1)] },
+        {
+          id: G,
+          events: [openedAt(G, 1), event(G, "linked", 2, { data: { to: B, rel: "depends-on" } })],
+        },
       ],
       { numbering: numberingOf({ [A]: 1, [B]: 2, [C]: 3, [D]: 4, [E]: 5 }) },
     );
@@ -260,6 +264,7 @@ describe("stateHeader", () => {
     expect(h(C).warning).toBe("CLOSED on 2026-10-22 as won't fix: not needed.");
     expect(h(D).warning).toBe("CLOSED on 2026-10-22 as done.");
     expect(h(E).warning).toBe(`BLOCKED by ?2 (in-progress), ${F} (open). Finish them first.`);
+    expect(h(G).warning).toBe("BLOCKED by ?2 (in-progress). Finish it first.");
     expect(h(F)).toEqual({ line: `${F} · open`, warning: null });
   });
 });
