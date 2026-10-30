@@ -122,7 +122,10 @@ jobs:
     needs: select
     # An empty matrix is an error, and no package changed means there is nothing to test.
     if: needs.select.outputs.packages != '[]'
-    runs-on: ubuntu-latest
+    # The 4-core arm runner with 6 vitest workers ran the issues tests about 20% faster than
+    # ubuntu-latest with the default 3 (issue 5z5rsn65). Six workers on 4 cores pay off because the
+    # tests also wait on the git and node processes they spawn.
+    runs-on: ubuntu-24.04-arm
     strategy:
       # Every package's result is worth having, as with `pnpm -r run test`, which runs them all.
       fail-fast: false
@@ -143,7 +146,7 @@ jobs:
       - name: Test ${{ matrix.package }}
         env:
           PACKAGE: ${{ matrix.package }}
-        run: pnpm --filter "./packages/$PACKAGE" run test
+        run: pnpm --filter "./packages/$PACKAGE" run test --maxWorkers=6
 
   # The one status to require in branch protection: it keeps the name of the single job CI used
   # to have, and fails unless every job above passed (or, with nothing to test, was skipped).
