@@ -1,6 +1,6 @@
 {
   "name": "@nikovirtala/issues",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Issue tracking kept as event logs in git: computed state, blockers and duplicates, relations and links to adr decisions. CLI and library.",
   "keywords": [
     "issues",
