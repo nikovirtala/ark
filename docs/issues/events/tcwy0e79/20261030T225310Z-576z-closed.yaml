@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M67G8QN8QZW6JAZSCJ6W576Z
+subject: tcwy0e79
+type: closed
+at: 2026-10-30T22:53:10Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "Fixed in ca15379: adr cliEnv and issues connectMcp now pass GIT_ENV_ISOLATION in-process, so ledger mergeEnv no longer takes GIT_DIR from process.env. (1) With GIT_DIR=T/.git GIT_PREFIX= (T a throwaway repo with one commit), Node v24.22.1, git 2.50.1: adr 671 passed, 7 skipped; issues 845 passed, 14 skipped; git -C T status --short printed nothing after each (before the fix: adr 1 failed, issues 18 failed, 3 and 64 AD entries in T). (2) From a throwaway linked worktree, git rebase --exec scripts/check-commit.sh HEAD~1 on a commit appending a comment to packages/ledger/src/index.ts passed: ledger 1359, adr 671 (+7 skipped), issues 845 (+14 skipped); the main checkout status stayed empty. (3) Closed in the pull request that carries the fix (nikovirtala/ark#69)."
+data:
+  resolution: done
