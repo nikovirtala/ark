@@ -25,7 +25,10 @@ export interface DecisionSearchResultJson {
   readonly score: number;
   /** The fields with a hit, in the order id, title, body, notes (the display number is `id`). */
   readonly matched: readonly SearchField[];
-  /** The best matching line of the body or a note, cut to about 160 characters; `null` if none. */
+  /**
+   * The best matching line of the body or a note, cut to about 160 characters; a matching
+   * heading when only headings match; `null` if no line does.
+   */
   readonly excerpt: string | null;
 }
 
@@ -133,17 +136,20 @@ export function searchDecisions(
       inactive++;
       continue;
     }
+    const bodyLines = body.split("\n").filter((l) => l.trim() !== "");
     const lines = [
-      ...body.split("\n").filter((l) => l.trim() !== "" && !l.startsWith("#")),
+      ...bodyLines.filter((l) => !l.startsWith("#")),
       ...notes.flatMap((n) => n.split("\n")),
     ];
+    // A term found only in a heading (such as `## Done when`) gets the heading as its excerpt.
+    const headings = bodyLines.filter((l) => l.startsWith("#"));
     found.push({
       view,
       decision: view,
       header: stateHeader(view, read),
       score,
       matched: (["id", "title", "body", "notes"] as const).filter((f) => hit.has(f)),
-      excerpt: searchExcerpt(lines, terms),
+      excerpt: searchExcerpt(lines, terms) ?? searchExcerpt(headings, terms),
     });
   }
   found.sort(

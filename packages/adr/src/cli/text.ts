@@ -412,7 +412,7 @@ export function searchText(doc: DecisionSearchJson): string {
   doc.results.forEach((r, i) => {
     lines.push(rows[i] ?? "");
     if (r.header.warning !== null) lines.push(`  ${r.header.warning}`);
-    const where = r.matched.filter((f) => f === "id" || f === "title").join(" and ");
+    const where = matchedFields(r.matched);
     lines.push(r.excerpt === null ? `  (${where} match)` : `  ${r.excerpt}`);
   });
   const n = doc.total;
@@ -434,4 +434,11 @@ export function initText(doc: InitResultJson): string {
     ...(doc.commit === null ? [] : [`Committed ${short(doc.commit)}.`]),
     skill ? "Next: adr mcp, from your MCP client's config" : 'Next: adr new "<title>"',
   ].join("\n");
+}
+
+const FIELD_NAMES = { id: "id", title: "title", body: "body", notes: "note" } as const;
+
+/** The fields a result without an excerpt matched in, as in `title and description`. */
+function matchedFields(matched: readonly (keyof typeof FIELD_NAMES)[]): string {
+  return matched.map((f) => FIELD_NAMES[f]).join(" and ");
 }

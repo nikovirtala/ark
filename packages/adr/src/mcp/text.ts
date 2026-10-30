@@ -46,7 +46,7 @@ export function searchText(doc: DecisionSearchJson, read: DecisionsRead): Text {
   for (const r of doc.results) {
     lines.push(renderStateHeader(mcpHeader(r.decision, read)).trimEnd());
     lines.push(`  ${r.decision.title}`);
-    const where = r.matched.filter((f) => f === "id" || f === "title").join(" and ");
+    const where = matchedFields(r.matched);
     lines.push(r.excerpt === null ? `  (${where} match)` : `  ${r.excerpt}`);
   }
   lines.push(`${doc.results.length} of ${doc.total} shown`);
@@ -267,4 +267,11 @@ function affectedHeaders(doc: WriteResultJson, read: DecisionsRead): StateHeader
   return doc.affected
     .filter((a) => a.id !== doc.decision?.id)
     .map((a) => mcpHeader(read.projection.views.get(a.id) ?? a, read));
+}
+
+const FIELD_NAMES = { id: "id", title: "title", body: "body", notes: "note" } as const;
+
+/** The fields a result without an excerpt matched in, as in `title and description`. */
+function matchedFields(matched: readonly (keyof typeof FIELD_NAMES)[]): string {
+  return matched.map((f) => FIELD_NAMES[f]).join(" and ");
 }

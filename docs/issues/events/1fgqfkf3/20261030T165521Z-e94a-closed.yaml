@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M66VSHDQNYP0E5WQPQR7E94A
+subject: 1fgqfkf3
+type: closed
+at: 2026-10-30T16:55:21Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: (1) issues' and adr's search now fall back to the matching heading line when no other line of the description, comments or notes matches, so a heading-only hit has an excerpt such as "## Done when"; and the four renderers (packages/issues/src/cli/text.ts and mcp/text.ts, packages/adr/src/cli/text.ts and mcp/text.ts) name every matched field when a result still has no excerpt, so the line is never "( match)". In ark, issues search when --all now prints "## Done when" for 15 results (the one "( match)" left is ?18's own text quoting it) and adr search consequences --all prints "## Consequences" instead of "( match)" 16 times. (2) New CLI tests in packages/issues/src/cli/search.test.ts and packages/adr/src/cli/search.test.ts cover a heading-only match, and the MCP tests (issues read-tools.test.ts, adr mcp/tools.test.ts) check the same in issues_search and adr_search text. packages/issues/src/mcp/text.ts is added to the scope, as the comment asked.
+data:
+  resolution: done

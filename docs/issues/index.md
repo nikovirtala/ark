@@ -11,7 +11,6 @@
 | ?10 | [Drop empty optional sections from issue descriptions](items/wy4r966a-drop-empty-optional-sections-from-issue-descriptions.md) |  |  | 2026-10-27 |
 | ?11 | [Name the real reason when a source's numbers are unavailable](items/vpq5v23q-name-the-real-reason-when-a-sources-numbers-are-unavailable.md) |  |  | 2026-10-27 |
 | ?12 | [Share the index-numbering and source-name helpers in ledger](items/3gyr85xq-share-the-index-numbering-and-source-name-helpers-in-ledger.md) |  |  | 2026-10-27 |
-| ?18 | [Say which field matched when a search result has no excerpt](items/1fgqfkf3-say-which-field-matched-when-a-search-result-has-no-excerpt.md) |  |  | 2026-10-28 |
 | ?19 | [Test the remaining Table B cells of the issues mcp writes](items/exnj9tym-test-the-remaining-table-b-cells-of-the-issues-mcp-writes.md) |  | type:test | 2026-10-29 |
 | ?28 | [Name the skipped CI test job without an unfilled expression](items/9v1rd2xt-name-the-skipped-ci-test-job-without-an-unfilled-expression.md) |  | type:bug | 2026-10-30 |
 | ?29 | [Find what adr and issues implement the same way](items/mvz52a5s-find-what-adr-and-issues-implement-the-same-way.md) |  |  | 2026-10-30 |
@@ -28,7 +27,6 @@
 | --- | --- | --- | --- | --- |
 | ?3 | [Add guardrails and cross-repository checks to issues](items/1w06qws8-add-guardrails-and-cross-repository-checks-to-issues.md) |  |  | 2026-10-27 |
 | ?4 | [Add the MCP server, agent skill and search to issues](items/6930v8w9-add-the-mcp-server-agent-skill-and-search-to-issues.md) |  |  | 2026-10-30 |
-| ?5 | [Commit a staged issue description with its events](items/f4f25st2-commit-a-staged-issue-description-with-its-events.md) |  |  | 2026-10-27 |
 | ?6 | [Improve the default commit subjects and trailers](items/jdpc6bn7-improve-the-default-commit-subjects-and-trailers.md) |  |  | 2026-10-27 |
 | ?7 | [Decide when an unmatched scope glob fails verify](items/m5xh8bkd-decide-when-an-unmatched-scope-glob-fails-verify.md) |  |  | 2026-10-27 |
 | ?8 | [Let init replace a placeholder and write the index key](items/cqpzxvcs-let-init-replace-a-placeholder-and-write-the-index-key.md) |  |  | 2026-10-27 |
@@ -37,6 +35,7 @@
 | ?15 | [Add the write side of issues mcp](items/516asy8r-add-the-write-side-of-issues-mcp.md) |  |  | 2026-10-29 |
 | ?16 | [Add issues' MCP prompts and agent skill](items/s3v2jada-add-issues-mcp-prompts-and-agent-skill.md) |  |  | 2026-10-30 |
 | ?17 | [Ask the installed git whether a -m message ends in trailers](items/f3my0702-ask-the-installed-git-whether-a-m-message-ends-in-trailers.md) |  |  | 2026-10-28 |
+| ?18 | [Say which field matched when a search result has no excerpt](items/1fgqfkf3-say-which-field-matched-when-a-search-result-has-no-excerpt.md) |  |  | 2026-10-30 |
 | ?20 | [Make the test suites faster](items/wedm13pe-make-the-test-suites-faster.md) |  |  | 2026-10-29 |
 | ?21 | [Keep every test file under its package's per-worker share](items/7n5e4nkf-keep-every-test-file-under-its-packages-per-worker-share.md) | nikovirtala@users.noreply.github.com |  | 2026-10-29 |
 | ?22 | [Run each package's tests in its own CI job](items/bd0nsd5s-run-each-packages-tests-in-its-own-ci-job.md) | nikovirtala@users.noreply.github.com |  | 2026-10-29 |

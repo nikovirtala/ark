@@ -83,6 +83,12 @@ describe("issues mcp read tools", { timeout: 60_000 }, () => {
       "2 closed issues also match; pass include_closed",
     ]);
 
+    const heading = text(
+      await client.callTool({ name: "issues_search", arguments: { query: "when" } }),
+    );
+    expect(heading).toContain(`?5 (${ids.e}) · open\n  Add dark mode\n  ## Done when\n`);
+    expect(heading).not.toContain("( match)");
+
     const all = await client.callTool({
       name: "issues_search",
       arguments: { query: "safari", include_closed: true },

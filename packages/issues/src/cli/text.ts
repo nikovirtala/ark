@@ -80,7 +80,7 @@ export function searchText(doc: IssueSearchJson): string {
   doc.results.forEach((r, i) => {
     out.push(rows[i] ?? "");
     if (r.header.warning !== null) out.push(`  ${r.header.warning}`);
-    const where = r.matched.filter((f) => f === "id" || f === "title").join(" and ");
+    const where = matchedFields(r.matched);
     out.push(r.excerpt === null ? `  (${where} match)` : `  ${r.excerpt}`);
   });
   const n = doc.total;
@@ -199,4 +199,11 @@ export function initText(doc: IssuesInitJson): string {
       : []),
   ];
   return `${out.length === 0 ? "nothing to do" : out.join("\n")}\n`;
+}
+
+const FIELD_NAMES = { id: "id", title: "title", body: "description", comments: "comment" } as const;
+
+/** The fields a result without an excerpt matched in, as in `title and description`. */
+function matchedFields(matched: readonly (keyof typeof FIELD_NAMES)[]): string {
+  return matched.map((f) => FIELD_NAMES[f]).join(" and ");
 }

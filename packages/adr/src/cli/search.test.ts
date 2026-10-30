@@ -76,6 +76,23 @@ describe("adr search", { timeout: 60_000 }, () => {
     ]);
   });
 
+  it("shows the heading as the excerpt when only a heading matches", async () => {
+    const r = await repo();
+    const { b, c } = await seeded(r);
+    const out = runAdr(r, ["search", "consequences"]);
+    expect(out.status).toBe(0);
+    expect(out.stdout).toBe(
+      [
+        `ADR-0002 (${b})  accepted  Use Aurora for orders`,
+        "  ## Consequences",
+        `${c}             proposed  Cache session tokens`,
+        "  ## Consequences",
+        '2 decisions match "consequences".',
+        "",
+      ].join("\n"),
+    );
+  });
+
   it("joins the words, and every one must match", async () => {
     const r = await repo();
     const { c } = await seeded(r);

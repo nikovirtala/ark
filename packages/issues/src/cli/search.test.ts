@@ -45,6 +45,22 @@ describe("issues search", { timeout: 120_000 }, () => {
     expect(all.stdout).toContain('3 issues match "safari".');
   });
 
+  it("shows the heading as the excerpt when only a heading matches", async () => {
+    await using repo = await cliRepo();
+    const a = await seedIssue(repo, "Session cookie", {
+      sections: { goal: "The cookie is dropped.", done: "Fixed." },
+    });
+    const out = runIssues(repo, ["search", "when"]);
+    expect(out.status, out.stderr).toBe(0);
+    expect(out.stdout).toBe(
+      [`?1 (${a})  open  Session cookie`, "  ## Done when", '1 issue matches "when".', ""].join(
+        "\n",
+      ),
+    );
+    const r = runJson<IssueSearchJson>(repo, ["search", "when"]);
+    expect(r.json.results.map((x) => [x.matched, x.excerpt])).toEqual([[["body"], "## Done when"]]);
+  });
+
   it("joins the words, every one must match, and prints issues-search/v1", async () => {
     await using repo = await cliRepo();
     const a = await seedIssue(repo, "Login fails on Safari");

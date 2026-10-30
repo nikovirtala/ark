@@ -56,7 +56,7 @@ export function searchText(doc: IssueSearchJson, read: IssuesRead): Text {
     const view = read.projection.views.get(r.issue.id) ?? r.issue;
     lines.push(renderStateHeader(mcpHeader(view, read)).trimEnd());
     lines.push(`  ${r.issue.title}`);
-    const where = r.matched.filter((f) => f === "id" || f === "title").join(" and ");
+    const where = matchedFields(r.matched);
     lines.push(r.excerpt === null ? `  (${where} match)` : `  ${r.excerpt}`);
   }
   lines.push(`${doc.results.length} of ${doc.total} shown`, ...more);
@@ -279,4 +279,11 @@ export function writeText(doc: IssueWriteJson, o: WriteTextOptions): Text {
   }
   out.push(...doc.notes.map((n) => `Note: ${n}`));
   return { headers, text: out.join("\n") };
+}
+
+const FIELD_NAMES = { id: "id", title: "title", body: "description", comments: "comment" } as const;
+
+/** The fields a result without an excerpt matched in, as in `title and description`. */
+function matchedFields(matched: readonly (keyof typeof FIELD_NAMES)[]): string {
+  return matched.map((f) => FIELD_NAMES[f]).join(" and ");
 }

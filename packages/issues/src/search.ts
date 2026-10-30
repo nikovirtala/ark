@@ -21,7 +21,10 @@ export interface IssueSearchResultJson {
   readonly score: number;
   /** Fields with a hit, in the order id, title, body, comments (the display number is `id`). */
   readonly matched: readonly IssueSearchField[];
-  /** The best matching line of the description or a comment, cut to about 160 characters; `null` if none. */
+  /**
+   * The best matching line of the description or a comment, cut to about 160 characters; a
+   * matching heading when only headings match; `null` if no line does.
+   */
   readonly excerpt: string | null;
 }
 
@@ -131,16 +134,19 @@ export function searchIssues(
       closed++;
       continue;
     }
+    const bodyLines = body.split("\n").filter((l) => l.trim() !== "");
     const lines = [
-      ...body.split("\n").filter((l) => l.trim() !== "" && !l.startsWith("#")),
+      ...bodyLines.filter((l) => !l.startsWith("#")),
       ...comments.flatMap((c) => c.split("\n")),
     ];
+    // A term found only in a heading (such as `## Done when`) gets the heading as its excerpt.
+    const headings = bodyLines.filter((l) => l.startsWith("#"));
     found.push({
       issue: view,
       header: stateHeader(view, read),
       score,
       matched: (["id", "title", "body", "comments"] as const).filter((f) => hit.has(f)),
-      excerpt: searchExcerpt(lines, terms),
+      excerpt: searchExcerpt(lines, terms) ?? searchExcerpt(headings, terms),
     });
   }
   found.sort(
