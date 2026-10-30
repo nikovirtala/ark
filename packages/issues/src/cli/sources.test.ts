@@ -20,8 +20,11 @@ async function consumer(config: string): Promise<{ r: TempRepo; x: string }> {
   repos.push(r);
   return { r, x: newIssue(r, "Use the platform API") };
 }
-async function source(titles?: readonly string[]): Promise<IssueSourceFixture> {
-  const s = await issueSource(titles);
+async function source(
+  titles?: readonly string[],
+  o?: { readonly index?: boolean },
+): Promise<IssueSourceFixture> {
+  const s = await issueSource(titles, o);
   repos.push(s.src, s.bare);
   return s;
 }
@@ -150,6 +153,24 @@ describe("issues' cross-repository references", { timeout: 120_000 }, () => {
     // The issue is blocked only in another repository, so the index still lists it as Ready.
     expect(after).toBe(index);
     expect(runIssues(r, ["index", "--check"]).status).toBe(0);
+  });
+
+  it("says a cached source has no committed index.md when that's why it has no numbers", async () => {
+    const s = await source(["Provide the platform API"], { index: false });
+    const { r } = await consumer(sourceToml("platform", s.url));
+    expect(runIssues(r, ["sources", "fetch", "platform"]).status).toBe(0);
+    const note =
+      "issues: warning: issue numbers are unavailable (platform has no committed index.md); issues display by id";
+    const list = runIssues(r, ["list", "--source", "platform"]);
+    expect(list.status).toBe(0);
+    expect(list.stdout).toContain(s.issues[0]);
+    expect(list.stderr.split("\n")).toContain(note);
+    expect(list.stderr).not.toContain("no main branch");
+    const search = runIssues(r, ["search", "platform", "--source", "platform"]);
+    expect(search.status).toBe(0);
+    expect(search.stderr.split("\n")).toContain(note);
+    const json = runJson<{ numbering: unknown }>(r, ["list", "--source", "platform"]);
+    expect(json.json.numbering).toMatchObject({ available: false, reason: "no-index" });
   });
 
   it("lists a cached source's issues with its numbers", async () => {

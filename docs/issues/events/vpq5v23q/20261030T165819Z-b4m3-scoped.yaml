@@ -1,0 +1,23 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M66VYZKYH41SMZKM6GYEB4M3
+subject: vpq5v23q
+type: scoped
+at: 2026-10-30T16:58:19Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/adr/src/log.ts
+    - packages/adr/src/sources.ts
+    - packages/adr/src/views.ts
+    - packages/issues/src/log.ts
+    - packages/issues/src/sources.ts
+    - packages/issues/src/views.ts
+    - packages/ledger/src/fold/numbering.ts
+    - packages/ledger/src/index.ts

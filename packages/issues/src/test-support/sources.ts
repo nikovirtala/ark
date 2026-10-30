@@ -17,11 +17,16 @@ export interface IssueSourceFixture {
   add(title: string): Promise<string>;
 }
 
-/** The fixture: `titles` opened and committed, a proposed decision, tag `v1`, pushed bare. */
+/**
+ * The fixture: `titles` opened and committed, a proposed decision, tag `v1`, pushed bare. With
+ * `index: false` the issue log commits no index.md.
+ */
 export async function issueSource(
   titles: readonly string[] = ["Provide the platform API"],
+  o: { readonly index?: boolean } = {},
 ): Promise<IssueSourceFixture> {
-  const src = await cliRepo({ "docs/issues/issues.toml": '[log]\nindex = "committed"\n' });
+  const config = o.index === false ? "" : '[log]\nindex = "committed"\n';
+  const src = await cliRepo({ "docs/issues/issues.toml": config });
   const issues = titles.map((t) => newIssue(src, t));
   const log = await openDecisionLog({ cwd: src.root, gitOptions: { env: src.env } });
   const p = await proposeDecision(

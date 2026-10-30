@@ -16,13 +16,15 @@ export interface DecisionSourceFixture {
 
 /**
  * A source decision log with `titles` accepted (and a committed `index.md`, so consumers see its
- * numbers), tagged `v1` (annotated) and pushed with the tag to a bare repository. The caller
- * disposes `src` and `bare`.
+ * numbers; none with `index: false`), tagged `v1` (annotated) and pushed with the tag to a bare
+ * repository. The caller disposes `src` and `bare`.
  */
 export async function decisionSource(
   titles: readonly string[] = ["Use Aurora for orders"],
+  o: { readonly index?: boolean } = {},
 ): Promise<DecisionSourceFixture> {
-  const src = await cliRepo({ "docs/adr/adr.toml": '[log]\nindex = "committed"\n' });
+  const config = o.index === false ? "" : '[log]\nindex = "committed"\n';
+  const src = await cliRepo({ "docs/adr/adr.toml": config });
   const ids: string[] = [];
   for (const t of titles) ids.push(await seedDecision(src, t));
   await src.git.run(["tag", "-a", "v1", "-m", "v1"]);

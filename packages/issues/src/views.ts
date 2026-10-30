@@ -12,7 +12,7 @@ import { type ChangedSince, type IssuesRead, readNotes } from "./log.js";
 /** The `numbering` key of the read documents. */
 export interface NumberingJson {
   readonly available: boolean;
-  readonly reason: "shallow" | "no-main-ref" | "index" | null;
+  readonly reason: "shallow" | "no-main-ref" | "no-index" | "index" | null;
   readonly ref: string | null;
 }
 

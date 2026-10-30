@@ -14,6 +14,7 @@ import {
   loadFindings,
   loadLog,
   MemoryTree,
+  NO_INDEX_NUMBERING,
   NO_NUMBERING,
   type Numbering,
   numberLog,
@@ -258,7 +259,7 @@ export async function readSourceIssues(log: IssueLog, name: string): Promise<Iss
       layout: ref.layout,
       numbering:
         byId === null
-          ? NO_NUMBERING
+          ? NO_INDEX_NUMBERING
           : {
               available: true,
               reason: "index",
@@ -273,8 +274,12 @@ export async function readSourceIssues(log: IssueLog, name: string): Promise<Iss
   });
 }
 
-/** Why numbers are unavailable, in words: `shallow clone` or `no main branch`. */
-export function unavailableReason(n: Numbering): string {
+/**
+ * Why numbers are unavailable, in words: `shallow clone`, `<source> has no committed index.md`
+ * for another repository's log read without one, or `no main branch`.
+ */
+export function unavailableReason(n: Numbering, source: string | null = null): string {
+  if (n.reason === "no-index") return `${source ?? "the log"} has no committed index.md`;
   return n.reason === "shallow" ? "shallow clone" : "no main branch";
 }
 
@@ -285,7 +290,7 @@ export function unavailableReason(n: Numbering): string {
 export function numberingNote(read: IssuesRead): string | null {
   const n = read.numbering;
   if (n.available) return null;
-  return `issue numbers are unavailable (${unavailableReason(n)}); issues display by id`;
+  return `issue numbers are unavailable (${unavailableReason(n, read.source)}); issues display by id`;
 }
 
 /** The note when the decision log's numbers are unavailable; `null` otherwise. */
@@ -348,7 +353,7 @@ export function resolveIssue(read: IssuesRead, input: string): string {
       throw new UsageError(`${shown} is in another log; an issue is changed only in its own log`);
     case "numbers-unavailable":
       throw new UsageError(
-        `issue numbers are unavailable (${unavailableReason(read.numbering)}); use the issue's id instead of ${shown}`,
+        `issue numbers are unavailable (${unavailableReason(read.numbering, read.source)}); use the issue's id instead of ${shown}`,
       );
     case "not-found":
       throw new UsageError(`unknown issue ${shown}`);

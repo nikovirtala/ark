@@ -66,6 +66,7 @@ export { compareEvents, foldLog, foldSubject } from "./fold/fold.js";
 export {
   assignNumbers,
   compareNumberingKeys,
+  NO_INDEX_NUMBERING,
   NO_NUMBERING,
   type Numbering,
   numberLog,

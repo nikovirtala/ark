@@ -3,6 +3,7 @@ import {
   foldLog,
   loadLog,
   MemoryTree,
+  NO_INDEX_NUMBERING,
   NO_NUMBERING,
   type Numbering,
   projectLog,
@@ -35,7 +36,7 @@ const compiled = compileKind(adrKind);
 
 /** Numbers recorded in a source's committed index, as a `Numbering`. */
 function indexNumbering(byId: ReadonlyMap<string, number> | null): Numbering {
-  if (byId === null) return NO_NUMBERING;
+  if (byId === null) return NO_INDEX_NUMBERING;
   return {
     available: true,
     reason: "index",

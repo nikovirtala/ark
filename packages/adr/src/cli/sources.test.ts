@@ -25,8 +25,11 @@ async function consumer(config: string): Promise<{ r: TempRepo; a: string }> {
   return { r, a: await seedDecision(r, "Use the platform's queue") };
 }
 
-async function source(titles?: readonly string[]): Promise<DecisionSourceFixture> {
-  const s = await decisionSource(titles);
+async function source(
+  titles?: readonly string[],
+  o?: { readonly index?: boolean },
+): Promise<DecisionSourceFixture> {
+  const s = await decisionSource(titles, o);
   repos.push(s.src, s.bare);
   return s;
 }
@@ -164,6 +167,28 @@ describe("adr's cross-repository references", { timeout: 120_000 }, () => {
         `links to platform:${s.ids[0]}, whose source platform isn't in [[sources]]`,
       ],
     ]);
+  });
+
+  it("says a cached source has no committed index.md when that's why it has no numbers", async () => {
+    const s = await source(["Use Aurora for orders"], { index: false });
+    const { r } = await consumer(sourceToml("platform", s.url));
+    expect(runAdr(r, ["sources", "fetch", "platform"]).status).toBe(0);
+    const note =
+      "adr: warning: numbers are unavailable (platform has no committed index.md); decisions display by id";
+    const list = runAdr(r, ["list", "--source", "platform"]);
+    expect(list.status).toBe(0);
+    expect(list.stdout).toContain(`${s.ids[0]}  accepted  Use Aurora for orders`);
+    expect(list.stderr.split("\n")).toContain(note);
+    expect(list.stderr).not.toContain("no main branch");
+    const search = runAdr(r, ["search", "aurora", "--source", "platform"]);
+    expect(search.status).toBe(0);
+    expect(search.stderr.split("\n")).toContain(note);
+    expect(search.stderr).not.toContain("no main branch");
+    const json = runAdr(r, ["list", "--source", "platform", "--json"]);
+    expect(JSON.parse(json.stdout).numbering).toMatchObject({
+      available: false,
+      reason: "no-index",
+    });
   });
 
   it("lists and searches a cached source with --source, also through MCP", async () => {

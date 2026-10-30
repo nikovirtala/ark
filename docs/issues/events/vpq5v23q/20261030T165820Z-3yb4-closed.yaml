@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M66VZ069WXS4MSS9TNA03YB4
+subject: vpq5v23q
+type: closed
+at: 2026-10-30T16:58:20Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: '(1) ledger''s Numbering has a new reason, "no-index", exported as NO_INDEX_NUMBERING; adr''s and issues'' source reads (readSourceIssues in packages/issues/src/log.ts, indexNumbering in both sources.ts) use it when a cached source''s tree has no index.md, and unavailableReason renders it with the source''s name, so issues list --source platform (and issues search --source) warn "issue numbers are unavailable (platform has no committed index.md); issues display by id", and adr list --source and adr search --source warn "numbers are unavailable (platform has no committed index.md); decisions display by id"; adr search --source gave no note before. A source not fetched keeps its "not fetched" note. (2) packages/issues/src/cli/sources.test.ts and packages/adr/src/cli/sources.test.ts fetch a source with no committed index and check those notes, that "no main branch" is gone, and numbering.reason "no-index" in --json; the fixtures take index: false for it.'
+data:
+  resolution: done

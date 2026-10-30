@@ -188,14 +188,19 @@ export function numberingNote(
 ): string | null {
   const n = read.numbering;
   if (n.reason === "index") return `numbers come from ${read.root}/index.md (shallow clone)`;
-  if (n.available || !o.unavailable) return null;
+  // A cached source without an index says so in every read: its log has no other numbers.
+  if (n.available || (!o.unavailable && n.reason !== "no-index")) return null;
   return n.reason === "shallow"
     ? 'numbers are unavailable (shallow clone); run git fetch --unshallow, or commit an index with [log] index = "committed"'
-    : `numbers are unavailable (${unavailableReason(n)}); decisions display by id`;
+    : `numbers are unavailable (${unavailableReason(n, read.source)}); decisions display by id`;
 }
 
-/** Why numbers are unavailable, in words: `shallow clone` or `no main branch`. */
-export function unavailableReason(n: Numbering): string {
+/**
+ * Why numbers are unavailable, in words: `shallow clone`, `<source> has no committed index.md`
+ * for another repository's log read without one, or `no main branch`.
+ */
+export function unavailableReason(n: Numbering, source: string | null = null): string {
+  if (n.reason === "no-index") return `${source ?? "the log"} has no committed index.md`;
   return n.reason === "shallow" ? "shallow clone" : "no main branch";
 }
 
@@ -220,7 +225,7 @@ export function resolveDecision(read: DecisionsRead, input: string): string {
       );
     case "numbers-unavailable":
       throw new UsageError(
-        `decision numbers are unavailable (${unavailableReason(read.numbering)}); use the decision's id instead of ${shown}`,
+        `decision numbers are unavailable (${unavailableReason(read.numbering, read.source)}); use the decision's id instead of ${shown}`,
       );
     case "not-found":
       throw new UsageError(`unknown decision ${input.trim()}`);
