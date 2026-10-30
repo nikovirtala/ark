@@ -9,7 +9,6 @@
 | ?2 | [Support SHA-256 source repositories](items/pcmzc2dz-support-sha-256-source-repositories.md) |  |  | 2026-10-26 |
 | ?12 | [Share the index-numbering and source-name helpers in ledger](items/3gyr85xq-share-the-index-numbering-and-source-name-helpers-in-ledger.md) |  |  | 2026-10-27 |
 | ?29 | [Find what adr and issues implement the same way](items/mvz52a5s-find-what-adr-and-issues-implement-the-same-way.md) |  |  | 2026-10-30 |
-| ?34 | [Keep adr's and issues' tests from using an outer GIT\_DIR](items/tcwy0e79-keep-adrs-and-issues-tests-from-using-an-outer-git-dir.md) |  | type:bug | 2026-10-30 |
 
 ## Recently closed
 
@@ -23,7 +22,6 @@
 | ?18 | [Say which field matched when a search result has no excerpt](items/1fgqfkf3-say-which-field-matched-when-a-search-result-has-no-excerpt.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
 | ?19 | [Test the remaining Table B cells of the issues mcp writes](items/exnj9tym-test-the-remaining-table-b-cells-of-the-issues-mcp-writes.md) | nikovirtala@users.noreply.github.com | type:test | 2026-10-30 |
 | ?20 | [Make the test suites faster](items/wedm13pe-make-the-test-suites-faster.md) |  |  | 2026-10-29 |
-| ?23 | [Compile kind schemas on first use](items/j897bps4-compile-kind-schemas-on-first-use.md) | nikovirtala@users.noreply.github.com |  | 2026-10-29 |
 | ?24 | [Cut the git processes one write spawns](items/688fexss-cut-the-git-processes-one-write-spawns.md) | nikovirtala@users.noreply.github.com |  | 2026-10-29 |
 | ?25 | [Write event YAML that biome leaves as it is](items/na46n52h-write-event-yaml-that-biome-leaves-as-it-is.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-29 |
 | ?26 | [Run ledger's Git.open test with the temp repo's environment](items/def9qp6q-run-ledgers-git-open-test-with-the-temp-repos-environment.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
@@ -33,6 +31,7 @@
 | ?31 | [Polish the rough edges left by the issues reviews](items/vg2acrhm-polish-the-rough-edges-left-by-the-issues-reviews.md) |  |  | 2026-10-30 |
 | ?32 | [List what a pull brought in log order](items/66c2zs20-list-what-a-pull-brought-in-log-order.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
 | ?33 | [Run CI's test jobs on the arm runner with 6 workers](items/5z5rsn65-run-cis-test-jobs-on-the-arm-runner-with-6-workers.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
+| ?34 | [Keep adr's and issues' tests from using an outer GIT\_DIR](items/tcwy0e79-keep-adrs-and-issues-tests-from-using-an-outer-git-dir.md) |  | type:bug | 2026-10-30 |
 | ?35 | [Drop the "no main branch" note for a source that isn't fetched](items/g84z3z2t-drop-the-no-main-branch-note-for-a-source-that-isnt-fetched.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
 | ?36 | [Stop calling a source's committed index a shallow clone in adr](items/r2nj95bs-stop-calling-a-sources-committed-index-a-shallow-clone-in.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
 
