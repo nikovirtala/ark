@@ -132,6 +132,7 @@ describe("issues search", { timeout: 120_000 }, () => {
     expect(before.status).toBe(0);
     expect(before.json).toMatchObject({ source: "platform", total: 0, results: [] });
     expect(before.stderr).toContain("platform not fetched; run issues sources fetch");
+    expect(before.stderr).not.toContain("no main branch");
 
     expect(runIssues(r, ["sources", "fetch", "platform"]).status).toBe(0);
     const trace = join(r.root, "..", "search-trace.json");

@@ -162,6 +162,7 @@ describe("issues' cross-repository references", { timeout: 120_000 }, () => {
     ]);
     expect(before.json).toMatchObject({ source: "platform", issues: [] });
     expect(before.stderr).toContain("platform not fetched; run issues sources fetch");
+    expect(before.stderr).not.toContain("no main branch");
     expect(runIssues(r, ["sources", "fetch", "platform"]).status).toBe(0);
     const listed = runJson<{ issues: { id: string; display: string }[] }>(r, [
       "list",

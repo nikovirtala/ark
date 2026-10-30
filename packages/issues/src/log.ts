@@ -287,11 +287,14 @@ export function unavailableReason(n: Numbering, source: string | null = null): s
 
 /**
  * The note a read command adds when issue numbers are unavailable (`null` otherwise): a shallow
- * clone or a cached source without a committed index shows issues by id.
+ * clone or a cached source without a committed index shows issues by id. A `--source` read of a
+ * source that isn't fetched gets none; its "not fetched" note says why.
  */
 export function numberingNote(read: IssuesRead): string | null {
   const n = read.numbering;
   if (n.available) return null;
+  // Only a --source read of a source that isn't fetched has no-main-ref.
+  if (read.source !== null && n.reason === "no-main-ref") return null;
   return `issue numbers are unavailable (${unavailableReason(n, read.source)}); issues display by id`;
 }
 
