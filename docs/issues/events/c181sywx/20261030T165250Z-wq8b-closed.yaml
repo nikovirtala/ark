@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M66VMYAAQ9ADBG6T1J5TWQ8B
+subject: c181sywx
+type: closed
+at: 2026-10-30T16:52:50Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: (1) Both init.ts files now check AGENTS.md with namesPath, which matches the skill path only as a whole path (not preceded or followed by a path character; a leading ./ counts), so with --skill-dir . the line naming .claude/skills/adr/SKILL.md (or .claude/skills/issues/SKILL.md) no longer matches SKILL.md, and the pointer is added after it. (2) A line that names the same path, such as "Read SKILL.md first." or "Read ./SKILL.md first.", still keeps it from being added, and a rerun adds nothing. (3) packages/issues/src/cli/init.test.ts and packages/adr/src/cli/init.test.ts run init --skill --skill-dir . over AGENTS.md with the other tool's pointer, a longer path ending in SKILL.md, and both kept forms; the first two failed before the fix.
+data:
+  resolution: done

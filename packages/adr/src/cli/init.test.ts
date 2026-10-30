@@ -319,6 +319,26 @@ describe("adr init --skill", { timeout: 60_000 }, () => {
     expect(await read(r, "AGENTS.md")).toBe(after);
   });
 
+  const ISSUES_POINTER =
+    "Issues in this repository are tracked with issues: read .claude/skills/issues/SKILL.md before starting, continuing or finishing work, and follow it.";
+  const ROOT_POINTER = agentsPointer("SKILL.md");
+  it.each([
+    [`${ISSUES_POINTER}\n`, `${ISSUES_POINTER}\n\n${ROOT_POINTER}\n`],
+    ["See docs/SKILL.md.\n", `See docs/SKILL.md.\n\n${ROOT_POINTER}\n`],
+    ["Read SKILL.md first.\n", "Read SKILL.md first.\n"],
+    ["Read ./SKILL.md first.\n", "Read ./SKILL.md first.\n"],
+  ])("with --skill-dir ., adds the pointer to AGENTS.md %j once", async (before, after) => {
+    const r = await repo({ "AGENTS.md": before });
+    const out = runAdr(r, ["init", "--skill", "--skill-dir", ".", "--json"]);
+    expect(out.status).toBe(0);
+    expect(await read(r, "AGENTS.md")).toBe(after);
+    const d = doc(out.stdout);
+    expect(d.written.includes("AGENTS.md")).toBe(before !== after);
+    expect(d.kept.includes("AGENTS.md")).toBe(before === after);
+    expect(runAdr(r, ["init", "--skill", "--skill-dir", "."]).status).toBe(0);
+    expect(await read(r, "AGENTS.md")).toBe(after);
+  });
+
   it("leaves AGENTS.md with unstaged changes unstaged, and refuses it with --commit", async () => {
     const r = await repo({ "AGENTS.md": "# Agents\n" });
     await writeFile(join(r.root, "AGENTS.md"), "# Agents\nEdited.\n");

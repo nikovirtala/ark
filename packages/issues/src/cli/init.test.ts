@@ -90,6 +90,30 @@ describe("issues init --skill", { timeout: 60_000 }, () => {
     expect(read(r, "AGENTS.md")).toBe(`${agentsPointer(".kiro/skills/issues/SKILL.md")}\n`);
   });
 
+  const ADR_POINTER =
+    "Architecture decisions in this repository are managed by adr: read .claude/skills/adr/SKILL.md before changing architecture, and follow it.";
+  const ROOT_POINTER = agentsPointer("SKILL.md");
+  it.each([
+    [`${ADR_POINTER}\n`, `${ADR_POINTER}\n\n${ROOT_POINTER}\n`],
+    ["See docs/SKILL.md.\n", `See docs/SKILL.md.\n\n${ROOT_POINTER}\n`],
+    ["Read SKILL.md first.\n", "Read SKILL.md first.\n"],
+    ["Read ./SKILL.md first.\n", "Read ./SKILL.md first.\n"],
+  ])("with --skill-dir ., adds the pointer to AGENTS.md %j once", async (before, after) => {
+    await using r = await cliRepo({ "AGENTS.md": before });
+    const out = runJson<{ written: string[]; kept: string[] }>(r, [
+      "init",
+      "--skill",
+      "--skill-dir",
+      ".",
+    ]);
+    expect(out.status).toBe(0);
+    expect(read(r, "AGENTS.md")).toBe(after);
+    expect(out.json.written.includes("AGENTS.md")).toBe(before !== after);
+    expect(out.json.kept.includes("AGENTS.md")).toBe(before === after);
+    expect(runIssues(r, ["init", "--skill", "--skill-dir", "."]).status).toBe(0);
+    expect(read(r, "AGENTS.md")).toBe(after);
+  });
+
   it.each([
     [["--skill-dir", "x"], "--skill-dir needs --skill"],
     [

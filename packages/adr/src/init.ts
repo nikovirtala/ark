@@ -55,6 +55,22 @@ const AGENTS = "AGENTS.md";
 export const agentsPointer = (skill: string): string =>
   `Architecture decisions in this repository are managed by adr: read ${skill} before changing architecture, and follow it.`;
 
+/**
+ * Whether `line` names `path` as a whole path: not as the end of a longer one, as `SKILL.md`
+ * ends `.claude/skills/adr/SKILL.md`, nor as the start of one. A leading `./` still counts.
+ */
+function namesPath(line: string, path: string): boolean {
+  const pathChar = /[\w./-]/;
+  for (let at = line.indexOf(path); at !== -1; at = line.indexOf(path, at + 1)) {
+    const start = line.startsWith("./", at - 2) ? at - 2 : at;
+    const before = line[start - 1] ?? "";
+    const after = line.slice(at + path.length, at + path.length + 2);
+    const continues = /^[\w/-]/.test(after) || /^\.[\w/-]/.test(after);
+    if (!pathChar.test(before) && !continues) return true;
+  }
+  return false;
+}
+
 /** `text` with `line` appended after one blank line, ending with a newline. */
 function appendLine(text: string, line: string): string {
   if (text === "") return `${line}\n`;
@@ -168,7 +184,7 @@ export async function initDecisionLog(
       }
       const old = await log.tree.read(AGENTS);
       const text = old === null ? null : decoder.decode(old);
-      if ((text ?? "").split("\n").some((l) => l.includes(skill))) {
+      if ((text ?? "").split("\n").some((l) => namesPath(l, skill))) {
         kept.push(AGENTS);
       } else {
         let stage = true;
