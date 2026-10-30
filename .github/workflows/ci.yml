@@ -118,17 +118,18 @@ jobs:
         run: sh scripts/check-fixups.sh "origin/$BASE_REF" "$HEAD_SHA"
 
   test:
-    name: test (${{ matrix.package }}, ${{ matrix.workers }} workers)
+    name: test (${{ matrix.package }}, ${{ matrix.runner }}, ${{ matrix.workers }} workers)
     needs: select
     # An empty matrix is an error, and no package changed means there is nothing to test.
     if: needs.select.outputs.packages != '[]'
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       # Every package's result is worth having, as with `pnpm -r run test`, which runs them all.
       fail-fast: false
       matrix:
         package: ${{ fromJSON(needs.select.outputs.packages) }}
         workers: [3, 4, 6]
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -152,7 +153,7 @@ jobs:
           pnpm --filter "./packages/$PACKAGE" exec vitest run --maxWorkers="$WORKERS"
           read -r _ u1 n1 s1 i1 w1 q1 sq1 _ < /proc/stat
           busy=$(( (u1-u0)+(n1-n0)+(s1-s0)+(q1-q0)+(sq1-sq0) )); idle=$(( (i1-i0)+(w1-w0) ))
-          echo "EXPERIMENT package=$PACKAGE workers=$WORKERS wall=$(( $(date +%s)-t0 ))s cpu_busy=$((100*busy/(busy+idle)))%" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "EXPERIMENT runner=$(uname -m) package=$PACKAGE workers=$WORKERS wall=$(( $(date +%s)-t0 ))s cpu_busy=$((100*busy/(busy+idle)))%" | tee -a "$GITHUB_STEP_SUMMARY"
 
   # The one status to require in branch protection: it keeps the name of the single job CI used
   # to have, and fails unless every job above passed (or, with nothing to test, was skipped).
