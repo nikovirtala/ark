@@ -112,10 +112,14 @@ export function verifyCommand(o: VerifyCommandOptions): CommandSpec {
     summary: "check the log against its rules",
     usage: "verify [--staged | --base <ref>] [--fetch-sources] [--format text|json|github]",
     options: {
-      staged: { type: "boolean" },
-      base: { type: "string" },
-      "fetch-sources": { type: "boolean" },
-      format: { type: "string" },
+      staged: { type: "boolean", help: "check the staged changes, as the pre-commit hook does" },
+      base: { type: "string", value: "<ref>", help: "check what changed since <ref>" },
+      "fetch-sources": { type: "boolean", help: "fetch [[sources]] before checking" },
+      format: {
+        type: "string",
+        value: "<format>",
+        help: "the report: text, json or github (default: text)",
+      },
     },
     positionals: { min: 0, max: 0, names: [] },
     ref: "read",

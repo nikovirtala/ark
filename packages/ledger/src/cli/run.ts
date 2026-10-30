@@ -1,4 +1,4 @@
-import { type ParseArgsOptionsConfig, parseArgs } from "node:util";
+import { type ParseArgsOptionDescriptor, type ParseArgsOptionsConfig, parseArgs } from "node:util";
 import {
   CommitFailedError,
   InvalidArgumentError,
@@ -24,14 +24,24 @@ export interface Outcome {
   readonly notes?: readonly string[];
 }
 
+/** A command option: `parseArgs`' descriptor plus what `--help` prints for it. */
+export interface CommandOption extends ParseArgsOptionDescriptor {
+  /** One line for help. */
+  readonly help?: string;
+  /** A string option's value placeholder, such as `<id>=<markdown>`; default `<value>`. */
+  readonly value?: string;
+  /** A boolean option whose usage shows `--no-<name>`: the help line of that row. */
+  readonly negatedHelp?: string;
+}
+
 export interface CommandSpec {
   readonly name: string;
   /** One line, for `<tool> --help`. */
   readonly summary: string;
   /** For example `show <decision> [--history]`. */
   readonly usage: string;
-  /** `node:util` `parseArgs` options; `runCli` adds the globals. */
-  readonly options: ParseArgsOptionsConfig;
+  /** `node:util` `parseArgs` options with their help; `runCli` adds the globals. */
+  readonly options: Readonly<Record<string, CommandOption>>;
   readonly positionals: {
     readonly min: number;
     readonly max: number;
@@ -86,10 +96,14 @@ function toolHelp(tool: ToolCli): string {
 }
 
 function commandHelp(tool: ToolCli, spec: CommandSpec): string {
-  const options = Object.entries(spec.options).map(([name, o]) => {
+  const options = Object.entries(spec.options).flatMap(([name, o]) => {
     const flag = `${o.short === undefined ? "" : `-${o.short}, `}--${name}`;
-    const value = o.type === "string" ? ` <value>` : "";
-    return [`${flag}${value}`, o.multiple === true ? "(repeatable)" : ""] as const;
+    const value = o.type === "string" ? ` ${o.value ?? "<value>"}` : "";
+    const text = [o.help, o.multiple === true ? "(repeatable)" : null]
+      .filter((t) => t !== undefined && t !== null)
+      .join(" ");
+    const row = [`${flag}${value}`, text] as const;
+    return o.negatedHelp === undefined ? [row] : [row, [`--no-${name}`, o.negatedHelp] as const];
   });
   const globals = GLOBAL_HELP.filter(([, , ref]) => ref !== true || spec.ref === "read").map(
     ([flag, text]) => [flag, text] as const,
@@ -125,8 +139,34 @@ function checkTool(tool: ToolCli): void {
       if (o.short !== undefined && RESERVED_SHORTS.includes(o.short)) {
         throw new InvalidArgumentError(`${tool.name} ${c.name}: -${o.short} is a global flag`);
       }
+      if (o.type === "boolean" && o.value !== undefined) {
+        throw new InvalidArgumentError(
+          `${tool.name} ${c.name}: --${key} is a boolean; value is for string options`,
+        );
+      }
+      if (o.type === "string" && o.negatedHelp !== undefined) {
+        throw new InvalidArgumentError(
+          `${tool.name} ${c.name}: --${key} is a string; negatedHelp is for boolean options`,
+        );
+      }
     }
   }
+}
+
+/** The `parseArgs` config of `options`: their descriptors without the help fields. */
+function parseArgsOptions(
+  options: Readonly<Record<string, CommandOption>>,
+): ParseArgsOptionsConfig {
+  const config: ParseArgsOptionsConfig = {};
+  for (const [name, { type, short, multiple, default: fallback }] of Object.entries(options)) {
+    config[name] = {
+      type,
+      ...(short === undefined ? {} : { short }),
+      ...(multiple === undefined ? {} : { multiple }),
+      ...(fallback === undefined ? {} : { default: fallback }),
+    };
+  }
+  return config;
 }
 
 function isParseArgsError(e: unknown): e is Error {
@@ -235,7 +275,7 @@ export async function runCli(tool: ToolCli, io: CliIO): Promise<0 | 1 | 2> {
     }
     const { values, positionals } = parse(
       [...before, ...after],
-      { ...GLOBAL_OPTIONS, ...spec.options },
+      { ...GLOBAL_OPTIONS, ...parseArgsOptions(spec.options) },
       true,
     );
     json = values.json === true;
