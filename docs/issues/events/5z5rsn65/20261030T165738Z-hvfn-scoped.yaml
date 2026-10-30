@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M66VXQNQK1P0NQGSBXC0HVFN
+subject: 5z5rsn65
+type: scoped
+at: 2026-10-30T16:57:38Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - .github/workflows/ci.yml
