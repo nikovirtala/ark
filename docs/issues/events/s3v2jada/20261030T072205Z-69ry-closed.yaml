@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M65TZVGSQ2R5KSWWZDT569RY
+subject: s3v2jada
+type: closed
+at: 2026-10-30T07:22:05Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: 'Done in issues PR 3d (#52). Commits are named by subject because the fixups are squashed before merge. (1) issues mcp serves the prompts issues_from_discussion and issues_breakdown (mcp/prompts.ts, listed through the serveMcp spec in mcp/server.ts; each get reads the log and its templates afresh, and an unknown template or issue is -32602); mcp/prompts.test.ts covers both prompts'' arguments, texts, the parent, the state header with a duplicate''s warning, the children and the -32602 cases, and mcp-e2e.prompts.test.ts session P1 runs prompts/list and prompts/get with arguments against the built binary ("feat(issues): add the issues_from_discussion and issues_breakdown prompts"). (2) issues init --skill [--skill-dir <path>] (cli/init.ts initCommand(version), init.ts initIssueLog''s skill option) writes SKILL_MD to .claude/skills/issues/SKILL.md by default or to <dir>/SKILL.md, with writeNewFile so an existing SKILL.md is never overwritten (one that differs is kept with a note), and adds the one pointer line to AGENTS.md unless a line already names the skill''s path; skill.test.ts keeps SKILL_MD equal to the block in docs/02-issues-v1.md ("feat(issues): write the agent skill with init --skill"). (3) The issues README documents issues search (released in 0.3.0, #31) and issues mcp (0.4.0, #34 and #36) in its intro, Commands and MCP server sections, adds the prompts to the MCP server section and a new Agent skill section for init --skill, and its "Not yet included" section, which listed what was missing, is gone ("docs(issues): document the prompts and init --skill"). (4) mcp/prompts.test.ts, mcp-e2e.prompts.test.ts, skill.test.ts, the "initIssueLog with skill" cases in init.test.ts, the "issues init --skill" cases in cli/init.test.ts and docs.test.ts''s tool and prompt name checks cover the prompts and init --skill, all on temp repositories; .changeset/issues-agent-skill.md records an @nikovirtala/issues minor release, so the next version PR releases an issues version with issues mcp, init --skill and search ("chore: add a changeset for the issues prompts and agent skill"). (5) This commit closes ?16 in the PR that does the work, and the next commit closes ?4 in the same PR with a reason for each of its Done when conditions.'
+data:
+  resolution: done
