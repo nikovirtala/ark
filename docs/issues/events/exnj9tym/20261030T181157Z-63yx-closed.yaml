@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M6705SJY00SAJYW1ST8363YX
+subject: exnj9tym
+type: closed
+at: 2026-10-30T18:11:57Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: (1) TABLE_B in packages/issues/src/test-support/write-cells.ts has the rows "issues_close while close_requires_human is true, no reason" (crh repository) and "issues_close after mcp_can_close turned false, no reason" (shared repository), whose O, OB and P cells assert the rules contain issue/agent-closed and issue/agent-reason-required and whose closed cells are exactly transition/illegal; mcp/write-tools.table-b.test.ts and mcp-e2e.table-b.test.ts run them, and pnpm test:durations passes with those files at 92.4s and 94.8s against the 241s share. (2) The issues_start row first scopes ?5 to src/unwritten/**, which matches no tracked file, and its O cell asserts planStart's note "src/unwritten/** matches no tracked file; from this commit verify reports scope/glob-unmatched until a file matches" in both suites. (3) This pull request closes the issue in the same change as the tests.
+data:
+  resolution: done
