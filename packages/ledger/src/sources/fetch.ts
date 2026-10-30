@@ -47,6 +47,38 @@ function isLocalUrl(url: string): boolean {
   return !url.includes("://") && !/^[^/]*:/.test(url);
 }
 
+type ObjectFormat = "sha1" | "sha256";
+
+/** The format a full hex oid belongs to by its length, else `null`. */
+function formatOfOid(oid: string): ObjectFormat | null {
+  if (/^[0-9a-f]{40}$/.test(oid)) return "sha1";
+  if (/^[0-9a-f]{64}$/.test(oid)) return "sha256";
+  return null;
+}
+
+/**
+ * The source's object format from the oids `ls-remote` prints for `ref`, or `null` when it can't
+ * be told: the command failed or timed out, no ref matched, or the first line isn't `<oid>\t<ref>`.
+ */
+async function remoteFormat(
+  cache: Git,
+  url: string,
+  ref: string,
+  timeoutMs: number,
+): Promise<ObjectFormat | null> {
+  try {
+    const r = await cache.run(["-c", "protocol.ext.allow=never", "ls-remote", "--", url, ref], {
+      env: { GIT_TERMINAL_PROMPT: "0" },
+      timeoutMs,
+    });
+    const first = Buffer.from(r.stdout).toString("utf8").split("\n")[0] ?? "";
+    return formatOfOid(first.split("\t")[0] ?? "");
+  } catch (e) {
+    if (e instanceof GitError) return null;
+    throw e;
+  }
+}
+
 async function pinnedCommit(cache: Git): Promise<string | null> {
   return cache.resolveCommit(PINNED);
 }
@@ -277,7 +309,9 @@ async function writeMetadata(cacheDir: string, data: Record<string, string>): Pr
  * Fetches `s` into its own bare cache repository under `<commonDir>/ark/sources/` (never into the
  * calling repository, which a `--depth=1` fetch would make shallow) and pins the result. When the
  * fetch fails but the cache already pins a commit, that commit is served with `stale: true`.
- * Throws `SourceFetchError` when there is nothing to serve.
+ * Throws `SourceFetchError` when there is nothing to serve. The cache uses the source's object
+ * format: a full-sha ref's by its length; for a named ref, a failed fetch asks the source with
+ * `ls-remote`, and a cache of the other format is recreated.
  */
 export async function fetchSource(
   git: Git,
@@ -319,6 +353,30 @@ export async function fetchSource(
   }
   const release = await acquireLock(`${cacheDir}.lock`, s.name, timeoutMs);
   try {
+    const deadline = Date.now() + timeoutMs;
+    const shaFormat = FULL_SHA.test(s.ref) ? formatOfOid(s.ref) : null;
+    const recreate = async (format: ObjectFormat): Promise<Git> => {
+      try {
+        await rm(cacheDir, { recursive: true, force: true });
+      } catch (e) {
+        throw new SourceFetchError(s.name, `cannot recreate source cache: ${cacheDir}`, "", {
+          cause: e,
+        });
+      }
+      return Git.initBare(cacheDir, cacheOpts, { objectFormat: format });
+    };
+    const tryFetch = async (cache: Git, ms: number): Promise<GitError | null> => {
+      try {
+        await cache.run(
+          ["-c", "protocol.ext.allow=never", "fetch", "--depth=1", "--no-tags", "--", url, s.ref],
+          { env: { GIT_TERMINAL_PROMPT: "0" }, timeoutMs: ms },
+        );
+        return null;
+      } catch (e) {
+        if (e instanceof GitError) return e;
+        throw e;
+      }
+    };
     const existing = (await isDirectory(cacheDir))
       ? await Git.openGitDir(cacheDir, cacheOpts).catch(async (e: unknown) => {
           if (!(e instanceof NotARepositoryError)) throw e;
@@ -327,22 +385,35 @@ export async function fetchSource(
           return null;
         })
       : null;
-    const cache = existing ?? (await Git.initBare(cacheDir, cacheOpts));
-    const pinned = existing === null ? null : await pinnedCommit(cache);
-    if (FULL_SHA.test(s.ref) && pinned === s.ref) return await served(cache, null);
-    try {
-      await cache.run(
-        ["-c", "protocol.ext.allow=never", "fetch", "--depth=1", "--no-tags", "--", url, s.ref],
-        { env: { GIT_TERMINAL_PROMPT: "0" }, timeoutMs },
-      );
-    } catch (e) {
-      if (!(e instanceof GitError)) throw e;
-      if (pinned !== null) return await served(cache, gitReason(e));
+    let cache =
+      existing ?? (await Git.initBare(cacheDir, cacheOpts, { objectFormat: shaFormat ?? "sha1" }));
+    let pinned = existing === null ? null : await pinnedCommit(cache);
+    if (shaFormat !== null && pinned === s.ref) return await served(cache, null);
+    if (existing !== null && shaFormat !== null && (await cache.objectFormat()) !== shaFormat) {
+      cache = await recreate(shaFormat);
+      pinned = null;
+    }
+    let failure = await tryFetch(cache, timeoutMs);
+    // A named ref doesn't say its format: a failed fetch may be a cache of the other format, so
+    // ask the source, without parsing git's (translated) message. A timeout is never a mismatch.
+    if (failure !== null && shaFormat === null && failure.code !== "git-timeout") {
+      const left = deadline - Date.now();
+      const remote = left < 1 ? null : await remoteFormat(cache, url, s.ref, left);
+      if (remote !== null && remote !== (await cache.objectFormat())) {
+        // The old cache can never fetch from this source again, nor is its pin worth serving.
+        cache = await recreate(remote);
+        pinned = null;
+        const left2 = deadline - Date.now();
+        if (left2 >= 1) failure = await tryFetch(cache, left2);
+      }
+    }
+    if (failure !== null) {
+      if (pinned !== null) return await served(cache, gitReason(failure));
       throw new SourceFetchError(
         s.name,
-        `cannot fetch source ${s.name} (${s.ref}): ${gitReason(e)}`,
-        e.stderr,
-        { cause: e },
+        `cannot fetch source ${s.name} (${s.ref}): ${gitReason(failure)}`,
+        failure.stderr,
+        { cause: failure },
       );
     }
     const commit = await cache.resolveCommit("FETCH_HEAD");

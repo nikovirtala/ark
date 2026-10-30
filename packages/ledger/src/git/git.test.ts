@@ -157,6 +157,23 @@ describe("Git.openGitDir and Git.initBare", () => {
     const out = await git.run(["rev-parse", "--is-bare-repository"]);
     expect(Buffer.from(out.stdout).toString()).toBe("true\n");
   });
+
+  it("initBare creates the object format asked for, whatever GIT_DEFAULT_HASH says", async () => {
+    const base = await tempDir();
+    const env = { ...GIT_ENV_ISOLATION };
+    const sha256 = await Git.initBare(join(base, "a.git"), { env }, { objectFormat: "sha256" });
+    expect(await sha256.objectFormat()).toBe("sha256");
+    const sha1 = await Git.initBare(
+      join(base, "b.git"),
+      { env: { ...env, GIT_DEFAULT_HASH: "sha256" } },
+      { objectFormat: "sha1" },
+    );
+    expect(await sha1.objectFormat()).toBe("sha1");
+    const plain = await Git.initBare(join(base, "c.git"), {
+      env: { ...env, GIT_DEFAULT_HASH: undefined },
+    });
+    expect(await plain.objectFormat()).toBe("sha1");
+  });
 });
 
 describe("environment", () => {
