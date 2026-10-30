@@ -117,8 +117,9 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: sh scripts/check-fixups.sh "origin/$BASE_REF" "$HEAD_SHA"
 
+  # No name: GitHub names each matrix job test (<package>) itself, and a job skipped before its
+  # matrix expands shows as plain test, not with the unexpanded matrix expression in its name.
   test:
-    name: test (${{ matrix.package }})
     needs: select
     # An empty matrix is an error, and no package changed means there is nothing to test.
     if: needs.select.outputs.packages != '[]'
