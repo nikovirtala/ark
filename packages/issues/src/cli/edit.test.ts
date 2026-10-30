@@ -1,7 +1,12 @@
+import { execFileSync } from "node:child_process";
 import { chmod, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { TempRepo } from "@nikovirtala/ledger/testing";
 import { describe, expect, it } from "vitest";
-import { cliRepo, newIssue, runIssues, runJson } from "../test-support/cli.js";
+import { cliEnv, cliRepo, newIssue, runIssues, runJson } from "../test-support/cli.js";
+
+const git = (repo: TempRepo, ...args: string[]): string =>
+  execFileSync("git", args, { cwd: repo.root, env: cliEnv(repo), encoding: "utf8" });
 
 type Write = {
   ok: boolean;
@@ -34,6 +39,53 @@ describe("issues edit", () => {
     expect(same.status).toBe(0);
     expect(same.json.notes).toContain("nothing changed");
     expect(runIssues(repo, ["edit", "1", "--section", "nope=x"]).status).toBe(2);
+  });
+
+  it("removes an empty optional section and puts it back in template order", async () => {
+    await using repo = await cliRepo();
+    const id = newIssue(repo, "T", ["--section", "notes=N"]);
+    const path = join(repo.root, `docs/issues/items/${id}-t.md`);
+    const removed = runJson<Write>(repo, ["edit", "1", "--section", "notes="]);
+    expect(removed.status).toBe(0);
+    expect(await readFile(path, "utf8")).toBe(
+      "# T\n\n## Goal\nDo the thing.\n\n## Done when\nThe thing is done.\n",
+    );
+    const again = runJson<Write>(repo, ["edit", "1", "--section", "notes="]);
+    expect(again.status).toBe(0);
+    expect(again.json.notes).toContain("nothing changed");
+    const back = runJson<Write>(repo, ["edit", "1", "--section", "notes=Back"]);
+    expect(back.status).toBe(0);
+    expect(await readFile(path, "utf8")).toBe(
+      "# T\n\n## Goal\nDo the thing.\n\n## Notes\nBack\n\n## Done when\nThe thing is done.\n",
+    );
+  });
+
+  it("refuses to commit an empty required section", async () => {
+    await using repo = await cliRepo();
+    const id = newIssue(repo, "T", ["--section", "notes=N"]);
+    const path = join(repo.root, `docs/issues/items/${id}-t.md`);
+    const head = git(repo, "rev-parse", "HEAD");
+    const before = await readFile(path);
+    const r = runIssues(repo, ["edit", "1", "--section", "done=", "--commit"]);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("not edited");
+    expect(r.stdout).toContain("[template/section-empty]");
+    expect(await readFile(path)).toEqual(before);
+    expect(git(repo, "status", "--porcelain")).toBe("");
+    expect(git(repo, "rev-parse", "HEAD")).toBe(head);
+    const doc = runJson<Write>(repo, ["edit", "1", "--section", "done=", "--commit"]);
+    expect(doc.json.ok).toBe(false);
+    expect(doc.json.written).toEqual([]);
+  });
+
+  it("keeps an empty required section with a warning when it only stages", async () => {
+    await using repo = await cliRepo();
+    const id = newIssue(repo, "T", ["--section", "notes=N"]);
+    const path = join(repo.root, `docs/issues/items/${id}-t.md`);
+    const r = runIssues(repo, ["edit", "1", "--section", "done=", "--no-commit"]);
+    expect(r.status).toBe(0);
+    expect((await readFile(path, "utf8")).endsWith("## Done when\n")).toBe(true);
+    expect(r.stderr).toContain("warning: template/section-empty");
   });
 
   it("adds a heading when the body has none", async () => {

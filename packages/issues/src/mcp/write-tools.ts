@@ -124,7 +124,7 @@ export function writeTools(e: IssuesMcpEnv): McpTool[] {
       name: "issues_update",
       title: "Update an issue's description",
       description:
-        "Replace sections of an issue's description (section id → markdown), or its title, keeping every other line. Keep Done when accurate when the understanding of the work changes. Refused while the file has unstaged changes.",
+        "Replace sections of an issue's description (section id → markdown), or its title, keeping every other line. Empty text removes an optional section; text adds it back in the template's order. Keep Done when accurate when the understanding of the work changes. Refused while the file has unstaged changes.",
       inputSchema: {
         ...object({ id: ID, title: TITLE, sections: { ...SECTIONS, minProperties: 1 } }, ["id"]),
         minProperties: 2,

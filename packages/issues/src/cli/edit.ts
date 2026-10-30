@@ -8,7 +8,9 @@ import { findingNotes, writeText } from "./text.js";
 
 /**
  * `issues edit <issue> [--title <title>] [--section <id>=<markdown>]…`: replaces the heading and
- * sections without an editor; without them, opens the description in `VISUAL` or `EDITOR`.
+ * sections without an editor; without them, opens the description in `VISUAL` or `EDITOR`. Empty
+ * text removes an optional section, and text adds it back in the template's order. A commit that
+ * would leave the body failing template lint is refused, as with `new`.
  */
 export const editCommand: CommandSpec = {
   name: "edit",
@@ -21,7 +23,7 @@ export const editCommand: CommandSpec = {
       type: "string",
       multiple: true,
       value: "<id>=<markdown>",
-      help: "replace section <id> with <markdown>",
+      help: "replace section <id> with <markdown>; empty text removes an optional section",
     },
     edit: {
       type: "boolean",
@@ -51,6 +53,7 @@ export const editCommand: CommandSpec = {
       {
         ...commitChoice(values, { autoCommit: log.issues.autoCommit }),
         notes,
+        refuseIncomplete: true,
         ...(editor === null ? {} : { edit: editor }),
       },
     );

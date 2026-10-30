@@ -241,8 +241,8 @@ The CLI is the human interface and the automation entry point for hooks and CI. 
 | Command | What it does | Files written |
 | --- | --- | --- |
 | `issues init [--template bug] [--skill [--skill-dir <path>]]` | Creates the layout, config and starter templates; `--skill` also writes SKILL.md and the AGENTS.md pointer | config, templates, SKILL.md, AGENTS.md |
-| `issues new "Title" [--template X] [--parent 12] [--depends-on 13] [--label type:bug] [--section id=…]` | Renders an issue from the template, opens `$EDITOR` | issue file, `opened` event (+ `labeled`, `linked` for `--depends-on`) |
-| `issues edit 42 [--title "…"] [--section id=…]` | Opens the description in `$EDITOR`, or replaces the heading and sections without one | issue file |
+| `issues new "Title" [--template X] [--parent 12] [--depends-on 13] [--label type:bug] [--section id=…]` | Renders an issue from the template, opens `$EDITOR`; an optional section without content gets no heading | issue file, `opened` event (+ `labeled`, `linked` for `--depends-on`) |
+| `issues edit 42 [--title "…"] [--section id=…]` | Opens the description in `$EDITOR`, or replaces the heading and sections without one; `--section <id>=` removes an optional section, and text adds it back in the template's order; a commit that would leave the description failing template lint is refused, as with `new` | issue file |
 | `issues start 42` | Marks work begun; assigns you if unassigned | `started` (+ `assigned`) event |
 | `issues stop 42` | Pauses work without finishing | `stopped` event |
 | `issues close 42 [--resolution wontfix --reason "…"]` | Closes; resolution defaults to `done` | `closed` event |
