@@ -101,7 +101,7 @@ describe("issues mcp over stdio (built)", () => {
       ]);
       expect(doc(dup)).toEqual(cliJson(["show", "2"]));
       const blocked = await call(s, "issues_get", { id: "?3" });
-      expect(text(blocked).split("\n")[1]).toBe("BLOCKED by ?1 (in-progress). Finish them first.");
+      expect(text(blocked).split("\n")[1]).toBe("BLOCKED by ?1 (in-progress). Finish it first.");
       const history = await call(s, "issues_get", { id: d, include_history: true });
       expect(doc(history)).toEqual(cliJson(["show", d, "--history"]));
       expect((doc(history).events as unknown[]).length).toBeGreaterThan(0);

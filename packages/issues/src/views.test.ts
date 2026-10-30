@@ -260,6 +260,17 @@ describe("stateHeader", () => {
     expect(h(C).warning).toBe("CLOSED on 2026-10-22 as won't fix: not needed.");
     expect(h(D).warning).toBe("CLOSED on 2026-10-22 as done.");
     expect(h(E).warning).toBe(`BLOCKED by ?2 (in-progress), ${F} (open). Finish them first.`);
+    // One open blocker is "it".
+    const one = await readOf([
+      { id: A, events: [openedAt(A, 1)] },
+      {
+        id: B,
+        events: [openedAt(B, 1), event(B, "linked", 2, { data: { to: A, rel: "depends-on" } })],
+      },
+    ]);
+    const b = one.projection.views.get(B);
+    if (b === undefined) throw new Error(B);
+    expect(stateHeader(b, one).warning).toBe(`BLOCKED by ${A} (open). Finish it first.`);
     expect(h(F)).toEqual({ line: `${F} · open`, warning: null });
   });
 });

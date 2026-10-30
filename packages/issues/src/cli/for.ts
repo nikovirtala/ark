@@ -11,6 +11,7 @@ export const forCommand: CommandSpec = {
   summary: "list the open issues for files, from scope globs and code anchors",
   usage: "for <path>… [--all]",
   options: { all: { type: "boolean" } },
+  help: { all: { text: "include closed issues" } },
   positionals: { min: 1, max: 100, names: ["path"] },
   ref: "read",
   async run({ io, flags, values, positionals }) {

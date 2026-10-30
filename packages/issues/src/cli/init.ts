@@ -1,7 +1,12 @@
 import { realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { type JsonValue, UsageError } from "@nikovirtala/ledger";
-import { COMMIT_OPTIONS, type CommandSpec, commitChoice } from "@nikovirtala/ledger/cli";
+import {
+  COMMIT_HELP,
+  COMMIT_OPTIONS,
+  type CommandSpec,
+  commitChoice,
+} from "@nikovirtala/ledger/cli";
 import { initIssueLog } from "../init.js";
 import { openForCli, strings } from "./open.js";
 import { initText } from "./text.js";
@@ -37,6 +42,18 @@ export function initCommand(version: string): CommandSpec {
       skill: { type: "boolean" },
       "skill-dir": { type: "string" },
       ...COMMIT_OPTIONS,
+    },
+    help: {
+      template: {
+        value: "<name>",
+        text: "a starter template to write: bug, feature or task (default: task)",
+      },
+      skill: { text: "also write the agent skill and its AGENTS.md pointer" },
+      "skill-dir": {
+        value: "<path>",
+        text: "the skill's directory (default: .claude/skills/issues)",
+      },
+      ...COMMIT_HELP,
     },
     positionals: { min: 0, max: 0, names: [] },
     ref: "reject",

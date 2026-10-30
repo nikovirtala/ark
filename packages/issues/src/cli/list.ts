@@ -33,6 +33,15 @@ export const listCommand: CommandSpec = {
     source: { type: "string" },
     since: { type: "string" },
   },
+  help: {
+    state: { value: "<state>", text: "only issues in this state: open, in-progress or closed" },
+    all: { text: "every issue, closed ones too" },
+    assignee: { value: "<who|me>", text: "only issues assigned to <who>; me is you" },
+    label: { value: "<label>", text: "only issues with this label" },
+    limit: { value: "<n>", text: "list at most <n> issues (1 to 1000)" },
+    source: { value: "<name>", text: "read the cached log of the [[sources]] entry <name>" },
+    since: { value: "<rev>", text: "the issues closed, reopened or assigned to you since <rev>" },
+  },
   positionals: { min: 0, max: 0, names: [] },
   ref: "read",
   async run({ io, flags, values }) {

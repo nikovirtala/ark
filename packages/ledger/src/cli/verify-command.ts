@@ -117,6 +117,12 @@ export function verifyCommand(o: VerifyCommandOptions): CommandSpec {
       "fetch-sources": { type: "boolean" },
       format: { type: "string" },
     },
+    help: {
+      staged: { text: "check what's staged for the next commit" },
+      base: { value: "<ref>", text: "check only what changed since <ref>" },
+      "fetch-sources": { text: "fetch the [[sources]] logs before checking references into them" },
+      format: { value: "<format>", text: "text (the default), json or github" },
+    },
     positionals: { min: 0, max: 0, names: [] },
     ref: "read",
     async run({ io, flags, values }) {

@@ -1,5 +1,10 @@
 import { exitCode, formatText, type JsonValue, UsageError } from "@nikovirtala/ledger";
-import { COMMIT_OPTIONS, type CommandSpec, commitChoice } from "@nikovirtala/ledger/cli";
+import {
+  COMMIT_HELP,
+  COMMIT_OPTIONS,
+  type CommandSpec,
+  commitChoice,
+} from "@nikovirtala/ledger/cli";
 import { type IndexRun, runIssueIndex } from "../log-index.js";
 import { openForCli } from "./open.js";
 
@@ -29,6 +34,10 @@ export const indexCommand: CommandSpec = {
   summary: "regenerate the issue index (index.md), or check that it is current",
   usage: "index [--check] [--commit | --no-commit] [-m <message>]",
   options: { check: { type: "boolean" }, ...COMMIT_OPTIONS },
+  help: {
+    check: { text: "only check that index.md is current; exit 1 if it isn't" },
+    ...COMMIT_HELP,
+  },
   positionals: { min: 0, max: 0, names: [] },
   ref: "read",
   async run({ io, flags, values }) {

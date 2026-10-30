@@ -15,6 +15,11 @@ export const readyCommand: CommandSpec = {
     label: { type: "string", multiple: true },
     limit: { type: "string" },
   },
+  help: {
+    mine: { text: "also list the issues assigned to you, first" },
+    label: { value: "<label>", text: "only issues with this label" },
+    limit: { value: "<n>", text: "list at most <n> issues (1 to 1000)" },
+  },
   positionals: { min: 0, max: 0, names: [] },
   ref: "read",
   async run({ io, flags, values }) {

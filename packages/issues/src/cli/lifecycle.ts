@@ -1,6 +1,7 @@
 import { type Actor, type JsonValue, resolveAttribution } from "@nikovirtala/ledger";
 import {
   type CliIO,
+  COMMIT_HELP,
   COMMIT_OPTIONS,
   type CommandSpec,
   commitChoice,
@@ -53,6 +54,7 @@ export const startCommand: CommandSpec = {
   summary: "start work on an issue (assigns you when unassigned)",
   usage: "start <issue> [--commit | --no-commit] [-m <message>]",
   options: { ...COMMIT_OPTIONS },
+  help: COMMIT_HELP,
   positionals: { min: 1, max: 1, names: ["issue"] },
   ref: "reject",
   run: ({ io, flags, values, positionals }) =>
@@ -67,6 +69,7 @@ export const stopCommand: CommandSpec = {
   summary: "stop work on an issue without finishing it",
   usage: "stop <issue> [--reason <text>] [--commit | --no-commit] [-m <message>]",
   options: { reason: { type: "string" }, ...COMMIT_OPTIONS },
+  help: { reason: { value: "<text>", text: "why the work stops" }, ...COMMIT_HELP },
   positionals: { min: 1, max: 1, names: ["issue"] },
   ref: "reject",
   run: ({ io, flags, values, positionals }) =>
@@ -86,6 +89,18 @@ export const closeCommand: CommandSpec = {
     "duplicate-of": { type: "string" },
     reason: { type: "string" },
     ...COMMIT_OPTIONS,
+  },
+  help: {
+    resolution: {
+      value: "<resolution>",
+      text: "done (the default), wontfix, duplicate or obsolete",
+    },
+    "duplicate-of": {
+      value: "<issue>",
+      text: "the issue this one duplicates; sets the resolution",
+    },
+    reason: { value: "<text>", text: "why; required unless the resolution is done" },
+    ...COMMIT_HELP,
   },
   positionals: { min: 1, max: 1, names: ["issue"] },
   ref: "reject",
@@ -111,6 +126,10 @@ export const reopenCommand: CommandSpec = {
   summary: "reopen a closed issue",
   usage: "reopen <issue> --reason <text> [--commit | --no-commit] [-m <message>]",
   options: { reason: { type: "string" }, ...COMMIT_OPTIONS },
+  help: {
+    reason: { value: "<text>", text: "why the issue is reopened (required)" },
+    ...COMMIT_HELP,
+  },
   positionals: { min: 1, max: 1, names: ["issue"] },
   ref: "reject",
   run: ({ io, flags, values, positionals }) =>

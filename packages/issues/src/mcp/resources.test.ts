@@ -93,7 +93,7 @@ describe("issues mcp resources", { timeout: 60_000 }, () => {
     const blocked = await contents(client, "issues://issue/3");
     expect(blocked.text.split("\n").slice(0, 2)).toEqual([
       `?3 (${ids.c}) · open`,
-      "BLOCKED by ?1 (in-progress). Finish them first.",
+      "BLOCKED by ?1 (in-progress). Finish it first.",
     ]);
   });
 

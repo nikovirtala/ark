@@ -96,6 +96,33 @@ describe("runCli tool check", () => {
       [command({ name: "a", options: { x: { type: "boolean", short: s } } })],
       `t a: -${s} is a global flag`,
     ]),
+    [
+      "help for an unknown option",
+      [command({ name: "a", help: { x: { text: "x" } } })],
+      "t a: help for unknown option --x",
+    ],
+    [
+      "a negated string option",
+      [
+        command({
+          name: "a",
+          options: { x: { type: "string" } },
+          help: { x: { text: "x", negated: "no x" } },
+        }),
+      ],
+      "t a: --no-x needs a boolean --x",
+    ],
+    [
+      "a value for a boolean option",
+      [
+        command({
+          name: "a",
+          options: { x: { type: "boolean" } },
+          help: { x: { value: "<v>", text: "x" } },
+        }),
+      ],
+      "t a: --x takes no value",
+    ],
   ];
   it.each(cases)("refuses %s as an internal error", async (_, c, message) => {
     const r = await call(["--json", "a"], { ...TOOL, commands: c });
@@ -242,6 +269,39 @@ describe("runCli help and version", () => {
       expect(r.stdout).toContain("--ref <ref>");
     },
   );
+
+  it("prints each option's help: its value, its text, (repeatable) and its --no- line", async () => {
+    const tool: ToolCli = {
+      ...TOOL,
+      commands: [
+        command({
+          name: "new",
+          usage: "new [--section <id>=<text>]… [--edit | --no-edit] [--tag <tag>]",
+          options: {
+            section: { type: "string", multiple: true },
+            edit: { type: "boolean" },
+            tag: { type: "string" },
+          },
+          help: {
+            section: { value: "<id>=<text>", text: "fill a section" },
+            edit: { text: "open an editor", negated: "don't open one" },
+          },
+        }),
+      ],
+    };
+    const r = await call(["new", "--help"], tool);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain(
+      [
+        "Options:",
+        "  --section <id>=<text>  fill a section (repeatable)",
+        "  --edit                 open an editor",
+        "  --no-edit              don't open one",
+        "  --tag <value>",
+        "",
+      ].join("\n"),
+    );
+  });
 
   it("leaves --ref out of the help of a command that rejects it", async () => {
     const r = await call(["write", "--help"]);

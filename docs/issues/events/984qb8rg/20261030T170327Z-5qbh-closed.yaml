@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M66W8CP0SJGR1T15Q20Q5QBH
+subject: 984qb8rg
+type: closed
+at: 2026-10-30T17:03:27Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: '(1) ledger''s CommandSpec takes help (OptionHelp: value placeholder, text, and the text of a --no-<name> line), runCli prints it in each command''s Options list and refuses help for an unknown option, a negated non-boolean or a value on a boolean; COMMIT_HELP covers --commit, --no-commit and -m. Every issues command now describes every option: link --help lists "--rel <relation>  depends-on, part-of, relates-to (the default), or implements for a decision"; new --help and edit --help show "--section <id>=<markdown>"; --no-commit, --no-edit and --no-comments have their own lines. packages/issues/src/cli/help.test.ts checks link --help and new --help line by line, and for every command that each option line has a description and that every --no- option of the usage line is listed; packages/ledger/src/cli/run.test.ts covers the rendering and the checks. (2) stateHeader says "Finish it first." for one open blocker and "Finish them first." for more (views.test.ts asserts both). (3) show --history prints "commented by kiro on behalf of niko@example.com" for an agent''s event (packages/issues/src/cli/show.test.ts).'
+data:
+  resolution: done

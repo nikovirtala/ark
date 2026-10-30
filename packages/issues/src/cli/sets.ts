@@ -1,5 +1,5 @@
 import { type JsonValue, resolveAttribution, type SetOp, UsageError } from "@nikovirtala/ledger";
-import { COMMIT_OPTIONS, type CommandSpec } from "@nikovirtala/ledger/cli";
+import { COMMIT_HELP, COMMIT_OPTIONS, type CommandSpec } from "@nikovirtala/ledger/cli";
 import { assignIssue, followScopeRenames, labelIssue, scopeIssue } from "../write.js";
 import { runWrite } from "./lifecycle.js";
 import { openForCli, strings } from "./open.js";
@@ -13,6 +13,15 @@ const SET_OPTIONS = {
   clear: { type: "boolean" },
   ...COMMIT_OPTIONS,
 } as const;
+
+/** `CommandSpec.help` for `SET_OPTIONS`, with `what` as the value, such as `<label>`. */
+const setHelp = (what: string, things: string) => ({
+  set: { value: what, text: `replace the ${things} with these` },
+  add: { value: what, text: `add to the ${things}` },
+  remove: { value: what, text: `remove from the ${things}` },
+  clear: { text: `remove all the ${things}` },
+  ...COMMIT_HELP,
+});
 
 /** The set operation of `--set`, `--add`, `--remove` and `--clear`. */
 function setOp(values: Readonly<Record<string, unknown>>): SetOp {
@@ -41,6 +50,7 @@ export const assignCommand: CommandSpec = {
   summary: "set, add or remove an issue's assignees (me is you)",
   usage: usage("assign", "who"),
   options: SET_OPTIONS,
+  help: setHelp("<who>", "assignees"),
   positionals: { min: 1, max: 1, names: ["issue"] },
   ref: "reject",
   run: ({ io, flags, values, positionals }) =>
@@ -55,6 +65,7 @@ export const labelCommand: CommandSpec = {
   summary: "set, add or remove an issue's labels",
   usage: usage("label", "label"),
   options: SET_OPTIONS,
+  help: setHelp("<label>", "labels"),
   positionals: { min: 1, max: 1, names: ["issue"] },
   ref: "reject",
   run: ({ io, flags, values, positionals }) =>
@@ -93,6 +104,12 @@ export const scopeCommand: CommandSpec = {
   summary: "set, add or remove the globs of the code an issue concerns",
   usage: `${usage("scope", "glob")} | scope [<issue>] --follow-renames`,
   options: { ...SET_OPTIONS, "follow-renames": { type: "boolean" } },
+  help: {
+    ...setHelp("<glob>", "scope globs"),
+    "follow-renames": {
+      text: "rewrite scope globs for staged renames (of every issue without <issue>)",
+    },
+  },
   positionals: { min: 0, max: 1, names: ["issue"] },
   ref: "reject",
   async run({ io, flags, values, positionals }) {

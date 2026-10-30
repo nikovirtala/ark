@@ -16,6 +16,11 @@ export const showCommand: CommandSpec = {
     commits: { type: "boolean" },
     comments: { type: "boolean" },
   },
+  help: {
+    history: { text: "also list every event" },
+    commits: { text: "also list the commits whose trailers name the issue" },
+    comments: { text: "show the comments (the default)", negated: "leave out the comments" },
+  },
   positionals: { min: 1, max: 1, names: ["issue"] },
   ref: "read",
   async run({ io, flags, values, positionals }) {

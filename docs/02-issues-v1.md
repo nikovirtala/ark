@@ -305,7 +305,7 @@ Tools return the CLI's `--json` documents as `structuredContent`, with a readabl
 
 - Every response that includes a description leads with a state header, before the body text.
 - A duplicate always carries a pointer to its canonical issue, for example: `DUPLICATE of ?17 (in-progress). Track work on ?17; read issues://issue/17.`
-- A blocked issue lists its open blockers, so an agent never starts work that cannot finish, for example: `BLOCKED by ?12 (open). Finish them first.`
+- A blocked issue lists its open blockers, so an agent never starts work that cannot finish, for example: `BLOCKED by ?12 (open). Finish it first.`
 - Issues take structured `sections` rather than free markdown, so the template is enforced and lint errors come back as data the agent can fix.
 - Agent-written events get `actor.kind: agent`, the MCP client name in `actor.agent`, and `ARK_ON_BEHALF_OF`, else the git user, as `on_behalf_of`.
 

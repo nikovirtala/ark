@@ -1,5 +1,10 @@
 import { type JsonValue, resolveAttribution, UsageError } from "@nikovirtala/ledger";
-import { COMMIT_OPTIONS, type CommandSpec, commitChoice } from "@nikovirtala/ledger/cli";
+import {
+  COMMIT_HELP,
+  COMMIT_OPTIONS,
+  type CommandSpec,
+  commitChoice,
+} from "@nikovirtala/ledger/cli";
 import { openIssue } from "../write.js";
 import { editorFor } from "./editor.js";
 import { openForCli, strings } from "./open.js";
@@ -38,6 +43,18 @@ export const newCommand: CommandSpec = {
     section: { type: "string", multiple: true },
     edit: { type: "boolean" },
     ...COMMIT_OPTIONS,
+  },
+  help: {
+    template: { value: "<name>", text: "the template (default: [log] default_template)" },
+    parent: { value: "<issue>", text: "the issue this one is part of" },
+    "depends-on": { value: "<issue>", text: "an issue that must be closed first" },
+    label: { value: "<label>", text: "a label" },
+    section: { value: "<id>=<markdown>", text: "fill the template section <id> with <markdown>" },
+    edit: {
+      text: "open the draft in $VISUAL or $EDITOR (the default at a terminal with an editor set)",
+      negated: "don't open an editor",
+    },
+    ...COMMIT_HELP,
   },
   positionals: { min: 1, max: 1, names: ["title"] },
   ref: "reject",

@@ -1,6 +1,11 @@
-import { COMMIT_OPTIONS, type CommandSpec } from "@nikovirtala/ledger/cli";
+import { COMMIT_HELP, COMMIT_OPTIONS, type CommandSpec } from "@nikovirtala/ledger/cli";
 import { linkIssue, unlinkIssue } from "../write.js";
 import { runWrite } from "./lifecycle.js";
+
+const REL_HELP = {
+  value: "<relation>",
+  text: "depends-on, part-of, relates-to (the default), or implements for a decision",
+} as const;
 
 const rel = (values: Readonly<Record<string, unknown>>) =>
   typeof values.rel === "string" ? values.rel : null;
@@ -12,6 +17,7 @@ export const linkCommand: CommandSpec = {
   usage:
     "link <issue> <target> [--rel depends-on|part-of|relates-to|implements] [--commit | --no-commit] [-m <message>]",
   options: { rel: { type: "string" }, ...COMMIT_OPTIONS },
+  help: { rel: REL_HELP, ...COMMIT_HELP },
   positionals: { min: 2, max: 2, names: ["issue", "target"] },
   ref: "reject",
   run: ({ io, flags, values, positionals }) =>
@@ -31,6 +37,7 @@ export const unlinkCommand: CommandSpec = {
   usage:
     "unlink <issue> <target> [--rel depends-on|part-of|relates-to|implements] [--commit | --no-commit] [-m <message>]",
   options: { rel: { type: "string" }, ...COMMIT_OPTIONS },
+  help: { rel: REL_HELP, ...COMMIT_HELP },
   positionals: { min: 2, max: 2, names: ["issue", "target"] },
   ref: "reject",
   run: ({ io, flags, values, positionals }) =>

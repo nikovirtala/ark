@@ -1,4 +1,4 @@
-import { COMMIT_OPTIONS, type CommandSpec } from "@nikovirtala/ledger/cli";
+import { COMMIT_HELP, COMMIT_OPTIONS, type CommandSpec } from "@nikovirtala/ledger/cli";
 import { commentIssue } from "../write.js";
 import { runWrite } from "./lifecycle.js";
 
@@ -8,6 +8,7 @@ export const commentCommand: CommandSpec = {
   summary: "add a comment to an issue",
   usage: "comment <issue> <text> [--commit | --no-commit] [-m <message>]",
   options: { ...COMMIT_OPTIONS },
+  help: COMMIT_HELP,
   positionals: { min: 2, max: 2, names: ["issue", "text"] },
   ref: "reject",
   run: ({ io, flags, values, positionals }) =>

@@ -42,4 +42,21 @@ describe("issues show", () => {
     expect(runIssues(repo, ["show", "9"]).status).toBe(2);
     expect(runIssues(repo, ["show", `platform:${a}`]).status).toBe(2);
   });
+
+  it("shows on whose behalf an agent acted in --history", async () => {
+    await using repo = await cliRepo();
+    const a = await seedIssue(repo, "Parent");
+    const env = { ARK_AGENT: "kiro", ARK_ON_BEHALF_OF: "niko@example.com" };
+    expect(runIssues(repo, ["comment", a, "Picked up.", "--commit"], { env }).status).toBe(0);
+    expect(runIssues(repo, ["start", a, "--commit"], { env: { ARK_AGENT: "kiro" } }).status).toBe(
+      0,
+    );
+    const history = runIssues(repo, ["show", a, "--history"]).stdout;
+    const lines = history.slice(history.indexOf("History:")).split("\n");
+    expect(lines.slice(1, 4)).toEqual([
+      expect.stringMatching(/^ {2}\S+ opened by Ledger Test$/),
+      expect.stringMatching(/^ {2}\S+ commented by kiro on behalf of niko@example\.com$/),
+      expect.stringMatching(/^ {2}\S+ started by kiro on behalf of ledger-test@example\.com$/),
+    ]);
+  });
 });

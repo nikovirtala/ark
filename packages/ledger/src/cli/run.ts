@@ -24,6 +24,15 @@ export interface Outcome {
   readonly notes?: readonly string[];
 }
 
+/** One option's line in `<tool> <command> --help`. */
+export interface OptionHelp {
+  /** The value's placeholder for a string option, as in `<id>=<markdown>`; default `<value>`. */
+  readonly value?: string;
+  readonly text: string;
+  /** For a boolean option: the text of its `--no-<name>` line, listed right after it. */
+  readonly negated?: string;
+}
+
 export interface CommandSpec {
   readonly name: string;
   /** One line, for `<tool> --help`. */
@@ -32,6 +41,8 @@ export interface CommandSpec {
   readonly usage: string;
   /** `node:util` `parseArgs` options; `runCli` adds the globals. */
   readonly options: ParseArgsOptionsConfig;
+  /** Help for the options, by option name; an option without it is listed with no text. */
+  readonly help?: Readonly<Record<string, OptionHelp>>;
   readonly positionals: {
     readonly min: number;
     readonly max: number;
@@ -86,10 +97,15 @@ function toolHelp(tool: ToolCli): string {
 }
 
 function commandHelp(tool: ToolCli, spec: CommandSpec): string {
-  const options = Object.entries(spec.options).map(([name, o]) => {
+  const options = Object.entries(spec.options).flatMap(([name, o]) => {
+    const help = spec.help?.[name];
     const flag = `${o.short === undefined ? "" : `-${o.short}, `}--${name}`;
-    const value = o.type === "string" ? ` <value>` : "";
-    return [`${flag}${value}`, o.multiple === true ? "(repeatable)" : ""] as const;
+    const value = o.type === "string" ? ` ${help?.value ?? "<value>"}` : "";
+    const text = [help?.text ?? "", o.multiple === true ? "(repeatable)" : ""]
+      .filter((t) => t !== "")
+      .join(" ");
+    const row = [`${flag}${value}`, text] as const;
+    return help?.negated === undefined ? [row] : [row, [`--no-${name}`, help.negated] as const];
   });
   const globals = GLOBAL_HELP.filter(([, , ref]) => ref !== true || spec.ref === "read").map(
     ([flag, text]) => [flag, text] as const,
@@ -124,6 +140,20 @@ function checkTool(tool: ToolCli): void {
       }
       if (o.short !== undefined && RESERVED_SHORTS.includes(o.short)) {
         throw new InvalidArgumentError(`${tool.name} ${c.name}: -${o.short} is a global flag`);
+      }
+    }
+    for (const [key, h] of Object.entries(c.help ?? {})) {
+      const o = c.options[key];
+      if (o === undefined) {
+        throw new InvalidArgumentError(`${tool.name} ${c.name}: help for unknown option --${key}`);
+      }
+      if (h.negated !== undefined && o.type !== "boolean") {
+        throw new InvalidArgumentError(
+          `${tool.name} ${c.name}: --no-${key} needs a boolean --${key}`,
+        );
+      }
+      if (h.value !== undefined && o.type !== "string") {
+        throw new InvalidArgumentError(`${tool.name} ${c.name}: --${key} takes no value`);
       }
     }
   }

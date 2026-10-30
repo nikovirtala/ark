@@ -148,7 +148,11 @@ export function showText(doc: IssueShowJson): string {
     out.push("History:");
     for (const e of doc.events) {
       const reason = typeof e.reason === "string" ? `: ${e.reason}` : "";
-      out.push(`  ${e.at} ${e.type} by ${e.actor.name}${reason}`);
+      const behalf =
+        e.actor.kind === "agent" && e.actor.on_behalf_of !== null
+          ? ` on behalf of ${e.actor.on_behalf_of}`
+          : "";
+      out.push(`  ${e.at} ${e.type} by ${e.actor.name}${behalf}${reason}`);
     }
     out.push("");
   }

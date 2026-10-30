@@ -7,7 +7,6 @@
 | --- | --- | --- | --- | --- |
 | ?1 | [Garbage-collect unused source caches](items/65qt4pp3-garbage-collect-unused-source-caches.md) |  |  | 2026-10-26 |
 | ?2 | [Support SHA-256 source repositories](items/pcmzc2dz-support-sha-256-source-repositories.md) |  |  | 2026-10-26 |
-| ?9 | [Fix the subcommand help and two show messages](items/984qb8rg-fix-the-subcommand-help-and-two-show-messages.md) |  |  | 2026-10-27 |
 | ?10 | [Drop empty optional sections from issue descriptions](items/wy4r966a-drop-empty-optional-sections-from-issue-descriptions.md) |  |  | 2026-10-27 |
 | ?12 | [Share the index-numbering and source-name helpers in ledger](items/3gyr85xq-share-the-index-numbering-and-source-name-helpers-in-ledger.md) |  |  | 2026-10-27 |
 | ?19 | [Test the remaining Table B cells of the issues mcp writes](items/exnj9tym-test-the-remaining-table-b-cells-of-the-issues-mcp-writes.md) |  | type:test | 2026-10-29 |
@@ -26,8 +25,8 @@
 | --- | --- | --- | --- | --- |
 | ?3 | [Add guardrails and cross-repository checks to issues](items/1w06qws8-add-guardrails-and-cross-repository-checks-to-issues.md) |  |  | 2026-10-27 |
 | ?4 | [Add the MCP server, agent skill and search to issues](items/6930v8w9-add-the-mcp-server-agent-skill-and-search-to-issues.md) |  |  | 2026-10-30 |
-| ?7 | [Decide when an unmatched scope glob fails verify](items/m5xh8bkd-decide-when-an-unmatched-scope-glob-fails-verify.md) |  |  | 2026-10-27 |
 | ?8 | [Let init replace a placeholder and write the index key](items/cqpzxvcs-let-init-replace-a-placeholder-and-write-the-index-key.md) |  |  | 2026-10-27 |
+| ?9 | [Fix the subcommand help and two show messages](items/984qb8rg-fix-the-subcommand-help-and-two-show-messages.md) |  |  | 2026-10-30 |
 | ?11 | [Name the real reason when a source's numbers are unavailable](items/vpq5v23q-name-the-real-reason-when-a-sources-numbers-are-unavailable.md) |  |  | 2026-10-30 |
 | ?13 | [Add full-text search to issues](items/0megpv2e-add-full-text-search-to-issues.md) |  |  | 2026-10-28 |
 | ?14 | [Add the read side of issues mcp](items/qy2ch92c-add-the-read-side-of-issues-mcp.md) |  |  | 2026-10-28 |
