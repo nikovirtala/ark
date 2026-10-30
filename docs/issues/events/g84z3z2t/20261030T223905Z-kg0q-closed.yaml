@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M67FEYHDTZWK0BHDYEERKG0Q
+subject: g84z3z2t
+type: closed
+at: 2026-10-30T22:39:05Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "(1) A --source read gets ledger's NO_NUMBERING (reason no-main-ref) only for a [[sources]] entry that isn't fetched, so numberingNote in packages/issues/src/log.ts and packages/adr/src/log.ts now prints no numbering note for it: issues list/search --source <name> and adr list/search --source <name> print only '<name> not fetched; run issues|adr sources fetch' and not 'no main branch'. (2) Tests in each tool: packages/issues/src/cli/sources.test.ts (list) and packages/issues/src/cli/search.test.ts (search), and packages/adr/src/cli/sources.test.ts (list and search), assert the not fetched note and the absence of 'no main branch'."
+data:
+  resolution: done
