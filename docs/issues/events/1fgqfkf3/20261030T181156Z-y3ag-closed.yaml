@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M6705RJ16SM87RP40774Y3AG
+subject: 1fgqfkf3
+type: closed
+at: 2026-10-30T18:11:56Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: '(1) searchIssues (packages/issues/src/search.ts) and searchDecisions (packages/adr/src/search.ts) fall back to the best matching # heading line of the description when no other line holds a term, so a heading-only result shows that heading as its excerpt and a null excerpt means every term matched the id or the title, which all four renderers name; "( match)" can no longer print. Covered by the CLI tests "shows the heading when a word matches only a description heading" (packages/issues/src/cli/search.test.ts) and "shows the heading when a word matches only a body heading" (packages/adr/src/cli/search.test.ts), the MCP text tests in packages/issues/src/mcp/text.test.ts and packages/adr/src/mcp/tools.test.ts, unit tests and a property-test invariant in both search.test.ts files. In the ark repository, issues search when --all (32 results, 15 heading excerpts) and adr search consequences --all (16 results, 16 heading excerpts) print 0 empty "( match)" lines (grep -cx). (2) This pull request closes the issue in the same change as the fix.'
+data:
+  resolution: done

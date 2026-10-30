@@ -5,7 +5,6 @@
 
 | Issue | Title | Assignees | Labels | Since |
 | --- | --- | --- | --- | --- |
-| ?18 | [Say which field matched when a search result has no excerpt](items/1fgqfkf3-say-which-field-matched-when-a-search-result-has-no-excerpt.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
 | ?19 | [Test the remaining Table B cells of the issues mcp writes](items/exnj9tym-test-the-remaining-table-b-cells-of-the-issues-mcp-writes.md) | nikovirtala@users.noreply.github.com | type:test | 2026-10-30 |
 
 ## Ready
@@ -34,10 +33,10 @@
 | ?9 | [Fix the subcommand help and two show messages](items/984qb8rg-fix-the-subcommand-help-and-two-show-messages.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
 | ?10 | [Drop empty optional sections from issue descriptions](items/wy4r966a-drop-empty-optional-sections-from-issue-descriptions.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
 | ?11 | [Name the real reason when a source's numbers are unavailable](items/vpq5v23q-name-the-real-reason-when-a-sources-numbers-are-unavailable.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
-| ?13 | [Add full-text search to issues](items/0megpv2e-add-full-text-search-to-issues.md) |  |  | 2026-10-28 |
 | ?14 | [Add the read side of issues mcp](items/qy2ch92c-add-the-read-side-of-issues-mcp.md) |  |  | 2026-10-28 |
 | ?15 | [Add the write side of issues mcp](items/516asy8r-add-the-write-side-of-issues-mcp.md) |  |  | 2026-10-29 |
 | ?16 | [Add issues' MCP prompts and agent skill](items/s3v2jada-add-issues-mcp-prompts-and-agent-skill.md) |  |  | 2026-10-30 |
+| ?18 | [Say which field matched when a search result has no excerpt](items/1fgqfkf3-say-which-field-matched-when-a-search-result-has-no-excerpt.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
 | ?20 | [Make the test suites faster](items/wedm13pe-make-the-test-suites-faster.md) |  |  | 2026-10-29 |
 | ?21 | [Keep every test file under its package's per-worker share](items/7n5e4nkf-keep-every-test-file-under-its-packages-per-worker-share.md) | nikovirtala@users.noreply.github.com |  | 2026-10-29 |
 | ?22 | [Run each package's tests in its own CI job](items/bd0nsd5s-run-each-packages-tests-in-its-own-ci-job.md) | nikovirtala@users.noreply.github.com |  | 2026-10-29 |
