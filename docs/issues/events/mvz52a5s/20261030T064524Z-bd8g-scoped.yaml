@@ -1,0 +1,22 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M65RWPJD35VKJ9ZR8AP3BD8G
+subject: mvz52a5s
+type: scoped
+at: 2026-10-30T06:45:24Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/adr/src/kind/project.ts
+    - packages/adr/src/log-index.ts
+    - packages/adr/src/write.ts
+    - packages/issues/src/apply.ts
+    - packages/issues/src/kind/graph.ts
+    - packages/issues/src/log-index.ts
+    - packages/issues/src/plan.ts
