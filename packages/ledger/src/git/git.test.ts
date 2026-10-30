@@ -55,7 +55,7 @@ async function fakeGit(versionLine: string, body = 'exec git "$@"'): Promise<str
 describe("Git.open", () => {
   it("opens a work tree with absolute root, gitDir and commonDir", async () => {
     const r = await repo();
-    const git = await Git.open(join(r.root));
+    const git = await Git.open(join(r.root), { env: r.env });
     expect(git.root).toBe(r.root);
     expect(git.gitDir).toBe(join(r.root, ".git"));
     expect(git.commonDir).toBe(join(r.root, ".git"));
@@ -97,12 +97,15 @@ describe("Git.open", () => {
     await expect(Git.initBare(target, { binary })).rejects.toBeInstanceOf(GitVersionError);
     await expect(stat(target)).rejects.toThrow();
     // The real git still opens in the same process.
-    await expect(Git.open(r.root)).resolves.toBeInstanceOf(Git);
+    await expect(Git.open(r.root, { env: r.env })).resolves.toBeInstanceOf(Git);
   });
 
   it("accepts a new enough fake binary", async () => {
     const r = await repo();
-    const git = await Git.open(r.root, { binary: await fakeGit("git version 2.32.0.windows.1") });
+    const git = await Git.open(r.root, {
+      binary: await fakeGit("git version 2.32.0.windows.1"),
+      env: r.env,
+    });
     expect(git.root).toBe(r.root);
   });
 });
@@ -110,7 +113,7 @@ describe("Git.open", () => {
 describe("Git.openGitDir and Git.initBare", () => {
   it("opens a bare repository with root null", async () => {
     const bare = await repo({ bare: true });
-    const git = await Git.openGitDir(bare.root);
+    const git = await Git.openGitDir(bare.root, { env: bare.env });
     expect(git.root).toBeNull();
     expect(git.gitDir).toBe(bare.root);
     expect(git.commonDir).toBe(bare.root);
@@ -210,10 +213,13 @@ describe("environment", () => {
       Buffer.from((await git.run(["status"], { env: { LEDGER_ECHO: "1", ...env } })).stdout)
         .toString()
         .trim();
-    const inherits = await Git.open(r.root, { binary });
+    const inherits = await Git.open(r.root, { binary, env: r.env });
     expect(await echo(inherits, {})).toBe("outer 0");
     expect(await echo(inherits, { LEDGER_TEST_VAR: undefined })).toBe("unset 0");
-    const unsets = await Git.open(r.root, { binary, env: { LEDGER_TEST_VAR: undefined } });
+    const unsets = await Git.open(r.root, {
+      binary,
+      env: { ...r.env, LEDGER_TEST_VAR: undefined },
+    });
     expect(await echo(unsets, {})).toBe("unset 0");
     expect(await echo(unsets, { LEDGER_TEST_VAR: "call" })).toBe("call 0");
   });
@@ -240,7 +246,7 @@ describe("Git.run", () => {
       "git version 2.50.0",
       'if [ -n "$LEDGER_SLEEP" ]; then exec sleep 5; fi\nexec git "$@"',
     );
-    const git = await Git.open(r.root, { binary });
+    const git = await Git.open(r.root, { binary, env: r.env });
     const error = await git
       .run(["status"], { timeoutMs: 100, env: { LEDGER_SLEEP: "1" } })
       .catch((e: unknown) => e);
