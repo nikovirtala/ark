@@ -13,7 +13,14 @@ export const searchCommand: CommandSpec = {
   name: "search",
   summary: "search issues' ids, titles, descriptions and comments",
   usage: "search <query>… [--all] [--source <name>]",
-  options: { all: { type: "boolean" }, source: { type: "string" } },
+  options: {
+    all: { type: "boolean", help: "include closed issues" },
+    source: {
+      type: "string",
+      value: "<name>",
+      help: "search a cached [[sources]] log instead of this one",
+    },
+  },
   positionals: { min: 1, max: 20, names: ["query"] },
   ref: "read",
   async run({ io, flags, values, positionals }) {

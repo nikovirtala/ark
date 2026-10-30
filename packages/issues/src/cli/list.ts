@@ -25,13 +25,36 @@ export const listCommand: CommandSpec = {
   usage:
     "list [--state open|in-progress|closed]… [--all] [--assignee <who|me>]… [--label <label>]… [--limit <n>] [--source <name>] [--since <rev>]",
   options: {
-    state: { type: "string", multiple: true },
-    all: { type: "boolean" },
-    assignee: { type: "string", multiple: true },
-    label: { type: "string", multiple: true },
-    limit: { type: "string" },
-    source: { type: "string" },
-    since: { type: "string" },
+    state: {
+      type: "string",
+      multiple: true,
+      value: "<state>",
+      help: "open, in-progress or closed (default: open and in-progress)",
+    },
+    all: { type: "boolean", help: "list issues in every state" },
+    assignee: {
+      type: "string",
+      multiple: true,
+      value: "<who|me>",
+      help: "only issues assigned to <who>; me is you",
+    },
+    label: {
+      type: "string",
+      multiple: true,
+      value: "<label>",
+      help: "only issues with this label",
+    },
+    limit: { type: "string", value: "<n>", help: "list at most <n> issues (1 to 1000)" },
+    source: {
+      type: "string",
+      value: "<name>",
+      help: "list a cached [[sources]] log instead of this one",
+    },
+    since: {
+      type: "string",
+      value: "<rev>",
+      help: "the issues closed, reopened or assigned to you since <rev>",
+    },
   },
   positionals: { min: 0, max: 0, names: [] },
   ref: "read",

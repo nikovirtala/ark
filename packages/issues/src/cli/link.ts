@@ -11,7 +11,14 @@ export const linkCommand: CommandSpec = {
   summary: "link an issue to another issue, or to a decision with --rel implements",
   usage:
     "link <issue> <target> [--rel depends-on|part-of|relates-to|implements] [--commit | --no-commit] [-m <message>]",
-  options: { rel: { type: "string" }, ...COMMIT_OPTIONS },
+  options: {
+    rel: {
+      type: "string",
+      value: "<rel>",
+      help: "the relation: depends-on, part-of, relates-to or implements (default: relates-to)",
+    },
+    ...COMMIT_OPTIONS,
+  },
   positionals: { min: 2, max: 2, names: ["issue", "target"] },
   ref: "reject",
   run: ({ io, flags, values, positionals }) =>
@@ -30,7 +37,14 @@ export const unlinkCommand: CommandSpec = {
   summary: "remove a relation of an issue",
   usage:
     "unlink <issue> <target> [--rel depends-on|part-of|relates-to|implements] [--commit | --no-commit] [-m <message>]",
-  options: { rel: { type: "string" }, ...COMMIT_OPTIONS },
+  options: {
+    rel: {
+      type: "string",
+      value: "<rel>",
+      help: "the relation to remove: depends-on, part-of, relates-to or implements; needed when there are several",
+    },
+    ...COMMIT_OPTIONS,
+  },
   positionals: { min: 2, max: 2, names: ["issue", "target"] },
   ref: "reject",
   run: ({ io, flags, values, positionals }) =>

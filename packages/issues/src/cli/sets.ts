@@ -1,18 +1,25 @@
 import { type JsonValue, resolveAttribution, type SetOp, UsageError } from "@nikovirtala/ledger";
-import { COMMIT_OPTIONS, type CommandSpec } from "@nikovirtala/ledger/cli";
+import { COMMIT_OPTIONS, type CommandOption, type CommandSpec } from "@nikovirtala/ledger/cli";
 import { assignIssue, followScopeRenames, labelIssue, scopeIssue } from "../write.js";
 import { runWrite } from "./lifecycle.js";
 import { openForCli, strings } from "./open.js";
 import { findingNotes, writeText } from "./text.js";
 
 const NAMES = { set: "--set", add: "--add", remove: "--remove", clear: "--clear" } as const;
-const SET_OPTIONS = {
-  set: { type: "string", multiple: true },
-  add: { type: "string", multiple: true },
-  remove: { type: "string", multiple: true },
-  clear: { type: "boolean" },
-  ...COMMIT_OPTIONS,
-} as const;
+/** The set options, with `<what>` as the value placeholder and `<noun>s` in their help. */
+const setOptions = (what: string, noun: string) =>
+  ({
+    set: {
+      type: "string",
+      multiple: true,
+      value: `<${what}>`,
+      help: `replace the ${noun}s with these`,
+    },
+    add: { type: "string", multiple: true, value: `<${what}>`, help: `add these ${noun}s` },
+    remove: { type: "string", multiple: true, value: `<${what}>`, help: `remove these ${noun}s` },
+    clear: { type: "boolean", help: `remove every ${noun}` },
+    ...COMMIT_OPTIONS,
+  }) as const satisfies Record<string, CommandOption>;
 
 /** The set operation of `--set`, `--add`, `--remove` and `--clear`. */
 function setOp(values: Readonly<Record<string, unknown>>): SetOp {
@@ -40,7 +47,7 @@ export const assignCommand: CommandSpec = {
   name: "assign",
   summary: "set, add or remove an issue's assignees (me is you)",
   usage: usage("assign", "who"),
-  options: SET_OPTIONS,
+  options: setOptions("who", "assignee"),
   positionals: { min: 1, max: 1, names: ["issue"] },
   ref: "reject",
   run: ({ io, flags, values, positionals }) =>
@@ -54,7 +61,7 @@ export const labelCommand: CommandSpec = {
   name: "label",
   summary: "set, add or remove an issue's labels",
   usage: usage("label", "label"),
-  options: SET_OPTIONS,
+  options: setOptions("label", "label"),
   positionals: { min: 1, max: 1, names: ["issue"] },
   ref: "reject",
   run: ({ io, flags, values, positionals }) =>
@@ -92,7 +99,13 @@ export const scopeCommand: CommandSpec = {
   name: "scope",
   summary: "set, add or remove the globs of the code an issue concerns",
   usage: `${usage("scope", "glob")} | scope [<issue>] --follow-renames`,
-  options: { ...SET_OPTIONS, "follow-renames": { type: "boolean" } },
+  options: {
+    ...setOptions("glob", "scope glob"),
+    "follow-renames": {
+      type: "boolean",
+      help: "rewrite scope globs after staged renames (stages, never commits)",
+    },
+  },
   positionals: { min: 0, max: 1, names: ["issue"] },
   ref: "reject",
   async run({ io, flags, values, positionals }) {

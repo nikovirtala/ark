@@ -28,7 +28,10 @@ export const indexCommand: CommandSpec = {
   name: "index",
   summary: "regenerate the issue index (index.md), or check that it is current",
   usage: "index [--check] [--commit | --no-commit] [-m <message>]",
-  options: { check: { type: "boolean" }, ...COMMIT_OPTIONS },
+  options: {
+    check: { type: "boolean", help: "check that index.md is current instead of writing it" },
+    ...COMMIT_OPTIONS,
+  },
   positionals: { min: 0, max: 0, names: [] },
   ref: "read",
   async run({ io, flags, values }) {

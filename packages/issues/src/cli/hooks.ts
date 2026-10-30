@@ -36,7 +36,13 @@ export const hooksCommand: CommandSpec = {
   name: "hooks",
   summary: "install, remove or print issues' git hooks, and run their steps",
   usage: USAGE,
-  options: { manager: { type: "string" } },
+  options: {
+    manager: {
+      type: "string",
+      value: "<manager>",
+      help: "lefthook, husky or pre-commit (hooks print only)",
+    },
+  },
   positionals: { min: 1, max: 2, names: ["action", "argument"] },
   ref: "reject",
   async run({ io, flags, values, positionals }) {
