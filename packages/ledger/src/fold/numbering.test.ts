@@ -22,6 +22,7 @@ import { createTempRepo, type TempRepo } from "../testing/temp-repo.js";
 import {
   assignNumbers,
   compareNumberingKeys,
+  NO_INDEX_NUMBERING,
   NO_NUMBERING,
   numberLog,
   PENDING_COMMIT,
@@ -38,6 +39,15 @@ const C = "cccccccc";
 
 const path = (subject: string, stamp: string, rand: string, type = on) =>
   `log/events/${subject}/${stamp}-${rand}-${type}.yaml`;
+
+describe("NO_INDEX_NUMBERING", () => {
+  it("is frozen, unavailable, with reason no-index and no numbers", () => {
+    expect(Object.isFrozen(NO_INDEX_NUMBERING)).toBe(true);
+    expect(NO_INDEX_NUMBERING).toMatchObject({ available: false, reason: "no-index", ref: null });
+    expect(NO_INDEX_NUMBERING.byId.size).toBe(0);
+    expect(NO_INDEX_NUMBERING.byNumber.size).toBe(0);
+  });
+});
 
 describe("assignNumbers", () => {
   const number = (additions: { path: string; commit: string }[]) =>
