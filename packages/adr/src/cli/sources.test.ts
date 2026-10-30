@@ -182,6 +182,8 @@ describe("adr's cross-repository references", { timeout: 120_000 }, () => {
     const list = runAdr(r, ["list", "--source", "platform", "--json"]);
     const decisions = json(list.stdout).decisions as { id: string; display: string }[];
     expect(decisions.map((d) => [d.id, d.display])).toEqual([[s.ids[0], "ADR-0001"]]);
+    expect(list.stderr).toContain("numbers come from platform's committed index.md");
+    expect(list.stderr).not.toContain("shallow clone");
     const local = runAdr(r, ["list"]);
     expect(local.stdout).toContain("Use the platform's queue");
     expect(local.stderr).toContain(
@@ -189,6 +191,8 @@ describe("adr's cross-repository references", { timeout: 120_000 }, () => {
     );
     const search = runAdr(r, ["search", "aurora", "--source", "platform", "--json"]);
     expect(json(search.stdout)).toMatchObject({ source: "platform", total: 1 });
+    expect(search.stderr).toContain("numbers come from platform's committed index.md");
+    expect(search.stderr).not.toContain("shallow clone");
     expect(runAdr(r, ["list", "--source", "nope"]).status).toBe(2);
     expect(runAdr(r, ["list", "--source", "platform", "--since", "HEAD"]).status).toBe(2);
 
