@@ -51,6 +51,7 @@ export {
   type IssueSearchResultJson,
   searchIssues,
 } from "./search.js";
+export { SKILL_MD } from "./skill.js";
 export {
   type DecisionLogRead,
   type IssueSources,

@@ -8,15 +8,17 @@ import {
   indexReader,
   readToolConfig,
   renderCommitMessage,
+  replaceFile,
   UsageError,
   withGitOperation,
   worktreeReader,
   writeNewFile,
 } from "@nikovirtala/ledger";
-import { ACTIONS, INIT_TITLE } from "./commit-actions.js";
+import { ACTIONS, INIT_TITLE, SKILL_TITLE } from "./commit-actions.js";
 import { issueKind } from "./kind.js";
 import type { IssueLog } from "./log.js";
 import { indexPath, renderIssueIndex } from "./log-index.js";
+import { SKILL_MD } from "./skill.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
 
 /** `issues init --json`. */
@@ -29,7 +31,7 @@ export interface IssuesInitJson {
   readonly kept: readonly string[];
   /** Placeholders removed (an empty `<root>/.gitkeep`), the deletion staged and committed with them. */
   readonly removed: readonly string[];
-  /** The agent skill's path; always `null` in this version. */
+  /** With `--skill`, the SKILL.md path (written or kept); else `null`. */
   readonly skill: string | null;
   readonly commit: string | null;
   readonly notes: readonly string[];
@@ -42,6 +44,19 @@ export const INIT_RERUN =
 const CONFIG = "issues.toml";
 const DEFAULT_ROOT = issueKind.def.defaultRoot;
 const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+const AGENTS = "AGENTS.md";
+
+/** The line `issues init --skill` adds to AGENTS.md for tools that don't load skills. */
+export const agentsPointer = (skill: string): string =>
+  `Issues in this repository are tracked with issues: read ${skill} before starting, continuing or finishing work, and follow it.`;
+
+/** `text` with `line` appended after one blank line, ending with a newline. */
+function appendLine(text: string, line: string): string {
+  if (text === "") return `${line}\n`;
+  const ended = text.endsWith("\n") ? text : `${text}\n`;
+  return `${ended.endsWith("\n\n") ? ended : `${ended}\n`}${line}\n`;
+}
 
 /** The starter config; `root` only for a repo-level file naming a log elsewhere. */
 export function starterConfig(o: {
@@ -75,8 +90,11 @@ export function starterConfig(o: {
  * template (default `task`) to `<root>/templates/<name>.md`, never overwriting a file; reports
  * what it wrote and kept. A `--root` other than `docs/issues` gets a repo-level `issues.toml`
  * naming it, as adr's init does, so later commands find the log. No events are written. Once it
- * writes a file, an empty `<root>/.gitkeep` placeholder is removed and the deletion staged (?8);
- * a non-empty one is kept with a note. With `commit`, commits only what it wrote and removed.
+ * writes a log file, an empty `<root>/.gitkeep` placeholder is removed and the deletion staged
+ * (?8); a non-empty one is kept with a note. With `commit`, commits only what it wrote and
+ * removed. With `o.skill` it also writes the agent skill, unless a SKILL.md is there, and adds
+ * the pointer line to `AGENTS.md`, unless a line already names the skill; an AGENTS.md with
+ * unstaged changes or not tracked is refused with a commit and left unstaged without one.
  */
 export async function initIssueLog(
   log: IssueLog,
@@ -84,6 +102,11 @@ export async function initIssueLog(
     readonly templates?: readonly string[];
     readonly commit?: boolean;
     readonly message?: string | null;
+    /**
+     * Also write `<dir>/SKILL.md` (`dir` repo-relative, `""` for the root) and the AGENTS.md
+     * pointer (design §8.2); `version` is issues', for the note on a SKILL.md that differs.
+     */
+    readonly skill?: { readonly dir: string; readonly version: string };
   } = {},
 ): Promise<IssuesInitJson> {
   return withGitOperation(async () => {
@@ -151,7 +174,65 @@ export async function initIssueLog(
         }
       }
     }
-    const commit = files.length > 0 && (o.commit ?? log.issues.autoCommit);
+    const commitRequested = o.commit ?? log.issues.autoCommit;
+    const logFiles = files.length;
+
+    // The skill (design §8.2): SKILL.md is never overwritten; AGENTS.md gets one pointer line.
+    // Checked before anything is written.
+    const skill =
+      o.skill === undefined ? null : o.skill.dir === "" ? "SKILL.md" : `${o.skill.dir}/SKILL.md`;
+    let agents: {
+      readonly bytes: Uint8Array;
+      readonly expected: Uint8Array | null;
+      readonly stage: boolean;
+    } | null = null;
+    if (skill !== null) {
+      const current = await log.tree.read(skill);
+      if (current === null) {
+        files.push([skill, SKILL_MD]);
+      } else {
+        kept.push(skill);
+        if (decoder.decode(current) !== SKILL_MD) {
+          notes.push(
+            `${skill} differs from issues ${o.skill?.version ?? ""}'s skill; delete it and run issues init --skill again to replace it`,
+          );
+        }
+      }
+      const old = await log.tree.read(AGENTS);
+      const text = old === null ? null : decoder.decode(old);
+      if ((text ?? "").split("\n").some((l) => l.includes(skill))) {
+        kept.push(AGENTS);
+      } else {
+        let stage = true;
+        if (old !== null) {
+          const unstaged = (await log.git.unstagedPaths([AGENTS])).length > 0;
+          const untracked = (await log.git.untrackedPaths([AGENTS])).length > 0;
+          if (commitRequested && unstaged) {
+            throw new UsageError(
+              `${AGENTS} has unstaged changes; stage or discard them, or run without --commit`,
+            );
+          }
+          if (commitRequested && untracked) {
+            throw new UsageError(`${AGENTS} is not tracked; git add it, or run without --commit`);
+          }
+          if (unstaged || untracked) {
+            stage = false;
+            notes.push(
+              untracked
+                ? `${AGENTS} is not tracked, so the pointer is added but not staged; review it and git add it`
+                : `${AGENTS} had unstaged changes, so the pointer is added but not staged; review it and git add it`,
+            );
+          }
+        }
+        agents = {
+          bytes: encoder.encode(appendLine(text ?? "", agentsPointer(skill))),
+          expected: old,
+          stage,
+        };
+      }
+    }
+
+    const commit = (files.length > 0 || agents !== null) && commitRequested;
     if (
       commit &&
       ((await log.git.identity()) === null || (await log.git.committerIdentity()) === null)
@@ -159,22 +240,37 @@ export async function initIssueLog(
       throw new ConfigError("--commit needs a git identity; set git user.name and user.email");
     }
     const written: string[] = [];
+    let replaced = false;
     try {
       for (const [path, text] of files) {
         await writeNewFile(log.git, path, encoder.encode(text));
         written.push(path);
       }
+      if (agents !== null) {
+        if (agents.expected === null) await writeNewFile(log.git, AGENTS, agents.bytes);
+        else await replaceFile(log.git, AGENTS, agents.bytes, { expected: agents.expected });
+        replaced = agents.expected !== null;
+        written.push(AGENTS);
+      }
     } catch (err) {
       const top = log.git.root ?? "";
-      for (const path of written) await rm(join(top, path), { force: true });
+      const restore = replaced ? (agents?.expected ?? null) : null;
+      for (const path of written) {
+        if (path === AGENTS && restore !== null && agents !== null) {
+          await replaceFile(log.git, AGENTS, restore, { expected: agents.bytes }).catch(() => {});
+        } else {
+          await rm(join(top, path), { force: true });
+        }
+      }
       throw err;
     }
-    if (written.length > 0) await log.git.add(written);
-    // The placeholder goes once the log has real files: after the writes, so a failed write leaves
-    // it alone.
+    const staged = written.filter((p) => p !== AGENTS || agents?.stage === true);
+    if (staged.length > 0) await log.git.add(staged);
+    // The placeholder goes once the log has real files (not for the skill alone): after the
+    // writes, so a failed write leaves it alone.
     const removed: string[] = [];
     const tracked: string[] = [];
-    if (written.length > 0) {
+    if (logFiles > 0) {
       const keep = `${root}/.gitkeep`;
       const work = await worktreeReader(log.git).read(keep);
       const head = await headBytes(log.git, keep);
@@ -195,12 +291,15 @@ export async function initIssueLog(
       const message =
         o.message ??
         renderCommitMessage(log.issues.commitSubject, {
-          title: INIT_TITLE,
+          title:
+            removed.length === 0 && written.every((p) => p === skill || p === AGENTS)
+              ? SKILL_TITLE
+              : INIT_TITLE,
           vars: { action: ACTIONS.init, id: "", display: "", command: "init" },
         }).message;
       sha = await commitWithRecovery(log.git, {
         message,
-        only: [...written, ...tracked],
+        only: [...staged, ...tracked],
         rerun: INIT_RERUN,
       });
     }
@@ -211,7 +310,7 @@ export async function initIssueLog(
       written,
       kept,
       removed,
-      skill: null,
+      skill,
       commit: sha,
       notes,
     };
