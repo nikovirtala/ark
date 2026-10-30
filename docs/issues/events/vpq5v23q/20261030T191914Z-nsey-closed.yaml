@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M674103JMQZ1K817SSN8NSEY
+subject: vpq5v23q
+type: closed
+at: 2026-10-30T19:19:14Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: (1) A cached source without a usable committed index.md gets ledger's new NO_INDEX_NUMBERING (reason no-index) in issues' readSourceIssues and indexNumbering and in adr's indexNumbering, and unavailableReason renders it as '<source> has no committed index.md'; issues list/search --source and adr list/search --source print it (adr's numberingNote prints it for search too), and numbering.reason is no-index in the JSON. (2) packages/issues/src/cli/sources-no-index.test.ts and packages/adr/src/cli/sources-no-index.test.ts check the note, the absence of 'no main branch' and the reason. (3) This close is in the pull request that makes the change.
+data:
+  resolution: done
