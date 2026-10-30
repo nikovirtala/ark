@@ -1,5 +1,17 @@
 # AGENTS.md
 
+## Terminology
+
+The unit of work we ship is a **change**: one coherent piece of
+behavior or functionality we deliver. A pull request is just the
+review-and-merge mechanism a change goes through; it is not the work
+itself. A change might go out in one pull request or several, and you
+should describe the work in terms of changes.
+
+Say "pull request" only when you mean the actual pull request object,
+such as opening one, linking to one, or responding to review comments
+on it, and always write it out in full rather than abbreviating it.
+
 ## Git history
 
 Linear history is required.
