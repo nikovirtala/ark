@@ -1,7 +1,7 @@
 /**
  * Design §7.3's Table B as data: what each write tool does to an issue in each state, run the
  * same way over the in-memory client (`mcp/write-tools.test.ts`) and the built server over stdio
- * (`mcp-e2e.test.ts`, session W7).
+ * (`mcp-e2e.table-b.test.ts`, session W7).
  */
 import { expect } from "vitest";
 import type { WriteIssues } from "./mcp.js";
@@ -21,11 +21,17 @@ export function issueIn(s: IssueState, ids: WriteIssues): string {
 }
 
 /**
- * One cell: `ok: true` with the findings it must carry (`rules`, contained; `exact`, equal); or
- * a refusal whose rules equal `exact` or contain `contains`, and whose messages contain `messages`.
+ * One cell: `ok: true` with the findings it must carry (`rules`, contained; `exact`, equal) and
+ * texts its notes contain (`notes`); or a refusal whose rules equal `exact` or contain
+ * `contains`, and whose messages contain `messages`.
  */
 export type Cell =
-  | { readonly ok: true; readonly rules?: readonly string[]; readonly exact?: readonly string[] }
+  | {
+      readonly ok: true;
+      readonly rules?: readonly string[];
+      readonly exact?: readonly string[];
+      readonly notes?: readonly string[];
+    }
   | {
       readonly ok: false;
       readonly exact?: readonly string[];
@@ -46,14 +52,25 @@ export interface TableBRow {
   readonly repo: RowRepo;
   /** `[policy]` keys to write to `issues.toml` (uncommitted) before the row, while the server runs. */
   readonly policy?: string;
+  /** Tool calls that set the row up, run before its cells; each must succeed. */
+  readonly before?: (ids: WriteIssues) => readonly (readonly [string, Record<string, unknown>])[];
   readonly args: (id: string, ids: WriteIssues, s: IssueState) => Record<string, unknown>;
   readonly cells: Readonly<Partial<Record<IssueState, Cell>>>;
 }
 
 const REASON = "Every Done when condition is met: checked by the test.";
 const closed = { Cd: ILLEGAL, Cx: ILLEGAL, Cdup: ILLEGAL } as const;
+/** A close the policy refuses, with no reason: the policy's rule and the reason rule. */
+const policyWithoutReason = Object.fromEntries(
+  (["O", "OB", "P"] as const).map((s) => [
+    s,
+    { ok: false, contains: ["issue/agent-closed", "issue/agent-reason-required"] } as Cell,
+  ]),
+);
 const every = (c: Cell) => ({ O: c, OB: c, P: c, Cd: c, Cx: c, Cdup: c });
 const LINT: Cell = { ok: true, rules: ["template/section-empty"] };
+/** A scope glob of the O issue that matches no tracked file, for the issues_start row. */
+const UNMATCHED = "src/billing/**";
 
 export const TABLE_B: readonly TableBRow[] = [
   {
@@ -117,12 +134,13 @@ export const TABLE_B: readonly TableBRow[] = [
     row: "issues_start",
     tool: "issues_start",
     repo: "start",
+    before: (ids) => [["issues_scope", { id: ids.e, add: [UNMATCHED] }]],
     args: (id) => ({ id }),
     cells: {
       ...closed,
       OB: { ok: true, rules: ["issue/started-blocked"] },
       P: ILLEGAL,
-      O: OK,
+      O: { ok: true, notes: [`${UNMATCHED} matches no tracked file`] },
     },
   },
   {
@@ -236,6 +254,13 @@ export const TABLE_B: readonly TableBRow[] = [
     },
   },
   {
+    row: "issues_close without a reason while close_requires_human is true",
+    tool: "issues_close",
+    repo: "crh",
+    args: (id) => ({ id }),
+    cells: { ...closed, ...policyWithoutReason },
+  },
+  {
     row: "issues_close after mcp_can_close turned false",
     tool: "issues_close",
     repo: "shared",
@@ -250,6 +275,14 @@ export const TABLE_B: readonly TableBRow[] = [
         ]),
       ),
     },
+  },
+  {
+    row: "issues_close without a reason after mcp_can_close turned false",
+    tool: "issues_close",
+    repo: "shared",
+    policy: "[policy]\nmcp_can_close = false\n",
+    args: (id) => ({ id }),
+    cells: { ...closed, ...policyWithoutReason },
   },
 ];
 
@@ -275,6 +308,11 @@ export async function runTableB(
       if (o.setPolicy === undefined) throw new Error(`${row.row} needs setPolicy`);
       await o.setPolicy(row.policy);
     }
+    for (const [tool, args] of row.before?.(ids) ?? []) {
+      const res = (await call(tool, args)) as Result;
+      expect(res.isError, `${row.row}: ${tool}`).toBeUndefined();
+      expect((res.structuredContent as { ok: boolean }).ok, `${row.row}: ${tool}`).toBe(true);
+    }
     for (const s of STATE_ORDER) {
       const cell = row.cells[s];
       if (cell === undefined) continue;
@@ -291,6 +329,13 @@ export async function runTableB(
       if (cell.ok) {
         for (const r of cell.rules ?? []) expect(rules, where).toContain(r);
         if (cell.exact !== undefined) expect(rules, where).toEqual(cell.exact);
+        const notes = (d as { notes?: string[] }).notes ?? [];
+        for (const t of cell.notes ?? []) {
+          expect(
+            notes.some((n) => n.includes(t)),
+            `${where}: ${notes.join("; ")}`,
+          ).toBe(true);
+        }
         expect(d.written.length, where).toBeGreaterThan(0);
       } else {
         if (cell.exact !== undefined) expect(rules, where).toEqual(cell.exact);

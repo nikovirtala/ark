@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M66WV520YDSK3ZVW9J49QZ20
+subject: exnj9tym
+type: closed
+at: 2026-10-30T17:13:42Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: '(1) TABLE_B in packages/issues/src/test-support/write-cells.ts has two new issues_close rows without a reason, one under close_requires_human = true (the crh repository) and one after mcp_can_close turned false: their O, OB and P cells assert that the refusal''s rules contain issue/agent-closed and issue/agent-reason-required, and their closed cells are ILLEGAL, exactly transition/illegal. mcp/write-tools.table-b.test.ts (in memory) and mcp-e2e.table-b.test.ts (session W7 over stdio) run them with the other rows. (2) The issues_start row now first scopes the O issue to src/billing/**, which matches no tracked file, and its O cell asserts the note "src/billing/** matches no tracked file"; cells gained notes for that, and rows a before step. Both suites pass, and each new assertion fails when its expected text is changed. The scope moves from the old mcp-e2e.test.ts to the two table-b files.'
+data:
+  resolution: done
