@@ -1,7 +1,7 @@
 /**
  * Design §7.3's Table B as data: what each write tool does to an issue in each state, run the
- * same way over the in-memory client (`mcp/write-tools.test.ts`) and the built server over stdio
- * (`mcp-e2e.table-b.test.ts`, session W7).
+ * same way over the in-memory client (`mcp/write-tools.table-b.test.ts`) and the built server
+ * over stdio (`mcp-e2e.table-b.test.ts`, session W7).
  */
 import { expect } from "vitest";
 import type { WriteIssues } from "./mcp.js";
