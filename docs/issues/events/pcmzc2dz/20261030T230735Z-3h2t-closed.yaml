@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M67H33V5QYZNE91K4DV33H2T
+subject: pcmzc2dz
+type: closed
+at: 2026-10-30T23:07:35Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: '(1) packages/ledger/src/sources/fetch-sha256.test.ts fetches a local SHA-256 repository by branch into a cache whose objectFormat() is sha256, pins its 64-character HEAD and reads docs/adr/README.md from the pinned tree; through readSources in network mode, sourceLogRef and resolveQualifiedId resolve platform:k3f9q8a1 from the source log and give not-found for platform:zzzz9999; a 64-character ref, once pinned, is served with fetched: false after the source is moved away, and its trace2 events show no fetch, ls-remote or upload-pack, as read.test.ts shows for a 40-character ref. The same file recreates a pinned SHA-1 cache whose url now serves SHA-256 and an unpinned SHA-1 cache at a 64-character ref path. (2) fetch.test.ts, read.test.ts and git.test.ts pass unchanged; a new test fetches a SHA-1 source twice by branch and shows its cache is reused (a marker file survives) with exactly one fetch and no ls-remote or init, and another shows a timed-out fetch runs no ls-remote probe. (3) packages/ledger/README.md drops "SHA-256 source repositories" from "Later" and says a source may be SHA-1 or SHA-256. (4) This pull request closes the issue in the same change as the code.'
+data:
+  resolution: done
