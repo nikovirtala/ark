@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M673YYDSDBVPCG46AFC9C2D4
+subject: c181sywx
+type: closed
+at: 2026-10-30T19:18:07Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "(1) adr's and issues' init.ts take a line as naming the skill only when it holds the skill path as a whole path (namesSkill), so adr's .claude/skills/adr/SKILL.md no longer counts as naming SKILL.md. issues init --skill --skill-dir . adds its line under adr's pointer, and adr init --skill --skill-dir . adds its line under issues'; both CLI tests failed with the old init.ts. (2) A line naming the same path, also as ./SKILL.md, in backticks or before a full stop, still keeps the pointer out, and every second run adds nothing. (3) packages/issues/src/init.test.ts, cli/init.test.ts and packages/adr/src/init.test.ts, cli/init.test.ts cover a root-level --skill-dir next to the other tool's pointer and the matching rule. Closed in #62, the pull request with the fix."
+data:
+  resolution: done
