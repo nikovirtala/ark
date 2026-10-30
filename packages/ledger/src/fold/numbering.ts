@@ -10,8 +10,11 @@ import type { AnyKind } from "../kind/types.js";
 /** Display numbers of a log's subjects, assigned on the main ref (design D7). */
 export interface Numbering {
   readonly available: boolean;
-  /** `"index"`: a shallow clone's numbers, read from a recorded index rather than history. */
-  readonly reason: "shallow" | "no-main-ref" | "index" | null;
+  /**
+   * `"index"`: a shallow clone's numbers, read from a recorded index rather than history.
+   * `"no-index"`: a tree read without history, such as a cached source's, has no usable index.
+   */
+  readonly reason: "shallow" | "no-main-ref" | "no-index" | "index" | null;
   /** The ref used: a full ref name such as `refs/remotes/origin/main`, or a configured ref as given. */
   readonly ref: string | null;
   readonly commit: string | null;
@@ -28,6 +31,9 @@ export const NO_NUMBERING: Numbering = Object.freeze({
   byId: new Map<string, number>(),
   byNumber: new Map<number, string>(),
 });
+
+/** No numbers because the tree read has no usable committed index, as for a cached source's log. */
+export const NO_INDEX_NUMBERING: Numbering = Object.freeze({ ...NO_NUMBERING, reason: "no-index" });
 
 const MAIN_CANDIDATES = [
   "refs/remotes/origin/main",

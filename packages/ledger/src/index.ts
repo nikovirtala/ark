@@ -66,6 +66,7 @@ export { compareEvents, foldLog, foldSubject, sortInLogOrder } from "./fold/fold
 export {
   assignNumbers,
   compareNumberingKeys,
+  NO_INDEX_NUMBERING,
   NO_NUMBERING,
   type Numbering,
   numberLog,
