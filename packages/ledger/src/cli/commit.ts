@@ -1,12 +1,21 @@
-import type { ParseArgsOptionsConfig } from "node:util";
 import { UsageError } from "../errors.js";
 import { checkCommitMessage } from "../surfaces/commit-message.js";
+import type { CommandOption } from "./run.js";
 
 /** `--commit`/`--no-commit` and `-m/--message`, for every command that can commit. */
 export const COMMIT_OPTIONS = {
-  commit: { type: "boolean" },
-  message: { type: "string", short: "m" },
-} as const satisfies ParseArgsOptionsConfig;
+  commit: {
+    type: "boolean",
+    help: "commit what the command stages (default: [policy] auto_commit)",
+    negatedHelp: "only stage, even with [policy] auto_commit",
+  },
+  message: {
+    type: "string",
+    short: "m",
+    value: "<message>",
+    help: "the commit message; needs a commit",
+  },
+} as const satisfies Record<string, CommandOption>;
 
 /**
  * Whether to commit (`--commit`/`--no-commit` when given, else `autoCommit`) and the

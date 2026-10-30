@@ -96,6 +96,16 @@ describe("runCli tool check", () => {
       [command({ name: "a", options: { x: { type: "boolean", short: s } } })],
       `t a: -${s} is a global flag`,
     ]),
+    [
+      "a value placeholder on a boolean",
+      [command({ name: "a", options: { x: { type: "boolean", value: "<x>" } } })],
+      "t a: --x is a boolean; value is for string options",
+    ],
+    [
+      "negatedHelp on a string",
+      [command({ name: "a", options: { x: { type: "string", negatedHelp: "no x" } } })],
+      "t a: --x is a string; negatedHelp is for boolean options",
+    ],
   ];
   it.each(cases)("refuses %s as an internal error", async (_, c, message) => {
     const r = await call(["--json", "a"], { ...TOOL, commands: c });
@@ -242,6 +252,36 @@ describe("runCli help and version", () => {
       expect(r.stdout).toContain("--ref <ref>");
     },
   );
+
+  it("prints each option's help, value placeholder and --no-<name> row", async () => {
+    const described = command({
+      name: "tag",
+      usage: "tag [--tag <tag>]... [--commit | --no-commit]",
+      options: {
+        tag: { type: "string", multiple: true, value: "<tag>", help: "tags to add" },
+        commit: { type: "boolean", help: "commit the tags", negatedHelp: "only stage them" },
+        plain: { type: "string" },
+      },
+    });
+    const r = await call(["tag", "--help"], { ...TOOL, commands: [described] });
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain(
+      [
+        "Options:",
+        "  --tag <tag>      tags to add (repeatable)",
+        "  --commit         commit the tags",
+        "  --no-commit      only stage them",
+        "  --plain <value>",
+        "",
+      ].join("\n"),
+    );
+    // The help fields aren't parseArgs options.
+    const parsed = await call(["--json", "tag", "--tag", "a", "--no-commit"], {
+      ...TOOL,
+      commands: [described],
+    });
+    expect(json(parsed.stdout)).toMatchObject({ values: { tag: ["a"], commit: false } });
+  });
 
   it("leaves --ref out of the help of a command that rejects it", async () => {
     const r = await call(["write", "--help"]);
