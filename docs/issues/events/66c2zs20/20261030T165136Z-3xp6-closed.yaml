@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M66VJP58F5RDDRRW2VBD3XP6
+subject: 66c2zs20
+type: closed
+at: 2026-10-30T16:51:36Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "(1) ledger's new sortInLogOrder (packages/ledger/src/fold/fold.ts) orders event paths by (at, id) with compareEvents, reading each file from the tree; changedSince in packages/adr/src/log.ts and packages/issues/src/log.ts uses it for since.events, which sinceText renders, so the [new: ...] text and the JSON share the order. (2) packages/adr/src/cli/list.test.ts writes a proposal and an accept in one second with random bytes that put the accept's file name first, and checks both [new: proposed, accepted] and since.events; it fails without the fix with the [new: accepted, proposed] seen on the arm runner. fold.test.ts checks the helper, including missing and unparseable files."
+data:
+  resolution: done
