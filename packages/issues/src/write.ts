@@ -417,6 +417,7 @@ export async function openIssue(
     (read, c) =>
       planOpen(read, input, c, {
         refuseIncomplete: (o.commit ?? log.issues.autoCommit) && o.edit === undefined,
+        keepEmptyOptional: o.edit !== undefined,
       }),
     o,
     deps,

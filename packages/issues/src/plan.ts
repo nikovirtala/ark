@@ -563,7 +563,11 @@ export async function planOpen(
   read: IssuesRead,
   input: OpenInput,
   c: PlanContext,
-  o: { readonly refuseIncomplete?: boolean } = {},
+  o: {
+    readonly refuseIncomplete?: boolean;
+    /** Keep the headings of empty optional sections, as a draft to edit does. */
+    readonly keepEmptyOptional?: boolean;
+  } = {},
 ): Promise<PlanResult> {
   const title = checkTitle(input.title);
   const parent =
@@ -588,12 +592,13 @@ export async function planOpen(
     checkText(`section ${id}`, text);
   }
   // Required sections left out get their guidance, which template lint reports until it is
-  // replaced; optional ones stay empty, so a draft with every required section given is complete.
+  // replaced; optional ones without content are left out (kept empty in a draft to edit), so a
+  // draft with every required section given is complete.
   const optional = Object.fromEntries(t.sections.filter((s) => !s.required).map((s) => [s.id, ""]));
   const rendered = renderTemplate(
     t,
     { title, sections: { ...optional, ...sections } },
-    { missing: "guidance" },
+    { missing: "guidance", dropEmptyOptional: o.keepEmptyOptional !== true },
   );
   if (!rendered.ok) throw new UsageError(rendered.findings.map((f) => f.message).join("; "));
 
@@ -744,7 +749,7 @@ export async function planEdit(
       };
     }
     template = found.template;
-    const r = replaceSections(template, next, sections);
+    const r = replaceSections(template, next, sections, { dropEmptyOptional: true });
     if (!r.ok) {
       const [first] = r.findings;
       if (first?.rule === "render/unknown-section") {

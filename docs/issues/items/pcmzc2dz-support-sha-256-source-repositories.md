@@ -6,9 +6,6 @@ A `[[sources]]` entry can't point at a repository that uses git's SHA-256 object
 ## Proposal
 Create each source's cache with the object format of the repository it fetches, so a SHA-256 source fetches, pins and reads like a SHA-1 one. A cache whose format doesn't match its source is recreated. Pinning by commit already accepts a 64-character sha (`FULL_SHA` in `packages/ledger/src/sources/fetch.ts`).
 
-## Alternatives
-
-
 ## Done when
 - A test in `packages/ledger` fetches a local SHA-256 repository as a source, pins its commit and reads its log, and a 64-character `ref` is served from the pinned cache without a new fetch, as a 40-character one is.
 - SHA-1 sources behave as before, and their existing caches are reused.

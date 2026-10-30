@@ -81,6 +81,38 @@ describe("issues new", () => {
     }
   });
 
+  it.each([
+    [
+      "task",
+      ["--section", "goal=G.", "--section", "done=D."],
+      "# Plain\n\n## Goal\nG.\n\n## Done when\nD.\n",
+    ],
+    [
+      "feature",
+      ["--section", "problem=P.", "--section", "proposal=Q.", "--section", "done=D."],
+      "# Plain\n\n## Problem\nP.\n\n## Proposal\nQ.\n\n## Done when\nD.\n",
+    ],
+  ])(
+    "writes no heading for %s's optional section without content",
+    async (template, flags, body) => {
+      await using repo = await cliRepo();
+      if (template !== "task") {
+        expect(runIssues(repo, ["init", "--template", template, "--commit"]).status).toBe(0);
+      }
+      const r = runJson<Write>(repo, [
+        "new",
+        "Plain",
+        "--template",
+        template,
+        ...flags,
+        "--commit",
+      ]);
+      expect(r.status, r.stderr).toBe(0);
+      expect(await readFile(join(repo.root, r.json.issue?.body_path ?? ""), "utf8")).toBe(body);
+      expect(runIssues(repo, ["verify"]).status).toBe(0);
+    },
+  );
+
   it("never commits an incomplete draft", async () => {
     await using repo = await cliRepo();
     const refused = runJson<Write>(repo, ["new", "Draft", "--commit"]);

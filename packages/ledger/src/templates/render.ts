@@ -32,12 +32,13 @@ export function lintCleanStructure(t: Template): TemplateStructure {
 /**
  * Renders a document: `{{title}}` becomes the trimmed title and each section's placeholder line
  * its normalized content, in one pass (substituted text is never re-scanned). A missing section
- * gets `""` (`missing: "empty"`, the default) or its guidance (`"guidance"`).
+ * gets `""` (`missing: "empty"`, the default) or its guidance (`"guidance"`). With
+ * `dropEmptyOptional`, an optional section whose content is empty is left out, heading and all.
  */
 export function renderTemplate(
   t: Template,
   input: { readonly title: string; readonly sections: Readonly<Record<string, string>> },
-  o: { readonly missing?: "empty" | "guidance" } = {},
+  o: { readonly missing?: "empty" | "guidance"; readonly dropEmptyOptional?: boolean } = {},
 ): { ok: true; text: string } | { ok: false; findings: Finding[] } {
   const s = lintCleanStructure(t);
   const findings: Finding[] = [];
@@ -71,11 +72,27 @@ export function renderTemplate(
     const at = s.lines.findIndex((l, i) => i > h && l.trimEnd() === `{{${id}}}`);
     placeholderLine.set(at, id);
   }
-  const out = s.lines.map((line, i) => {
-    if (i === s.titleLine) return line.replace(/\{\{\s*title\s*\}\}/, () => title);
+  const dropped = new Set<number>();
+  if (o.dropEmptyOptional === true) {
+    const starts = [...s.headingIndex.values()].sort((a, b) => a - b);
+    for (const sec of t.sections) {
+      const h = s.headingIndex.get(sec.id);
+      if (sec.required || h === undefined || content.get(sec.id) !== "") continue;
+      const next = starts.find((x) => x > h) ?? s.lines.length;
+      for (let i = h; i < next; i++) dropped.add(i);
+    }
+  }
+  const out = s.lines.flatMap((line, i) => {
+    if (dropped.has(i)) return [];
+    if (i === s.titleLine) return [line.replace(/\{\{\s*title\s*\}\}/, () => title)];
     const id = placeholderLine.get(i);
-    return id === undefined ? line : (content.get(id) ?? "");
+    return [id === undefined ? line : (content.get(id) ?? "")];
   });
+  // A dropped last section leaves the blank lines before it: end as the template does.
+  if (dropped.has(s.lines.length - 1)) {
+    while (out.length > 0 && out[out.length - 1] === "") out.pop();
+    if (s.lines[s.lines.length - 1] === "") out.push("");
+  }
   return { ok: true, text: out.join("\n") };
 }
 
@@ -136,33 +153,39 @@ export function extractWith(
  * template heading line present, or the end; the new content is normalized like
  * `renderTemplate`'s and followed by one blank line, except at the end of the document, which gets
  * a final newline. CRLF input is read as LF and written as LF.
+ *
+ * With `dropEmptyOptional`, empty content removes an optional section, heading and all (and does
+ * nothing when it is absent), and content for an absent optional section adds it back in the
+ * template's order: before the next of the template's sections that is present, or at the end.
  */
 export function replaceSections(
   t: Template,
   doc: string,
   sections: Readonly<Record<string, string>>,
+  o: { readonly dropEmptyOptional?: boolean } = {},
 ): { ok: true; text: string } | { ok: false; findings: Finding[] } {
   const s = lintCleanStructure(t);
   const findings: Finding[] = [];
   const add = (rule: string, message: string) =>
     findings.push(finding({ severity: "error", rule, message }));
   const { at } = extractWith(s, t, doc);
-  const known = new Set(t.sections.map((sec) => sec.id));
+  const byId = new Map(t.sections.map((sec) => [sec.id, sec]));
+  const optional = (id: string) => o.dropEmptyOptional === true && byId.get(id)?.required === false;
   const headings = new Set(s.headingLines.values());
   const content = new Map<string, string>();
   for (const [id, given] of Object.entries(sections)) {
-    if (!known.has(id)) {
+    if (!byId.has(id)) {
       add("render/unknown-section", `template ${t.name} has no section ${id}`);
       continue;
     }
-    if (!at.has(id)) {
+    const value = normalizeSection(given);
+    if (!at.has(id) && !optional(id)) {
       add(
         "render/section-missing",
         `the document has no '${s.headingLines.get(id)}' heading for section ${id}`,
       );
       continue;
     }
-    const value = normalizeSection(given);
     if (value.split("\n").some((l) => headings.has(l))) {
       add(
         "render/heading-in-content",
@@ -173,15 +196,52 @@ export function replaceSections(
   }
   if (findings.length > 0) return { ok: false, findings };
 
+  // The document as its lines before the first section, then one block per section present, in
+  // the document's order: the heading line and everything up to the next section's heading.
   const lines = doc.replace(/\r\n/g, "\n").split("\n");
-  const starts = [...at.values()].sort((a, b) => a - b);
-  // Replace from the last section up, so earlier line indexes stay valid.
-  const order = [...content.keys()].sort((a, b) => (at.get(b) ?? 0) - (at.get(a) ?? 0));
-  for (const id of order) {
-    const i = at.get(id) ?? 0;
-    const next = starts.find((x) => x > i) ?? lines.length;
-    const value = content.get(id) ?? "";
-    lines.splice(i + 1, next - (i + 1), ...(value === "" ? [] : value.split("\n")), "");
+  const starts = [...at.entries()].sort((a, b) => a[1] - b[1]);
+  const prefix = lines.slice(0, starts[0]?.[1] ?? lines.length);
+  let blocks = starts.map(([id, i], k) => ({
+    id,
+    lines: lines.slice(i, starts[k + 1]?.[1] ?? lines.length),
+  }));
+  const blockOf = (id: string, value: string) => [
+    s.headingLines.get(id) ?? "",
+    ...(value === "" ? [] : value.split("\n")),
+    "",
+  ];
+  let endChanged = false;
+  for (const [id, value] of content) {
+    const present = blocks.findIndex((b) => b.id === id);
+    if (present >= 0) {
+      if (value === "" && optional(id)) {
+        endChanged ||= present === blocks.length - 1;
+        blocks.splice(present, 1);
+      } else {
+        blocks[present] = { id, lines: blockOf(id, value) };
+      }
+      continue;
+    }
+    if (value === "") continue;
+    // Absent and optional: before the next of the template's sections that is present.
+    const order = t.sections.map((sec) => sec.id);
+    const later = new Set(order.slice(order.indexOf(id) + 1));
+    const before = blocks.findIndex((b) => later.has(b.id));
+    const block = { id, lines: blockOf(id, value) };
+    if (before >= 0) {
+      blocks.splice(before, 0, block);
+    } else {
+      const last = blocks[blocks.length - 1];
+      if (last !== undefined && last.lines[last.lines.length - 1] !== "") last.lines.push("");
+      blocks = [...blocks, block];
+      endChanged = true;
+    }
   }
-  return { ok: true, text: lines.join("\n") };
+  const out = [...prefix, ...blocks.flatMap((b) => b.lines)];
+  // A removed last section leaves the blank lines before it: end with one final newline.
+  if (endChanged) {
+    while (out.length > 0 && out[out.length - 1] === "") out.pop();
+    out.push("");
+  }
+  return { ok: true, text: out.join("\n") };
 }

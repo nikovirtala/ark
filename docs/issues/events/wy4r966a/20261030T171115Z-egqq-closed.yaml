@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M66WPNDBPJ59W9T2S5SNEGQQ
+subject: wy4r966a
+type: closed
+at: 2026-10-30T17:11:15Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "(1) ledger's renderTemplate takes dropEmptyOptional, and planOpen passes it unless the draft goes to an editor, so issues new writes no heading for an optional section without content; packages/issues/src/cli/new.test.ts checks the exact body for task (no Notes) and feature (no Alternatives), and verify passing on both. (2) replaceSections takes dropEmptyOptional, which planEdit passes: issues edit --section <id>= removes an optional section (in the middle or last) and --section <id>=<text> adds it back before the next of the template's sections that is present, or at the end; packages/issues/src/cli/edit.test.ts round-trips Notes and removes a last Alternatives, and ledger's render.test.ts covers both functions. An empty required section is not removed: its heading stays, the edit reports template/section-empty, and verify fails (edit.test.ts); a commit refuses it where it did before (MCP with auto_commit). (3) issues verify accepts a description without an optional section and reports a missing required one as template/section-missing (packages/issues/src/verify.test.ts). ark's own pcmzc2dz loses its empty Alternatives heading in this change."
+data:
+  resolution: done

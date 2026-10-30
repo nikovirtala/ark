@@ -172,6 +172,27 @@ describe("verifier mutation", () => {
 });
 
 describe("template lint", () => {
+  it("accepts a description without an optional section, and reports a missing required one", async () => {
+    const o = opened("aaaaaaaa", "Short");
+    const run = (body: string) =>
+      verifySnapshots({
+        kind: COMPILED,
+        layout: HISTORY_LAYOUT,
+        base: null,
+        head: new MemoryTree({
+          [TEMPLATE_PATH]: TASK_V1,
+          ...issueFiles([{ id: "aaaaaaaa", events: [o], body }]),
+        }),
+        scope: "all",
+        checks: issueChecks(),
+      });
+    expect(errors(await run("# Short\n\n## Goal\nG.\n\n## Done when\nD.\n"))).toEqual([]);
+    const missing = await run("# Short\n\n## Goal\nG.\n");
+    expect(errors(missing).map((f) => [f.rule, f.message])).toEqual([
+      ["template/section-missing", "required section Done when is missing"],
+    ]);
+  });
+
   it("lints open issues against their template, and not closed ones", async () => {
     const o = opened("aaaaaaaa", "Unfilled");
     const draft = "# Unfilled\n\n## Goal\n\n## Done when\n\n";

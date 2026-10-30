@@ -307,3 +307,97 @@ describe("replaceSections", () => {
     );
   });
 });
+
+const TASK = template(`---
+template: task
+version: 1
+sections:
+  - id: goal
+    heading: Goal
+    required: true
+  - id: notes
+    heading: Notes
+    required: false
+  - id: done
+    heading: Done when
+    required: true
+---
+# {{title}}
+
+## Goal
+{{goal}}
+
+## Notes
+{{notes}}
+
+## Done when
+{{done}}
+`);
+
+describe("dropEmptyOptional", () => {
+  const drop = { dropEmptyOptional: true };
+  const full = "# T\n\n## Goal\nG.\n\n## Notes\nN.\n\n## Done when\nD.\n";
+  const short = "# T\n\n## Goal\nG.\n\n## Done when\nD.\n";
+  const adr = rendered(ADR, {
+    title: "T",
+    sections: { context: "C.", decision: "We will.", notes: "A note." },
+  });
+  const adrShort = adr.replace("\n## Notes\nA note.\n", "");
+  const replaced = (t: Template, d: string, sections: Record<string, string>) => {
+    const r = replaceSections(t, d, sections, drop);
+    if (!r.ok) throw new Error(`replace failed: ${JSON.stringify(r.findings)}`);
+    return r.text;
+  };
+
+  it("renders no heading for an empty optional section, in the middle or last", () => {
+    expect(rendered(TASK, { title: "T", sections: { goal: "G.", done: "D." } }, drop)).toBe(short);
+    expect(
+      rendered(TASK, { title: "T", sections: { goal: "G.", notes: " ", done: "D." } }, drop),
+    ).toBe(short);
+    expect(
+      rendered(TASK, { title: "T", sections: { goal: "G.", notes: "N.", done: "D." } }, drop),
+    ).toBe(full);
+    expect(adrShort.endsWith("### Decision\nWe will.\n")).toBe(true);
+    expect(
+      rendered(ADR, { title: "T", sections: { context: "C.", decision: "We will." } }, drop),
+    ).toBe(adrShort);
+  });
+
+  it("keeps the heading of an empty required section", () => {
+    expect(rendered(TASK, { title: "T", sections: { goal: "G." } }, drop)).toBe(
+      "# T\n\n## Goal\nG.\n\n## Done when\n\n",
+    );
+  });
+
+  it("removes an optional section with empty content and adds it back in the template's order", () => {
+    expect(replaced(TASK, full, { notes: "" })).toBe(short);
+    expect(replaced(TASK, short, { notes: "" })).toBe(short);
+    expect(replaced(TASK, short, { notes: "N." })).toBe(full);
+    expect(replaced(TASK, short, { notes: "N.", goal: "G." })).toBe(full);
+    expect(replaced(ADR, adr, { notes: "" })).toBe(adrShort);
+    expect(replaced(ADR, adrShort, { notes: "A note." })).toBe(adr);
+    expect(replaced(ADR, adrShort.trimEnd(), { notes: "A note." })).toBe(adr);
+  });
+
+  it("keeps an empty required section and refuses a missing one", () => {
+    expect(replaced(TASK, full, { done: "" })).toBe(
+      full.replace("## Done when\nD.\n", "## Done when\n"),
+    );
+    const r = replaceSections(
+      TASK,
+      short.replace("\n## Done when\nD.\n", ""),
+      { done: "D." },
+      drop,
+    );
+    expect(r.ok ? [] : r.findings.map((f) => f.rule)).toEqual(["render/section-missing"]);
+    const plain = replaceSections(TASK, short, { notes: "N." });
+    expect(plain.ok ? [] : plain.findings.map((f) => f.rule)).toEqual(["render/section-missing"]);
+  });
+
+  it("lints a document without an optional section clean, and reports a missing required one", () => {
+    expect(lintDocument(TASK, short)).toEqual([]);
+    expect(lintDocument(TASK, "# T\n\n## Goal\nG.\n").map((f) => f.rule)).toEqual([
+      "template/section-missing",
+    ]);
+  });
+});

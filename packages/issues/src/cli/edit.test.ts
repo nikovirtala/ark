@@ -36,6 +36,68 @@ describe("issues edit", () => {
     expect(runIssues(repo, ["edit", "1", "--section", "nope=x"]).status).toBe(2);
   });
 
+  it("removes an optional section with empty text and adds it back in the template's order", async () => {
+    await using repo = await cliRepo();
+    const r = runJson<Write>(repo, [
+      "new",
+      "Sections",
+      "--section",
+      "goal=G.",
+      "--section",
+      "notes=N.",
+      "--section",
+      "done=D.",
+      "--commit",
+    ]);
+    expect(r.status, r.stderr).toBe(0);
+    const path = join(repo.root, r.json.issue?.body_path ?? "");
+    const full = "# Sections\n\n## Goal\nG.\n\n## Notes\nN.\n\n## Done when\nD.\n";
+    expect(await readFile(path, "utf8")).toBe(full);
+    expect(runIssues(repo, ["edit", "1", "--section", "notes=", "--commit"]).status).toBe(0);
+    expect(await readFile(path, "utf8")).toBe("# Sections\n\n## Goal\nG.\n\n## Done when\nD.\n");
+    const again = runJson<Write>(repo, ["edit", "1", "--section", "notes="]);
+    expect(again.json.notes).toContain("nothing changed");
+    expect(runIssues(repo, ["edit", "1", "--section", "notes=N.", "--commit"]).status).toBe(0);
+    expect(await readFile(path, "utf8")).toBe(full);
+    expect(runIssues(repo, ["verify"]).status).toBe(0);
+  });
+
+  it("removes the last section when it is optional, and keeps an empty required one", async () => {
+    await using repo = await cliRepo();
+    expect(runIssues(repo, ["init", "--template", "feature", "--commit"]).status).toBe(0);
+    const r = runJson<Write>(repo, [
+      "new",
+      "Feature",
+      "--template",
+      "feature",
+      "--section",
+      "problem=P.",
+      "--section",
+      "proposal=Q.",
+      "--section",
+      "done=D.",
+      "--commit",
+    ]);
+    expect(r.status, r.stderr).toBe(0);
+    const path = join(repo.root, r.json.issue?.body_path ?? "");
+    const body = await readFile(path, "utf8");
+    // A hand-edited body whose optional section comes last.
+    await writeFile(path, `${body}\n## Alternatives\nA.\n`);
+    expect(runIssues(repo, ["edit", "1", "--section", "alternatives="]).status).toBe(0);
+    expect(await readFile(path, "utf8")).toBe(body);
+    // An empty required section keeps its heading, and lint reports it.
+    const emptied = runJson<Write & { findings: { rule: string }[] }>(repo, [
+      "edit",
+      "1",
+      "--section",
+      "done=",
+    ]);
+    expect(emptied.status).toBe(0);
+    expect(emptied.json.findings.map((f) => f.rule)).toEqual(["template/section-empty"]);
+    expect(await readFile(path, "utf8")).toBe(body.replace("## Done when\nD.\n", "## Done when\n"));
+    expect(runIssues(repo, ["verify"]).status).toBe(1);
+  });
+
   it("adds a heading when the body has none", async () => {
     await using repo = await cliRepo();
     const id = newIssue(repo, "Headless");
