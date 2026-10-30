@@ -59,6 +59,24 @@ describe("adr search", { timeout: 60_000 }, () => {
     });
   });
 
+  it("shows the heading when a word matches only a body heading", async () => {
+    const r = await repo();
+    const { b, c } = await seeded(r);
+    const out = runAdr(r, ["search", "consequences"]);
+    expect(out).toEqual({
+      status: 0,
+      stdout: [
+        `ADR-0002 (${b})  accepted  Use Aurora for orders`,
+        "  ## Consequences",
+        `${c}             proposed  Cache session tokens`,
+        "  ## Consequences",
+        '2 decisions match "consequences".',
+        "",
+      ].join("\n"),
+      stderr: "adr: warning: 1 inactive decision also matches; add --all to see them\n",
+    });
+  });
+
   it("includes inactive decisions with --all, warning under the title", async () => {
     const r = await repo();
     const { a } = await seeded(r);

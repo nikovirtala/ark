@@ -128,6 +128,23 @@ describe("searchIssues", () => {
     expect(searchIssues(read, { query: "names" }).results[0]?.matched).toEqual(["title"]);
   });
 
+  it("falls back to a heading when only headings match", async () => {
+    const read = await readOf([
+      {
+        id: A,
+        events: [openedAt(A, 1, "Ship it"), comment(A, 2, "Looks fine")],
+        body: "# Ship it\n\n## Goal\nKeep the cookie.\n\n## Done when\nSafari keeps it.\n",
+      },
+    ]);
+    expect(searchIssues(read, { query: "when" }).results[0]).toMatchObject({
+      matched: ["body"],
+      excerpt: "## Done when",
+    });
+    expect(searchIssues(read, { query: "cookie when" }).results[0]?.excerpt).toBe(
+      "Keep the cookie.",
+    );
+  });
+
   it("folds case and accents as adr does", async () => {
     const read = await log();
     expect(ids(searchIssues(read, { query: "CAFE" }))).toEqual([A]);
@@ -235,6 +252,13 @@ describe("searchIssues", () => {
           const has = (id: string) => doc.terms.every((t) => fields(id).some((f) => f.includes(t)));
           const found = new Set(ids(doc));
           for (const id of found) expect(has(id)).toBe(true);
+          for (const r of doc.results) {
+            if (r.excerpt === null) {
+              expect(
+                r.matched.length > 0 && r.matched.every((f) => f === "id" || f === "title"),
+              ).toBe(true);
+            }
+          }
           if (!includeClosed) {
             for (const r of doc.results) expect(r.issue.state).not.toBe("closed");
           }
