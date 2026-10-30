@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M671R8NDFMW9G1S5QX1MGWJC
+subject: 984qb8rg
+type: closed
+at: 2026-10-30T18:39:30Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "(1) ledger's CommandOption adds help, value and negatedHelp, which runCli prints as each option's description, value placeholder and --no-<name> row; every issues command describes its options, link --help lists the --rel values with (default: relates-to), new and edit show --section <id>=<markdown>, and --no-commit, --no-edit and --no-comments have rows. packages/issues/src/cli/help.test.ts checks that every option has help, that every --no-<name> in a usage line has a row, and the link --help and new/edit --help options. (2) stateHeader says 'Finish it first.' for one open blocker and 'Finish them first.' for more, checked in views.test.ts. (3) show --history (and MCP's issues_get with include_history) prints '<agent> on behalf of <address>' through historyActor, checked in views.test.ts and cli/show.test.ts. (4) This close is in the pull request that makes the change."
+data:
+  resolution: done
