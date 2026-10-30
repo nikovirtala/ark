@@ -3,7 +3,12 @@ import type { IssuesInitJson } from "../init.js";
 import type { IssueView } from "../kind.js";
 import type { IssuesForJson } from "../scope.js";
 import type { IssueSearchJson } from "../search.js";
-import type { IssueListJson, IssueReadyJson, IssueShowJson } from "../views.js";
+import {
+  historyActor,
+  type IssueListJson,
+  type IssueReadyJson,
+  type IssueShowJson,
+} from "../views.js";
 import type { IssueWorkJson } from "../work.js";
 import type { IssueWriteJson } from "../write.js";
 
@@ -148,7 +153,7 @@ export function showText(doc: IssueShowJson): string {
     out.push("History:");
     for (const e of doc.events) {
       const reason = typeof e.reason === "string" ? `: ${e.reason}` : "";
-      out.push(`  ${e.at} ${e.type} by ${e.actor.name}${reason}`);
+      out.push(`  ${e.at} ${e.type} by ${historyActor(e.actor)}${reason}`);
     }
     out.push("");
   }
