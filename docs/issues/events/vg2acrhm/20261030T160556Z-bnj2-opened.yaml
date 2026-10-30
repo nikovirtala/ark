@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M66RZ21MZR3C85YSVJBPBNJ2
+subject: vg2acrhm
+type: opened
+at: 2026-10-30T16:05:56Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Polish the rough edges left by the issues reviews
+  template: task
+  template_version: 1
