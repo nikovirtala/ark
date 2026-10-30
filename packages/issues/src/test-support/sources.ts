@@ -3,7 +3,10 @@ import { openDecisionLog, proposeDecision } from "@nikovirtala/adr";
 import { createTempRepo, type TempRepo } from "@nikovirtala/ledger/testing";
 import { cliRepo, newIssue, REPO_HUMAN } from "./cli.js";
 
-/** A source repository with an issue log (index committed) and a decision log, pushed bare. */
+/**
+ * A source repository with an issue log (index committed unless `o.index` is `"none"`) and a
+ * decision log, pushed bare.
+ */
 export interface IssueSourceFixture {
   readonly src: TempRepo;
   readonly bare: TempRepo;
@@ -20,8 +23,11 @@ export interface IssueSourceFixture {
 /** The fixture: `titles` opened and committed, a proposed decision, tag `v1`, pushed bare. */
 export async function issueSource(
   titles: readonly string[] = ["Provide the platform API"],
+  o: { readonly index?: "committed" | "none" } = {},
 ): Promise<IssueSourceFixture> {
-  const src = await cliRepo({ "docs/issues/issues.toml": '[log]\nindex = "committed"\n' });
+  const src = await cliRepo({
+    "docs/issues/issues.toml": `[log]\nindex = "${o.index ?? "committed"}"\n`,
+  });
   const issues = titles.map((t) => newIssue(src, t));
   const log = await openDecisionLog({ cwd: src.root, gitOptions: { env: src.env } });
   const p = await proposeDecision(
