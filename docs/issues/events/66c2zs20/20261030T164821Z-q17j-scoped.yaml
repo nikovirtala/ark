@@ -1,0 +1,18 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M66VCQQKTBCHZTC2K1H2Q17J
+subject: 66c2zs20
+type: scoped
+at: 2026-10-30T16:48:21Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/adr/src/log.ts
+    - packages/issues/src/log.ts
+    - packages/ledger/src/fold/**
