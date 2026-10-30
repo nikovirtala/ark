@@ -1,5 +1,16 @@
 # @nikovirtala/issues
 
+## 0.5.4
+
+### Patch Changes
+
+- 8d2f812: `adr search` and `issues search` (and `adr_search` and `issues_search`) show the matching heading as the excerpt when a word appears in the description only in a `#` heading, such as `## Consequences` or `## Done when`. Before, such a result printed an empty `( match)` line.
+  
+  Changed behaviour:
+  - `results[].excerpt` in `adr-search/v1` and `issues-search/v1` is the heading line instead of `null` when headings hold the description's only hits.
+- Updated dependencies [8d2f812]
+  - @nikovirtala/adr@0.5.8
+
 ## 0.5.3
 
 ### Patch Changes
