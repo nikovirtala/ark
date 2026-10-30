@@ -1,5 +1,31 @@
 # @nikovirtala/issues
 
+## 0.5.3
+
+### Patch Changes
+
+- 7e40dba: An issue's description no longer keeps empty optional sections. ledger's `renderTemplate` and `replaceSections` take `emptyOptional: "drop"`, which leaves an optional section without content out of a render, lets `replaceSections` remove one given empty text, and inserts an absent one in template order; the default `"keep"` behaves as before.
+  
+  Changed behaviour:
+  - `issues new` and `issues_open` write no heading for an optional section without content, such as task's Notes or feature's Alternatives.
+  - `issues edit --section <id>=` and `issues_update` with empty text remove an optional section, and text adds it back in the template's order.
+  - `issues edit --title`/`--section` that commits refuses a description that fails template lint, such as an empty required section, as `issues new` does (exit 1, nothing written).
+- 6b3e759: `issues <command> --help` describes every option: string options name their value (`--rel <rel>`, `--section <id>=<markdown>`), enumerated values and defaults are in the text, and `--no-commit`, `--no-edit` and `--no-comments` have their own rows. ledger's `CommandSpec` options are `CommandOption`s, which add `help`, `value` and `negatedHelp` for `runCli`'s command help; `COMMIT_OPTIONS` and `verifyCommand` describe their options, so adr's `--commit`, `--no-commit`, `-m` and `verify` options are described too.
+  
+  Changed behaviour:
+  - The blocked warning says "Finish it first." when one open issue blocks, and "Finish them first." for more.
+  - `issues show --history` and `issues_get` with `include_history` name on whose behalf an agent acted: `opened by kiro on behalf of <address>`.
+- 9b3ce15: `issues list --source <name>`, `issues search --source <name>`, `adr list --source <name>` and `adr search --source <name>` say that a cached source has no committed `index.md` when that is why its numbers are unavailable, for example `issue numbers are unavailable (platform has no committed index.md); issues display by id`, instead of "no main branch". ledger exports `NO_INDEX_NUMBERING`, whose `reason` is `"no-index"`.
+  
+  Changed behaviour:
+  - `numbering.reason` in `issues-list/v1` and `adr-list/v1` is `"no-index"` for a `--source` log without a committed index.
+  - `adr search --source <name>` prints the note for such a source.
+- Updated dependencies [7e40dba]
+- Updated dependencies [6b3e759]
+- Updated dependencies [9b3ce15]
+  - @nikovirtala/ledger@0.12.0
+  - @nikovirtala/adr@0.5.7
+
 ## 0.5.2
 
 ### Patch Changes
