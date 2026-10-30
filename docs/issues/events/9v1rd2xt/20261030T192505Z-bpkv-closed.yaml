@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M674BQEGGT2MBQAJ566EBPKV
+subject: 9v1rd2xt
+type: closed
+at: 2026-10-30T19:25:05Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "(1) .github/workflows/ci.yml's test job has no name, so GitHub names the matrix jobs test (<package>) and the skipped one test. Throwaway pull request #63, based on this branch with only a root Markdown file changed, selected no package (packages: []) and listed select, lint, build and verify, test (skipped) and check, none with an expression. (2) check passed there with test skipped, and on #62 test (adr), test (issues), test (ledger) and check passed. (3) Closed in #62, the pull request with the change."
+data:
+  resolution: done
