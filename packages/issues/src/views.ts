@@ -451,7 +451,7 @@ export function stateHeader(
     const by = view.blocked_by_open.map(
       (id) => `${display(id)} (${read.projection.views.get(id)?.state ?? "unknown"})`,
     );
-    warning = `BLOCKED by ${by.join(", ")}. Finish them first.`;
+    warning = `BLOCKED by ${by.join(", ")}. Finish ${by.length === 1 ? "it" : "them"} first.`;
   }
   return { line, warning };
 }

@@ -139,7 +139,7 @@ describe("issues mcp read tools", { timeout: 60_000 }, () => {
     const blocked = await client.callTool({ name: "issues_get", arguments: { id: "?3" } });
     expect(text(blocked).split("\n").slice(0, 2)).toEqual([
       `?3 (${ids.c}) · open`,
-      "BLOCKED by ?1 (in-progress). Finish them first.",
+      "BLOCKED by ?1 (in-progress). Finish it first.",
     ]);
 
     const closed = await client.callTool({
@@ -295,11 +295,11 @@ describe("issues mcp read tools", { timeout: 60_000 }, () => {
       "src/auth/session.ts",
       "  ?1 in-progress Login fails on Safari (via src/auth/**)",
       "  ?3 open Cache sessions (via src/auth/**)",
-      "    BLOCKED by ?1 (in-progress). Finish them first.",
+      "    BLOCKED by ?1 (in-progress). Finish it first.",
       "src/auth/token.ts",
       "  ?1 in-progress Login fails on Safari (via src/auth/**)",
       "  ?3 open Cache sessions (via src/auth/**)",
-      "    BLOCKED by ?1 (in-progress). Finish them first.",
+      "    BLOCKED by ?1 (in-progress). Finish it first.",
       "  unresolved: xxxxxxxx (line 1, not in this log)",
       "README.md",
       "  no issues",
