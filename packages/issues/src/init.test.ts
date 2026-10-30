@@ -1,13 +1,15 @@
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, sep } from "node:path";
 import { promisify } from "node:util";
 import { parseToolConfig, UsageError } from "@nikovirtala/ledger";
 import { createTempRepo, type TempRepo } from "@nikovirtala/ledger/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_ISSUES_CONFIG, parseIssuesConfig } from "./config.js";
-import { initIssueLog, starterConfig } from "./init.js";
+import { agentsPointer, initIssueLog, starterConfig } from "./init.js";
 import { openIssueLog } from "./log.js";
+import { SKILL_MD } from "./skill.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
 
 const run = promisify(execFile);
@@ -158,5 +160,163 @@ describe("initIssueLog and a .gitkeep placeholder (?8)", () => {
     const again = await initIssueLog(await open(s), { commit: true });
     expect(again).toMatchObject({ written: [], removed: [], commit: null });
     expect((await git(s, "status", "--porcelain")).trim()).toBe("A  docs/issues/.gitkeep");
+  });
+});
+
+describe("initIssueLog with skill", () => {
+  const SKILL = ".claude/skills/issues/SKILL.md";
+  const POINTER = agentsPointer(SKILL);
+  const ADR_POINTER =
+    "Architecture decisions in this repository are managed by adr: read .claude/skills/adr/SKILL.md before changing architecture, and follow it.";
+  const skill = { dir: ".claude/skills/issues", version: "9.9.9" };
+  /** A temp repository, never ark's own: AGENTS.md is always read from inside it. */
+  async function skillRepo(files: Record<string, string> = {}): Promise<TempRepo> {
+    const r = await repo(files);
+    expect(`${await realpath(r.root)}${sep}`.startsWith(`${await realpath(tmpdir())}${sep}`)).toBe(
+      true,
+    );
+    return r;
+  }
+  const agents = (r: TempRepo) => readFile(join(r.root, "AGENTS.md"), "utf8").catch(() => null);
+  const status = async (r: TempRepo) => (await git(r, "status", "--porcelain")).trim();
+  const subject = async (r: TempRepo) => (await git(r, "log", "-1", "--format=%s")).trim();
+
+  it("writes SKILL.md and the AGENTS.md pointer, staged, and keeps both on a rerun", async () => {
+    const r = await skillRepo();
+    const doc = await initIssueLog(await open(r), { skill });
+    expect(doc).toMatchObject({
+      written: ["docs/issues/issues.toml", "docs/issues/templates/task.md", SKILL, "AGENTS.md"],
+      kept: [],
+      skill: SKILL,
+      notes: [],
+    });
+    expect(await readFile(join(r.root, SKILL), "utf8")).toBe(SKILL_MD);
+    expect(await agents(r)).toBe(`${POINTER}\n`);
+    expect((await git(r, "diff", "--cached", "--name-only")).trim().split("\n").sort()).toEqual(
+      [...doc.written].sort(),
+    );
+    const again = await initIssueLog(await open(r), { skill });
+    expect(again).toMatchObject({
+      written: [],
+      kept: ["docs/issues/issues.toml", "docs/issues/templates/task.md", SKILL, "AGENTS.md"],
+      skill: SKILL,
+      notes: [],
+    });
+  });
+
+  it("writes SKILL.md at the root for an empty dir", async () => {
+    const r = await skillRepo();
+    const doc = await initIssueLog(await open(r), { skill: { ...skill, dir: "" } });
+    expect(doc.skill).toBe("SKILL.md");
+    expect(await readFile(join(r.root, "SKILL.md"), "utf8")).toBe(SKILL_MD);
+    expect(await agents(r)).toBe(`${agentsPointer("SKILL.md")}\n`);
+  });
+
+  it("keeps a SKILL.md that differs, with a note", async () => {
+    const r = await skillRepo({ [SKILL]: "my own skill\n" });
+    const doc = await initIssueLog(await open(r), { skill });
+    expect(doc.kept).toContain(SKILL);
+    expect(doc.written).not.toContain(SKILL);
+    expect(doc.notes).toEqual([
+      expect.stringMatching(
+        /^\.claude\/skills\/issues\/SKILL\.md differs from issues 9\.9\.9's skill; delete it and run issues init --skill again to replace it$/,
+      ),
+    ]);
+    expect(await readFile(join(r.root, SKILL), "utf8")).toBe("my own skill\n");
+  });
+
+  it.each([
+    ["# Agents\n\nBe nice.\n", `# Agents\n\nBe nice.\n\n${POINTER}\n`],
+    ["# Agents\nBe nice.", `# Agents\nBe nice.\n\n${POINTER}\n`],
+    [`See ${SKILL} first.\n`, `See ${SKILL} first.\n`],
+    [`${ADR_POINTER}\n`, `${ADR_POINTER}\n\n${POINTER}\n`],
+  ])("adds the pointer to AGENTS.md %j once", async (before, after) => {
+    const r = await skillRepo({ "AGENTS.md": before });
+    const doc = await initIssueLog(await open(r), { skill });
+    expect(await agents(r)).toBe(after);
+    expect(doc.written.includes("AGENTS.md")).toBe(before !== after);
+    expect(doc.kept.includes("AGENTS.md")).toBe(before === after);
+    await initIssueLog(await open(r), { skill });
+    expect(await agents(r)).toBe(after);
+  });
+
+  it("refuses AGENTS.md with unstaged changes with a commit, and leaves it unstaged without", async () => {
+    const r = await skillRepo({ "AGENTS.md": "# Agents\n" });
+    await writeFile(join(r.root, "AGENTS.md"), "# Agents\nEdited.\n");
+    const refused = initIssueLog(await open(r), { skill, commit: true });
+    await expect(refused).rejects.toThrow(UsageError);
+    await expect(refused).rejects.toThrow(
+      "AGENTS.md has unstaged changes; stage or discard them, or run without --commit",
+    );
+    expect(await status(r)).toBe("M AGENTS.md");
+    const doc = await initIssueLog(await open(r), { skill });
+    expect(doc.notes).toEqual([
+      "AGENTS.md had unstaged changes, so the pointer is added but not staged; review it and git add it",
+    ]);
+    expect(await agents(r)).toBe(`# Agents\nEdited.\n\n${POINTER}\n`);
+    expect(await git(r, "diff", "--cached", "--name-only")).not.toContain("AGENTS.md");
+  });
+
+  it("refuses an untracked AGENTS.md with a commit, and leaves it unstaged without", async () => {
+    const r = await skillRepo();
+    await writeFile(join(r.root, "AGENTS.md"), "# Mine\n");
+    await expect(initIssueLog(await open(r), { skill, commit: true })).rejects.toThrow(
+      "AGENTS.md is not tracked; git add it, or run without --commit",
+    );
+    expect(await status(r)).toBe("?? AGENTS.md");
+    const doc = await initIssueLog(await open(r), { skill });
+    expect(doc.notes).toEqual([
+      "AGENTS.md is not tracked, so the pointer is added but not staged; review it and git add it",
+    ]);
+    expect(await agents(r)).toBe(`# Mine\n\n${POINTER}\n`);
+    expect(await git(r, "diff", "--cached", "--name-only")).not.toContain("AGENTS.md");
+  });
+
+  it("names the commit after the skill only when it writes nothing else", async () => {
+    const r = await skillRepo({ "AGENTS.md": "# Agents\n" });
+    await initIssueLog(await open(r), { commit: true });
+    const doc = await initIssueLog(await open(r), { skill, commit: true });
+    expect(doc.written).toEqual([SKILL, "AGENTS.md"]);
+    expect(await subject(r)).toBe("docs(issues): set up the issues agent skill");
+    expect((await git(r, "show", "--name-only", "--format=", "HEAD")).trim()).toBe(
+      `${SKILL}\nAGENTS.md`,
+    );
+    expect(await status(r)).toBe("");
+
+    // A kept config whose committed index is missing: the index is written with the skill.
+    const s = await skillRepo({ "docs/issues/issues.toml": '[log]\nindex = "committed"\n' });
+    const indexed = await initIssueLog(await open(s), { skill, commit: true });
+    expect(indexed.written).toContain("docs/issues/index.md");
+    expect(await subject(s)).toBe("docs(issues): set up the issue log");
+  });
+
+  it("removes an empty .gitkeep only when it writes log files", async () => {
+    const r = await skillRepo({ "docs/issues/.gitkeep": "" });
+    const doc = await initIssueLog(await open(r), { skill, commit: true });
+    expect(doc.removed).toEqual(["docs/issues/.gitkeep"]);
+    expect(await subject(r)).toBe("docs(issues): set up the issue log");
+    expect(await status(r)).toBe("");
+
+    const s = await skillRepo();
+    await initIssueLog(await open(s), { commit: true });
+    await s.write("docs/issues/.gitkeep", "");
+    await s.stage("docs/issues/.gitkeep");
+    await git(s, "commit", "-qm", "chore: add a placeholder");
+    const skillOnly = await initIssueLog(await open(s), { skill, commit: true });
+    expect(skillOnly).toMatchObject({ written: [SKILL, "AGENTS.md"], removed: [] });
+    expect(await subject(s)).toBe("docs(issues): set up the issues agent skill");
+    expect(await readFile(join(s.root, "docs/issues/.gitkeep"), "utf8")).toBe("");
+  });
+
+  it("removes what it wrote when a write fails", async () => {
+    const r = await skillRepo();
+    // A directory where AGENTS.md goes makes its write fail after SKILL.md was written.
+    await mkdir(join(r.root, "AGENTS.md"));
+    await writeFile(join(r.root, "AGENTS.md", "x"), "x\n");
+    await expect(initIssueLog(await open(r), { skill })).rejects.toThrow();
+    for (const path of [SKILL, "docs/issues/issues.toml", "docs/issues/templates/task.md"]) {
+      await expect(readFile(join(r.root, path)), path).rejects.toThrow();
+    }
+    expect(await status(r)).toBe("?? AGENTS.md/");
   });
 });

@@ -25,6 +25,9 @@ export const ACTIONS = {
 /** What `issues init --commit`'s title slot holds. */
 export const INIT_TITLE = "the issue log";
 
+/** What `issues init --skill --commit`'s title slot holds when it writes only the skill. */
+export const SKILL_TITLE = "the issues agent skill";
+
 /** `{action}` of `issues index --commit`, whose title slot holds `the issue index`. */
 export const INDEX_ACTION = "regenerate";
 
@@ -133,8 +136,8 @@ const longestOf = (...actions: readonly string[]) => Math.max(...actions.map((a)
  * The slot forms the title placeholder holds, each with its longest action, so the default
  * template parses and a custom one that can't fit them is refused at config load: `new`'s quoted
  * title; a display with a quoted title for every other single action; a duplicate close's and a
- * cross-log link's words after it; a batch's name for one issue and for several; and init's and
- * index's names. The other forms are shorter with the same actions.
+ * cross-log link's words after it; a batch's name for one issue and for several; and init's,
+ * the skill's and index's names. The other forms are shorter with the same actions.
  */
 export const COMMIT_NAMES = Object.freeze([
   { length: QUOTED, vars: { action: ACTIONS.new.length } },
@@ -164,6 +167,7 @@ export const COMMIT_NAMES = Object.freeze([
   { length: NAMED, vars: { action: LONGEST_BATCH } },
   { length: SEVERAL, vars: { action: LONGEST_BATCH } },
   { length: INIT_TITLE.length, vars: { action: ACTIONS.init.length } },
+  { length: SKILL_TITLE.length, vars: { action: ACTIONS.init.length } },
   { length: INDEX_TITLE.length, vars: { action: INDEX_ACTION.length } },
 ]);
 

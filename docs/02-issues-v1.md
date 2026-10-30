@@ -436,7 +436,7 @@ Most properties run against the pure core at milliseconds per case. A smaller se
 
 ## Agent skill (SKILL.md)
 
-The MCP server gives agents the capability; the skill gives them the judgment of when to use it. `issues init --skill` writes it to `.claude/skills/issues/SKILL.md`, and a one-line pointer goes into `AGENTS.md` for tools that do not load skills.
+The MCP server gives agents the capability; the skill gives them the judgment of when to use it. `issues init --skill` writes it to `.claude/skills/issues/SKILL.md`, or to `<dir>/SKILL.md` with `--skill-dir <dir>` (for example `.kiro/skills/issues`), and a one-line pointer goes into `AGENTS.md` for tools that do not load skills; it never overwrites an existing SKILL.md.
 
 ```markdown
 ---
@@ -448,6 +448,7 @@ description: Use when starting, continuing or finishing a piece of work, when as
 
 Issues in this repo are managed by issues. Issue files do not show their
 own state, so never judge from the raw files whether an issue is open.
+Read issues with issues_get or issues://issue/{id}.
 
 ## Before starting work
 
@@ -457,16 +458,20 @@ own state, so never judge from the raw files whether an issue is open.
 2. If the user asked what to do next, call issues_ready and propose one.
 3. Call issues_for_path for the files you will touch, so you know about
    open work there.
-4. Call issues_start when you begin.
+4. Call issues_start when you begin. If it notes scope globs that match
+   no tracked file, commit those files with it or fix the scope with
+   issues_scope.
 
 ## While working
 
 - Record progress, findings and decisions as issues_comment, briefly.
 - When the understanding of the work changes, update the description
   with issues_update. Keep Done when accurate.
-- When you find a bug or follow-up you will not fix now, open an issue
-  with issues_open instead of leaving a TODO. If code should point at
-  it, add an // issue:<id> anchor.
+- When you find a bug or follow-up you will not fix now, search with
+  issues_search (include_closed: true) first; if an issue exists,
+  comment on it instead. Otherwise open an issue with issues_open
+  instead of leaving a TODO. If code should point at it, add an
+  // issue:<id> anchor.
 - If the work implements an architectural decision, link it with
   rel implements to adr:<id>.
 
@@ -476,7 +481,9 @@ own state, so never judge from the raw files whether an issue is open.
    do not close.
 2. Close with issues_close, resolution done, and a reason that says how
    each condition was met. The closed event belongs in the same change
-   as the fix.
+   as the fix. If issues_close isn't available, or refuses with
+   issue/agent-closed, the repository keeps closing to people: tell the
+   user the issue is ready to close and how each condition was met.
 3. If you stop without finishing, call issues_stop and comment what is
    left.
 
@@ -489,8 +496,11 @@ own state, so never judge from the raw files whether an issue is open.
 
 ## Without the MCP server
 
-Use the CLI with --json: issues ready, issues show, issues new,
-issues comment, issues close.
+Use the CLI with --json: issues ready, issues search, issues for,
+issues show, issues new --no-edit --section <id>=<text>, issues start,
+issues comment, issues close. Set ARK_AGENT=<your name> and
+ARK_ON_BEHALF_OF=<the user's email> so your writes are attributed and
+the close policy applies to you.
 ```
 
 ## Implementation notes, roadmap and open questions

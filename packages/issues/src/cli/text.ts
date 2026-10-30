@@ -194,6 +194,9 @@ export function initText(doc: IssuesInitJson): string {
     ...doc.kept.map((p) => `kept ${p}`),
     ...doc.removed.map((p) => `removed ${p}`),
     ...(doc.commit === null ? [] : [`committed ${short(doc.commit)}`]),
+    ...(doc.skill !== null && doc.written.includes(doc.skill)
+      ? ["Next: issues mcp, from your MCP client's config"]
+      : []),
   ];
   return `${out.length === 0 ? "nothing to do" : out.join("\n")}\n`;
 }

@@ -83,7 +83,7 @@ export function issuesCli(version: string): ToolCli {
     version,
     summary: "Issue tracking kept as event logs in git.",
     commands: [
-      initCommand,
+      initCommand(version),
       newCommand,
       editCommand,
       startCommand,
