@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M672KXSMJYCDN8X519QV685J
+subject: def9qp6q
+type: closed
+at: 2026-10-30T18:54:37Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "(1) git.test.ts's 'opens a work tree with absolute root, gitDir and commonDir' opens the temp repo with r.env. With GIT_DIR set to another repository the file's 87 tests pass (1 failed before), and in the per-commit check run under git rebase --exec from a linked worktree, over this pull request's test(ledger) commit, ledger's suite passed, git.test.ts's 87 tests included. That check then failed in adr's accept-copy.test.ts, which tcwy0e79 tracks with issues' MCP tests. (2) Every Git.open and Git.openGitDir call in the file that opens a temp repo with real git now passes its env: also the 2.32 gate's real-git open, the fake 2.32 binary, the bare openGitDir, the env test's two opens and the timeout test. With all seven GIT_LOCATING_ENV variables set to another repository, 3 tests failed before and none after. The other calls pass GIT_ENV_ISOLATION on purpose, already pass r.env, target a directory that isn't a repository, or fail before git runs. (3) Closed in #62, the pull request with the fix."
+data:
+  resolution: done
