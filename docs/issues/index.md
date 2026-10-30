@@ -5,7 +5,6 @@
 
 | Issue | Title | Assignees | Labels | Since |
 | --- | --- | --- | --- | --- |
-| ?35 | [Drop the "no main branch" note for a source that isn't fetched](items/g84z3z2t-drop-the-no-main-branch-note-for-a-source-that-isnt-fetched.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
 | ?36 | [Stop calling a source's committed index a shallow clone in adr](items/r2nj95bs-stop-calling-a-sources-committed-index-a-shallow-clone-in.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
 
 ## Ready
@@ -27,7 +26,6 @@
 | ?9 | [Fix the subcommand help and two show messages](items/984qb8rg-fix-the-subcommand-help-and-two-show-messages.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
 | ?10 | [Drop empty optional sections from issue descriptions](items/wy4r966a-drop-empty-optional-sections-from-issue-descriptions.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
 | ?11 | [Name the real reason when a source's numbers are unavailable](items/vpq5v23q-name-the-real-reason-when-a-sources-numbers-are-unavailable.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
-| ?15 | [Add the write side of issues mcp](items/516asy8r-add-the-write-side-of-issues-mcp.md) |  |  | 2026-10-29 |
 | ?16 | [Add issues' MCP prompts and agent skill](items/s3v2jada-add-issues-mcp-prompts-and-agent-skill.md) |  |  | 2026-10-30 |
 | ?18 | [Say which field matched when a search result has no excerpt](items/1fgqfkf3-say-which-field-matched-when-a-search-result-has-no-excerpt.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
 | ?19 | [Test the remaining Table B cells of the issues mcp writes](items/exnj9tym-test-the-remaining-table-b-cells-of-the-issues-mcp-writes.md) | nikovirtala@users.noreply.github.com | type:test | 2026-10-30 |
@@ -43,5 +41,6 @@
 | ?30 | [Add init --skill's AGENTS.md pointer when the skill sits at the repository root](items/c181sywx-add-init-skills-agents-md-pointer-when-the-skill-sits-at-the.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
 | ?32 | [List what a pull brought in log order](items/66c2zs20-list-what-a-pull-brought-in-log-order.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
 | ?33 | [Run CI's test jobs on the arm runner with 6 workers](items/5z5rsn65-run-cis-test-jobs-on-the-arm-runner-with-6-workers.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
+| ?35 | [Drop the "no main branch" note for a source that isn't fetched](items/g84z3z2t-drop-the-no-main-branch-note-for-a-source-that-isnt-fetched.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
 
 <!-- ledger-index/v1 numbers: 65qt4pp3=1 pcmzc2dz=2 1w06qws8=3 6930v8w9=4 f4f25st2=5 jdpc6bn7=6 m5xh8bkd=7 cqpzxvcs=8 984qb8rg=9 wy4r966a=10 vpq5v23q=11 3gyr85xq=12 0megpv2e=13 qy2ch92c=14 516asy8r=15 s3v2jada=16 f3my0702=17 1fgqfkf3=18 exnj9tym=19 wedm13pe=20 7n5e4nkf=21 bd0nsd5s=22 j897bps4=23 688fexss=24 na46n52h=25 def9qp6q=26 0vckaxpf=27 9v1rd2xt=28 mvz52a5s=29 c181sywx=30 vg2acrhm=31 66c2zs20=32 5z5rsn65=33 tcwy0e79=34 g84z3z2t=35 r2nj95bs=36 -->
