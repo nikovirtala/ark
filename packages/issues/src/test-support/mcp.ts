@@ -2,6 +2,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
+import { GIT_ENV_ISOLATION } from "@nikovirtala/ledger";
 import type { TempRepo } from "@nikovirtala/ledger/testing";
 import { serveIssuesMcp } from "../mcp/server.js";
 import { cliRepo, newIssue, runIssues } from "./cli.js";
@@ -21,7 +22,8 @@ export async function connectMcp(
   const served = serveIssuesMcp({
     cwd: r.root,
     root: null,
-    env: merged,
+    // git merges this over `process.env`, so a deleted GIT_DIR would come back from it.
+    env: { ...merged, ...GIT_ENV_ISOLATION },
     version: "0.0.0-test",
     stderr: { write: (s) => void stderr.push(s) },
     transport: serverSide,
