@@ -7,7 +7,7 @@ import { parseToolConfig, UsageError } from "@nikovirtala/ledger";
 import { createTempRepo, type TempRepo } from "@nikovirtala/ledger/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_ISSUES_CONFIG, parseIssuesConfig } from "./config.js";
-import { agentsPointer, initIssueLog, starterConfig } from "./init.js";
+import { agentsPointer, initIssueLog, namesSkill, starterConfig } from "./init.js";
 import { openIssueLog } from "./log.js";
 import { SKILL_MD } from "./skill.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
@@ -240,6 +240,21 @@ describe("initIssueLog with skill", () => {
     expect(await agents(r)).toBe(after);
   });
 
+  it.each([
+    [`${ADR_POINTER}\n`, `${ADR_POINTER}\n\n${agentsPointer("SKILL.md")}\n`],
+    ["See SKILL.md first.\n", "See SKILL.md first.\n"],
+  ])("adds the root pointer to AGENTS.md %j once", async (before, after) => {
+    const r = await skillRepo({ "AGENTS.md": before });
+    const root = { ...skill, dir: "" };
+    const doc = await initIssueLog(await open(r), { skill: root });
+    expect(doc.skill).toBe("SKILL.md");
+    expect(await agents(r)).toBe(after);
+    expect(doc.written.includes("AGENTS.md")).toBe(before !== after);
+    expect(doc.kept.includes("AGENTS.md")).toBe(before === after);
+    await initIssueLog(await open(r), { skill: root });
+    expect(await agents(r)).toBe(after);
+  });
+
   it("refuses AGENTS.md with unstaged changes with a commit, and leaves it unstaged without", async () => {
     const r = await skillRepo({ "AGENTS.md": "# Agents\n" });
     await writeFile(join(r.root, "AGENTS.md"), "# Agents\nEdited.\n");
@@ -318,5 +333,30 @@ describe("initIssueLog with skill", () => {
       await expect(readFile(join(r.root, path)), path).rejects.toThrow();
     }
     expect(await status(r)).toBe("?? AGENTS.md/");
+  });
+});
+
+describe("namesSkill", () => {
+  const ADR_POINTER =
+    "Architecture decisions in this repository are managed by adr: read .claude/skills/adr/SKILL.md before changing architecture, and follow it.";
+  it.each<[string, string, boolean]>([
+    ["read SKILL.md first", "SKILL.md", true],
+    ["`SKILL.md`", "SKILL.md", true],
+    ["(./SKILL.md)", "SKILL.md", true],
+    ["See SKILL.md.", "SKILL.md", true],
+    ["SKILL.md\r", "SKILL.md", true],
+    ["# Agents\n\nread SKILL.md\n", "SKILL.md", true],
+    [ADR_POINTER, "SKILL.md", false],
+    ["../SKILL.md", "SKILL.md", false],
+    ["x./SKILL.md", "SKILL.md", false],
+    ["MY-SKILL.md", "SKILL.md", false],
+    ["SKILL.md.bak", "SKILL.md", false],
+    ["SKILL.mdx", "SKILL.md", false],
+    [ADR_POINTER, ".claude/skills/adr/SKILL.md", true],
+    ["see foo/.claude/skills/issues/SKILL.md", ".claude/skills/issues/SKILL.md", false],
+    ["read c++ (x)/SKILL.md", "c++ (x)/SKILL.md", true],
+    ["", "SKILL.md", false],
+  ])("%j names %j: %s", (text, skill, expected) => {
+    expect(namesSkill(text, skill)).toBe(expected);
   });
 });
