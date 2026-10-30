@@ -48,7 +48,7 @@ export const newCommand: CommandSpec = {
       type: "string",
       multiple: true,
       value: "<id>=<markdown>",
-      help: "fill section <id> with <markdown>",
+      help: "fill section <id> with <markdown>; an optional section left out or empty gets no heading",
     },
     edit: {
       type: "boolean",

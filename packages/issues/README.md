@@ -33,11 +33,13 @@ Each issue has a canonical id (`m4p8x2kd`) and, once its `opened` event lands on
 issues init --template task --template bug --commit
 issues init --skill [--skill-dir .kiro/skills/issues]   # the agent skill and an AGENTS.md pointer
 
-# Open an issue from a template; --section fills a section without an editor.
+# Open an issue from a template; --section fills a section without an editor. An optional
+# section without content gets no heading.
 issues new "Split the orders service" --section goal="Two services." --section done="Both deploy." --commit
 issues new "Extract the consumer" --parent 1 --depends-on 3 --label type:feature --template feature --edit
 
-# Edit the description: in $VISUAL or $EDITOR, or by heading and section.
+# Edit the description: in $VISUAL or $EDITOR, or by heading and section. --section <id>=
+# removes an optional section and text adds it back; a commit is refused if lint would fail.
 issues edit 42
 issues edit 42 --title "Split orders and payments" --section done="All three deploy." --commit
 

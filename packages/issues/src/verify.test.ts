@@ -210,4 +210,23 @@ describe("template lint", () => {
     const closed = await run(new MemoryTree({ [TEMPLATE_PATH]: TASK_V1, ...closedFiles }));
     expect(errors(closed)).toEqual([]);
   });
+
+  it("accepts a description without an optional section, and reports a missing required one", async () => {
+    const run = (body: string) =>
+      verifySnapshots({
+        kind: COMPILED,
+        layout: HISTORY_LAYOUT,
+        base: null,
+        head: new MemoryTree({
+          [TEMPLATE_PATH]: TASK_V1,
+          ...issueFiles([{ id: "aaaaaaaa", events: [opened("aaaaaaaa", "T")], body }]),
+        }),
+        scope: "all",
+        checks: issueChecks(),
+      });
+    const template = (fs: readonly Finding[]) =>
+      fs.filter((f) => f.rule.startsWith("template/")).map((f) => f.rule);
+    expect(template(await run("# T\n\n## Goal\nG\n\n## Done when\nD\n"))).toEqual([]);
+    expect(template(await run("# T\n\n## Done when\nD\n"))).toEqual(["template/section-missing"]);
+  });
 });

@@ -588,12 +588,13 @@ export async function planOpen(
     checkText(`section ${id}`, text);
   }
   // Required sections left out get their guidance, which template lint reports until it is
-  // replaced; optional ones stay empty, so a draft with every required section given is complete.
+  // replaced; optional ones stay empty and get no heading, so a draft with every required section
+  // given is complete.
   const optional = Object.fromEntries(t.sections.filter((s) => !s.required).map((s) => [s.id, ""]));
   const rendered = renderTemplate(
     t,
     { title, sections: { ...optional, ...sections } },
-    { missing: "guidance" },
+    { missing: "guidance", emptyOptional: "drop" },
   );
   if (!rendered.ok) throw new UsageError(rendered.findings.map((f) => f.message).join("; "));
 
@@ -744,7 +745,7 @@ export async function planEdit(
       };
     }
     template = found.template;
-    const r = replaceSections(template, next, sections);
+    const r = replaceSections(template, next, sections, { emptyOptional: "drop" });
     if (!r.ok) {
       const [first] = r.findings;
       if (first?.rule === "render/unknown-section") {
