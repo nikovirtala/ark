@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M67FFQR67BBZFK7XBBP1S19V
+subject: vg2acrhm
+type: closed
+at: 2026-10-30T22:39:31Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "(1) Every child issue is closed: the part-of children ?9, ?10, ?11, ?18, ?19, ?26, ?28 and ?30 were closed in earlier pull requests, and the relates-to children ?35 and ?36 are closed in this pull request; no other issue links to ?31."
+data:
+  resolution: done
