@@ -77,6 +77,20 @@ function configText(o: { readonly root: string | null; readonly template: string
 }
 
 /**
+ * Whether a line of `text` names `skill` as a whole path, optionally after `./`: not as the end of
+ * a longer path (`SKILL.md` in `.claude/skills/adr/SKILL.md`) or the start of one (`SKILL.md.bak`).
+ * A `.` right after it, ending a sentence, still counts.
+ */
+export function namesSkill(text: string, skill: string): boolean {
+  const path = skill.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(
+    `(?<![\\p{L}\\p{N}_./-])(?:\\./)?${path}(?![\\p{L}\\p{N}_/-]|\\.[\\p{L}\\p{N}_/-])`,
+    "u",
+  );
+  return text.split("\n").some((line) => re.test(line));
+}
+
+/**
  * `adr init` (design §6.2): writes a config for the log, unless one is found, and each built-in
  * template in `o.templates` (default `nygard`) to `<root>/templates/`, never overwriting a file.
  * A `--root` other than `docs/adr` gets a repo-level `adr.toml` naming it, so later commands find
@@ -85,8 +99,8 @@ function configText(o: { readonly root: string | null; readonly template: string
  * `commit` (default `[policy] auto_commit`) the written files are committed on their own;
  * nothing written means nothing committed. No events are written. With `o.skill` it also writes
  * the agent skill, unless a SKILL.md is there, and adds the pointer line to `AGENTS.md`, unless a
- * line already names the skill; an AGENTS.md with unstaged changes or not tracked is refused
- * with a commit and left unstaged without one.
+ * line already names the skill's path as a whole path (see {@link namesSkill}); an AGENTS.md with
+ * unstaged changes or not tracked is refused with a commit and left unstaged without one.
  */
 export async function initDecisionLog(
   log: DecisionLog,
@@ -168,7 +182,7 @@ export async function initDecisionLog(
       }
       const old = await log.tree.read(AGENTS);
       const text = old === null ? null : decoder.decode(old);
-      if ((text ?? "").split("\n").some((l) => l.includes(skill))) {
+      if (namesSkill(text ?? "", skill)) {
         kept.push(AGENTS);
       } else {
         let stage = true;

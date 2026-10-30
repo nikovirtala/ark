@@ -86,6 +86,20 @@ export function starterConfig(o: {
 }
 
 /**
+ * Whether a line of `text` names `skill` as a whole path, optionally after `./`: not as the end of
+ * a longer path (`SKILL.md` in `.claude/skills/adr/SKILL.md`) or the start of one (`SKILL.md.bak`).
+ * A `.` right after it, ending a sentence, still counts.
+ */
+export function namesSkill(text: string, skill: string): boolean {
+  const path = skill.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(
+    `(?<![\\p{L}\\p{N}_./-])(?:\\./)?${path}(?![\\p{L}\\p{N}_/-]|\\.[\\p{L}\\p{N}_/-])`,
+    "u",
+  );
+  return text.split("\n").some((line) => re.test(line));
+}
+
+/**
  * `issues init`: writes the starter config unless the log has one, and each chosen built-in
  * template (default `task`) to `<root>/templates/<name>.md`, never overwriting a file; reports
  * what it wrote and kept. A `--root` other than `docs/issues` gets a repo-level `issues.toml`
@@ -93,8 +107,9 @@ export function starterConfig(o: {
  * writes a log file, an empty `<root>/.gitkeep` placeholder is removed and the deletion staged
  * (?8); a non-empty one is kept with a note. With `commit`, commits only what it wrote and
  * removed. With `o.skill` it also writes the agent skill, unless a SKILL.md is there, and adds
- * the pointer line to `AGENTS.md`, unless a line already names the skill; an AGENTS.md with
- * unstaged changes or not tracked is refused with a commit and left unstaged without one.
+ * the pointer line to `AGENTS.md`, unless a line already names the skill's path as a whole path
+ * (see {@link namesSkill}); an AGENTS.md with unstaged changes or not tracked is refused with a
+ * commit and left unstaged without one.
  */
 export async function initIssueLog(
   log: IssueLog,
@@ -200,7 +215,7 @@ export async function initIssueLog(
       }
       const old = await log.tree.read(AGENTS);
       const text = old === null ? null : decoder.decode(old);
-      if ((text ?? "").split("\n").some((l) => l.includes(skill))) {
+      if (namesSkill(text ?? "", skill)) {
         kept.push(AGENTS);
       } else {
         let stage = true;

@@ -270,6 +270,21 @@ describe("adr init --skill", { timeout: 60_000 }, () => {
     expect(await read(r, "AGENTS.md")).toBe(`${agentsPointer(".kiro/skills/adr/SKILL.md")}\n`);
   });
 
+  it("adds its pointer next to issues' with --skill-dir .", async () => {
+    const ISSUES_POINTER =
+      "Issues in this repository are tracked with issues: read .claude/skills/issues/SKILL.md before starting, continuing or finishing work, and follow it.";
+    const r = await repo({ "AGENTS.md": `${ISSUES_POINTER}\n` });
+    const after = `${ISSUES_POINTER}\n\n${agentsPointer("SKILL.md")}\n`;
+    const out = runAdr(r, ["init", "--skill", "--skill-dir", ".", "--json"]);
+    expect(out.status).toBe(0);
+    expect(doc(out.stdout)).toMatchObject({ skill: "SKILL.md" });
+    expect(doc(out.stdout).written).toContain("AGENTS.md");
+    expect(await read(r, "AGENTS.md")).toBe(after);
+    const again = runAdr(r, ["init", "--skill", "--skill-dir", ".", "--json"]);
+    expect(doc(again.stdout).written).not.toContain("AGENTS.md");
+    expect(await read(r, "AGENTS.md")).toBe(after);
+  });
+
   it.each([
     [["--skill-dir", "x"], "--skill-dir needs --skill"],
     [
