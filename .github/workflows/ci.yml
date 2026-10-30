@@ -118,7 +118,9 @@ jobs:
         run: sh scripts/check-fixups.sh "origin/$BASE_REF" "$HEAD_SHA"
 
   test:
-    name: test (${{ matrix.package }})
+    # No name: GitHub calls each matrix job `test (<package>)` after the job id and the package,
+    # and the job skipped when no package needs testing plain `test`. A name built from the matrix
+    # showed its expression unfilled there, because a skipped job's matrix never expands.
     needs: select
     # An empty matrix is an error, and no package changed means there is nothing to test.
     if: needs.select.outputs.packages != '[]'
