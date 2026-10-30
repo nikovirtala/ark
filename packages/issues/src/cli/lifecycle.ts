@@ -66,7 +66,10 @@ export const stopCommand: CommandSpec = {
   name: "stop",
   summary: "stop work on an issue without finishing it",
   usage: "stop <issue> [--reason <text>] [--commit | --no-commit] [-m <message>]",
-  options: { reason: { type: "string" }, ...COMMIT_OPTIONS },
+  options: {
+    reason: { type: "string", value: "<text>", help: "why work stopped" },
+    ...COMMIT_OPTIONS,
+  },
   positionals: { min: 1, max: 1, names: ["issue"] },
   ref: "reject",
   run: ({ io, flags, values, positionals }) =>
@@ -82,9 +85,17 @@ export const closeCommand: CommandSpec = {
   usage:
     "close <issue> [--resolution done|wontfix|duplicate|obsolete] [--duplicate-of <issue>] [--reason <text>] [--commit | --no-commit] [-m <message>]",
   options: {
-    resolution: { type: "string" },
-    "duplicate-of": { type: "string" },
-    reason: { type: "string" },
+    resolution: {
+      type: "string",
+      value: "<resolution>",
+      help: "done, wontfix, duplicate or obsolete (default: done)",
+    },
+    "duplicate-of": { type: "string", value: "<issue>", help: "the issue this one duplicates" },
+    reason: {
+      type: "string",
+      value: "<text>",
+      help: "why, or how each Done when condition was met",
+    },
     ...COMMIT_OPTIONS,
   },
   positionals: { min: 1, max: 1, names: ["issue"] },
@@ -110,7 +121,10 @@ export const reopenCommand: CommandSpec = {
   name: "reopen",
   summary: "reopen a closed issue",
   usage: "reopen <issue> --reason <text> [--commit | --no-commit] [-m <message>]",
-  options: { reason: { type: "string" }, ...COMMIT_OPTIONS },
+  options: {
+    reason: { type: "string", value: "<text>", help: "why the issue is open again (required)" },
+    ...COMMIT_OPTIONS,
+  },
   positionals: { min: 1, max: 1, names: ["issue"] },
   ref: "reject",
   run: ({ io, flags, values, positionals }) =>

@@ -16,9 +16,18 @@ export const editCommand: CommandSpec = {
   usage:
     "edit <issue> [--title <title>] [--section <id>=<markdown>]… [--edit | --no-edit] [--commit | --no-commit] [-m <message>]",
   options: {
-    title: { type: "string" },
-    section: { type: "string", multiple: true },
-    edit: { type: "boolean" },
+    title: { type: "string", value: "<title>", help: "the new title" },
+    section: {
+      type: "string",
+      multiple: true,
+      value: "<id>=<markdown>",
+      help: "replace section <id> with <markdown>",
+    },
+    edit: {
+      type: "boolean",
+      help: "open the description in $VISUAL or $EDITOR (the default without --title and --section)",
+      negatedHelp: "don't open an editor",
+    },
     ...COMMIT_OPTIONS,
   },
   positionals: { min: 1, max: 1, names: ["issue"] },

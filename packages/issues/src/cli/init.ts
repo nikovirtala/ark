@@ -33,9 +33,21 @@ export function initCommand(version: string): CommandSpec {
     usage:
       "init [--template bug|feature|task]… [--skill [--skill-dir <path>]] [--commit | --no-commit] [-m <message>]",
     options: {
-      template: { type: "string", multiple: true },
-      skill: { type: "boolean" },
-      "skill-dir": { type: "string" },
+      template: {
+        type: "string",
+        multiple: true,
+        value: "<name>",
+        help: "write the built-in template bug, feature or task (default: task)",
+      },
+      skill: {
+        type: "boolean",
+        help: "also write the agent skill (SKILL.md) and its AGENTS.md pointer",
+      },
+      "skill-dir": {
+        type: "string",
+        value: "<path>",
+        help: "the directory --skill writes to (default: .claude/skills/issues)",
+      },
       ...COMMIT_OPTIONS,
     },
     positionals: { min: 0, max: 0, names: [] },

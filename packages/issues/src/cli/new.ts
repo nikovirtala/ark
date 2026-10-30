@@ -31,12 +31,30 @@ export const newCommand: CommandSpec = {
   usage:
     "new <title> [--template <name>] [--parent <issue>] [--depends-on <issue>]… [--label <label>]… [--section <id>=<markdown>]… [--edit | --no-edit] [--commit | --no-commit] [-m <message>]",
   options: {
-    template: { type: "string" },
-    parent: { type: "string" },
-    "depends-on": { type: "string", multiple: true },
-    label: { type: "string", multiple: true },
-    section: { type: "string", multiple: true },
-    edit: { type: "boolean" },
+    template: {
+      type: "string",
+      value: "<name>",
+      help: "the template to open the issue from (default: [log] default_template)",
+    },
+    parent: { type: "string", value: "<issue>", help: "the parent issue (a part-of link)" },
+    "depends-on": {
+      type: "string",
+      multiple: true,
+      value: "<issue>",
+      help: "an issue this one depends on",
+    },
+    label: { type: "string", multiple: true, value: "<label>", help: "a label to add" },
+    section: {
+      type: "string",
+      multiple: true,
+      value: "<id>=<markdown>",
+      help: "fill section <id> with <markdown>",
+    },
+    edit: {
+      type: "boolean",
+      help: "open the draft in $VISUAL or $EDITOR (default: when one is set and the terminal is interactive)",
+      negatedHelp: "don't open an editor",
+    },
     ...COMMIT_OPTIONS,
   },
   positionals: { min: 1, max: 1, names: ["title"] },

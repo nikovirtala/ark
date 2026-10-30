@@ -11,9 +11,17 @@ export const readyCommand: CommandSpec = {
   summary: "list work that can be picked up now: open, unblocked, unassigned leaf issues",
   usage: "ready [--mine] [--label <label>]… [--limit <n>]",
   options: {
-    mine: { type: "boolean" },
-    label: { type: "string", multiple: true },
-    limit: { type: "string" },
+    mine: {
+      type: "boolean",
+      help: "also list issues that would be ready but are assigned to you, first",
+    },
+    label: {
+      type: "string",
+      multiple: true,
+      value: "<label>",
+      help: "only issues with this label",
+    },
+    limit: { type: "string", value: "<n>", help: "list at most <n> issues (1 to 1000)" },
   },
   positionals: { min: 0, max: 0, names: [] },
   ref: "read",

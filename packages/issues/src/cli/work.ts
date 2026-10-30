@@ -9,7 +9,7 @@ export const workCommand: CommandSpec = {
   name: "work",
   summary: "set, show or clear your current issue in this worktree",
   usage: "work [<issue>] [--clear]",
-  options: { clear: { type: "boolean" } },
+  options: { clear: { type: "boolean", help: "clear your current issue" } },
   positionals: { min: 0, max: 1, names: ["issue"] },
   ref: "reject",
   async run({ io, flags, values, positionals }) {

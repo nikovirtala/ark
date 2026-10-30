@@ -12,9 +12,13 @@ export const showCommand: CommandSpec = {
   summary: "show an issue: state, description, relations, comments and history",
   usage: "show <issue> [--history] [--commits] [--no-comments]",
   options: {
-    history: { type: "boolean" },
-    commits: { type: "boolean" },
-    comments: { type: "boolean" },
+    history: { type: "boolean", help: "show the events" },
+    commits: { type: "boolean", help: "list the commits that touched the issue" },
+    comments: {
+      type: "boolean",
+      help: "show the comments (the default)",
+      negatedHelp: "leave out the comments",
+    },
   },
   positionals: { min: 1, max: 1, names: ["issue"] },
   ref: "read",
