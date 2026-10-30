@@ -240,7 +240,7 @@ The CLI is the human interface and the automation entry point for hooks and CI. 
 
 | Command | What it does | Files written |
 | --- | --- | --- |
-| `issues init [--template bug]` | Creates the layout, config and starter templates | config, templates |
+| `issues init [--template bug] [--skill [--skill-dir <path>]]` | Creates the layout, config and starter templates; `--skill` also writes SKILL.md and the AGENTS.md pointer | config, templates, SKILL.md, AGENTS.md |
 | `issues new "Title" [--template X] [--parent 12] [--depends-on 13] [--label type:bug] [--section id=…]` | Renders an issue from the template, opens `$EDITOR` | issue file, `opened` event (+ `labeled`, `linked` for `--depends-on`) |
 | `issues edit 42 [--title "…"] [--section id=…]` | Opens the description in `$EDITOR`, or replaces the heading and sections without one | issue file |
 | `issues start 42` | Marks work begun; assigns you if unassigned | `started` (+ `assigned`) event |
@@ -258,7 +258,7 @@ The CLI is the human interface and the automation entry point for hooks and CI. 
 | `issues work 42` | Sets your current issue locally, for commit trailers | `<git dir>/issues-current` (untracked, per worktree) |
 | `issues list [--state in-progress] [--all] [--assignee me] [--json]` | Lists issues with computed state; open and in-progress ones unless `--state` or `--all` | none |
 | `issues show 42 [--history] [--commits] [--no-comments] [--json]` | Shows description, state, relations, comments (unless `--no-comments`) and history | none |
-| `issues search "safari" [--all]` | Full-text search, open issues only unless `--all` | none |
+| `issues search "safari" [--all] [--source <name>]` | Full-text search over ids, numbers, titles, descriptions and comments; every word must match, ignoring case and accents; open and in-progress issues only unless `--all` | none |
 | `issues index [--check]` | Regenerates or checks `index.md` | `index.md` |
 | `issues verify [--base origin/main] [--staged]` | Runs every invariant check | none |
 | `issues template list\|show\|new\|lint` | Template management | templates |
@@ -275,35 +275,37 @@ When a command creates a commit, it adds trailers such as `Issue: m4p8x2kd` and 
 
 The MCP server lets agents find work, record what they learn and track what they do, with the same validation as the CLI. Unlike adr, agents are expected to change state here: starting and finishing work is their job. It runs as `issues mcp` over stdio inside the repository, sharing the core library with the CLI.
 
+Tools return the CLI's `--json` documents as `structuredContent`, with a readable text that leads with state headers. Errors are `isError` results with an `ark-error/v1` document, and refusals are documents with `ok: false`. Writes stage their files, and commit only with `auto_commit`. The tool list is fixed at startup, so changing `mcp_can_close` takes a restart; `close_requires_human` and a turned-off `mcp_can_close` refuse closes on every call.
+
 **Tools**
 
 | Tool | Inputs | Returns |
 | --- | --- | --- |
-| `issues_search` | `query`, `include_closed` (default false), `limit` | Matching issues with state and a short excerpt; open ones only by default |
+| `issues_search` | `query`, `include_closed` (default false), `limit`, `source` | Matching issues with state and a short excerpt; open ones only by default |
 | `issues_get` | `id`, `include_history`, `include_comments`, `ref` | Description, computed state, relations, blockers and `canonical` issue |
-| `issues_list` | `state`, `label`, `assignee`, `limit` | Compact list for orientation |
-| `issues_ready` | `label`, `limit` | Open, unblocked, unassigned leaf issues, highest priority first |
+| `issues_list` | `state`, `label`, `assignee` (each an array), `limit`, `source` | Compact list for orientation |
+| `issues_ready` | `label`, `mine`, `limit` | Open, unblocked, unassigned leaf issues, highest priority first |
 | `issues_for_path` | `paths` | Open issues concerning each path, from scope globs and code anchors |
 | `issues_templates` | none | Available templates with their sections, required flags and guidance |
 | `issues_open` | `title`, `template`, `sections` (map of section id to markdown), `labels`, `parent`, `depends_on` | New issue id, path and lint result |
-| `issues_update` | `id`, `sections` | Updated description and lint result |
+| `issues_update` | `id`, `title`, `sections` | The write document and lint findings |
 | `issues_comment` | `id`, `text` | The `commented` event |
-| `issues_start`, `issues_stop` | `id` | The state event; `start` assigns the acting user if unassigned |
-| `issues_close` | `id`, `resolution`, `reason`, `of` | The `closed` event. Exposed only when `mcp_can_close = true` |
+| `issues_start`, `issues_stop` | `id`, plus `reason` for `issues_stop` | The state event; `start` assigns the acting user if unassigned |
+| `issues_close` | `id`, `resolution`, `reason`, `of` | The `closed` event. Listed only when `mcp_can_close = true`; refuses agents while `close_requires_human = true`; an agent must give a reason |
 | `issues_link`, `issues_unlink` | `id`, `to`, `rel` | The relation event |
-| `issues_label`, `issues_assign`, `issues_scope` | `id`, `set` / `add` / `remove` | The set event |
+| `issues_label`, `issues_assign`, `issues_scope` | `id`, `set` / `add` / `remove` | The set event; for `issues_assign`, `me` is the person the agent acts for |
 
 `issues_reopen` is deliberately missing: reopening says a human judged the work unfinished, so agents propose it in a comment instead. This is a restriction of the MCP surface only, not a rule of the log: the CLI lets an agent reopen, and `verify` doesn't check it. `mcp_can_close` and `close_requires_human`, by contrast, are rules of the log that govern agent closes on every surface.
 
-**Resources:** `issues://index` for the projected index, `issues://issue/{id}` for one issue with its state header, and `issues://ready` for the current ready list.
+**Resources:** `issues://index` for the projected index, `issues://issue/{id}` for one issue with its state header (`{id}` is the id, the number such as `17`, or `%3F17`; a literal `?` would start the URI's query), and `issues://ready` for the current ready list.
 
-**Prompts:** `issues_from_discussion` turns the current conversation into one issue, filling template sections and listing open questions. `issues_breakdown` splits a large issue into children linked with `part-of`, with `depends-on` between them where order matters.
+**Prompts:** `issues_from_discussion` turns the current conversation into one issue, filling template sections and listing open questions. `issues_breakdown` splits a large issue into children linked with `part-of`, with `depends-on` between them where order matters, and asks the user before opening them.
 
 **Response design rules**
 
 - Every response that includes a description leads with a state header, before the body text.
-- A duplicate always carries a pointer to its canonical issue, for example: `DUPLICATE of ?17 (open, in progress). Track work on ?17; read issues://issue/17.`
-- A blocked issue lists its open blockers, so an agent never starts work that cannot finish.
+- A duplicate always carries a pointer to its canonical issue, for example: `DUPLICATE of ?17 (in-progress). Track work on ?17; read issues://issue/17.`
+- A blocked issue lists its open blockers, so an agent never starts work that cannot finish, for example: `BLOCKED by ?12 (open). Finish them first.`
 - Issues take structured `sections` rather than free markdown, so the template is enforced and lint errors come back as data the agent can fix.
 - Agent-written events get `actor.kind: agent`, the MCP client name in `actor.agent`, and `ARK_ON_BEHALF_OF`, else the git user, as `on_behalf_of`.
 
@@ -519,7 +521,7 @@ issues is step 4 of ark's extraction plan. It starts once ledger's mechanical co
 
 1. Core (issues 0.1.0): the issue kind (events, state machine, invariants and soft rules, relations with derived `blocks`, `blocked`, `children` and `canonical`, ready work, `?` numbers, mutable descriptions), `implements` links checked against the local decision log, state headers in `show`, and the commands `init`, `new`, `edit`, `start`, `stop`, `close`, `reopen`, `assign`, `label`, `comment`, `link`, `unlink`, `scope`, `for`, `ready`, `work`, `list`, `show` and `verify`.
 2. Guardrails: hooks (including the commit-msg trailers and the `fixes` warning), the generated index, checks over code (scope globs, anchors, stale anchors), and checks of references into other repositories for adr and issues alike.
-3. Agents: MCP server, SKILL.md, `search`, `issues_breakdown`.
+3. Agents: the MCP server (17 tools, three resources, two prompts), SKILL.md and `init --skill`, response state headers, `search`.
 4. Adoption: template management, and one-way import from GitHub Issues through `gh`, synthesizing `opened`, `commented`, `labeled` and `closed` events with their original timestamps and authors.
 5. Later: an optional live board published as an artifact page that reloads on every new event, as decided in the ark design. Not part of the first version.
 
