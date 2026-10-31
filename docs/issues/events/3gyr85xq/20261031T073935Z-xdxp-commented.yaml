@@ -1,0 +1,22 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M68ECM9VW1EDD66MDSA7XDXP
+subject: 3gyr85xq
+type: commented
+at: 2026-10-31T07:39:35Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  text: |-
+    ?29's comparison (see its comment) puts this issue first among the step 5 lifts, and it is now part of ?29. The Notes' line numbers have moved: `indexNumbering` is at `packages/adr/src/sources.ts:38` and `packages/issues/src/sources.ts:173`, the inline copy in `readSourceIssues` is at `packages/issues/src/log.ts:262-271`, and the source-name pattern is at `packages/adr/src/sources.ts:107` and `packages/issues/src/log.ts:217`.
+
+    The comparison found more copies of the source-name pattern: `packages/adr/src/write.ts:1114` (`planLink`), the MCP `SOURCE` schemas in `packages/adr/src/mcp/tools.ts:153` and `packages/issues/src/mcp/tools.ts:46`, the source part of `ISSUE_REF` in `packages/issues/src/kind/schemas.ts:39`, the source part of `QUALIFIED_ID` in `packages/ledger/src/sources/qualified-id.ts:10`, and the source part of the anchor pattern in `packages/ledger/src/scope/anchors.ts:151`. The Done when now names the ledger and schema ones, and the scope includes all these files. `KEYWORD` (`anchors.ts:21`) uses the same regex for the anchor keyword, a different rule, so it stays. `sourceAt` (`anchors.ts:50-55`) scans the source-name rule character by character while it walks a line; it stays too, with a comment pointing at `SOURCE_NAME`.
+
+    Form: export `SOURCE_NAME = "[a-z][a-z0-9-]{0,31}"` (an unanchored string) and `isSourceName(s)` from `packages/ledger/src/sources/config.ts`. Callers anchor it themselves: `` new RegExp(`^${SOURCE_NAME}$`) `` in the `--source` checks and `planLink`, the capture group in `QUALIFIED_ID`, the `git grep -E` pattern in `anchors.ts`, and `` `^${SOURCE_NAME}$` `` for the MCP schemas; `ISSUE_REF` builds its group from it with the schema string unchanged. `scope/anchors.ts` (layer 10) and `sources/qualified-id.ts` (layer 9) may import from `sources/config.ts`. Put `indexNumbering` next to `readIndexNumbers` in `log-index/render.ts`. adr's `REF` schema (`packages/adr/src/kind/schemas.ts:23`) allows longer source names than `[[sources]]` does, but it is part of `decision/v1`, so it stays as it is.
+
+    ?12 overlapped ?36, which concerns the `index` reason that `indexNumbering` sets for a source read, and ?35, which edits `readSourceIssues` next to the inline copy. Both have since landed on main (a78da40) without changing `indexNumbering` or the inline copy, so ?12 moves the code as they left it. ?2 changes `packages/ledger/src/sources`; rebase onto it if it lands first. The config-keys lift and the for-path lookup lift also touch `ledger/src/scope/anchors.ts`, and the index-command lift also adds exports to `ledger/src/log-index/index.ts`; whichever lands second rebases. The log-read, qualified-reference and MCP-helper lifts depend on this issue.
