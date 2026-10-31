@@ -1,27 +1,24 @@
 import { adrKind, type DecisionView } from "@nikovirtala/adr/kind";
 import {
   ConfigError,
-  compileKind,
   type FetchedSource,
   type FoldedLogOf,
   foldLog,
-  indexNumbering,
   loadLog,
   type Numbering,
   type NumberingKeys,
-  numberLog,
+  numberToolLog,
   openToolLog,
   parseNumberingKeys,
   projectLog,
-  readIndexNumbers,
+  readSourceSubjects,
   readSources,
-  refReader,
   type SourceStatus,
-  sourceLogRef,
+  type SourceSubjects,
   type ToolConfig,
   toolConfigReader,
 } from "@nikovirtala/ledger";
-import { type ForeignSubject, issueKind, type SourceLog } from "./kind.js";
+import { issueKind, type SourceLog } from "./kind.js";
 import type { IssueLog } from "./log.js";
 
 /** The repository's own decision log, as issues reads it for `implements` links. */
@@ -69,20 +66,12 @@ export async function readDecisionLog(log: IssueLog): Promise<DecisionLogRead | 
   const snapshot = await loadLog(adr.tree, { kind: adr.compiled, layout: adr.layout });
   if (adr.configPath === null && snapshot.subjects.size === 0) return null;
   const keys = adrNumberingKeys(adr.config, adr.configPath);
-  const numbering = await numberLog(adr.git, {
+  const numbering = await numberToolLog(adr.git, {
     kind: adrKind,
     layout: adr.layout,
     mainRef: keys.mainBranch,
-    ...(keys.index === "committed"
-      ? {
-          fallback: async () => {
-            const c = await adr.git.resolveCommit(adr.ref ?? "HEAD");
-            return c === null
-              ? null
-              : readIndexNumbers(await refReader(adr.git, c), `${adr.layout.root}/index.md`);
-          },
-        }
-      : {}),
+    index: keys.index,
+    ref: adr.ref,
   });
   const folded: FoldedLogOf<typeof adrKind> = foldLog(adrKind, snapshot);
   return {
@@ -147,46 +136,24 @@ export interface IssueSources {
   readonly notes: readonly string[];
 }
 
-const compiledIssues = compileKind(issueKind);
-const compiledDecisions = compileKind(adrKind);
-
 /** A cached source's subjects, folded with its kind and numbered from its committed index. */
-async function foreignSubjects(
+function foreignSubjects(
   fetched: FetchedSource,
   kind: "issues" | "adr",
-): Promise<{
-  readonly subjects: Map<string, ForeignSubject>;
-  readonly root: string;
-  readonly empty: boolean;
-}> {
-  const def = kind === "adr" ? adrKind.def : issueKind.def;
-  const ref = sourceLogRef(fetched, { layout: def.layout, defaultRoot: def.defaultRoot });
-  const numbering = indexNumbering(await readIndexNumbers(ref.tree, `${ref.layout.root}/index.md`));
-  const subjects = new Map<string, ForeignSubject>();
-  if (kind === "adr") {
-    const snapshot = await loadLog(ref.tree, { kind: compiledDecisions, layout: ref.layout });
-    const views = projectLog(adrKind, foldLog(adrKind, snapshot), { numbering }).views;
-    for (const [id, v] of views) {
-      subjects.set(id, {
+): Promise<SourceSubjects<string>> {
+  return kind === "adr"
+    ? readSourceSubjects<typeof adrKind, string>(fetched, adrKind, (v) => ({
         status: v.status,
         display: v.display,
         title: v.title,
         effective: v.effective,
-      });
-    }
-    return { subjects, root: ref.layout.root, empty: snapshot.subjects.size === 0 };
-  }
-  const snapshot = await loadLog(ref.tree, { kind: compiledIssues, layout: ref.layout });
-  const views = projectLog(issueKind, foldLog(issueKind, snapshot), { numbering }).views;
-  for (const [id, v] of views) {
-    subjects.set(id, {
-      status: v.state,
-      display: v.display,
-      title: v.title,
-      effective: v.canonical,
-    });
-  }
-  return { subjects, root: ref.layout.root, empty: snapshot.subjects.size === 0 };
+      }))
+    : readSourceSubjects<typeof issueKind, string>(fetched, issueKind, (v) => ({
+        status: v.state,
+        display: v.display,
+        title: v.title,
+        effective: v.canonical,
+      }));
 }
 
 /**

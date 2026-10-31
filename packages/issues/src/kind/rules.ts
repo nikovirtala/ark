@@ -1,18 +1,10 @@
-import type { FoldedLog, FoldedSubject, KindFinding } from "@nikovirtala/ledger";
+import type { FoldedLog, FoldedSubject, ForeignSubject, KindFinding } from "@nikovirtala/ledger";
 import { cycleMessage, issueGraph } from "./graph.js";
 import type { IssueState } from "./reduce.js";
 import type { IssueEvents, IssueStatus } from "./schemas.js";
 
-/** One subject of another log that references can name. */
-export interface ForeignSubject {
-  /** The source kind's state or status. */
-  readonly status: string;
-  /** `ADR-0007`, `?42` or the id. */
-  readonly display: string;
-  readonly title: string;
-  /** Decisions: the decision in force; issues: the canonical issue. */
-  readonly effective: string | null;
-}
+/** One subject of another log that references can name: ledger's `ForeignSubject`. */
+export type { ForeignSubject };
 
 /** Another log that qualified references (`<source>:<id>`) can name. */
 export interface SourceLog {

@@ -1,7 +1,9 @@
 import {
-  compareEvents,
   type EventEnvelope,
+  eventsInFoldOrder,
   type Finding,
+  type NumberingJson,
+  numberingJson,
   type StateHeader,
   UsageError,
   withGitOperation,
@@ -9,12 +11,8 @@ import {
 import type { DecisionStatus, DecisionView } from "./kind.js";
 import { type ChangedSince, type DecisionsRead, listingNotes } from "./log.js";
 
-/** The `numbering` key of the read documents. */
-export interface NumberingJson {
-  readonly available: boolean;
-  readonly reason: "shallow" | "no-main-ref" | "no-index" | "index" | null;
-  readonly ref: string | null;
-}
+/** ledger's `numbering` key of `adr-list/v1`, `adr-show/v1` and `adr-for/v1`. */
+export { type NumberingJson, numberingJson } from "@nikovirtala/ledger";
 
 /** `adr list --json` (design §5.5). */
 export interface DecisionListJson {
@@ -51,13 +49,6 @@ export interface DecisionShowJson {
   readonly findings: readonly Finding[];
   readonly notes: readonly string[];
 }
-
-/** The `numbering` key of `adr-list/v1`, `adr-show/v1` and `adr-for/v1`. */
-export const numberingJson = (read: DecisionsRead): NumberingJson => ({
-  available: read.numbering.available,
-  reason: read.numbering.reason,
-  ref: read.numbering.ref,
-});
 
 /** Numbered decisions by number, then unnumbered ones by `proposed_at`, then id. */
 export function compareViews(a: DecisionView, b: DecisionView): number {
@@ -132,15 +123,7 @@ export async function showDecision(
     }
     const loaded = read.folded.subjects.get(id)?.loaded;
     const body = loaded?.body ?? null;
-    const events =
-      o.history === true
-        ? (loaded?.events ?? [])
-            .flatMap((e) => (e.event === null ? [] : [{ path: e.path, event: e.event }]))
-            .sort((a, b) =>
-              compareEvents({ ...a.event, path: a.path }, { ...b.event, path: b.path }),
-            )
-            .map((e) => e.event)
-        : null;
+    const events = o.history === true ? eventsInFoldOrder(loaded?.events ?? []) : null;
     return {
       format: "adr-show/v1",
       root: read.root,

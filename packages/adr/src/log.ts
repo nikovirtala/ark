@@ -1,32 +1,18 @@
 import {
-  type CheckContext,
-  classifyPath,
-  compileKind,
-  diffTrees,
   type Finding,
   type FoldedLogOf,
-  foldLog,
   type GitOptions,
-  invariantsCheck,
   type LogLayout,
-  loadFindings,
-  loadLog,
   type Numbering,
-  numberLog,
+  numberToolLog,
   openToolLog,
   type Projection,
-  parseEventFileName,
-  projectLog,
-  readIndexNumbers,
-  refReader,
-  relateCheck,
+  readKindLog,
   resolveSubjectInput,
-  sortFindings,
-  sortInLogOrder,
   type ToolLog,
   type TreeReader,
-  transitions,
   UsageError,
+  unavailableReason,
   withGitOperation,
 } from "@nikovirtala/ledger";
 import { type AdrConfig, parseAdrConfig } from "./config.js";
@@ -96,24 +82,14 @@ export async function readDecisions(log: DecisionLog): Promise<DecisionsRead> {
 
 /** The display numbers `readDecisions` uses, with its shallow-clone fallback to `index.md`. */
 export async function numberDecisions(log: DecisionLog): Promise<Numbering> {
-  return numberLog(log.git, {
+  return numberToolLog(log.git, {
     kind: adrKind,
     layout: log.layout,
     mainRef: log.adr.mainBranch,
-    ...(log.adr.index === "committed"
-      ? {
-          fallback: async () => {
-            const c = await log.git.resolveCommit(log.ref ?? "HEAD");
-            return c === null
-              ? null
-              : readIndexNumbers(await refReader(log.git, c), `${log.layout.root}/index.md`);
-          },
-        }
-      : {}),
+    index: log.adr.index,
+    ref: log.ref,
   });
 }
-
-const compiled = compileKind(adrKind);
 
 /** The git-free core of `readDecisions`; tests pass a MemoryTree and a hand-made `Numbering`. */
 export async function readDecisionsFrom(
@@ -130,23 +106,11 @@ export async function readDecisionsFrom(
   },
 ): Promise<DecisionsRead> {
   const { layout, adr, numbering } = o;
-  const snapshot = await loadLog(tree, { kind: compiled, layout });
-  const folded = foldLog(adrKind, snapshot);
-  const ctx: CheckContext = {
-    kind: compiled,
+  const { folded, projection, findings } = await readKindLog(adrKind, tree, {
     layout,
-    base: null,
-    head: snapshot,
-    changes: [],
-    scope: "all",
-    inScope: new Set(snapshot.subjects.keys()),
-    folded: { head: folded, base: null },
-  };
-  const options = { acceptRequiresHuman: adr.acceptRequiresHuman, sources: null };
-  const findings: Finding[] = [];
-  for (const check of [loadFindings, transitions, invariantsCheck(options), relateCheck(options)]) {
-    findings.push(...(await check.run(ctx)));
-  }
+    numbering,
+    checkOptions: { acceptRequiresHuman: adr.acceptRequiresHuman, sources: null },
+  });
   return {
     tree,
     layout,
@@ -155,9 +119,9 @@ export async function readDecisionsFrom(
     ref: o.ref ?? null,
     commit: o.commit ?? null,
     folded,
-    projection: projectLog(adrKind, folded, { numbering }),
+    projection,
     numbering,
-    findings: sortFindings(findings.map((f) => ({ ...f, kind: adrKind.name }))),
+    findings,
     notes: o.notes ?? [],
     sources: o.sources ?? [],
     source: o.source ?? null,
@@ -208,16 +172,6 @@ export function numberingNote(
 }
 
 /**
- * Why numbers are unavailable, in words: `shallow clone`, `<source> has no committed index.md`
- * (`the log` without a source name) or `no main branch`.
- */
-export function unavailableReason(n: Numbering, source: string | null = null): string {
-  if (n.reason === "shallow") return "shallow clone";
-  if (n.reason === "no-index") return `${source ?? "the log"} has no committed index.md`;
-  return "no main branch";
-}
-
-/**
  * The id a decision argument names: an id, or a number in any form `parseDecisionNumber` takes.
  * Throws `UsageError` (exit 2) naming the reason when it names nothing.
  */
@@ -245,37 +199,8 @@ export function resolveDecision(read: DecisionsRead, input: string): string {
   }
 }
 
-/** The `since` key of `adr list --since <rev>` (design 2b D7). */
-export interface ChangedSince {
-  /** The revision as given, such as `ORIG_HEAD`. */
-  readonly rev: string;
-  readonly commit: string;
-  /** Event files added since `rev`, in log order (`(at, id)`, then path; `sortInLogOrder`). */
-  readonly events: readonly {
-    readonly subject: string;
-    readonly type: string;
-    readonly path: string;
-  }[];
-}
-
 /**
- * The event files in `--ref`'s tree (else HEAD's) that `rev`'s tree lacks (design 2b D7). Diffing
- * trees answers "what did this pull bring" for fast-forwards and merges (`ORIG_HEAD` is the tip
- * before them), and lists nothing for a rebase of your own work, whose events are in both trees.
- * Throws `RefNotFoundError` when either revision doesn't resolve.
+ * ledger's `changedSince` (the `since` key of `adr list --since <rev>`, design 2b D7) and
+ * `unavailableReason`, under adr's names.
  */
-export async function changedSince(log: DecisionLog, rev: string): Promise<ChangedSince> {
-  return withGitOperation(async () => {
-    const base = await refReader(log.git, rev);
-    const head = await refReader(log.git, log.ref ?? "HEAD");
-    const changes = await diffTrees(base, head, `${log.layout.root}/${log.layout.events}`);
-    const events = changes.flatMap((c) => {
-      if (c.status !== "added") return [];
-      const p = classifyPath(log.layout, c.path);
-      if (p.area !== "event" || p.subject === null || p.file.includes("/")) return [];
-      const name = parseEventFileName(p.file);
-      return name === null ? [] : [{ subject: p.subject, type: name.type, path: c.path }];
-    });
-    return { rev, commit: base.commit ?? "", events: await sortInLogOrder(head, events) };
-  });
-}
+export { type ChangedSince, changedSince, unavailableReason } from "@nikovirtala/ledger";

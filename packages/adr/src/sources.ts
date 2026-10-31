@@ -1,18 +1,11 @@
 import {
-  compileKind,
-  foldLog,
-  indexNumbering,
   isSourceName,
-  loadLog,
-  MemoryTree,
-  NO_NUMBERING,
-  projectLog,
-  readIndexNumbers,
+  readSourceLog,
+  readSourceSubjects,
   readSources,
   SOURCE_NAME,
   type SourceConfig,
   type SourceStatus,
-  sourceLogRef,
   sourcesOfKinds,
   UsageError,
   withGitOperation,
@@ -32,8 +25,6 @@ export interface DecisionSources {
 
 /** The kinds adr reads from `[[sources]]`: only decision logs. */
 export const DECISION_SOURCE_KINDS: readonly string[] = ["adr"];
-
-const compiled = compileKind(adrKind);
 
 /** The `[[sources]]` entries adr reads and the ones it skips, in config order. */
 export function decisionSourceConfigs(log: DecisionLog): {
@@ -65,29 +56,18 @@ export async function readDecisionSources(
       logs.set(r.config.name, { subjects: null, commit: null });
       continue;
     }
-    const ref = sourceLogRef(r.source, {
-      layout: adrKind.def.layout,
-      defaultRoot: adrKind.def.defaultRoot,
-    });
-    const snapshot = await loadLog(ref.tree, { kind: compiled, layout: ref.layout });
-    if (snapshot.subjects.size === 0) {
+    const found = await readSourceSubjects(r.source, adrKind, (v) => ({
+      status: v.status,
+      display: v.display,
+      title: v.title,
+      effective: v.effective,
+    }));
+    if (found.empty) {
       notes.push(
-        `source ${r.config.name} has no decision log at ${ref.layout.root} in ${r.source.commit.slice(0, 12)}`,
+        `source ${r.config.name} has no decision log at ${found.root} in ${r.source.commit.slice(0, 12)}`,
       );
     }
-    const numbering = indexNumbering(
-      await readIndexNumbers(ref.tree, `${ref.layout.root}/index.md`),
-    );
-    const projected = projectLog(adrKind, foldLog(adrKind, snapshot), { numbering }).views;
-    logs.set(r.config.name, {
-      commit: r.source.commit,
-      subjects: new Map(
-        [...projected].map(([id, v]) => [
-          id,
-          { status: v.status, display: v.display, title: v.title },
-        ]),
-      ),
-    });
+    logs.set(r.config.name, { commit: r.source.commit, subjects: found.subjects });
   }
   return { logs, statuses: reads.map((r) => r.status), notes };
 }
@@ -117,25 +97,17 @@ export async function readSourceDecisions(log: DecisionLog, name: string): Promi
           : `unknown source ${name}; the sources are ${known.join(", ")}`,
       );
     }
-    const [r] = await readSources(log.git, [config], { fetch: "cache" });
-    const base = { adr: log.adr, notes: [...log.notes], source: name };
-    if (r?.source === undefined || r.source === null) {
-      return readDecisionsFrom(new MemoryTree({}), {
-        ...base,
-        layout: adrKind.layoutAt(config.root ?? adrKind.def.defaultRoot),
-        numbering: NO_NUMBERING,
-        notes: [...base.notes, `${name} not fetched; run adr sources fetch`],
-      });
-    }
-    const ref = sourceLogRef(r.source, {
-      layout: adrKind.def.layout,
-      defaultRoot: adrKind.def.defaultRoot,
+    const r = await readSourceLog(log.git, config, {
+      kind: adrKind,
+      notFetched: `${name} not fetched; run adr sources fetch`,
     });
-    return readDecisionsFrom(ref.tree, {
-      ...base,
-      layout: ref.layout,
-      numbering: indexNumbering(await readIndexNumbers(ref.tree, `${ref.layout.root}/index.md`)),
-      commit: r.source.commit,
+    return readDecisionsFrom(r.tree, {
+      adr: log.adr,
+      layout: r.layout,
+      numbering: r.numbering,
+      commit: r.commit,
+      notes: [...log.notes, ...r.notes],
+      source: name,
     });
   });
 }

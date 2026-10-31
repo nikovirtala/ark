@@ -1,41 +1,23 @@
 import { parseDecisionNumber } from "@nikovirtala/adr/kind";
 import {
-  type CheckContext,
-  classifyPath,
-  compileKind,
-  diffTrees,
   type Finding,
   type FoldedLogOf,
-  foldLog,
   type GitOptions,
-  indexNumbering,
-  invariantsCheck,
   isSourceName,
   isSubjectId,
   type LogLayout,
-  loadFindings,
-  loadLog,
-  MemoryTree,
-  NO_NUMBERING,
   type Numbering,
-  numberLog,
+  numberToolLog,
   openToolLog,
   type Projection,
-  parseEventFileName,
-  projectLog,
-  readIndexNumbers,
-  readSources,
-  refReader,
-  relateCheck,
+  readKindLog,
+  readSourceLog,
   resolveSubjectInput,
   SOURCE_NAME,
-  sortFindings,
-  sortInLogOrder,
-  sourceLogRef,
   type ToolLog,
   type TreeReader,
-  transitions,
   UsageError,
+  unavailableReason,
   withGitOperation,
 } from "@nikovirtala/ledger";
 import { type IssuesConfig, parseIssuesConfig } from "./config.js";
@@ -132,24 +114,14 @@ export async function readIssues(log: IssueLog): Promise<IssuesRead> {
  * as adr's do (ADR-0010).
  */
 export async function numberIssues(log: IssueLog): Promise<Numbering> {
-  return numberLog(log.git, {
+  return numberToolLog(log.git, {
     kind: issueKind,
     layout: log.layout,
     mainRef: log.issues.mainBranch,
-    ...(log.issues.index === "committed"
-      ? {
-          fallback: async () => {
-            const c = await log.git.resolveCommit(log.ref ?? "HEAD");
-            return c === null
-              ? null
-              : readIndexNumbers(await refReader(log.git, c), `${log.layout.root}/index.md`);
-          },
-        }
-      : {}),
+    index: log.issues.index,
+    ref: log.ref,
   });
 }
-
-const compiled = compileKind(issueKind);
 
 /** The git-free core of `readIssues`; tests pass a MemoryTree and a hand-made `Numbering`. */
 export async function readIssuesFrom(
@@ -171,28 +143,21 @@ export async function readIssuesFrom(
   },
 ): Promise<IssuesRead> {
   const { layout, issues, numbering } = o;
-  const snapshot = await loadLog(tree, { kind: compiled, layout });
-  const folded = foldLog(issueKind, snapshot);
-  const ctx: CheckContext = {
-    kind: compiled,
-    layout,
-    base: null,
-    head: snapshot,
-    changes: [],
-    scope: "all",
-    inScope: new Set(snapshot.subjects.keys()),
-    folded: { head: folded, base: null },
-  };
   const options: IssueOptions = {
     closeRequiresHuman: issues.closeRequiresHuman,
     mcpCanClose: issues.mcpCanClose,
     exclusive: issues.exclusive,
     sources: o.sources,
   };
-  const findings: Finding[] = [];
-  for (const check of [loadFindings, transitions, invariantsCheck(options), relateCheck(options)]) {
-    findings.push(...(await check.run(ctx)));
-  }
+  // Foreign blockers need the sources; without them (the index) the projection reads the tree only.
+  const { folded, projection, findings } = await readKindLog(issueKind, tree, {
+    layout,
+    numbering,
+    checkOptions: options,
+    ...(o.sources === null
+      ? {}
+      : { projectOptions: { sources: o.sources } satisfies ProjectOptions }),
+  });
   return {
     tree,
     layout,
@@ -201,17 +166,13 @@ export async function readIssuesFrom(
     ref: o.ref ?? null,
     commit: o.commit ?? null,
     folded,
-    // Foreign blockers need the sources; without them (the index) the projection reads the tree only.
-    projection: projectLog(issueKind, folded, {
-      numbering,
-      ...(o.sources === null ? {} : { options: { sources: o.sources } satisfies ProjectOptions }),
-    }),
+    projection,
     numbering,
     options,
     decisions: o.decisions ?? null,
     sources: o.configured ?? [],
     source: o.source ?? null,
-    findings: sortFindings(findings.map((f) => ({ ...f, kind: issueKind.name }))),
+    findings,
     notes: o.notes ?? [],
   };
 }
@@ -240,38 +201,20 @@ export async function readSourceIssues(log: IssueLog, name: string): Promise<Iss
     if (config.kind !== "issues") {
       throw new UsageError(`source ${name} is a decision log; --source reads issue logs`);
     }
-    const [r] = await readSources(log.git, [config], { fetch: "cache" });
-    const base = { issues: log.issues, sources: null, source: name } as const;
-    if (r?.source === undefined || r.source === null) {
-      return readIssuesFrom(new MemoryTree({}), {
-        ...base,
-        layout: issueKind.layoutAt(config.root ?? issueKind.def.defaultRoot),
-        numbering: NO_NUMBERING,
-        notes: [...log.notes, `${name} not fetched; run issues sources fetch`],
-      });
-    }
-    const ref = sourceLogRef(r.source, {
-      layout: issueKind.def.layout,
-      defaultRoot: issueKind.def.defaultRoot,
+    const r = await readSourceLog(log.git, config, {
+      kind: issueKind,
+      notFetched: `${name} not fetched; run issues sources fetch`,
     });
-    return readIssuesFrom(ref.tree, {
-      ...base,
-      layout: ref.layout,
-      numbering: indexNumbering(await readIndexNumbers(ref.tree, `${ref.layout.root}/index.md`)),
-      commit: r.source.commit,
-      notes: [...log.notes],
+    return readIssuesFrom(r.tree, {
+      issues: log.issues,
+      sources: null,
+      source: name,
+      layout: r.layout,
+      numbering: r.numbering,
+      commit: r.commit,
+      notes: [...log.notes, ...r.notes],
     });
   });
-}
-
-/**
- * Why numbers are unavailable, in words: `shallow clone`, `<source> has no committed index.md`
- * (`the log` without a source name) or `no main branch`.
- */
-export function unavailableReason(n: Numbering, source: string | null = null): string {
-  if (n.reason === "shallow") return "shallow clone";
-  if (n.reason === "no-index") return `${source ?? "the log"} has no committed index.md`;
-  return "no main branch";
 }
 
 /**
@@ -433,36 +376,8 @@ export function resolveTarget(read: IssuesRead, input: string, rel: Rel): string
   return resolveIssue(read, s);
 }
 
-/** `issues list --since <rev>`: the event files added since `rev`. adr's `ChangedSince`. */
-export interface ChangedSince {
-  /** The revision as given, such as `ORIG_HEAD`. */
-  readonly rev: string;
-  readonly commit: string;
-  /** Event files added since `rev`, in log order (`(at, id)`, then path; `sortInLogOrder`). */
-  readonly events: readonly {
-    readonly subject: string;
-    readonly type: string;
-    readonly path: string;
-  }[];
-}
-
 /**
- * The event files in `--ref`'s tree (else HEAD's) that `rev`'s tree lacks, as adr's
- * `changedSince`: diffing trees answers "what did this pull bring" for fast-forwards and merges
- * (`ORIG_HEAD` is the tip before them). Throws `RefNotFoundError` when either doesn't resolve.
+ * ledger's `changedSince` (`issues list --since <rev>`: the event files added since `rev`, as
+ * adr's) and `unavailableReason`, under issues' names.
  */
-export async function changedSince(log: IssueLog, rev: string): Promise<ChangedSince> {
-  return withGitOperation(async () => {
-    const base = await refReader(log.git, rev);
-    const head = await refReader(log.git, log.ref ?? "HEAD");
-    const changes = await diffTrees(base, head, `${log.layout.root}/${log.layout.events}`);
-    const events = changes.flatMap((c) => {
-      if (c.status !== "added") return [];
-      const p = classifyPath(log.layout, c.path);
-      if (p.area !== "event" || p.subject === null || p.file.includes("/")) return [];
-      const name = parseEventFileName(p.file);
-      return name === null ? [] : [{ subject: p.subject, type: name.type, path: c.path }];
-    });
-    return { rev, commit: base.commit ?? "", events: await sortInLogOrder(head, events) };
-  });
-}
+export { type ChangedSince, changedSince, unavailableReason } from "@nikovirtala/ledger";
