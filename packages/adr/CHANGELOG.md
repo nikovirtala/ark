@@ -1,5 +1,18 @@
 # @nikovirtala/adr
 
+## 0.5.10
+
+### Patch Changes
+
+- 20b06ed: `@nikovirtala/ledger` exports the index code adr and issues shared by copy: `renderLogIndex`, `unstagedLogFiles` and `unstagedIndexText` render a log's `index.md` and explain a stale staged copy, `logIndexCheck` and `runLogIndex` are the `index/stale` check and the `index` run, with the recovery hints `indexRerunHint`, `indexBeforeHint` and `indexAfterHint` and the types `ToolWriteOptions`, `LogIndexJson` and `IndexRun`, and `@nikovirtala/ledger/cli` exports the `indexCommand` factory. `adr index` and `issues index` now use them; their output, JSON documents and `--help` are unchanged.
+- Updated dependencies [c2e3c59]
+- Updated dependencies [20b06ed]
+- Updated dependencies [cad0369]
+- Updated dependencies [89f6231]
+- Updated dependencies [3cfdbe8]
+- Updated dependencies [46e346f]
+  - @nikovirtala/ledger@0.14.0
+
 ## 0.5.9
 
 ### Patch Changes

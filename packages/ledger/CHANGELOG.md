@@ -1,5 +1,16 @@
 # @nikovirtala/ledger
 
+## 0.14.0
+
+### Minor Changes
+
+- c2e3c59: `@nikovirtala/ledger` exports `toolConfigReader`, a reader of a `<tool>.toml` whose errors name the file and key, `parseSharedKeys`, which validates the keys every tool config has (`[log] default_template`, `main_branch` and `index`, `[policy] auto_commit`, `[verify] fail_on`, `[scope] anchor_keyword` and `anchor_exclude`, `[hooks] scope_follow_renames` and `index`, and `[commit] subject`), and `parseNumberingKeys`, which validates only `[log] main_branch` and `index`. adr and issues now use these instead of their own copies; they accept and refuse the same values as before.
+- 20b06ed: `@nikovirtala/ledger` exports the index code adr and issues shared by copy: `renderLogIndex`, `unstagedLogFiles` and `unstagedIndexText` render a log's `index.md` and explain a stale staged copy, `logIndexCheck` and `runLogIndex` are the `index/stale` check and the `index` run, with the recovery hints `indexRerunHint`, `indexBeforeHint` and `indexAfterHint` and the types `ToolWriteOptions`, `LogIndexJson` and `IndexRun`, and `@nikovirtala/ledger/cli` exports the `indexCommand` factory. `adr index` and `issues index` now use them; their output, JSON documents and `--help` are unchanged.
+- cad0369: `@nikovirtala/ledger` exports the read side a tool builds its commands on: `readKindLog` (load, fold, the read checks and the projection of a kind's log), `numberToolLog` (display numbers with the committed-index fallback in a shallow clone), `changedSince`, `unavailableReason`, `numberingJson`, `eventsInFoldOrder`, `readSourceLog` (a `--source` read from the local cache), `readSourceSubjects` (a cached source's subjects as `ForeignSubject`s) and the `ForeignSubject` type. adr and issues now use these instead of their own copies; what `list`, `show`, `search` and `for` print, with and without `--source`, is unchanged.
+- 89f6231: `@nikovirtala/ledger/mcp` exports the MCP input schemas a tool's server shares (`McpSchema`, `MAX_ID`, `ID`, `TEXT`, `SECTIONS`, `GLOBS`, `SOURCE`, `object`, `READ`, `WRITE`), the argument readers (`str`, `strings`, `sectionsOf`, `doc`) and `checkResourceId`, the id-length guard of a resource template. adr's and issues' MCP servers now use these instead of their own copies; the inputs they accept and the messages they give are unchanged.
+- 3cfdbe8: `@nikovirtala/ledger` exports `lookupPaths`, the path handling behind a tool's `for` command (path checks, tracked detection, anchor scan and unresolved anchors), and `listKindTemplates`, the template listing behind a tool's `_templates` tool. adr and issues now use these instead of their own copies; what `adr for`, `issues for`, `adr_templates` and `issues_templates` return is unchanged.
+- 46e346f: `@nikovirtala/ledger` exports `indexNumbering`, which turns the numbers read from a committed index (`readIndexNumbers`) into the numbering a tool displays, and `SOURCE_NAME` and `isSourceName`, the pattern and check for a `[[sources]]` name. adr and issues now use these instead of their own copies; what they accept and print is unchanged.
+
 ## 0.13.0
 
 ### Minor Changes
