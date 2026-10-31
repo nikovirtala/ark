@@ -1,0 +1,21 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M68EHJ7K7FHHGEJKJGFASQ4Y
+subject: 4134kcnt
+type: scoped
+at: 2026-10-31T07:42:17Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/adr/src/mcp/resources.ts
+    - packages/adr/src/mcp/tools.ts
+    - packages/issues/src/mcp/resources.ts
+    - packages/issues/src/mcp/tools.ts
+    - packages/ledger/README.md
+    - packages/ledger/src/mcp/**
