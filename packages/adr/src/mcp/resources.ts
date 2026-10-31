@@ -1,8 +1,8 @@
-import { renderIndex, resolveSubjectInput, UsageError } from "@nikovirtala/ledger";
+import { resolveSubjectInput, UsageError } from "@nikovirtala/ledger";
 import type { McpResource, McpResourceTemplate } from "@nikovirtala/ledger/mcp";
 import { adrKind } from "../kind.js";
 import { type DecisionsRead, readDecisions, resolveDecision } from "../log.js";
-import { DECISION_INDEX } from "../log-index.js";
+import { renderDecisionIndexText } from "../log-index.js";
 import { showDecision } from "../views.js";
 import { mcpHeader } from "./text.js";
 import { type AdrMcpEnv, openLog } from "./tools.js";
@@ -26,12 +26,7 @@ export function indexResource(e: AdrMcpEnv): McpResource {
     description: "All decisions, grouped by status, with numbers and dates",
     mimeType: "text/markdown",
     async read() {
-      const read = await readDecisions(await openLog(e));
-      const views = read.projection.views;
-      return {
-        header: null,
-        text: renderIndex(DECISION_INDEX(read.root, views), [...views.values()], read.numbering),
-      };
+      return { header: null, text: renderDecisionIndexText(await readDecisions(await openLog(e))) };
     },
   };
 }

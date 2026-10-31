@@ -7,6 +7,7 @@ import {
   headBytes,
   headTree,
   InvalidArgumentError,
+  indexPath,
   indexReader,
   overlayTree,
   readToolConfig,
@@ -21,7 +22,7 @@ import {
 import { ACTIONS, INIT_TITLE, SKILL_TITLE } from "./commit-actions.js";
 import { issueKind } from "./kind.js";
 import type { IssueLog } from "./log.js";
-import { INDEX_AFTER, indexPath, renderIssueIndex } from "./log-index.js";
+import { INDEX_AFTER, renderIssueIndex } from "./log-index.js";
 import { SKILL_MD } from "./skill.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
 
