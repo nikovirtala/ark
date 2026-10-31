@@ -1,30 +1,11 @@
-import { rm } from "node:fs/promises";
-import { join } from "node:path";
-import {
-  ConfigError,
-  commitWithRecovery,
-  firstLine,
-  headBytes,
-  headTree,
-  InvalidArgumentError,
-  indexPath,
-  indexReader,
-  overlayTree,
-  readToolConfig,
-  renderCommitMessage,
-  replaceFile,
-  UsageError,
-  withGitOperation,
-  worktreeReader,
-  writeIndexCopy,
-  writeNewFile,
-} from "@nikovirtala/ledger";
+import { initToolLog } from "@nikovirtala/ledger";
 import { ACTIONS, INIT_TITLE, SKILL_TITLE } from "./commit-actions.js";
-import { issueKind } from "./kind.js";
 import type { IssueLog } from "./log.js";
 import { INDEX_AFTER, renderIssueIndex } from "./log-index.js";
 import { SKILL_MD } from "./skill.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
+
+export { namesSkill } from "@nikovirtala/ledger";
 
 /** `issues init --json`. */
 export interface IssuesInitJson {
@@ -46,22 +27,9 @@ export interface IssuesInitJson {
 export const INIT_RERUN =
   "Running issues init again won't commit them: the files exist now, so it keeps them and commits nothing.";
 
-const CONFIG = "issues.toml";
-const DEFAULT_ROOT = issueKind.def.defaultRoot;
-const encoder = new TextEncoder();
-const decoder = new TextDecoder();
-const AGENTS = "AGENTS.md";
-
 /** The line `issues init --skill` adds to AGENTS.md for tools that don't load skills. */
 export const agentsPointer = (skill: string): string =>
   `Issues in this repository are tracked with issues: read ${skill} before starting, continuing or finishing work, and follow it.`;
-
-/** `text` with `line` appended after one blank line, ending with a newline. */
-function appendLine(text: string, line: string): string {
-  if (text === "") return `${line}\n`;
-  const ended = text.endsWith("\n") ? text : `${text}\n`;
-  return `${ended.endsWith("\n\n") ? ended : `${ended}\n`}${line}\n`;
-}
 
 /** The starter config; `root` only for a repo-level file naming a log elsewhere. */
 export function starterConfig(o: {
@@ -91,20 +59,6 @@ export function starterConfig(o: {
 }
 
 /**
- * Whether a line of `text` names `skill` as a whole path, optionally after `./`: not as the end of
- * a longer path (`SKILL.md` in `.claude/skills/adr/SKILL.md`) or the start of one (`SKILL.md.bak`).
- * A `.` right after it, ending a sentence, still counts.
- */
-export function namesSkill(text: string, skill: string): boolean {
-  const path = skill.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(
-    `(?<![\\p{L}\\p{N}_./-])(?:\\./)?${path}(?![\\p{L}\\p{N}_/-]|\\.[\\p{L}\\p{N}_/-])`,
-    "u",
-  );
-  return text.split("\n").some((line) => re.test(line));
-}
-
-/**
  * `issues init`: writes the starter config unless the log has one, and each chosen built-in
  * template (default `task`) to `<root>/templates/<name>.md`, never overwriting a file; reports
  * what it wrote and kept. A `--root` other than `docs/issues` gets a repo-level `issues.toml`
@@ -113,7 +67,7 @@ export function namesSkill(text: string, skill: string): boolean {
  * (?8); a non-empty one is kept with a note. With `commit`, commits only what it wrote and
  * removed. With `o.skill` it also writes the agent skill, unless a SKILL.md is there, and adds
  * the pointer line to `AGENTS.md`, unless a line already names the skill's path as a whole path
- * (see {@link namesSkill}); an AGENTS.md with unstaged changes or not tracked is refused with a
+ * (see `namesSkill`); an AGENTS.md with unstaged changes or not tracked is refused with a
  * commit and left unstaged without one.
  */
 export async function initIssueLog(
@@ -129,235 +83,45 @@ export async function initIssueLog(
     readonly skill?: { readonly dir: string; readonly version: string };
   } = {},
 ): Promise<IssuesInitJson> {
-  return withGitOperation(async () => {
-    if (log.ref !== null || log.tree.label !== "worktree") {
-      throw new InvalidArgumentError("init writes the work tree; open the log without a ref");
-    }
-    const known = Object.keys(BUILTIN_TEMPLATES);
-    const templates = [
-      ...new Set(o.templates === undefined || o.templates.length === 0 ? ["task"] : o.templates),
-    ];
-    for (const name of templates) {
-      if (!known.includes(name)) {
-        throw new UsageError(`unknown built-in template ${name}; use ${known.sort().join(", ")}`);
-      }
-    }
-    const root = log.layout.root;
-    const notes = [...log.notes];
-    const files: [string, string][] = [];
-    const kept: string[] = [];
-    let config = log.configPath;
-    if (config !== null) {
-      kept.push(config);
-    } else {
-      const template = templates[0] ?? "task";
-      const repo = await readToolConfig(log.tree, CONFIG);
-      if (root === DEFAULT_ROOT) {
-        config = `${root}/${CONFIG}`;
-        files.push([config, starterConfig({ root: null, template })]);
-      } else if (repo === null) {
-        config = CONFIG;
-        files.push([config, starterConfig({ root, template })]);
-      } else {
-        // The repo file names another log (openToolLog ignored it with a note); leave it alone.
-        const section = repo.raw.log as { root?: unknown } | undefined;
-        const other = typeof section?.root === "string" ? section.root : DEFAULT_ROOT;
-        config = `${root}/${CONFIG}`;
-        files.push([config, starterConfig({ root: null, template })]);
-        notes.push(`${CONFIG} names ${other}; pass --root ${root} to use this log`);
-      }
-    }
-    for (const name of templates) {
-      const path = `${root}/templates/${name}.md`;
-      if ((await log.tree.read(path)) !== null) kept.push(path);
-      else files.push([path, BUILTIN_TEMPLATES[name] ?? ""]);
-    }
-    const commitRequested = o.commit ?? log.issues.autoCommit;
-    // A kept config with `[log] index = "committed"` gets its index, as adr's init does; an
-    // existing index.md is kept. Rendered before anything is written, from the tree the commit
-    // (or the work tree) will hold.
-    const at = indexPath(log.layout);
-    let indexed = false;
-    if (log.issues.index === "committed") {
-      if ((await log.tree.read(at)) !== null) {
-        kept.push(at);
-      } else {
-        const head = await log.git.resolveCommit("HEAD");
-        const added = Object.fromEntries(files.map(([p, t]) => [p, encoder.encode(t)]));
-        const base = commitRequested ? await headTree(log.git, head) : log.tree;
-        const text = await renderIssueIndex(log.git, {
-          layout: log.layout,
-          issues: log.issues,
-          tree: overlayTree(base, added),
-          history: head,
-        });
-        if (text === null) {
-          notes.push(
-            `${at} not written: numbers need history in this shallow clone; run git fetch --unshallow, then issues index`,
-          );
-        } else {
-          files.push([at, text]);
-          indexed = true;
-        }
-      }
-    }
-    const logFiles = files.length;
-
-    // The skill (design §8.2): SKILL.md is never overwritten; AGENTS.md gets one pointer line.
-    // Checked before anything is written.
-    const skill =
-      o.skill === undefined ? null : o.skill.dir === "" ? "SKILL.md" : `${o.skill.dir}/SKILL.md`;
-    let agents: {
-      readonly bytes: Uint8Array;
-      readonly expected: Uint8Array | null;
-      readonly stage: boolean;
-    } | null = null;
-    if (skill !== null) {
-      const current = await log.tree.read(skill);
-      if (current === null) {
-        files.push([skill, SKILL_MD]);
-      } else {
-        kept.push(skill);
-        if (decoder.decode(current) !== SKILL_MD) {
-          notes.push(
-            `${skill} differs from issues ${o.skill?.version ?? ""}'s skill; delete it and run issues init --skill again to replace it`,
-          );
-        }
-      }
-      const old = await log.tree.read(AGENTS);
-      const text = old === null ? null : decoder.decode(old);
-      if (namesSkill(text ?? "", skill)) {
-        kept.push(AGENTS);
-      } else {
-        let stage = true;
-        if (old !== null) {
-          const unstaged = (await log.git.unstagedPaths([AGENTS])).length > 0;
-          const untracked = (await log.git.untrackedPaths([AGENTS])).length > 0;
-          if (commitRequested && unstaged) {
-            throw new UsageError(
-              `${AGENTS} has unstaged changes; stage or discard them, or run without --commit`,
-            );
-          }
-          if (commitRequested && untracked) {
-            throw new UsageError(`${AGENTS} is not tracked; git add it, or run without --commit`);
-          }
-          if (unstaged || untracked) {
-            stage = false;
-            notes.push(
-              untracked
-                ? `${AGENTS} is not tracked, so the pointer is added but not staged; review it and git add it`
-                : `${AGENTS} had unstaged changes, so the pointer is added but not staged; review it and git add it`,
-            );
-          }
-        }
-        agents = {
-          bytes: encoder.encode(appendLine(text ?? "", agentsPointer(skill))),
-          expected: old,
-          stage,
-        };
-      }
-    }
-
-    const commit = (files.length > 0 || agents !== null) && commitRequested;
-    if (
-      commit &&
-      ((await log.git.identity()) === null || (await log.git.committerIdentity()) === null)
-    ) {
-      throw new ConfigError("--commit needs a git identity; set git user.name and user.email");
-    }
-    const written: string[] = [];
-    let replaced = false;
-    try {
-      for (const [path, text] of files) {
-        await writeNewFile(log.git, path, encoder.encode(text));
-        written.push(path);
-      }
-      if (agents !== null) {
-        if (agents.expected === null) await writeNewFile(log.git, AGENTS, agents.bytes);
-        else await replaceFile(log.git, AGENTS, agents.bytes, { expected: agents.expected });
-        replaced = agents.expected !== null;
-        written.push(AGENTS);
-      }
-    } catch (err) {
-      const top = log.git.root ?? "";
-      const restore = replaced ? (agents?.expected ?? null) : null;
-      for (const path of written) {
-        if (path === AGENTS && restore !== null && agents !== null) {
-          await replaceFile(log.git, AGENTS, restore, { expected: agents.bytes }).catch(() => {});
-        } else {
-          await rm(join(top, path), { force: true });
-        }
-      }
-      throw err;
-    }
-    const staged = written.filter((p) => p !== AGENTS || agents?.stage === true);
-    if (staged.length > 0) await log.git.add(staged);
-    // The placeholder goes once the log has real files (not for the skill alone): after the
-    // writes, so a failed write leaves it alone.
-    const removed: string[] = [];
-    const tracked: string[] = [];
-    if (logFiles > 0) {
-      const keep = `${root}/.gitkeep`;
-      const work = await worktreeReader(log.git).read(keep);
-      const head = await headBytes(log.git, keep);
-      const staged = await (await indexReader(log.git)).read(keep);
-      const bytes = work ?? staged ?? head;
-      if (bytes !== null && bytes.byteLength > 0) {
-        notes.push(`kept ${keep}: it isn't empty`);
-      } else if (bytes !== null) {
-        if (work !== null) await rm(join(log.git.root ?? "", keep), { force: true });
-        if (staged !== null) await log.git.add([keep]);
-        removed.push(keep);
-        // Only HEAD's placeholder has a deletion to commit; a new or untracked one is just gone.
-        if (head !== null) tracked.push(keep);
-      }
-    }
-    let sha: string | null = null;
-    if (commit) {
-      const message =
-        o.message ??
-        renderCommitMessage(log.issues.commitSubject, {
-          title:
-            removed.length === 0 && written.every((p) => p === skill || p === AGENTS)
-              ? SKILL_TITLE
-              : INIT_TITLE,
-          vars: { action: ACTIONS.init, id: "", display: "", command: "init" },
-        }).message;
-      sha = await commitWithRecovery(log.git, {
-        message,
-        only: [...staged, ...tracked],
-        rerun: INIT_RERUN,
-        after: indexed ? INDEX_AFTER(root) : null,
-      });
-      if (indexed) {
-        // The commit's index leaves out uncommitted log changes; the work tree and the index get
-        // them back, as adr's init does.
-        try {
-          const again = await renderIssueIndex(log.git, {
-            layout: log.layout,
-            issues: log.issues,
-            tree: worktreeReader(log.git),
-            history: sha,
-          });
-          if (again !== null) {
-            const r = await writeIndexCopy(log.git, at, again);
-            if (r.stage) await log.git.add([at]);
-          }
-        } catch (err) {
-          notes.push(`${at} may be stale: ${firstLine(err)}; run issues index`);
-        }
-      }
-    }
-    return {
-      format: "issues-init/v1",
-      root,
-      config,
-      written,
-      kept,
-      removed,
-      skill,
-      commit: sha,
-      notes,
-    };
-  });
+  const r = await initToolLog(
+    log,
+    {
+      tool: "issues",
+      config: log.issues,
+      starterConfig,
+      builtins: BUILTIN_TEMPLATES,
+      defaultTemplates: ["task"],
+      defaultWhenEmpty: true,
+      templateChoices: Object.keys(BUILTIN_TEMPLATES).sort().join(", "),
+      skillText: SKILL_MD,
+      agentsPointer,
+      // The index renders before the skill step, so index.md counts as a log file.
+      indexStep: "before-skill",
+      renderIndex: (git, at) =>
+        renderIssueIndex(git, { layout: log.layout, issues: log.issues, ...at }),
+      shallowNote: (at) =>
+        `${at} not written: numbers need history in this shallow clone; run git fetch --unshallow, then issues index`,
+      indexAfter: INDEX_AFTER,
+      rerun: INIT_RERUN,
+      action: ACTIONS.init,
+      commitTitle: ({ written, removed, skill }) =>
+        removed.length === 0 && written.every((p) => p === skill || p === "AGENTS.md")
+          ? SKILL_TITLE
+          : INIT_TITLE,
+      removePlaceholder: true,
+    },
+    o,
+  );
+  const { root, config, written, kept, removed, skill, commit, notes } = r;
+  return {
+    format: "issues-init/v1",
+    root,
+    config,
+    written,
+    kept,
+    removed,
+    skill,
+    commit,
+    notes,
+  };
 }
