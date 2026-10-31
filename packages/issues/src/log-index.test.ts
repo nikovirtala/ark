@@ -6,7 +6,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_ISSUES_CONFIG } from "./config.js";
 import { openIssueLog, readIssues } from "./log.js";
 import { indexIssueLog, renderIssueIndex } from "./log-index.js";
-import { issueEvent, issueFiles, LAYOUT, opened, type SubjectSpec } from "./test-support/events.js";
+import {
+  issueEvent,
+  issueFiles,
+  LAYOUT,
+  opened,
+  openedData,
+  type SubjectSpec,
+} from "./test-support/events.js";
 
 const repos: TempRepo[] = [];
 afterEach(async () => {
@@ -103,6 +110,73 @@ describe("renderIssueIndex", () => {
     expect(text).toContain("Closed 20]");
     // Numbers from main's history, every row shown by its number.
     expect(rows(text, "Ready")[0]).toMatch(/^\| \?\d+ \|/);
+  });
+});
+
+describe("the index's order", () => {
+  // Issues open a minute apart, so numbers follow the list below; ids sort as noted.
+  const [O1, O3, O2] = Array.from({ length: 3 }, () => newSubjectId()).sort() as [
+    string,
+    string,
+    string,
+  ];
+  const K = Array.from({ length: 22 }, () => newSubjectId()).sort();
+  const openAt = (i: number) => `2026-10-01T09:${String(i).padStart(2, "0")}:00Z`;
+  const open = (id: string, i: number, title: string) =>
+    issueEvent(id, "opened", { data: openedData(title), at: openAt(i) });
+  const cycle = (id: string, at: string) => [
+    issueEvent(id, "started", { at: "2026-10-02T08:00:00Z" }),
+    issueEvent(id, "stopped", { at }),
+  ];
+  // K[i] closes later the higher its number; K[1] and K[2] tie at the 20/21 boundary, K[10] and
+  // K[11] inside the list. The higher-numbered issue of each pair has the larger id.
+  const closeAt = (i: number) => {
+    const m = i === 2 ? 1 : i === 11 ? 10 : i;
+    return `2026-10-03T10:${String(m).padStart(2, "0")}:00Z`;
+  };
+  const subjects = (): SubjectSpec[] => [
+    // Ready: O1 entered its state last, O2 and O3 in the same second (number decides).
+    { id: O1, events: [open(O1, 0, "O1"), ...cycle(O1, "2026-10-02T12:00:00Z")] },
+    { id: O2, events: [open(O2, 1, "O2"), ...cycle(O2, "2026-10-02T11:00:00Z")] },
+    { id: O3, events: [open(O3, 2, "O3"), ...cycle(O3, "2026-10-02T11:00:00Z")] },
+    ...K.map((id, i) => ({
+      id,
+      events: [
+        open(id, 3 + i, `K${i}`),
+        issueEvent(id, "closed", { data: { resolution: "done" }, at: closeAt(i) }),
+      ],
+    })),
+  ];
+  const titles = (lines: readonly string[]) => lines.map((l) => /\[([^\]]+)\]/.exec(l)?.[1]);
+  const numberOf = (line: string) => Number(/^\| \?(\d+) \|/.exec(line)?.[1]);
+
+  it("lists open sections oldest first in their state, closed ones newest closed first", async () => {
+    const r = await repo(issueFiles(subjects()));
+    const head = (await r.git.resolveCommit("HEAD")) ?? "";
+    const text =
+      (await renderIssueIndex(r.git, {
+        layout: LAYOUT,
+        issues: COMMITTED,
+        tree: await refReader(r.git, head),
+        history: head,
+      })) ?? "";
+    const ready = rows(text, "Ready");
+    expect(titles(ready)).toEqual(["O2", "O3", "O1"]);
+    // Numbers follow the opening order, against the rows' order.
+    const [n2, n3, n1] = ready.map(numberOf) as [number, number, number];
+    expect(n1 < n2 && n2 < n3).toBe(true);
+    for (const l of ready) expect(l).toMatch(/\| \d{4}-\d{2}-\d{2} \|$/);
+    expect(ready[0]).toMatch(/\| 2026-10-02 \|$/);
+
+    const closed = rows(text, "Recently closed");
+    // Newest first; same-second pairs by id, so K1 is the last row and K2, tied with it, is the
+    // one that dropped off along with the oldest, K0.
+    expect(titles(closed)).toEqual(
+      [21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 10, 11, 9, 8, 7, 6, 5, 4, 3, 1].map((i) => `K${i}`),
+    );
+    expect(text).not.toContain("[K2]");
+    expect(text).not.toContain("[K0]");
+    for (const l of closed) expect(l).toMatch(/\| 2026-10-03 \|$/);
   });
 });
 
