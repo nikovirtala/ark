@@ -256,6 +256,7 @@ export {
   type ToolConfig,
 } from "./sources/config.js";
 export { type FetchedSource, fetchSource } from "./sources/fetch.js";
+export type { ForeignSubject } from "./sources/foreign-subject.js";
 export {
   formatQualifiedId,
   parseQualifiedId,
@@ -302,6 +303,23 @@ export {
   saveCommitRecovery,
 } from "./surfaces/commit-recovery.js";
 export { renderStateHeader, type StateHeader } from "./surfaces/header.js";
+export {
+  type ChangedSince,
+  changedSince,
+  eventsInFoldOrder,
+  type KindLogRead,
+  type NumberingJson,
+  numberingJson,
+  numberToolLog,
+  readKindLog,
+  unavailableReason,
+} from "./surfaces/log-read.js";
+export {
+  readSourceLog,
+  readSourceSubjects,
+  type SourceLogRead,
+  type SourceSubjects,
+} from "./surfaces/source-read.js";
 export { resolveSubjectInput, type SubjectInput } from "./surfaces/subject-input.js";
 export {
   countOccurrences,
