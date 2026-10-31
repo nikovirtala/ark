@@ -367,6 +367,25 @@ export {
   toolConfigReader,
 } from "./surfaces/tool-log.js";
 export {
+  checkCommitIdentity,
+  checkWorkTree,
+  type DraftFile,
+  type DriverPlan,
+  type EditorStepOptions,
+  editorStep,
+  type PlanContext,
+  type PlanDeps,
+  type PlanRefusal,
+  planContext,
+  type RunWriteOptions,
+  readIfPresent,
+  runWrite,
+  sameBytes,
+  viewsAfter,
+  type WriteOutcome,
+  type WriteViews,
+} from "./surfaces/write-driver.js";
+export {
   checkReason,
   checkText,
   chooseTemplate,
