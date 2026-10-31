@@ -1,11 +1,10 @@
 import {
   type CommitTemplate,
-  ConfigError,
   parseCommitTemplate,
-  parseGlob,
-  readCommitTemplate,
+  parseSharedKeys,
   type Severity,
   type ToolConfig,
+  toolConfigReader,
 } from "@nikovirtala/ledger";
 import { COMMIT_NAMES, COMMIT_VARS } from "./commit-actions.js";
 import { issueKind, LABEL } from "./kind.js";
@@ -66,17 +65,10 @@ export const DEFAULT_ISSUES_CONFIG: IssuesConfig = Object.freeze({
   hookIndex: "check",
 });
 
-const TEMPLATE = /^[a-z][a-z0-9-]*$/;
-const KEYWORD = /^[a-z][a-z0-9-]{0,31}$/;
 const PREFIX = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,63}$/;
 const LABEL_RE = new RegExp(LABEL);
 const MAX_LABEL_KEYS = 50;
-const MAX_ANCHOR_EXCLUDE = 100;
 const SOURCE_KINDS = ["issues", "adr"] as const;
-
-function isTable(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v) && !(v instanceof Date);
-}
 
 /**
  * Validates `issues.toml` (ledger's parsed `ToolConfig`; `null` when there is none), as adr's
@@ -86,40 +78,18 @@ function isTable(v: unknown): v is Record<string, unknown> {
  */
 export function parseIssuesConfig(config: ToolConfig | null, file: string | null): IssuesConfig {
   if (config === null) return DEFAULT_ISSUES_CONFIG;
-  const where = file ?? config.file ?? "issues.toml";
-  const fail = (message: string) => new ConfigError(`${where}: ${message}`, { file: where });
-  const table = (name: string): Record<string, unknown> => {
-    const t = config.raw[name];
-    if (t === undefined) return {};
-    if (!isTable(t)) throw fail(`${name} must be a table`);
-    return t;
-  };
-  const log = table("log");
+  const reader = toolConfigReader(config, file, "issues");
+  const shared = parseSharedKeys(reader, {
+    defaults: {
+      defaultTemplate: DEFAULT_ISSUES_CONFIG.defaultTemplate,
+      anchorKeyword: DEFAULT_ISSUES_CONFIG.anchorKeyword,
+      commit: { vars: COMMIT_VARS, names: COMMIT_NAMES, defaultSubject: DEFAULT_COMMIT_SUBJECT },
+    },
+    indexValues: ["none", "committed"],
+  });
+  const { fail, table, bool } = reader;
   const labels = table("labels");
   const policy = table("policy");
-  const verify = table("verify");
-  const scope = table("scope");
-  const hooks = table("hooks");
-  const oneOf = <T extends string>(
-    t: Record<string, unknown>,
-    section: string,
-    key: string,
-    values: readonly T[],
-    fallback: T,
-  ): T => {
-    const v = t[key];
-    if (v === undefined) return fallback;
-    if (typeof v !== "string" || !(values as readonly string[]).includes(v)) {
-      throw fail(`${section}.${key} must be ${values.map((x) => JSON.stringify(x)).join(" or ")}`);
-    }
-    return v as T;
-  };
-  const bool = (t: Record<string, unknown>, section: string, key: string, fallback: boolean) => {
-    const v = t[key];
-    if (v === undefined) return fallback;
-    if (typeof v !== "boolean") throw fail(`${section}.${key} must be true or false`);
-    return v;
-  };
   const strings = (
     t: Record<string, unknown>,
     key: string,
@@ -142,43 +112,6 @@ export function parseIssuesConfig(config: ToolConfig | null, file: string | null
     return v as string[];
   };
 
-  const template = log.default_template;
-  if (
-    template !== undefined &&
-    (typeof template !== "string" || template.length > 64 || !TEMPLATE.test(template))
-  ) {
-    throw fail(`log.default_template must be a template name matching ${TEMPLATE.source}`);
-  }
-  const main = log.main_branch;
-  if (
-    main !== undefined &&
-    (typeof main !== "string" || main.trim() === "" || main.startsWith("-") || main.includes("\0"))
-  ) {
-    throw fail("log.main_branch must be a ref name that doesn't start with -");
-  }
-  const index = log.index;
-  if (index !== undefined && index !== "none" && index !== "committed") {
-    throw fail('log.index must be "none" or "committed"');
-  }
-  const failOn = verify.fail_on;
-  if (failOn !== undefined && failOn !== "error" && failOn !== "warning") {
-    throw fail('verify.fail_on must be "error" or "warning"');
-  }
-  const keyword = scope.anchor_keyword;
-  if (keyword !== undefined && (typeof keyword !== "string" || !KEYWORD.test(keyword))) {
-    throw fail(`scope.anchor_keyword must match ${KEYWORD.source}`);
-  }
-  const exclude = scope.anchor_exclude;
-  if (exclude !== undefined) {
-    if (!Array.isArray(exclude) || exclude.length > MAX_ANCHOR_EXCLUDE) {
-      throw fail(`scope.anchor_exclude must be an array of at most ${MAX_ANCHOR_EXCLUDE} globs`);
-    }
-    exclude.forEach((g: unknown, i) => {
-      if (typeof g !== "string") throw fail(`scope.anchor_exclude[${i}] must be a string`);
-      const parsed = parseGlob(g);
-      if (!parsed.ok) throw fail(`scope.anchor_exclude[${i}]: ${parsed.message}`);
-    });
-  }
   config.sources.forEach((s, i) => {
     if (!(SOURCE_KINDS as readonly string[]).includes(s.kind)) {
       throw fail(`sources[${i}].kind must be "issues" or "adr"`);
@@ -188,31 +121,19 @@ export function parseIssuesConfig(config: ToolConfig | null, file: string | null
     }
   });
   return {
-    defaultTemplate:
-      typeof template === "string" ? template : DEFAULT_ISSUES_CONFIG.defaultTemplate,
-    mainBranch: typeof main === "string" ? main : null,
-    index: index === "committed" ? "committed" : "none",
+    defaultTemplate: shared.defaultTemplate,
+    mainBranch: shared.mainBranch,
+    index: shared.index,
     exclusive: strings(labels, "exclusive", "prefix", PREFIX),
     priority: strings(labels, "priority", "label", LABEL_RE),
     closeRequiresHuman: bool(policy, "policy", "close_requires_human", false),
     mcpCanClose: bool(policy, "policy", "mcp_can_close", true),
-    autoCommit: bool(policy, "policy", "auto_commit", false),
-    failOn: failOn === "warning" ? "warning" : "error",
-    commitSubject: readCommitTemplate(config, {
-      file: where,
-      vars: COMMIT_VARS,
-      defaultSubject: DEFAULT_COMMIT_SUBJECT,
-      names: COMMIT_NAMES,
-    }),
-    anchorKeyword: typeof keyword === "string" ? keyword : DEFAULT_ISSUES_CONFIG.anchorKeyword,
-    anchorExclude: Array.isArray(exclude) ? (exclude as string[]) : [],
-    scopeFollowRenames: oneOf(
-      hooks,
-      "hooks",
-      "scope_follow_renames",
-      ["stage", "warn", "off"] as const,
-      "stage",
-    ),
-    hookIndex: oneOf(hooks, "hooks", "index", ["check", "stage"] as const, "check"),
+    autoCommit: shared.autoCommit,
+    failOn: shared.failOn,
+    commitSubject: shared.commitSubject,
+    anchorKeyword: shared.anchorKeyword,
+    anchorExclude: shared.anchorExclude,
+    scopeFollowRenames: shared.scopeFollowRenames,
+    hookIndex: shared.hookIndex,
   };
 }
