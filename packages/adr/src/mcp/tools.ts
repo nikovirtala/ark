@@ -1,12 +1,21 @@
+import { type Attribution, eventDir, UsageError } from "@nikovirtala/ledger";
 import {
-  type Attribution,
-  eventDir,
-  type JsonValue,
-  MAX_GLOB_LENGTH,
-  SOURCE_NAME,
-  UsageError,
-} from "@nikovirtala/ledger";
-import { type McpTool, type McpToolResult, mcpAttribution } from "@nikovirtala/ledger/mcp";
+  doc,
+  GLOBS,
+  ID,
+  type McpTool,
+  type McpToolResult,
+  mcpAttribution,
+  object,
+  READ,
+  SECTIONS,
+  SOURCE,
+  sectionsOf,
+  str,
+  strings,
+  TEXT,
+  WRITE,
+} from "@nikovirtala/ledger/mcp";
 import { DECISION_STATUSES, type DecisionStatus } from "../kind.js";
 import {
   type DecisionLog,
@@ -51,48 +60,9 @@ export interface AdrMcpEnv {
   readonly env: NodeJS.ProcessEnv;
 }
 
-type Schema = Readonly<Record<string, JsonValue>>;
-
-export const ID: Schema = { type: "string", minLength: 1, maxLength: 64 };
-const TEXT: Schema = { type: "string", minLength: 1, maxLength: 65_536 };
-const SECTIONS: Schema = {
-  type: "object",
-  propertyNames: { type: "string", pattern: "^[a-z][a-z0-9-]*$", maxLength: 64 },
-  additionalProperties: { type: "string", maxLength: 65_536 },
-  maxProperties: 50,
-};
-const GLOBS: Schema = {
-  type: "array",
-  items: { type: "string", minLength: 1, maxLength: MAX_GLOB_LENGTH },
-  maxItems: 200,
-};
-
-const object = (properties: Record<string, Schema>, required: string[] = []): Schema => ({
-  type: "object",
-  properties,
-  ...(required.length === 0 ? {} : { required }),
-  additionalProperties: false,
-});
-
-export const READ = { readOnlyHint: true, openWorldHint: false } as const;
-export const WRITE = { readOnlyHint: false, destructiveHint: false, openWorldHint: false } as const;
-
 /** The log for one call, opened again so outside edits and `[policy]` changes are seen. */
 export const openLog = (e: AdrMcpEnv, ref: string | null = null): Promise<DecisionLog> =>
   openDecisionLog({ cwd: e.cwd, root: e.root, ref, gitOptions: { env: e.env } });
-
-const str = (v: JsonValue | undefined): string | undefined =>
-  typeof v === "string" ? v : undefined;
-const strings = (v: JsonValue | undefined): string[] | undefined =>
-  Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : undefined;
-const sectionsOf = (v: JsonValue | undefined): Record<string, string> =>
-  typeof v === "object" && v !== null && !Array.isArray(v)
-    ? Object.fromEntries(
-        Object.entries(v).flatMap(([k, x]) => (typeof x === "string" ? [[k, x]] : [])),
-      )
-    : {};
-
-const doc = (d: unknown): JsonValue => d as JsonValue;
 
 /**
  * A write tool's result: the library's document, and its text rendered from a read of the log
@@ -149,9 +119,6 @@ function policyRefusal(
     notes: [...log.notes, ...attribution.notes],
   };
 }
-
-/** The `source` input of `adr_list` and `adr_search`: a `[[sources]]` name, read from the cache. */
-const SOURCE = { type: "string", pattern: `^${SOURCE_NAME}$` } as const;
 
 /** The local log, or with `source` that `[[sources]]` entry's cached log. */
 async function readFor(e: AdrMcpEnv, source: string | null) {

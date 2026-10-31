@@ -1,4 +1,15 @@
-import { type McpContext, type McpTool, mcpAttribution } from "@nikovirtala/ledger/mcp";
+import {
+  doc,
+  ID,
+  type McpContext,
+  type McpTool,
+  mcpAttribution,
+  object,
+  READ,
+  SOURCE,
+  str,
+  strings,
+} from "@nikovirtala/ledger/mcp";
 import type { IssueStatus } from "../kind.js";
 import { type IssueLog, readIssues, resolveIssue } from "../log.js";
 import { issuesFor } from "../scope.js";
@@ -8,20 +19,13 @@ import { listIssues, myAddress, readyIssues, showIssue } from "../views.js";
 import { forText, getText, listText, readyText, searchText, templatesText } from "./text.js";
 import {
   ASSIGNEES,
-  doc,
-  ID,
   type IssuesMcpEnv,
   int,
   LABELS,
   LIMIT,
-  object,
   openLog,
-  READ,
   readFor,
-  SOURCE,
   STATES,
-  str,
-  strings,
 } from "./tools.js";
 
 /** The address `me` stands for: the person the MCP client acts for (design §4.3). */
