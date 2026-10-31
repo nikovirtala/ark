@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M6929PTF9XWYK04CJXCZK7HZ
+subject: bdxj8s17
+type: closed
+at: 2026-10-31T13:27:31Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: (1) packages/ledger/src/surfaces/tool-log.ts exports toolConfigReader(config, file, tool), whose table, bool, oneOf and fail name file, else config.file, else <tool>.toml; parseNumberingKeys(log, fail, { indexValues }) for [log] main_branch and index; and parseSharedKeys(reader, { defaults, indexValues }) for default_template, main_branch, index, auto_commit, fail_on, anchor_keyword (with scope/anchors.ts's KEYWORD), anchor_exclude, the [hooks] keys and [commit] (through readCommitTemplate). They are exported from packages/ledger/src/index.ts and documented in packages/ledger/README.md under Surfaces; isTable and KEYWORD stay module exports. packages/ledger/src/surfaces/tool-config.test.ts tests each key's accepted values, refusal message and default, the indexValues order, the <tool>.toml fallback, and that parseNumberingKeys ignores other keys. (2) parseAdrConfig and parseIssuesConfig build one toolConfigReader, call parseSharedKeys (adr with indexValues committed, none; issues with none, committed) and read their own keys with the same reader; adrNumberingKeys in packages/issues/src/sources.ts calls only parseNumberingKeys. No isTable, KEYWORD, TEMPLATE or MAX_ANCHOR_EXCLUDE copy remains in packages/adr/src or packages/issues/src. (3) packages/adr/src/config.test.ts, packages/issues/src/config.test.ts and packages/issues/src/sources.test.ts pass unchanged (no diff against origin/main), as do all three packages' suites. (4) This close is in the same change.
+data:
+  resolution: done
