@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M69MA92PP3E4HYQNDFME5Q2R
+subject: 8706c0vk
+type: opened
+at: 2026-10-31T18:42:24Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Configure ark's own agents with MCP servers, skills, hooks and permissions
+  template: task
+  template_version: 1
