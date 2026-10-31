@@ -282,6 +282,18 @@ export {
   resolveAttribution,
 } from "./surfaces/actor.js";
 export {
+  type AfterStage,
+  type AppliedPlan,
+  type ApplyPlanOptions,
+  applyPlan,
+  type CommitScope,
+  type ComposeInput,
+  type IndexRender,
+  unstagedIndexNote,
+  WRITE_RERUN,
+  type WritePlan,
+} from "./surfaces/apply-plan.js";
+export {
   type CommitName,
   type CommitSlot,
   type CommitTemplate,
