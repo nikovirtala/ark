@@ -1,5 +1,21 @@
 # @nikovirtala/issues
 
+## 0.5.6
+
+### Patch Changes
+
+- 46e346f: A committing `issues init` now commits the index of the tree it commits: with `[log] index = "committed"`, the `index.md` it writes lists only the issues in HEAD plus init's own files, not uncommitted issues in the work tree, and the work tree's copy is refreshed after the commit, as `adr init` does.
+- 46e346f: `index.md` and `issues://index` list recently closed issues newest closed first, and the in-progress, ready, blocked and other open issues oldest first by the date in Since, the time each issue entered its state.
+- 20b06ed: `@nikovirtala/ledger` exports the index code adr and issues shared by copy: `renderLogIndex`, `unstagedLogFiles` and `unstagedIndexText` render a log's `index.md` and explain a stale staged copy, `logIndexCheck` and `runLogIndex` are the `index/stale` check and the `index` run, with the recovery hints `indexRerunHint`, `indexBeforeHint` and `indexAfterHint` and the types `ToolWriteOptions`, `LogIndexJson` and `IndexRun`, and `@nikovirtala/ledger/cli` exports the `indexCommand` factory. `adr index` and `issues index` now use them; their output, JSON documents and `--help` are unchanged.
+- Updated dependencies [c2e3c59]
+- Updated dependencies [20b06ed]
+- Updated dependencies [cad0369]
+- Updated dependencies [89f6231]
+- Updated dependencies [3cfdbe8]
+- Updated dependencies [46e346f]
+  - @nikovirtala/ledger@0.14.0
+  - @nikovirtala/adr@0.5.10
+
 ## 0.5.5
 
 ### Patch Changes
