@@ -152,4 +152,4 @@ A generated, committed Markdown index of a log, for people browsing on a forge; 
 
 ## Not yet included
 
-- **Later:** relations (step 5), the GitHub Action that merges findings across tools (step 6), source cache garbage collection, and `template migrate`. Event-id uniqueness is checked per log, not across logs.
+- **Later:** qualified-reference checks (step 5; the supersession chain and the issue graph stay in the tools), the GitHub Action that merges findings across tools (step 6), source cache garbage collection, and `template migrate`. Event-id uniqueness is checked per log, not across logs.
