@@ -1,0 +1,18 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M68EHBF1B13G44KSZWKJRE1R
+subject: f0eskrvw
+type: opened
+at: 2026-10-31T07:42:10Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Share qualified-reference checks in ledger
+  template: task
+  template_version: 1
+  parent: mvz52a5s
