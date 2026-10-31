@@ -27,7 +27,7 @@ export function indexResource(e: IssuesMcpEnv): McpResource {
     name: "index",
     title: "Issue index",
     description:
-      "All issues, grouped as in index.md: in progress, ready, blocked, other open, recently closed",
+      "All issues, grouped and ordered as in index.md: in progress, ready, blocked, other open, recently closed",
     mimeType: "text/markdown",
     async read() {
       return { header: null, text: renderIssueIndexText(await readIssues(await openLog(e))) };

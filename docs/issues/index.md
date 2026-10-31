@@ -32,25 +32,25 @@
 
 | Issue | Title | Assignees | Labels | Since |
 | --- | --- | --- | --- | --- |
-| ?2 | [Support SHA-256 source repositories](items/pcmzc2dz-support-sha-256-source-repositories.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
-| ?4 | [Add the MCP server, agent skill and search to issues](items/6930v8w9-add-the-mcp-server-agent-skill-and-search-to-issues.md) |  |  | 2026-10-30 |
-| ?9 | [Fix the subcommand help and two show messages](items/984qb8rg-fix-the-subcommand-help-and-two-show-messages.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
-| ?10 | [Drop empty optional sections from issue descriptions](items/wy4r966a-drop-empty-optional-sections-from-issue-descriptions.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
-| ?11 | [Name the real reason when a source's numbers are unavailable](items/vpq5v23q-name-the-real-reason-when-a-sources-numbers-are-unavailable.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
-| ?16 | [Add issues' MCP prompts and agent skill](items/s3v2jada-add-issues-mcp-prompts-and-agent-skill.md) |  |  | 2026-10-30 |
-| ?18 | [Say which field matched when a search result has no excerpt](items/1fgqfkf3-say-which-field-matched-when-a-search-result-has-no-excerpt.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
-| ?19 | [Test the remaining Table B cells of the issues mcp writes](items/exnj9tym-test-the-remaining-table-b-cells-of-the-issues-mcp-writes.md) | nikovirtala@users.noreply.github.com | type:test | 2026-10-30 |
-| ?20 | [Make the test suites faster](items/wedm13pe-make-the-test-suites-faster.md) |  |  | 2026-10-29 |
-| ?26 | [Run ledger's Git.open test with the temp repo's environment](items/def9qp6q-run-ledgers-git-open-test-with-the-temp-repos-environment.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
-| ?27 | [Split the issues MCP tests that sit at their duration share](items/0vckaxpf-split-the-issues-mcp-tests-that-sit-at-their-duration-share.md) | nikovirtala@users.noreply.github.com |  | 2026-10-29 |
-| ?28 | [Name the skipped CI test job without an unfilled expression](items/9v1rd2xt-name-the-skipped-ci-test-job-without-an-unfilled-expression.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
 | ?29 | [Find what adr and issues implement the same way](items/mvz52a5s-find-what-adr-and-issues-implement-the-same-way.md) |  |  | 2026-10-31 |
-| ?30 | [Add init --skill's AGENTS.md pointer when the skill sits at the repository root](items/c181sywx-add-init-skills-agents-md-pointer-when-the-skill-sits-at-the.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
-| ?31 | [Polish the rough edges left by the issues reviews](items/vg2acrhm-polish-the-rough-edges-left-by-the-issues-reviews.md) |  |  | 2026-10-30 |
-| ?32 | [List what a pull brought in log order](items/66c2zs20-list-what-a-pull-brought-in-log-order.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
-| ?33 | [Run CI's test jobs on the arm runner with 6 workers](items/5z5rsn65-run-cis-test-jobs-on-the-arm-runner-with-6-workers.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
+| ?2 | [Support SHA-256 source repositories](items/pcmzc2dz-support-sha-256-source-repositories.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
 | ?34 | [Keep adr's and issues' tests from using an outer GIT\_DIR](items/tcwy0e79-keep-adrs-and-issues-tests-from-using-an-outer-git-dir.md) |  | type:bug | 2026-10-30 |
-| ?35 | [Drop the "no main branch" note for a source that isn't fetched](items/g84z3z2t-drop-the-no-main-branch-note-for-a-source-that-isnt-fetched.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
+| ?31 | [Polish the rough edges left by the issues reviews](items/vg2acrhm-polish-the-rough-edges-left-by-the-issues-reviews.md) |  |  | 2026-10-30 |
 | ?36 | [Stop calling a source's committed index a shallow clone in adr](items/r2nj95bs-stop-calling-a-sources-committed-index-a-shallow-clone-in.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
+| ?35 | [Drop the "no main branch" note for a source that isn't fetched](items/g84z3z2t-drop-the-no-main-branch-note-for-a-source-that-isnt-fetched.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
+| ?28 | [Name the skipped CI test job without an unfilled expression](items/9v1rd2xt-name-the-skipped-ci-test-job-without-an-unfilled-expression.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
+| ?11 | [Name the real reason when a source's numbers are unavailable](items/vpq5v23q-name-the-real-reason-when-a-sources-numbers-are-unavailable.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
+| ?30 | [Add init --skill's AGENTS.md pointer when the skill sits at the repository root](items/c181sywx-add-init-skills-agents-md-pointer-when-the-skill-sits-at-the.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
+| ?26 | [Run ledger's Git.open test with the temp repo's environment](items/def9qp6q-run-ledgers-git-open-test-with-the-temp-repos-environment.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
+| ?10 | [Drop empty optional sections from issue descriptions](items/wy4r966a-drop-empty-optional-sections-from-issue-descriptions.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
+| ?9 | [Fix the subcommand help and two show messages](items/984qb8rg-fix-the-subcommand-help-and-two-show-messages.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
+| ?19 | [Test the remaining Table B cells of the issues mcp writes](items/exnj9tym-test-the-remaining-table-b-cells-of-the-issues-mcp-writes.md) | nikovirtala@users.noreply.github.com | type:test | 2026-10-30 |
+| ?18 | [Say which field matched when a search result has no excerpt](items/1fgqfkf3-say-which-field-matched-when-a-search-result-has-no-excerpt.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
+| ?33 | [Run CI's test jobs on the arm runner with 6 workers](items/5z5rsn65-run-cis-test-jobs-on-the-arm-runner-with-6-workers.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
+| ?32 | [List what a pull brought in log order](items/66c2zs20-list-what-a-pull-brought-in-log-order.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
+| ?4 | [Add the MCP server, agent skill and search to issues](items/6930v8w9-add-the-mcp-server-agent-skill-and-search-to-issues.md) |  |  | 2026-10-30 |
+| ?16 | [Add issues' MCP prompts and agent skill](items/s3v2jada-add-issues-mcp-prompts-and-agent-skill.md) |  |  | 2026-10-30 |
+| ?27 | [Split the issues MCP tests that sit at their duration share](items/0vckaxpf-split-the-issues-mcp-tests-that-sit-at-their-duration-share.md) | nikovirtala@users.noreply.github.com |  | 2026-10-29 |
+| ?20 | [Make the test suites faster](items/wedm13pe-make-the-test-suites-faster.md) |  |  | 2026-10-29 |
 
 <!-- ledger-index/v1 numbers: 65qt4pp3=1 pcmzc2dz=2 1w06qws8=3 6930v8w9=4 f4f25st2=5 jdpc6bn7=6 m5xh8bkd=7 cqpzxvcs=8 984qb8rg=9 wy4r966a=10 vpq5v23q=11 3gyr85xq=12 0megpv2e=13 qy2ch92c=14 516asy8r=15 s3v2jada=16 f3my0702=17 1fgqfkf3=18 exnj9tym=19 wedm13pe=20 7n5e4nkf=21 bd0nsd5s=22 j897bps4=23 688fexss=24 na46n52h=25 def9qp6q=26 0vckaxpf=27 9v1rd2xt=28 mvz52a5s=29 c181sywx=30 vg2acrhm=31 66c2zs20=32 5z5rsn65=33 tcwy0e79=34 g84z3z2t=35 r2nj95bs=36 838e32bj=37 7zzt1n0x=38 bdxj8s17=39 g4nkb621=40 hw8h6qt0=41 g0qddk0t=42 nb1rxznb=43 bstz5kyj=44 f0eskrvw=45 4134kcnt=46 -->

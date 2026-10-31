@@ -74,8 +74,18 @@ const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const list = (xs: readonly string[]) => xs.map(escapeMarkdown).join(", ");
 
 /**
+ * Closed issues by `closed_at`, newest first, then id: the rule that picks the recently closed
+ * issues and the order they're listed in, so the last row is the next one to drop off.
+ */
+const byLatestClose = (a: IssueView, b: IssueView) =>
+  cmp(b.closed_at ?? "", a.closed_at ?? "") || cmp(a.id, b.id);
+
+/**
  * issues' index spec (02 "Generated index"): in progress, ready, blocked, the other open issues
  * (assigned, or with open children), and the 20 most recently closed, first match wins.
+ * "Recently closed" is ordered by `byLatestClose`. The other sections hold no closed issue and are
+ * ordered by `state_at` (the last opened, started, stopped or reopened event, the date in "Since"),
+ * oldest first, then number, `opened_at` and id.
  */
 export const ISSUE_INDEX = (
   root: string,
@@ -104,16 +114,17 @@ export const ISSUE_INDEX = (
     { heading: "Since", cell: (v) => v.state_at.slice(0, 10) },
   ],
   order: (a, b) =>
-    (a.number ?? Number.POSITIVE_INFINITY) - (b.number ?? Number.POSITIVE_INFINITY) ||
-    cmp(a.opened_at, b.opened_at) ||
-    cmp(a.id, b.id),
+    a.state === "closed" && b.state === "closed"
+      ? byLatestClose(a, b)
+      : cmp(a.state_at, b.state_at) ||
+        (a.number ?? Number.POSITIVE_INFINITY) - (b.number ?? Number.POSITIVE_INFINITY) ||
+        cmp(a.opened_at, b.opened_at) ||
+        cmp(a.id, b.id),
 });
 
-/** The ids of the `RECENTLY_CLOSED` closed issues with the latest `closed_at`, then id. */
+/** The ids of the `RECENTLY_CLOSED` closed issues first in `byLatestClose` order. */
 function recentlyClosedOf(views: Iterable<IssueView>): Set<string> {
-  const closed = [...views]
-    .filter((v) => v.state === "closed")
-    .sort((a, b) => cmp(b.closed_at ?? "", a.closed_at ?? "") || cmp(a.id, b.id));
+  const closed = [...views].filter((v) => v.state === "closed").sort(byLatestClose);
   return new Set(closed.slice(0, RECENTLY_CLOSED).map((v) => v.id));
 }
 
