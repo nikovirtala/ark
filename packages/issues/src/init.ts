@@ -3,21 +3,25 @@ import { join } from "node:path";
 import {
   ConfigError,
   commitWithRecovery,
+  firstLine,
   headBytes,
+  headTree,
   InvalidArgumentError,
   indexReader,
+  overlayTree,
   readToolConfig,
   renderCommitMessage,
   replaceFile,
   UsageError,
   withGitOperation,
   worktreeReader,
+  writeIndexCopy,
   writeNewFile,
 } from "@nikovirtala/ledger";
 import { ACTIONS, INIT_TITLE, SKILL_TITLE } from "./commit-actions.js";
 import { issueKind } from "./kind.js";
 import type { IssueLog } from "./log.js";
-import { indexPath, renderIssueIndex } from "./log-index.js";
+import { INDEX_AFTER, indexPath, renderIssueIndex } from "./log-index.js";
 import { SKILL_MD } from "./skill.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
 
@@ -167,29 +171,35 @@ export async function initIssueLog(
       if ((await log.tree.read(path)) !== null) kept.push(path);
       else files.push([path, BUILTIN_TEMPLATES[name] ?? ""]);
     }
+    const commitRequested = o.commit ?? log.issues.autoCommit;
     // A kept config with `[log] index = "committed"` gets its index, as adr's init does; an
-    // existing index.md is kept.
+    // existing index.md is kept. Rendered before anything is written, from the tree the commit
+    // (or the work tree) will hold.
+    const at = indexPath(log.layout);
+    let indexed = false;
     if (log.issues.index === "committed") {
-      const path = indexPath(log.layout);
-      if ((await log.tree.read(path)) !== null) {
-        kept.push(path);
+      if ((await log.tree.read(at)) !== null) {
+        kept.push(at);
       } else {
+        const head = await log.git.resolveCommit("HEAD");
+        const added = Object.fromEntries(files.map(([p, t]) => [p, encoder.encode(t)]));
+        const base = commitRequested ? await headTree(log.git, head) : log.tree;
         const text = await renderIssueIndex(log.git, {
           layout: log.layout,
           issues: log.issues,
-          tree: log.tree,
-          history: await log.git.resolveCommit("HEAD"),
+          tree: overlayTree(base, added),
+          history: head,
         });
         if (text === null) {
           notes.push(
-            `${path} not written: numbers need history in this shallow clone; run git fetch --unshallow, then issues index`,
+            `${at} not written: numbers need history in this shallow clone; run git fetch --unshallow, then issues index`,
           );
         } else {
-          files.push([path, text]);
+          files.push([at, text]);
+          indexed = true;
         }
       }
     }
-    const commitRequested = o.commit ?? log.issues.autoCommit;
     const logFiles = files.length;
 
     // The skill (design §8.2): SKILL.md is never overwritten; AGENTS.md gets one pointer line.
@@ -316,7 +326,26 @@ export async function initIssueLog(
         message,
         only: [...staged, ...tracked],
         rerun: INIT_RERUN,
+        after: indexed ? INDEX_AFTER(root) : null,
       });
+      if (indexed) {
+        // The commit's index leaves out uncommitted log changes; the work tree and the index get
+        // them back, as adr's init does.
+        try {
+          const again = await renderIssueIndex(log.git, {
+            layout: log.layout,
+            issues: log.issues,
+            tree: worktreeReader(log.git),
+            history: sha,
+          });
+          if (again !== null) {
+            const r = await writeIndexCopy(log.git, at, again);
+            if (r.stage) await log.git.add([at]);
+          }
+        } catch (err) {
+          notes.push(`${at} may be stale: ${firstLine(err)}; run issues index`);
+        }
+      }
     }
     return {
       format: "issues-init/v1",

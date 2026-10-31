@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 import { promisify } from "node:util";
@@ -11,6 +11,13 @@ import { agentsPointer, initIssueLog, namesSkill, starterConfig } from "./init.j
 import { openIssueLog } from "./log.js";
 import { SKILL_MD } from "./skill.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
+import {
+  assertInvariants,
+  CONFIG,
+  INDEX,
+  newIssue,
+  stagedBlobs,
+} from "./test-support/index-invariant.js";
 
 const run = promisify(execFile);
 const repos: TempRepo[] = [];
@@ -160,6 +167,36 @@ describe("initIssueLog and a .gitkeep placeholder (?8)", () => {
     const again = await initIssueLog(await open(s), { commit: true });
     expect(again).toMatchObject({ written: [], removed: [], commit: null });
     expect((await git(s, "status", "--porcelain")).trim()).toBe("A  docs/issues/.gitkeep");
+  });
+});
+
+describe("initIssueLog with a committed index (?38)", () => {
+  /** A kept config with `[log] index = "committed"`, an issue staged but not committed, no index.md. */
+  async function uncommittedIssue(): Promise<TempRepo> {
+    const r = await repo({ "docs/issues/issues.toml": CONFIG });
+    await newIssue(r, "Not committed yet", false);
+    await rm(join(r.root, INDEX), { force: true });
+    await git(r, "rm", "-q", "--cached", "--ignore-unmatch", "--", INDEX);
+    return r;
+  }
+
+  it("commits the index of HEAD's tree plus its files, then refreshes the work tree's", async () => {
+    const r = await uncommittedIssue();
+    const before = await stagedBlobs(r);
+    const doc = await initIssueLog(await open(r), { commit: true });
+    expect(doc.written).toEqual([INDEX]);
+    expect(doc.commit).not.toBeNull();
+    expect(await git(r, "show", `HEAD:${INDEX}`)).not.toContain("Not committed yet");
+    expect(await readFile(join(r.root, INDEX), "utf8")).toContain("Not committed yet");
+    // HEAD's index is HEAD's render, verify --ref HEAD is clean, the work tree's copy is current.
+    await assertInvariants(r, doc, before);
+  });
+
+  it("renders the work tree without a commit", async () => {
+    const r = await uncommittedIssue();
+    const doc = await initIssueLog(await open(r));
+    expect(doc).toMatchObject({ written: [INDEX], commit: null });
+    expect(await readFile(join(r.root, INDEX), "utf8")).toContain("Not committed yet");
   });
 });
 
