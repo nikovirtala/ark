@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M69M9JJHQ3DT19KBHFS68G2R
+subject: jgdhvxtq
+type: proposed
+at: 2026-10-31T18:42:01Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Run ark's own agent tooling from the previous release
+  template: nygard
+  template_version: 1
