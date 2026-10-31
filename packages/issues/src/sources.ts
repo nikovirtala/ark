@@ -8,8 +8,10 @@ import {
   indexNumbering,
   loadLog,
   type Numbering,
+  type NumberingKeys,
   numberLog,
   openToolLog,
+  parseNumberingKeys,
   projectLog,
   readIndexNumbers,
   readSources,
@@ -17,6 +19,7 @@ import {
   type SourceStatus,
   sourceLogRef,
   type ToolConfig,
+  toolConfigReader,
 } from "@nikovirtala/ledger";
 import { type ForeignSubject, issueKind, type SourceLog } from "./kind.js";
 import type { IssueLog } from "./log.js";
@@ -35,39 +38,17 @@ export interface DecisionLogRead {
   readonly views: ReadonlyMap<string, DecisionView>;
 }
 
-function isTable(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v) && !(v instanceof Date);
-}
-
 /**
- * adr's `[log] main_branch` and `[log] index`, validated with adr's own rules (adr/src/config.ts
- * `parseAdrConfig`), so issues refuses exactly the files adr refuses. Throws `ConfigError` naming
- * adr's file and key.
+ * adr's `[log] main_branch` and `[log] index`, validated with adr's own rules (ledger's
+ * `parseNumberingKeys`, which adr's `parseAdrConfig` uses too), so issues refuses exactly the files
+ * adr refuses and never an `adr.toml` over keys it doesn't read. Throws `ConfigError` naming adr's
+ * file and key. `openToolLog` sets `configPath` exactly when `config` is non-null, and its
+ * `configuredRoot` already refuses a `[log]` that isn't a table with the same message.
  */
-function adrNumberingKeys(
-  config: ToolConfig | null,
-  file: string | null,
-): { readonly mainBranch: string | null; readonly index: "none" | "committed" } {
-  const where = file ?? "adr.toml";
-  const fail = (message: string) => new ConfigError(`${where}: ${message}`, { file: where });
-  const log = config?.raw.log;
-  if (log === undefined) return { mainBranch: null, index: "none" };
-  if (!isTable(log)) throw fail("log must be a table");
-  const main = log.main_branch;
-  if (
-    main !== undefined &&
-    (typeof main !== "string" || main.trim() === "" || main.startsWith("-") || main.includes("\0"))
-  ) {
-    throw fail("log.main_branch must be a ref name that doesn't start with -");
-  }
-  const index = log.index;
-  if (index !== undefined && index !== "none" && index !== "committed") {
-    throw fail('log.index must be "committed" or "none"');
-  }
-  return {
-    mainBranch: typeof main === "string" ? main : null,
-    index: index === "committed" ? "committed" : "none",
-  };
+function adrNumberingKeys(config: ToolConfig | null, file: string | null): NumberingKeys {
+  if (config === null) return { mainBranch: null, index: "none" };
+  const r = toolConfigReader(config, file, "adr");
+  return parseNumberingKeys(r.table("log"), r.fail, { indexValues: ["committed", "none"] });
 }
 
 /**
