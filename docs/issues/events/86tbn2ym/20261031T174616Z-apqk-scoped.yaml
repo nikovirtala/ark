@@ -1,0 +1,19 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M69H3FX18G9FC2WR31XVAPQK
+subject: 86tbn2ym
+type: scoped
+at: 2026-10-31T17:46:16Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/ledger/src/surfaces/apply-plan.test.ts
+    - packages/ledger/src/surfaces/apply-plan.ts
+    - packages/ledger/src/surfaces/write-plan.test.ts
+    - packages/ledger/src/surfaces/write-plan.ts

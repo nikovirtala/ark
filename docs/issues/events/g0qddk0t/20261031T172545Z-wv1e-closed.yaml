@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M69FXXKJEQJZ78D5RFFYWV1E
+subject: g0qddk0t
+type: closed
+at: 2026-10-31T17:25:45Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "(1) packages/ledger/src/index.ts exports the plan helpers checkText, checkReason, MAX_TEXT_BYTES, subjectView, refusal, newEvent, eventFiles, eventPairs, precheck, findingKey, chooseTemplate, unmatchedGlobs and followRenamesChanges with StagedRenames (packages/ledger/src/surfaces/write-plan.ts), the apply step applyPlan, unstagedIndexNote and WRITE_RERUN with WritePlan, AfterStage, AppliedPlan, ComposeInput and IndexRender (surfaces/apply-plan.ts), and the write driver runWrite with checkWorkTree, checkCommitIdentity, planContext, viewsAfter, readIfPresent, sameBytes and the editor step editorStep (surfaces/write-driver.ts); stagedEventRefs moved to surfaces/commit-message.ts. ledger's README documents them under Writes and Surfaces, and write-plan.test.ts, apply-plan.test.ts, write-driver.test.ts, editor-step.test.ts and commit-message.test.ts test them, including the retry on EventExistsError, the notes on CommitFailedError, the order of the notes, dryRun, the commit-parts guard and every editor-step branch. (2) adr's write.ts and issues' plan.ts, apply.ts and write.ts use them: no copy is left of checkText, checkReason, findingKey, filesOf, pairsOf, chooseTemplate, unmatchedGlobs, stagedEventRefs, unstagedIndexNote, the body of applyPlan, readIfPresent, sameBytes, checkCommitIdentity, checkWorkTree (the work-tree check), planContext (the plan context), viewsAfter, the body of editorStep or the write loop. What remains are thin bindings that pass each tool's kind, messages, trailer keys, words and JSON document: viewOf, refusal, newEvent, precheck, applyPlan and write. issues' editIssue calls the same ledger checks and helpers, and its follow-renames dry run goes through runWrite's dryRun, still without the --follow-renames never commits note (checked by hand on a log with auto_commit = true and a staged rename, before and after). (3) git diff origin/main --stat on packages/adr/src/**/*.test.ts and packages/issues/src/**/*.test.ts is empty, and both packages' suites pass as before (adr 674 passed, issues 852 passed), the model, index-invariant, editor and mcp-e2e tests included; ledger passes 1542. A changeset bumps ledger minor. (4) This close is in the same change."
+data:
+  resolution: done

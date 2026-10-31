@@ -1,5 +1,3 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import {
   type Actor,
   type AfterStage,
@@ -7,16 +5,14 @@ import {
   applySetOp,
   bodyFileName,
   bodySha256,
-  CommitFailedError,
   type ComposeInput,
-  ConfigError,
   checkReason,
   checkText,
   chooseTemplate,
   compileKind,
   type EventEnvelope,
-  EventExistsError,
   type EventRef,
+  editorStep,
   eventDir,
   eventFiles,
   eventPairs,
@@ -24,7 +20,6 @@ import {
   FileExistsError,
   type Finding,
   followRenamesChanges,
-  historyTemplates,
   type IndexRender,
   InvalidArgumentError,
   indexReader,
@@ -45,6 +40,7 @@ import {
   renderCommitMessage,
   renderTemplate,
   replaceSections,
+  runWrite,
   type SetOp,
   type StagedRenames,
   slugify,
@@ -54,7 +50,6 @@ import {
   type TemplateSource,
   type Trailer,
   type TreeReader,
-  templateHistoryRef,
   UsageError,
   unmatchedGlobs,
   withGitOperation,
@@ -222,7 +217,6 @@ export type PlanResult =
     };
 
 const encoder = new TextEncoder();
-const decoder = new TextDecoder();
 const compiled = compileKind(adrKind);
 const SUBJECT_ATTEMPTS = 5;
 const QUALIFIED_SUPERSESSION = "cross-log supersession isn't supported yet";
@@ -1366,7 +1360,11 @@ export function applyPlan(
      * commit's tree. Exclusive with `message`.
      */
     readonly compose?: (c: ComposeInput) => RenderedCommit;
-    readonly afterStage?: () => Promise<AfterStage>;
+    /**
+     * Runs after staging (the editor step of `new`), with the scope a commit takes: the plan's
+     * own commit scope.
+     */
+    readonly afterStage?: (scope: readonly string[]) => Promise<AfterStage>;
     /**
      * Renders the log's index for `tree`, which builds on `history` (HEAD, the new commit, or
      * null on an unborn HEAD); `null` when the numbers can't be projected. Given only when the log
@@ -1399,36 +1397,6 @@ export interface WriteDeps {
   readonly apply: typeof applyPlan;
 }
 const DEFAULT_DEPS: WriteDeps = { now: Date.now, apply: applyPlan };
-
-/**
- * The views `adr-write/v1` reports. Without a commit they are the plan's, folded on the overlay.
- * After a commit they come from a new read of the log, so a commit on the main ref shows the
- * numbers it assigned, as the CLI text and phase 3's MCP tools do. A commit that failed threw in
- * `applyPlan`, so nothing is read for it.
- */
-async function viewsAfter(
-  log: DecisionLog,
-  plan: WritePlan,
-  sha: string | null,
-): Promise<{ decision: DecisionView | null; affected: readonly DecisionView[] }> {
-  if (sha === null) return { decision: plan.decision, affected: plan.affected };
-  const read = await readDecisions({ ...log, commit: sha });
-  const view = (v: DecisionView) => read.projection.views.get(v.id) ?? v;
-  return {
-    decision: plan.decision === null ? null : view(plan.decision),
-    affected: plan.affected.map(view),
-  };
-}
-
-/**
- * `--commit` needs an author and a committer identity; checked before anything is written, since
- * `GIT_AUTHOR_*` alone satisfies the author while `git commit` still fails on the committer.
- */
-async function checkCommitIdentity(log: DecisionLog): Promise<void> {
-  if ((await log.git.identity()) === null || (await log.git.committerIdentity()) === null) {
-    throw new ConfigError("--commit needs a git identity; set git user.name and user.email");
-  }
-}
 
 const STATUS_TYPES: ReadonlySet<string> = new Set([
   "proposed",
@@ -1502,192 +1470,82 @@ function commitMessage(
 }
 
 /**
- * Plan, then apply, with the single `EventExistsError` retry (§5.4 steps 1–5). `o.message`
- * replaces the rendered commit message; `o.notes` come before the write's own notes. A plan with
- * no files and no events is reported as written without touching the repository, and so is
- * every plan with `dryRun` (its views are the plan's).
+ * Plan, then apply, with ledger's `runWrite` (§5.4 steps 1–5) and the `adr-write/v1` document.
+ * `o.message` replaces the rendered commit message; `o.notes` come before the write's own. A plan
+ * with no files and no events is reported as written without touching the repository, and so is
+ * every plan with `dryRun` (its views are the plan's). The views after a commit are read again
+ * from the log, so a commit on the main ref shows the numbers it assigned.
  */
-async function write(
+function write(
   log: DecisionLog,
   command: WriteResultJson["command"],
   plan: (read: DecisionsRead, c: PlanContext) => Promise<PlanResult>,
   o: WriteOptions & { readonly dryRun?: boolean },
   deps: WriteDeps,
-  afterStage?: (plan: WritePlan, commit: boolean) => () => Promise<AfterStage>,
+  afterStage?: (
+    plan: WritePlan,
+    commit: boolean,
+  ) => (scope: readonly string[]) => Promise<AfterStage>,
 ): Promise<WriteResultJson> {
-  return withGitOperation(async () => {
-    if (log.ref !== null) {
-      throw new InvalidArgumentError("writes read the work tree; open the log without a ref");
-    }
-    if (log.tree.label !== "worktree") {
-      throw new InvalidArgumentError(
-        "writes read the work tree; open the log with the worktree reader",
-      );
-    }
-    const commit = o.commit ?? log.adr.autoCommit;
-    if (commit) await checkCommitIdentity(log);
-    const notes = [...log.notes, ...(o.notes ?? [])];
-    for (let attempt = 0; ; attempt++) {
-      const read = await readDecisions(log);
-      const ref = await templateHistoryRef(log.git, { type: "full" });
-      const c: PlanContext = {
-        now: deps.now,
-        ...(deps.random === undefined ? {} : { random: deps.random }),
-        templates: historyTemplates(log.git, log.tree, `${read.root}/templates`, { ref }),
-        builtins: BUILTIN_TEMPLATES,
-      };
-      const r = await plan(read, c);
-      if (!r.ok) {
-        return {
-          format: "adr-write/v1",
-          command,
-          ok: false,
-          decision: r.decision,
-          affected: [],
-          written: [],
-          commit: null,
-          findings: r.findings,
-          notes,
-        };
-      }
-      const empty =
-        r.plan.events.length === 0 &&
-        Object.keys(r.plan.files).length === 0 &&
-        Object.keys(r.plan.replace ?? {}).length === 0;
-      if (empty || o.dryRun === true) {
-        return {
-          format: "adr-write/v1",
-          command,
-          ok: true,
-          decision: r.plan.decision,
-          affected: r.plan.affected,
-          written: [],
-          commit: null,
-          findings: r.plan.findings,
-          notes: [...notes, ...(r.plan.notes ?? [])],
-        };
-      }
-      if (commit && r.plan.commit === null) {
-        throw new InvalidArgumentError("this write can't be committed");
-      }
-      const given = o.message ?? null;
-      try {
-        const applied = await deps.apply(log, r.plan, {
-          commit,
-          ...(!commit
-            ? {}
-            : given !== null
-              ? { message: given, mergeTrailers: true }
-              : { compose: (c) => commitMessage(log, command, read, r.plan, c) }),
-          ...(afterStage === undefined ? {} : { afterStage: afterStage(r.plan, commit) }),
-          ...(log.adr.index === "committed" && o.index !== "skip"
-            ? {
-                index: (tree: TreeReader, history: string | null) =>
-                  renderDecisionIndex(log.git, { layout: log.layout, adr: log.adr, tree, history }),
-              }
-            : {}),
-        });
-        const views = await viewsAfter(log, r.plan, applied.commit);
-        const own = [
-          ...(r.plan.notes ?? []),
-          ...applied.notes,
-          ...(applied.commit !== null && applied.rendered?.note != null
-            ? [applied.rendered.note]
-            : []),
-        ];
-        return {
-          format: "adr-write/v1",
-          command,
-          ok: true,
-          decision: views.decision,
-          affected: views.affected,
-          written: applied.written,
-          commit: applied.commit,
-          findings: applied.findings,
-          notes: [...notes, ...own],
-        };
-      } catch (err) {
-        // A refused commit keeps the notes a successful write would report, before applyPlan's.
-        if (err instanceof CommitFailedError)
-          throw err.withNotes([...notes, ...(r.plan.notes ?? [])]);
-        // Another process wrote the same event path in the same instant: writeEvents removed this
-        // batch and applyPlan the new body and template, so plan again with a fresh clock, once.
-        if (!(err instanceof EventExistsError) || attempt > 0) throw err;
-      }
-    }
+  const given = o.message ?? null;
+  return runWrite<
+    DecisionsRead,
+    WritePlan,
+    Extract<PlanResult, { ok: false }>,
+    DecisionView,
+    WriteResultJson
+  >({
+    log,
+    autoCommit: log.adr.autoCommit,
+    ...(o.commit === undefined ? {} : { commit: o.commit }),
+    ...(o.notes === undefined ? {} : { notes: o.notes }),
+    ...(o.dryRun === undefined ? {} : { dryRun: o.dryRun }),
+    requireCommitParts: true,
+    deps,
+    builtins: BUILTIN_TEMPLATES,
+    read: () => readDecisions(log),
+    plan,
+    apply: (p, read, commit) =>
+      deps.apply(log, p, {
+        commit,
+        ...(!commit
+          ? {}
+          : given !== null
+            ? { message: given, mergeTrailers: true }
+            : { compose: (c) => commitMessage(log, command, read, p, c) }),
+        ...(afterStage === undefined ? {} : { afterStage: afterStage(p, commit) }),
+        ...(log.adr.index === "committed" && o.index !== "skip"
+          ? {
+              index: (tree: TreeReader, history: string | null) =>
+                renderDecisionIndex(log.git, { layout: log.layout, adr: log.adr, tree, history }),
+            }
+          : {}),
+      }),
+    views: (p) => ({ primary: p.decision, affected: p.affected }),
+    reread: async (sha) => (await readDecisions({ ...log, commit: sha })).projection.views,
+    refused: (r, notes) => ({
+      format: "adr-write/v1",
+      command,
+      ok: false,
+      decision: r.decision,
+      affected: [],
+      written: [],
+      commit: null,
+      findings: r.findings,
+      notes,
+    }),
+    done: (w) => ({
+      format: "adr-write/v1",
+      command,
+      ok: true,
+      decision: w.primary,
+      affected: w.affected,
+      written: w.written,
+      commit: w.commit,
+      findings: w.findings,
+      notes: w.notes,
+    }),
   });
-}
-
-const sameBytes = (a: Uint8Array, b: Uint8Array) =>
-  a.byteLength === b.byteLength && a.every((x, i) => x === b[i]);
-
-async function readIfPresent(path: string): Promise<Uint8Array | null> {
-  try {
-    return await readFile(path);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
-    throw err;
-  }
-}
-
-/**
- * The editor step (§5.4): runs `edit` on the staged draft, re-stages the edited body when the
- * editor exited 0, and skips the commit when committing would take content nobody confirmed: the
- * body changed while the editor failed, the body is gone, or another path in the commit scope (a
- * materialized template, say) changed while the editor was open (design review NIT 2). The
- * findings are the lint of the draft as it now is.
- */
-function editorStep(
-  log: DecisionLog,
-  edit: (absBodyPath: string) => Promise<string | null>,
-  onNote: ((note: string) => void) | undefined,
-): (plan: WritePlan, commitRequested: boolean) => () => Promise<AfterStage> {
-  return (plan, commitRequested) => async () => {
-    const d = plan.draft;
-    if (d === null) return { findings: null, commit: true };
-    const abs = join(log.git.root ?? "", d.path);
-    const note = await edit(abs);
-    // The editor may run other processes or wait on a person: drop what the operation cached.
-    invalidateGitOperation();
-    const bytes = await readIfPresent(abs);
-    let commit: boolean;
-    if (bytes === null) {
-      commit = false;
-      onNote?.(
-        `${d.path} was removed while editing; the rendered draft is still staged. Restore it with \`git checkout -- ${d.path}\``,
-      );
-    } else if (note === null) {
-      await log.git.add([d.path]);
-      commit = true;
-    } else if (sameBytes(bytes, d.rendered)) {
-      commit = true;
-    } else {
-      commit = false;
-      if (commitRequested) {
-        onNote?.(
-          `${d.path} changed while the editor failed; review it, then git add it and commit`,
-        );
-      }
-    }
-    if (commit && commitRequested) {
-      const late = (await log.git.unstagedPaths(plan.commitScope)).filter((p) => p !== d.path);
-      const [first] = late;
-      if (first !== undefined) {
-        commit = false;
-        onNote?.(
-          `${first} changed while the editor was open; review it, then git add it and commit`,
-        );
-      }
-    }
-    const text = decoder.decode(bytes ?? d.rendered);
-    const findings = lintDocument(d.template, text, { file: d.path, subject: plan.subject });
-    // Never commit a draft that `adr verify` then fails (design §7.2); it stays staged.
-    if (commit && commitRequested && findings.length > 0) {
-      commit = false;
-      onNote?.(`${d.path} still has unfilled required sections; fill them in, then commit`);
-    }
-    return { findings, commit };
-  };
 }
 
 /**
@@ -1721,7 +1579,13 @@ export async function proposeDecision(
         }),
       o,
       deps,
-      o.edit === undefined ? undefined : editorStep(log, o.edit, o.onNote),
+      o.edit === undefined
+        ? undefined
+        : editorStep({
+            git: log.git,
+            edit: o.edit,
+            ...(o.onNote === undefined ? {} : { onNote: o.onNote }),
+          }),
     );
   });
 }
