@@ -15,12 +15,12 @@
 | ?49 | [Use ledger's ListedTemplate in adr's and issues' templates JSON types](items/am7ghfmb-use-ledgers-listedtemplate-in-adrs-and-issues-templates-json.md) |  |  | 2026-10-31 |
 | ?50 | [Test lookupPaths' exclude globs and symlinked cwd](items/b3ny9n1w-test-lookuppaths-exclude-globs-and-symlinked-cwd.md) |  |  | 2026-10-31 |
 | ?51 | [Configure ark's own agents with MCP servers, skills, hooks and permissions](items/8706c0vk-configure-arks-own-agents-with-mcp-servers-skills-hooks-and.md) |  |  | 2026-10-31 |
-| ?52 | [Make init set up the whole agent integration, and safe to rerun](items/cxas6afn-make-init-set-up-the-whole-agent-integration-and-safe-to.md) |  |  | 2026-10-31 |
 
 ## Blocked
 
 | Issue | Title | Assignees | Labels | Since |
 | --- | --- | --- | --- | --- |
+| ?52 | [Make init set up the whole agent integration, and safe to rerun](items/cxas6afn-make-init-set-up-the-whole-agent-integration-and-safe-to.md) |  |  | 2026-10-31 |
 | ?53 | [Report missing or outdated agent setup with a doctor command](items/ram953kt-report-missing-or-outdated-agent-setup-with-a-doctor-command.md) |  |  | 2026-10-31 |
 | ?54 | [Bump ark's own tool pins when a release publishes](items/t9vg1qty-bump-arks-own-tool-pins-when-a-release-publishes.md) |  |  | 2026-10-31 |
 
