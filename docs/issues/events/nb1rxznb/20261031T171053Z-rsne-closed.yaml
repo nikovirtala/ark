@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M69F2Q8ZGA0VW1EX6SZDRSNE
+subject: nb1rxznb
+type: closed
+at: 2026-10-31T17:10:53Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "(1) packages/ledger/src/index.ts exports the init steps, initToolLog with ToolInitSpec, ToolInitOptions and ToolInitResult, and namesSkill (packages/ledger/src/surfaces/tool-init.ts); the commit-msg steps readCommitMessage and stagedEventTrailers and the pre-commit step runPreCommitHook (surfaces/hook-steps.ts), stagedEventRefs (surfaces/commit-message.ts), hookRegistrations (hooks/registrations.ts) and toolHookCommands, installToolHooks, uninstallToolHooks, printToolHooks and toolHooksResult (surfaces/tool-hooks.ts); @nikovirtala/ledger/cli exports the hooksCommand factory (cli/hooks-command.ts) and editorFromEnv with its Edit type (cli/editor.ts). ledger's README documents them in the Surfaces Init and Git hooks bullets and the CLI section, and these unit tests cover them: surfaces/tool-init.test.ts (config placement in the default root, a repo-level file and beside another log's file; templates written, kept, defaulted and unknown; SKILL.md written, kept and differing; the AGENTS.md pointer appended, already named, unstaged and untracked with and without a commit; rollback of a failed write; the committed index from HEAD's tree plus init's files, the shallow note, the index step before or after the skill, the recovery hint's index step and the stale note; commit titles; the .gitkeep option on and off; namesSkill), surfaces/hook-steps.test.ts, surfaces/commit-message-refs.test.ts, surfaces/tool-hooks.test.ts, hooks/registrations.test.ts, cli/hooks-command.test.ts and cli/editor.test.ts. (2) adr and issues use them: init.ts calls initToolLog and keeps only domain (starter config, BUILTIN_TEMPLATES, SKILL_MD, the pointer text, INIT_RERUN, INDEX_AFTER, the shallow note, the commit title and the renderIndex callback); hooks.ts keeps thin wrappers, adr's addHookTrailers and issues' current-issue trailer and fixes ?N notes; cli/hooks.ts and cli/editor.ts call hooksCommand and editorFromEnv. No copy of appendLine, namesSkill, the AGENTS.md pointer step, registrations, shown, inHookOrder, result, stagingSafe, runPreCommitHook's body, the shared commit-msg prelude or the editor remains in either tool; namesSkill is re-exported from ledger. agentsPointer stays in each tool because its text is each tool's own wording (domain), while the pointer step that uses it (appendLine, namesSkill, the AGENTS.md checks and rollback) moved to ledger. (3) git diff origin/main on packages/adr/src and packages/issues/src test files is empty; adr's src/init.test.ts, src/hooks.test.ts, src/cli/init.test.ts, src/cli/hooks.test.ts and src/cli/editor.test.ts and issues' src/init.test.ts, src/hooks.test.ts, src/cli/init.test.ts and src/cli/editor.test.ts pass with the rest of the adr (56 files) and issues (80 files) suites, with ledger's (108 files), and adr and issues init --help and hooks --help match origin/main. (4) This close is in the same change, after the two slices refactor/shared-hooks-editor and refactor/shared-init."
+data:
+  resolution: done
