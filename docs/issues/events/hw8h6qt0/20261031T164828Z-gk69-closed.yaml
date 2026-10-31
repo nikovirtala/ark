@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M69DSMXQZA731ZWAB9W7GK69
+subject: hw8h6qt0
+type: closed
+at: 2026-10-31T16:48:28Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: '(1) packages/ledger/src/index.ts exports readKindLog (the read pipeline: loadLog, foldLog, loadFindings, transitions, invariantsCheck, relateCheck, sortFindings and projectLog), numberToolLog (numberLog with the committed-index fallback), changedSince with ChangedSince, unavailableReason, numberingJson with NumberingJson and eventsInFoldOrder from packages/ledger/src/surfaces/log-read.ts, readSourceLog (the --source read) and readSourceSubjects (the cached-source folding) from packages/ledger/src/surfaces/source-read.ts, and ForeignSubject from packages/ledger/src/sources/foreign-subject.ts; ledger''s README documents them in the Log reads and Source reads bullets, and surfaces/log-read.test.ts (numbering, sorted and stamped findings, check and project options, history and shallow-clone numbering, the committed-index fallback, changedSince, unavailableReason, numberingJson, fold order) and surfaces/source-read.test.ts (uncached and cached sources, index and no-index numbering, folding, a root with no log) test them. (2) adr''s and issues'' log.ts read through readKindLog and number through numberToolLog, issues'' sources.ts numbers the decision log through numberToolLog, both tools'' --source reads use readSourceLog and their source folding uses readSourceSubjects, and views.ts take numberingJson and eventsInFoldOrder from ledger; changedSince, unavailableReason, numberingJson and ForeignSubject are re-exported under the same names. grep finds no loadFindings, transitions, invariantsCheck, relateCheck, sortFindings, readIndexNumbers, indexNumbering, NO_NUMBERING, sourceLogRef, diffTrees, compareEvents or compileKind in packages/adr/src/{log,sources,views}.ts or packages/issues/src/{log,sources,views}.ts. (3) git diff origin/main on the packages/adr/src and packages/issues/src test files and test-support is empty, and the adr (56 files) and issues (80 files) suites pass, with ledger''s (97 files); adr''s and issues'' list, show --history, search, for and list --since, text and --json, print byte-identical output on this repository before and after, and the unchanged sources tests cover --source. A minor @nikovirtala/ledger changeset names the new exports. Filed for later: vw51h1jx (?51), a tool test for the "source X has no decision/issue log at <root>" note. (4) This close is in the same change.'
+data:
+  resolution: done
