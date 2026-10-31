@@ -7,7 +7,6 @@ import {
   bodySha256,
   CommitFailedError,
   ConfigError,
-  classifyPath,
   commitWithRecovery,
   compileKind,
   ENVELOPE_VERSION,
@@ -35,13 +34,11 @@ import {
   isSourceName,
   isSubjectId,
   joinActions,
-  type LogLayout,
   lintDocument,
   lintTemplate,
   newSubjectId,
   nextEventIdentity,
   overlayTree,
-  parseEventFileName,
   parseGlob,
   parseTemplate,
   type Rename,
@@ -55,6 +52,7 @@ import {
   saveCommitRecovery,
   serializeEvent,
   slugify,
+  stagedEventRefs,
   stagedRenames,
   type Template,
   type TemplateSource,
@@ -1820,27 +1818,6 @@ export async function applyPlan(
 
 /** The `ADR`/`ADR-Event` trailer keys. */
 const TRAILER_KEYS = { subject: "ADR", event: "ADR-Event" } as const;
-
-/**
- * The staged event files among `paths` as (decision, type) refs, in path order (by decision,
- * then event time), deduplicated by decision and type.
- */
-function stagedEventRefs(layout: LogLayout, paths: readonly string[]): EventRef[] {
-  const found: EventRef[] = [];
-  for (const p of sorted(paths.filter(isYaml))) {
-    const c = classifyPath(layout, p);
-    if (c.area !== "event" || c.subject === null || c.file.includes("/")) continue;
-    const name = parseEventFileName(c.file);
-    if (name !== null) found.push({ subject: c.subject, type: name.type });
-  }
-  const seen = new Set<string>();
-  return found.filter((r) => {
-    const key = `${r.subject}\0${r.type}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
 
 /** The new bytes of each file a plan replaces. */
 const replaceBytes = (plan: WritePlan): Record<string, Uint8Array> =>
