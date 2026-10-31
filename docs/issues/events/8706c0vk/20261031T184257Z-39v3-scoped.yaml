@@ -1,0 +1,20 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M69MB99M64YV9Y4SSAPA39V3
+subject: 8706c0vk
+type: scoped
+at: 2026-10-31T18:42:57Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - .claude/**
+    - .kiro/**
+    - .mcp.json
+    - AGENTS.md
+    - package.json
