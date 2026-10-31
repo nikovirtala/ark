@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M690W758YH20J4FQGJM9EWRQ
+subject: g4nkb621
+type: closed
+at: 2026-10-31T13:02:40Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: (1) packages/ledger/src/index.ts exports renderLogIndex, unstagedLogFiles, unstagedIndexText and indexPath (packages/ledger/src/log-index/tool-render.ts, also re-exported from log-index/index.ts) and logIndexCheck, runLogIndex, indexRerunHint, indexBeforeHint, indexAfterHint, ToolWriteOptions, LogIndexJson and IndexRun (packages/ledger/src/surfaces/tool-index.ts), and @nikovirtala/ledger/cli exports indexCommand (packages/ledger/src/cli/index-command.ts); ledger's README documents them under Index, Surfaces and CLI, and tool-render.test.ts, tool-index.test.ts and cli/index-command.test.ts test them, including that the hints match adr's and issues' former texts byte for byte. (2) adr's and issues' log-index.ts keep DECISION_INDEX and ISSUE_INDEX (with issues' 20 most recently closed and its render without sources) and pass their kind, config, words, format and commit title to renderLogIndex, logIndexCheck and runLogIndex; INDEX_RERUN, INDEX_BEFORE and INDEX_AFTER are bindings of ledger's hints. write.ts, apply.ts, init.ts and hooks.ts take indexPath, unstagedLogFiles and unstagedIndexText from ledger, adr://index renders through the new renderDecisionIndexText like issues://index, and both cli/index-command.ts files only configure ledger's indexCommand (issues passes its --check help line, adr none). Each tool's public exports keep their names and shapes. (3) git diff origin/main finds no change to any adr or issues test file, and both packages' suites pass as before (adr 672 passed, issues 850 passed), the index-invariant suites, log-index.test.ts, cli/index-command.test.ts and issues' write.index.*.test.ts included. adr index --help and issues index --help print the same text as origin/main's build, and adr index --check --json and issues index --check --json print the same documents. A changeset bumps ledger minor and adr and issues patch. (4) This close is in the same change.
+data:
+  resolution: done
