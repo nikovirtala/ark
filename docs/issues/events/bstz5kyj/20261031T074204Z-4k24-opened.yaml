@@ -1,0 +1,18 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M68EH5NGHZ59B97CX2AF4K24
+subject: bstz5kyj
+type: opened
+at: 2026-10-31T07:42:04Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Share the for-path lookup and the template listing in ledger
+  template: task
+  template_version: 1
+  parent: mvz52a5s
