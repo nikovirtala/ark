@@ -108,6 +108,7 @@ export {
   readHookRegistry,
   uninstallHooks,
 } from "./hooks/install.js";
+export { hookRegistrations, type ToolHookRegistration } from "./hooks/registrations.js";
 export {
   DEFAULT_HOOK_COMMANDS,
   type HookName,
@@ -317,6 +318,14 @@ export {
 } from "./surfaces/commit-recovery.js";
 export { renderStateHeader, type StateHeader } from "./surfaces/header.js";
 export {
+  type FollowRenames,
+  type PreCommitHookOptions,
+  type PreCommitHookResult,
+  readCommitMessage,
+  runPreCommitHook,
+  stagedEventTrailers,
+} from "./surfaces/hook-steps.js";
+export {
   type ChangedSince,
   changedSince,
   eventsInFoldOrder,
@@ -341,6 +350,15 @@ export {
   searchExcerpt,
   searchTerms,
 } from "./surfaces/text-search.js";
+export {
+  installToolHooks,
+  printToolHooks,
+  type ToolHooksJson,
+  type ToolHooksSpec,
+  toolHookCommands,
+  toolHooksResult,
+  uninstallToolHooks,
+} from "./surfaces/tool-hooks.js";
 export {
   type IndexRun,
   indexAfterHint,
