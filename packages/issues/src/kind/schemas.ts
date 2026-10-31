@@ -1,4 +1,4 @@
-import { eventType, setEventType } from "@nikovirtala/ledger";
+import { eventType, SOURCE_NAME, setEventType } from "@nikovirtala/ledger";
 
 /** An issue's computed state. */
 export type IssueStatus = "open" | "in-progress" | "closed";
@@ -36,7 +36,7 @@ export const RELS: readonly Rel[] = Object.freeze([
 export const LOCAL_ID = "^[0-9a-hjkmnp-tv-z]{8}$";
 
 /** A local subject id, or a qualified `<source>:<id>` one (ledger's `parseQualifiedId` form). */
-export const ISSUE_REF = "^(?:[a-z][a-z0-9-]{0,31}:)?[0-9a-hjkmnp-tv-z]{8}$";
+export const ISSUE_REF = `^(?:${SOURCE_NAME}:)?[0-9a-hjkmnp-tv-z]{8}$` as const;
 
 /** A label: `name` or `prefix:name`; the prefix is what `[labels] exclusive` names. */
 export const LABEL = "^[A-Za-z0-9][A-Za-z0-9._/-]{0,63}(?::[A-Za-z0-9][A-Za-z0-9._/-]{0,63})?$";

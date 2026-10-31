@@ -3,6 +3,7 @@ import {
   eventDir,
   type JsonValue,
   MAX_GLOB_LENGTH,
+  SOURCE_NAME,
   UsageError,
 } from "@nikovirtala/ledger";
 import { type McpTool, type McpToolResult, mcpAttribution } from "@nikovirtala/ledger/mcp";
@@ -150,7 +151,7 @@ function policyRefusal(
 }
 
 /** The `source` input of `adr_list` and `adr_search`: a `[[sources]]` name, read from the cache. */
-const SOURCE = { type: "string", pattern: "^[a-z][a-z0-9-]{0,31}$" } as const;
+const SOURCE = { type: "string", pattern: `^${SOURCE_NAME}$` } as const;
 
 /** The local log, or with `source` that `[[sources]]` entry's cached log. */
 async function readFor(e: AdrMcpEnv, source: string | null) {

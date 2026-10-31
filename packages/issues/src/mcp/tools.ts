@@ -1,4 +1,4 @@
-import { type JsonValue, MAX_GLOB_LENGTH } from "@nikovirtala/ledger";
+import { type JsonValue, MAX_GLOB_LENGTH, SOURCE_NAME } from "@nikovirtala/ledger";
 import { ASSIGNEE, LABEL } from "../kind/schemas.js";
 import { ISSUE_STATES } from "../kind.js";
 import { type IssueLog, openIssueLog, readIssues, readSourceIssues } from "../log.js";
@@ -43,7 +43,7 @@ export const ASSIGNEES: Schema = {
   maxItems: 20,
 };
 /** A `[[sources]]` name, read from the local cache. */
-export const SOURCE: Schema = { type: "string", pattern: "^[a-z][a-z0-9-]{0,31}$" };
+export const SOURCE: Schema = { type: "string", pattern: `^${SOURCE_NAME}$` };
 export const STATES: Schema = {
   type: "array",
   items: { type: "string", enum: [...ISSUE_STATES] },
