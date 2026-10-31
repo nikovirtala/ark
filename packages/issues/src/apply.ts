@@ -13,6 +13,7 @@ import {
   headTree,
   holdsText,
   InvalidArgumentError,
+  indexPath,
   indexReader,
   overlayTree,
   parseEventFileName,
@@ -22,6 +23,8 @@ import {
   type Trailer,
   type TreeReader,
   UsageError,
+  unstagedIndexText,
+  unstagedLogFiles,
   withoutPaths,
   worktreeReader,
   writeEvents,
@@ -29,13 +32,7 @@ import {
   writeNewFile,
 } from "@nikovirtala/ledger";
 import type { IssueLog } from "./log.js";
-import {
-  INDEX_AFTER,
-  INDEX_BEFORE,
-  indexPath,
-  unstagedIndexText,
-  unstagedLogFiles,
-} from "./log-index.js";
+import { INDEX_AFTER, INDEX_BEFORE } from "./log-index.js";
 import type { WritePlan } from "./plan.js";
 
 type Git = IssueLog["git"];
@@ -149,7 +146,7 @@ async function unstagedIndexNote(
   if (files.length === 0) return null;
   const own = await render(await indexReader(log.git), history).catch(() => null);
   if (own === null || own === staged) return null;
-  return `${unstagedIndexText(at, files)}; git add them before you commit, or move them out of the work tree and run issues index`;
+  return `${unstagedIndexText(at, files, "issue")}; git add them before you commit, or move them out of the work tree and run issues index`;
 }
 
 /**

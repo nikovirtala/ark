@@ -6,6 +6,7 @@ import {
   firstLine,
   headTree,
   InvalidArgumentError,
+  indexPath,
   overlayTree,
   readToolConfig,
   renderCommitMessage,
@@ -18,7 +19,7 @@ import {
 } from "@nikovirtala/ledger";
 import { adrKind } from "./kind.js";
 import type { DecisionLog } from "./log.js";
-import { INDEX_AFTER, indexPath, renderDecisionIndex } from "./log-index.js";
+import { INDEX_AFTER, renderDecisionIndex } from "./log-index.js";
 import { SKILL_MD } from "./skill.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
 

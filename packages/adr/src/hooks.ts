@@ -13,6 +13,7 @@ import {
   type HookName,
   holdsText,
   hookSnippet,
+  indexPath,
   installHooks,
   parseEventFileName,
   resolveAttribution,
@@ -25,7 +26,7 @@ import {
 } from "@nikovirtala/ledger";
 import { adrKind } from "./kind.js";
 import type { DecisionLog } from "./log.js";
-import { indexPath, renderDecisionIndex } from "./log-index.js";
+import { renderDecisionIndex } from "./log-index.js";
 import { verifyDecisions } from "./verify.js";
 import { followScopeRenames } from "./write.js";
 

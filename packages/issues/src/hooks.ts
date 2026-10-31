@@ -13,6 +13,7 @@ import {
   type HookName,
   holdsText,
   hookSnippet,
+  indexPath,
   installHooks,
   parseEventFileName,
   resolveAttribution,
@@ -26,7 +27,7 @@ import {
 } from "@nikovirtala/ledger";
 import { issueKind } from "./kind.js";
 import { type IssueLog, readIssues, resolveIssue } from "./log.js";
-import { indexPath, renderIssueIndex } from "./log-index.js";
+import { renderIssueIndex } from "./log-index.js";
 import { verifyIssues } from "./verify.js";
 import { readCurrentIssue } from "./work.js";
 import { followScopeRenames } from "./write.js";
