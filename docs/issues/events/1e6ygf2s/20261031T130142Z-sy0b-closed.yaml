@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M690TEPNK1H86YXCKNQ3SY0B
+subject: 1e6ygf2s
+type: closed
+at: 2026-10-31T13:01:42Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: '(1) Recovery hint: ''ends the recovery hint with the index step when the refused commit writes index.md'' in packages/adr/src/cli/init.test.ts runs adr init --commit with a repo adr.toml of [log] index = "committed" and test-support''s failingPreCommit, and asserts exit 2, that stderr lists docs/adr/index.md, contains INIT_RERUN and ends with INDEX_AFTER("docs/adr"). ''ends the recovery hint with the index step when git refuses the commit'' in the describe ''initIssueLog with a committed index (?38)'' in packages/issues/src/init.test.ts commits init with a failing pre-commit hook and asserts the rejected CommitFailedError''s message lists docs/issues/index.md, contains INIT_RERUN and ends with INDEX_AFTER("docs/issues"). (2) Stale note: ''notes a stale index.md when the refresh after the commit fails'' in both files installs a post-commit hook that replaces <root>/index.md with a directory, so writeIndexCopy throws EISDIR, and asserts the note ''<root>/index.md may be stale: EISDIR: illegal operation on a directory, read; run <tool> index'' after a successful commit. The hooks come from new test-support helpers: postCommit in packages/adr/src/test-support/cli.ts, failingPreCommit and postCommit in packages/issues/src/test-support/cli.ts. (3) All four tests pass on the branch, which is main plus tests, and each fails when its path is removed from init.ts (after: null for the hint, a no-op catch for the note).'
+data:
+  resolution: done
