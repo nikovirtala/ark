@@ -1,0 +1,25 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M68EGFCNF04PP6XZ4ZEDW5NZ
+subject: g4nkb621
+type: scoped
+at: 2026-10-31T07:41:41Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/adr/src/cli/index-command.ts
+    - packages/adr/src/log-index.ts
+    - packages/adr/src/mcp/resources.ts
+    - packages/issues/src/cli/index-command.ts
+    - packages/issues/src/log-index.ts
+    - packages/ledger/README.md
+    - packages/ledger/src/cli/**
+    - packages/ledger/src/index.ts
+    - packages/ledger/src/log-index/**
+    - packages/ledger/src/surfaces/**
