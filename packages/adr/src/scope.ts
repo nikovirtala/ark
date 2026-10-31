@@ -1,13 +1,8 @@
-import { lstat, realpath } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
   type Finding,
-  indexReader,
+  lookupPaths,
   type ScopeVia,
-  scanAnchors,
-  scopeLookup,
-  type TreeReader,
-  UsageError,
+  type UnresolvedAnchor,
   withGitOperation,
 } from "@nikovirtala/ledger";
 import type { DecisionStatus, DecisionView } from "./kind.js";
@@ -28,12 +23,7 @@ export interface DecisionForJson {
 }
 
 /** An anchor naming no decision of this log. */
-export interface UnresolvedAnchorJson {
-  /** The id, or `<source>:<id>` for a qualified anchor. */
-  readonly ref: string;
-  readonly line: number;
-  readonly reason: "not-found" | "other-log";
-}
+export type UnresolvedAnchorJson = UnresolvedAnchor;
 
 /** `adr for <path>… --json` (design §6.9). */
 export interface DecisionsForJson {
@@ -54,8 +44,6 @@ export interface DecisionsForJson {
   readonly notes: readonly string[];
 }
 
-const MAX_PATHS = 100;
-const MAX_PATH_LENGTH = 4096;
 /** Statuses whose globs govern code; rejected and withdrawn decisions were never in force. */
 const GLOBS_APPLY: ReadonlySet<DecisionStatus> = new Set([
   "proposed",
@@ -85,19 +73,6 @@ function compareFor(a: DecisionView, b: DecisionView): number {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
-/** `path` (relative to `cwd`) as a repo-relative POSIX path; `UsageError` outside the work tree. */
-async function repoPath(root: string, cwd: string, path: string): Promise<string> {
-  if (path.length > MAX_PATH_LENGTH) {
-    throw new UsageError(`a path can be at most ${MAX_PATH_LENGTH} characters`);
-  }
-  const base = await realpath(cwd).catch(() => cwd);
-  const rel = relative(root, resolve(base, path));
-  if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
-    throw new UsageError(`${path} is outside the repository`);
-  }
-  return rel.split(sep).join("/");
-}
-
 /**
  * Which decisions govern each path (design §6.9): globs of decisions that were ever in force, and
  * comment anchors of any decision, read from the work tree or, with a `--ref` log, that commit.
@@ -110,85 +85,36 @@ export async function decisionsFor(
   o: { readonly paths: readonly string[]; readonly cwd?: string },
 ): Promise<DecisionsForJson> {
   return withGitOperation(async () => {
-    const root = log.git.root;
-    if (root === null) throw new UsageError("adr for needs a work tree");
-    if (o.paths.length === 0 || o.paths.length > MAX_PATHS) {
-      throw new UsageError(`adr for takes 1 to ${MAX_PATHS} paths`);
-    }
-    let index: Promise<TreeReader> | null = null;
-    const indexed = () => {
-      index ??= indexReader(log.git);
-      return index;
-    };
-    const hasUnder = async (tree: TreeReader, path: string) =>
-      (await tree.list(path)).some((e) => e.path !== path);
-    const paths: string[] = [];
-    for (const given of o.paths) {
-      const path = await repoPath(root, o.cwd ?? root, given);
-      // A work-tree directory is found with lstat, before anything is listed or hashed (a symlink
-      // is a file); a path missing from the work tree is a directory when the index has paths under
-      // it. At a ref, the commit's tree is listed, which hashes nothing.
-      let directory = path === "";
-      if (!directory && read.ref === null) {
-        const st = await lstat(join(root, path)).catch(() => null);
-        directory = st === null ? await hasUnder(await indexed(), path) : st.isDirectory();
-      } else if (!directory) {
-        directory = await hasUnder(read.tree, path);
-      }
-      if (directory) {
-        throw new UsageError(
-          `${given} is a directory; adr for takes file paths, for example adr for $(git ls-files ${given})`,
-        );
-      }
-      if (!paths.includes(path)) paths.push(path);
-    }
-
-    const atRef = read.ref !== null && read.commit !== null;
-    const trackedIn = atRef ? read.tree : await indexed();
-    const tracked = new Set<string>();
-    for (const p of paths) {
-      if ((await trackedIn.list(p)).some((e) => e.path === p)) tracked.add(p);
-    }
-    const anchors = await scanAnchors(log.git, {
+    const views = read.projection.views;
+    const found = await lookupPaths(log.git, {
+      tool: "adr",
+      tree: read.tree,
+      ref: read.ref,
+      commit: read.commit,
+      ...(o.cwd === undefined ? {} : { cwd: o.cwd }),
+      paths: o.paths,
       keyword: read.adr.anchorKeyword,
-      tree: atRef ? { commit: read.commit as string } : "worktree",
-      paths,
       excludeDirs: [read.layout.root],
       exclude: read.adr.anchorExclude,
-    });
-    const views = read.projection.views;
-    const lookup = scopeLookup({
-      subjects: [...views.values()]
+      globSubjects: [...views.values()]
         .filter((v) => GLOBS_APPLY.has(v.status))
         .map((v) => ({ id: v.id, globs: v.applies_to })),
-      anchors,
+      known: (id) => views.get(id) !== undefined,
     });
 
     const listed = new Set<string>();
-    const out = paths.map((path) => {
+    const out = found.map(({ path, tracked, matches, unresolved }) => {
       const decisions: { view: DecisionView; via: readonly ScopeVia[] }[] = [];
-      const unresolved: UnresolvedAnchorJson[] = [];
-      for (const m of lookup(path)) {
-        const view = m.source === null ? views.get(m.id) : undefined;
-        if (view === undefined) {
-          for (const v of m.via) {
-            if (v.type !== "anchor") continue;
-            unresolved.push({
-              ref: m.source === null ? m.id : `${m.source}:${m.id}`,
-              line: v.line,
-              reason: m.source === null ? "not-found" : "other-log",
-            });
-          }
-          continue;
-        }
+      for (const m of matches) {
+        const view = views.get(m.id);
+        if (view === undefined) continue;
         decisions.push({ view, via: m.via });
         listed.add(view.id);
       }
       decisions.sort((a, b) => compareFor(a.view, b.view));
-      unresolved.sort((a, b) => a.line - b.line);
       return {
         path,
-        tracked: tracked.has(path),
+        tracked,
         decisions: decisions.map(
           ({ view: v, via }): DecisionForJson => ({
             id: v.id,
