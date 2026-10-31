@@ -192,6 +192,7 @@ export {
   INDEX_FORMAT,
   type IndexSpec,
   indexCheck,
+  indexNumbering,
   parseIndexNumbers,
   readIndexNumbers,
   renderIndex,
@@ -236,9 +237,11 @@ export {
   setEventType,
 } from "./scope/set.js";
 export {
+  isSourceName,
   MAX_CONFIG_BYTES,
   parseToolConfig,
   readToolConfig,
+  SOURCE_NAME,
   type SourceConfig,
   type ToolConfig,
 } from "./sources/config.js";

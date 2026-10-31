@@ -1,6 +1,6 @@
 import { type JsonValue, UsageError } from "../errors.js";
 import type { Git } from "../git/git.js";
-import type { SourceConfig } from "../sources/config.js";
+import { isSourceName, SOURCE_NAME, type SourceConfig } from "../sources/config.js";
 import { readSources, type SourceStatus } from "../sources/read.js";
 import type { GlobalFlags } from "./flags.js";
 import type { CliIO } from "./output.js";
@@ -25,7 +25,6 @@ export interface SourcesCommandOptions {
   }>;
 }
 
-const NAME = /^[a-z][a-z0-9-]{0,31}$/;
 const MAX_NAMES = 32;
 
 /**
@@ -47,7 +46,9 @@ export function sourcesCommand(o: SourcesCommandOptions): CommandSpec {
         throw new UsageError(`unknown sources action ${JSON.stringify(action)}; use fetch`);
       }
       for (const n of names) {
-        if (!NAME.test(n)) throw new UsageError(`source names must match ${NAME.source}: ${n}`);
+        if (!isSourceName(n)) {
+          throw new UsageError(`source names must match ^${SOURCE_NAME}$: ${n}`);
+        }
       }
       const log = await o.open({ io, flags });
       const wanted = new Set(names);

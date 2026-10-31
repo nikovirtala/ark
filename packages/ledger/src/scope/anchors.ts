@@ -5,6 +5,7 @@
  */
 import { InvalidArgumentError } from "../errors.js";
 import { assertPath, assertRev, type Git, requireWorkTree } from "../git/git.js";
+import { SOURCE_NAME } from "../sources/config.js";
 import { globMatcher, parseGlob } from "./glob.js";
 
 export interface Anchor {
@@ -46,7 +47,10 @@ function endsCleanly(text: string, end: number): boolean {
   return !(next === ":" && ALNUM.test(at(text, end + 1)));
 }
 
-/** A `<source>:` at `i`; the index after the `:`, or -1. */
+/**
+ * A `<source>:` at `i`; the index after the `:`, or -1. Scans `SOURCE_NAME`'s rule character by
+ * character (first character, the rest, at most 32), so it must follow any change to it.
+ */
 function sourceAt(text: string, i: number): number {
   if (!SOURCE_FIRST.test(at(text, i))) return -1;
   let j = i + 1;
@@ -148,7 +152,7 @@ export async function scanAnchors(
   }
   const paths = o.paths === undefined ? ["."] : o.paths.map((p) => `:(literal)${p}`);
   if (paths.length === 0) return [];
-  const pattern = `${o.keyword}:([a-z][a-z0-9-]{0,31}:)?[0-9a-hjkmnp-tv-z]{8}`;
+  const pattern = `${o.keyword}:(${SOURCE_NAME}:)?[0-9a-hjkmnp-tv-z]{8}`;
   const r = await git.run(
     [
       "grep",

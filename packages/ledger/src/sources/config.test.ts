@@ -2,7 +2,14 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { ConfigError } from "../errors.js";
 import { MemoryTree } from "../git/tree.js";
-import { MAX_CONFIG_BYTES, parseToolConfig, readToolConfig, type SourceConfig } from "./config.js";
+import {
+  isSourceName,
+  MAX_CONFIG_BYTES,
+  parseToolConfig,
+  readToolConfig,
+  SOURCE_NAME,
+  type SourceConfig,
+} from "./config.js";
 
 const VALID = `
 title = "decisions"
@@ -85,7 +92,7 @@ describe("parseToolConfig", () => {
       "[[sources]]\nname = 1\nkind = 'adr'\nurl = 'x'\nref = 'main'",
       "sources[0].name must be a string",
     ],
-    [source({ ...base, name: "Platform" }), "sources[0].name must match"],
+    [source({ ...base, name: "Platform" }), "sources[0].name must match ^[a-z][a-z0-9-]{0,31}$"],
     [source({ ...base, name: `p${"x".repeat(32)}` }), "sources[0].name must match"],
     [source({ ...base, kind: "Adr" }), "sources[0].kind must match"],
     [source({ ...base, kind: `a${"x".repeat(64)}` }), "sources[0].kind must match"],
@@ -178,5 +185,19 @@ describe("readToolConfig", () => {
       code: "config",
       file: "big.toml",
     });
+  });
+});
+
+describe("SOURCE_NAME", () => {
+  it("is the unanchored source-name rule", () => {
+    expect(`^${SOURCE_NAME}$`).toBe("^[a-z][a-z0-9-]{0,31}$");
+  });
+
+  it.each(["a", "a-1", `a${"x".repeat(31)}`])("isSourceName accepts %j", (s) => {
+    expect(isSourceName(s)).toBe(true);
+  });
+
+  it.each(["", `a${"x".repeat(32)}`, "1a", "A", "a_b", "a:b"])("isSourceName rejects %j", (s) => {
+    expect(isSourceName(s)).toBe(false);
   });
 });

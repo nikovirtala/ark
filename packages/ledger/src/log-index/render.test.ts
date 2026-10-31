@@ -1,11 +1,12 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { NO_NUMBERING, type Numbering } from "../fold/numbering.js";
+import { NO_INDEX_NUMBERING, NO_NUMBERING, type Numbering } from "../fold/numbering.js";
 import { MemoryTree } from "../git/tree.js";
 import { arbSubjectId } from "../testing/arbitraries.js";
 import {
   escapeMarkdown,
   type IndexSpec,
+  indexNumbering,
   parseIndexNumbers,
   readIndexNumbers,
   renderIndex,
@@ -168,5 +169,29 @@ describe("readIndexNumbers", () => {
     expect(await readIndexNumbers(tree, "log/index.md")).toEqual(new Map([["aaaaaaaa", 1]]));
     expect(await readIndexNumbers(tree, "log/missing.md")).toBeNull();
     expect(await readIndexNumbers(tree, "log/big.md")).toBeNull();
+  });
+});
+
+describe("indexNumbering", () => {
+  it("is NO_INDEX_NUMBERING without an index", () => {
+    expect(indexNumbering(null)).toBe(NO_INDEX_NUMBERING);
+  });
+
+  it("turns the index's numbers into a Numbering", () => {
+    const byId = new Map([
+      ["aaaaaaaa", 1],
+      ["bbbbbbbb", 2],
+    ]);
+    expect(indexNumbering(byId)).toEqual({
+      available: true,
+      reason: "index",
+      ref: null,
+      commit: null,
+      byId,
+      byNumber: new Map([
+        [1, "aaaaaaaa"],
+        [2, "bbbbbbbb"],
+      ]),
+    });
   });
 });
