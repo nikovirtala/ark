@@ -4,6 +4,8 @@
  */
 import { ConfigError, UsageError } from "../errors.js";
 import type { Trailer } from "../git/git.js";
+import { parseEventFileName } from "../identity/files.js";
+import { classifyPath, type LogLayout } from "../identity/layout.js";
 import type { ToolConfig } from "../sources/config.js";
 
 /** The longest description (the subject after a Conventional prefix), in UTF-16 code units. */
@@ -346,6 +348,27 @@ export function joinActions(verbs: readonly string[]): string {
 export interface EventRef {
   readonly subject: string;
   readonly type: string;
+}
+
+/**
+ * The event files among `paths` (such as the staged ones) as (subject, type) refs, in path order
+ * (by subject, then event time), deduplicated by subject and type. Paths that aren't YAML files
+ * directly in a subject's events directory, or whose name doesn't parse, are left out.
+ */
+export function stagedEventRefs(layout: LogLayout, paths: readonly string[]): EventRef[] {
+  const seen = new Set<string>();
+  const out: EventRef[] = [];
+  for (const p of [...new Set(paths)].filter((path) => /\.ya?ml$/.test(path)).sort()) {
+    const c = classifyPath(layout, p);
+    if (c.area !== "event" || c.subject === null || c.file.includes("/")) continue;
+    const name = parseEventFileName(c.file);
+    if (name === null) continue;
+    const key = `${c.subject}\0${name.type}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ subject: c.subject, type: name.type });
+  }
+  return out;
 }
 
 /**
