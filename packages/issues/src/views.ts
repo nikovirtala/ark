@@ -1,20 +1,18 @@
 import {
   type Actor,
-  compareEvents,
   type EventEnvelope,
+  eventsInFoldOrder,
   type Finding,
+  type NumberingJson,
+  numberingJson,
   type StateHeader,
   UsageError,
 } from "@nikovirtala/ledger";
 import type { IssueStatus, IssueView, Rel } from "./kind.js";
 import { type ChangedSince, type IssuesRead, readNotes } from "./log.js";
 
-/** The `numbering` key of the read documents. */
-export interface NumberingJson {
-  readonly available: boolean;
-  readonly reason: "shallow" | "no-main-ref" | "no-index" | "index" | null;
-  readonly ref: string | null;
-}
+/** ledger's `numbering` key of the read documents. */
+export { type NumberingJson, numberingJson } from "@nikovirtala/ledger";
 
 /** `issues list --json`. */
 export interface IssueListJson {
@@ -116,13 +114,6 @@ export interface IssueReadyJson {
   readonly findings: readonly Finding[];
   readonly notes: readonly string[];
 }
-
-/** The `numbering` key of the read documents. */
-export const numberingJson = (read: IssuesRead): NumberingJson => ({
-  available: read.numbering.available,
-  reason: read.numbering.reason,
-  ref: read.numbering.ref,
-});
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
@@ -336,13 +327,7 @@ export function showIssue(
       : (subject?.applied ?? []).flatMap(({ event: e }) =>
           e.type === "commented" ? [{ id: e.id, at: e.at, actor: e.actor, text: e.data.text }] : [],
         );
-  const events =
-    o.history === true
-      ? (subject?.loaded.events ?? [])
-          .flatMap((e) => (e.event === null ? [] : [{ path: e.path, event: e.event }]))
-          .sort((a, b) => compareEvents({ ...a.event, path: a.path }, { ...b.event, path: b.path }))
-          .map((e) => e.event)
-      : null;
+  const events = o.history === true ? eventsInFoldOrder(subject?.loaded.events ?? []) : null;
   return {
     format: "issues-show/v1",
     root: read.root,
