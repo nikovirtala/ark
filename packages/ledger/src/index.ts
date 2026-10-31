@@ -229,6 +229,11 @@ export {
   scopeLookup,
 } from "./scope/lookup.js";
 export {
+  lookupPaths,
+  type PathLookup,
+  type UnresolvedAnchor,
+} from "./scope/paths.js";
+export {
   type FollowResult,
   followRenames,
   type Rename,
@@ -332,6 +337,7 @@ export {
 } from "./surfaces/tool-log.js";
 export { findTemplateVersion, loadTemplates } from "./templates/history.js";
 export { lintDocument, lintTemplate } from "./templates/lint.js";
+export { type ListedTemplate, listKindTemplates } from "./templates/list.js";
 export {
   MAX_TEMPLATE_BYTES,
   parseTemplate,
