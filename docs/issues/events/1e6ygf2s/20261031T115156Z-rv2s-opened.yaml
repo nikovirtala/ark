@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M68WTP7BZW56DR16W77ARV2S
+subject: 1e6ygf2s
+type: opened
+at: 2026-10-31T11:51:56Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Test init's index recovery hint and stale-index note in adr and issues
+  template: task
+  template_version: 1
