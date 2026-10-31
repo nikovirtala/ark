@@ -16,4 +16,11 @@ export {
   readIndexNumbers,
   renderIndex,
 } from "./render.js";
+export {
+  indexPath,
+  type LogIndexInput,
+  renderLogIndex,
+  unstagedIndexText,
+  unstagedLogFiles,
+} from "./tool-render.js";
 export { writeIndexFile } from "./write.js";
