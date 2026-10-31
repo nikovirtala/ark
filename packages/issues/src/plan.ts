@@ -15,6 +15,7 @@ import {
   finding,
   followRenamesChanges,
   InvalidArgumentError,
+  type WritePlan as LedgerWritePlan,
   newEvent as ledgerNewEvent,
   precheck as ledgerPrecheck,
   refusal as ledgerRefusal,
@@ -103,7 +104,7 @@ export interface CommitParts {
 }
 
 /** Everything one write command does, computed without touching git or the disk. */
-export interface WritePlan {
+export interface WritePlan extends LedgerWritePlan {
   readonly command: WriteCommand;
   readonly subject: string;
   /** New files, repo-relative path → bytes, in write order: body, materialized template, events. */
