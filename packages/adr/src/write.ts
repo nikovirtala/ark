@@ -7,23 +7,24 @@ import {
   bodySha256,
   CommitFailedError,
   ConfigError,
-  classifyPath,
+  checkReason,
+  checkText,
+  chooseTemplate,
   commitWithRecovery,
   compileKind,
-  ENVELOPE_VERSION,
   type EventEnvelope,
   EventExistsError,
   type EventRef,
   eventDir,
+  eventFiles,
+  eventPairs,
   eventPath,
   eventTrailers,
   extractSections,
   FileExistsError,
   type Finding,
-  finding,
   firstLine,
-  followRenames,
-  globMatcher,
+  followRenamesChanges,
   headBytes,
   headTree,
   historyTemplates,
@@ -35,16 +36,13 @@ import {
   isSourceName,
   isSubjectId,
   joinActions,
-  type LogLayout,
+  newEvent as ledgerNewEvent,
+  precheck as ledgerPrecheck,
+  refusal as ledgerRefusal,
   lintDocument,
-  lintTemplate,
   newSubjectId,
-  nextEventIdentity,
   overlayTree,
-  parseEventFileName,
   parseGlob,
-  parseTemplate,
-  type Rename,
   type RenderedCommit,
   refReader,
   renderCommitMessage,
@@ -52,16 +50,19 @@ import {
   replaceFile,
   replaceSections,
   type SetOp,
+  type StagedRenames,
   saveCommitRecovery,
-  serializeEvent,
   slugify,
+  stagedEventRefs,
   stagedRenames,
+  subjectView,
   type Template,
   type TemplateSource,
   type Trailer,
   type TreeReader,
   templateHistoryRef,
   UsageError,
+  unmatchedGlobs,
   unstagedIndexText,
   unstagedLogFiles,
   withGitOperation,
@@ -234,53 +235,22 @@ export type PlanResult =
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const compiled = compileKind(adrKind);
-const TEMPLATE_NAME = /^[a-z][a-z0-9-]*$/;
-const MAX_TEXT_BYTES = 64 * 1024;
 const SUBJECT_ATTEMPTS = 5;
 const QUALIFIED_SUPERSESSION = "cross-log supersession isn't supported yet";
 
 const sorted = (xs: Iterable<string>): string[] => [...new Set(xs)].sort();
 const templatePath = (read: DecisionsRead, name: string) => `${read.root}/templates/${name}.md`;
 
-/** A text argument within the 64 KiB cap and without NUL characters, else `UsageError`. */
-function checkText(what: string, text: string): void {
-  if (text.includes("\0")) throw new UsageError(`${what} must not contain NUL characters`);
-  const size = encoder.encode(text).byteLength;
-  if (size > MAX_TEXT_BYTES) {
-    throw new UsageError(`${what} is ${size} bytes; the limit is ${MAX_TEXT_BYTES} (64 KiB)`);
-  }
-}
-
-function checkReason(reason: string | null | undefined): string | null {
-  if (reason === undefined || reason === null) return null;
-  const r = reason.trim();
-  if (r === "") throw new UsageError("--reason must not be empty");
-  checkText("--reason", r);
-  return r;
-}
-
 /** The view of a folded decision, else `UsageError` naming why it can't be used. */
-function viewOf(read: DecisionsRead, id: string): DecisionView {
-  const view = read.projection.views.get(id);
-  if (view !== undefined) return view;
-  if (read.projection.unreadable.includes(id)) {
-    throw new UsageError(`decision ${id} uses a newer format; upgrade adr`);
-  }
-  throw new UsageError(`decision ${id} can't be read; run adr verify`);
-}
+const viewOf = (read: DecisionsRead, id: string): DecisionView =>
+  subjectView(read.projection, id, {
+    unreadable: (id) => `decision ${id} uses a newer format; upgrade adr`,
+    missing: (id) => `decision ${id} can't be read; run adr verify`,
+  });
 
 /** A refusal finding about decision `subject`, on its body (or events directory). */
-function refusal(read: DecisionsRead, rule: string, message: string, subject: string): Finding {
-  const loaded = read.folded.subjects.get(subject)?.loaded;
-  return finding({
-    severity: "error",
-    rule,
-    message,
-    file: loaded?.bodyPaths[0] ?? eventDir(read.layout, subject),
-    subject,
-    kind: adrKind.name,
-  });
-}
+const refusal = (read: DecisionsRead, rule: string, message: string, subject: string) =>
+  ledgerRefusal(read, adrKind.name, rule, message, subject);
 
 /** `"<type> is not allowed while <status>[; <status> is terminal]"`, as the fold words it. */
 function illegal(type: string, status: string): string {
@@ -291,38 +261,11 @@ function illegal(type: string, status: string): string {
 }
 
 /** A new event of `subject`, sorting after its existing ones. */
-function newEvent(
+const newEvent = (
   read: DecisionsRead,
   c: PlanContext,
-  o: {
-    readonly subject: string;
-    readonly type: string;
-    readonly data: Record<string, unknown>;
-    readonly reason?: string | null;
-    readonly actor: Actor;
-    readonly after?: readonly EventEnvelope[];
-  },
-): EventEnvelope {
-  const existing = (read.folded.subjects.get(o.subject)?.loaded.events ?? []).flatMap((e) =>
-    e.event === null ? [] : [e.event],
-  );
-  const { at, id } = nextEventIdentity([...existing, ...(o.after ?? [])], {
-    now: c.now,
-    ...(c.random === undefined ? {} : { random: c.random }),
-  });
-  return {
-    envelope: ENVELOPE_VERSION,
-    kind: adrKind.name,
-    schema: adrKind.schema,
-    id,
-    subject: o.subject,
-    type: o.type,
-    at,
-    actor: o.actor,
-    ...(o.reason === undefined || o.reason === null ? {} : { reason: o.reason }),
-    data: o.data,
-  };
-}
+  o: Parameters<typeof ledgerNewEvent>[3],
+): EventEnvelope => ledgerNewEvent(read, c, adrKind, o);
 
 /** Body, events directory and recorded template of each involved subject (D6). */
 function commitScope(
@@ -343,80 +286,27 @@ function commitScope(
   return { scope: sorted([...paths, ...dirs]), eventDirs: sorted(dirs) };
 }
 
-const findingKey = (f: Finding) => [f.rule, f.subject ?? "", f.file ?? "", f.message].join("\0");
-
 /**
- * The precheck (§6.3): folds the would-be log and refuses when the write adds any finding. Problems
- * that were already there don't block; the write can only add findings about what it touches.
+ * The precheck (§6.3): folds the would-be log and gives the findings the write adds; adr refuses
+ * any. Problems that were already there don't block; the write can only add findings about what
+ * it touches.
  */
-async function precheck(
+const precheck = (
   read: DecisionsRead,
   files: Readonly<Record<string, Uint8Array>>,
   replace: Readonly<Record<string, Uint8Array>> = {},
-): Promise<{ after: DecisionsRead; added: Finding[] }> {
-  const after = await readDecisionsFrom(overlayTree(read.tree, { ...files, ...replace }), {
-    layout: read.layout,
-    adr: read.adr,
-    numbering: read.numbering,
-    ref: read.ref,
-    commit: read.commit,
-    notes: read.notes,
-    sources: read.sources,
-  });
-  const before = new Set(read.findings.map(findingKey));
-  return { after, added: after.findings.filter((f) => !before.has(findingKey(f))) };
-}
-
-function filesOf(
-  events: readonly EventEnvelope[],
-  read: DecisionsRead,
-): Record<string, Uint8Array> {
-  return Object.fromEntries(
-    events.map((e) => [eventPath(read.layout, e), encoder.encode(serializeEvent(e))]),
+) =>
+  ledgerPrecheck(read, files, replace, (tree) =>
+    readDecisionsFrom(tree, {
+      layout: read.layout,
+      adr: read.adr,
+      numbering: read.numbering,
+      ref: read.ref,
+      commit: read.commit,
+      notes: read.notes,
+      sources: read.sources,
+    }),
   );
-}
-
-const pairsOf = (events: readonly EventEnvelope[]): Trailer[] =>
-  events.flatMap((e): Trailer[] => [
-    ["ADR", e.subject],
-    ["ADR-Event", e.type],
-  ]);
-
-/** The template `new` uses: the repo's `<root>/templates/<name>.md`, else a built-in to copy. */
-async function chooseTemplate(
-  read: DecisionsRead,
-  name: string,
-  c: PlanContext,
-): Promise<
-  | { ok: true; template: Template; materialize: string | null; path: string }
-  | { ok: false; findings: Finding[] }
-> {
-  if (name.length > 64 || !TEMPLATE_NAME.test(name)) {
-    throw new UsageError(`invalid template name ${JSON.stringify(name)}`);
-  }
-  const path = templatePath(read, name);
-  const bytes = await read.tree.read(path);
-  let text: string;
-  let materialize: string | null = null;
-  if (bytes !== null) {
-    text = decoder.decode(bytes);
-  } else {
-    const builtin = Object.hasOwn(c.builtins, name) ? c.builtins[name] : undefined;
-    if (builtin === undefined) {
-      const known = Object.keys(c.builtins).sort().join(", ");
-      throw new UsageError(`unknown template ${name}; add ${path} or use one of ${known}`);
-    }
-    text = builtin;
-    materialize = builtin;
-  }
-  const parsed = parseTemplate(text, { path });
-  if (!parsed.ok) return { ok: false, findings: parsed.findings };
-  const lint = lintTemplate(parsed.template, {
-    requireSections: adrKind.def.templates?.requireSections ?? [],
-  });
-  if (lint.length > 0) return { ok: false, findings: lint };
-  return { ok: true, template: parsed.template, materialize, path };
-}
 
 /**
  * Plans `adr new`: a rendered body, a materialized template if needed, and `proposed`. With
@@ -440,7 +330,13 @@ export async function planPropose(
       return resolveDecision(read, s);
     }),
   );
-  const chosen = await chooseTemplate(read, input.template ?? read.adr.defaultTemplate, c);
+  const chosen = await chooseTemplate(
+    read.tree,
+    read.root,
+    input.template ?? read.adr.defaultTemplate,
+    c.builtins,
+    adrKind.def.templates?.requireSections ?? [],
+  );
   if (!chosen.ok) return { ok: false, decision: null, findings: chosen.findings };
   const t = chosen.template;
   const sections = input.sections ?? {};
@@ -480,7 +376,7 @@ export async function planPropose(
   const body = encoder.encode(rendered.text);
   const files: Record<string, Uint8Array> = { [bodyPath]: body };
   if (chosen.materialize !== null) files[chosen.path] = encoder.encode(chosen.materialize);
-  Object.assign(files, filesOf([event], read));
+  Object.assign(files, eventFiles(read.layout, [event]));
 
   const { after, added } = await precheck(read, files);
   if (added.length > 0) return { ok: false, decision: null, findings: added };
@@ -498,7 +394,7 @@ export async function planPropose(
       eventDirs,
       draft: { path: bodyPath, rendered: body, template: t },
       commit: { action: ACTIONS.proposed.action, title, id, display: id, body: [] },
-      trailers: pairsOf([event]),
+      trailers: eventPairs([event], TRAILER_KEYS),
       decision: viewOf(after, id),
       affected: [],
       findings: lint,
@@ -797,7 +693,7 @@ export async function planAccept(
   }
   const sources = copied === null ? [] : scopeToCopy(read, id).sources;
   const events = [accepted, ...(copied === null ? [] : [copied]), ...cascade];
-  const files = filesOf(events, read);
+  const files = eventFiles(read.layout, events);
   const { after, added } = await precheck(read, files);
   if (added.length > 0) return refused(added);
   const involved = sorted([id, ...targets]);
@@ -839,7 +735,7 @@ export async function planAccept(
           ...sources.map((t) => `Copies the scope of ${viewOf(read, t).display}.`),
         ],
       },
-      trailers: pairsOf(events),
+      trailers: eventPairs(events, TRAILER_KEYS),
       decision: viewOf(after, id),
       affected: targets.map((t) => viewOf(after, t)),
       findings: [],
@@ -953,7 +849,7 @@ export async function planSupersede(
     reason,
     actor: input.actor,
   });
-  const files = filesOf([event], read);
+  const files = eventFiles(read.layout, [event]);
   const { after, added } = await precheck(read, files);
   if (added.length > 0) return refused(added);
   const involved = sorted([id, by]);
@@ -977,7 +873,7 @@ export async function planSupersede(
         display: view.display,
         body: [`Superseded by ${target.display}: ${sentenceTitle(target.title)}.`],
       },
-      trailers: pairsOf([event]),
+      trailers: eventPairs([event], TRAILER_KEYS),
       decision: viewOf(after, id),
       affected: [viewOf(after, id)],
       findings: [],
@@ -1037,7 +933,7 @@ export async function planEvent(
   if (!valid.ok) {
     return refused(valid.findings.map((f) => ({ ...f, subject: id, kind: adrKind.name })));
   }
-  const files = filesOf([event], read);
+  const files = eventFiles(read.layout, [event]);
   const { after, added } = await precheck(read, files);
   if (added.length > 0) return refused(added);
   const by = input.type === "superseded" ? String(input.data.by) : null;
@@ -1062,7 +958,7 @@ export async function planEvent(
         display: view.display,
         body: reason === null ? [] : [`Reason: ${reason}`],
       },
-      trailers: pairsOf([event]),
+      trailers: eventPairs([event], TRAILER_KEYS),
       decision: viewOf(after, id),
       affected: input.type === "superseded" ? [viewOf(after, id)] : [],
       findings: [],
@@ -1237,13 +1133,6 @@ export interface ScopeInput {
 /** `ADR-0003 (k3f9q8a1)`, or the id alone when the decision has no number. */
 const namedView = (v: DecisionView) => (v.display === v.id ? v.id : `${v.display} (${v.id})`);
 
-/** The globs of `globs` that match none of `files`. */
-function unmatchedGlobs(globs: readonly string[], files: readonly string[]): string[] {
-  const matches = globMatcher(globs);
-  const hit = new Set(files.flatMap((f) => matches(f)));
-  return globs.filter((g) => !hit.has(g));
-}
-
 /**
  * Plans `adr scope` with a set operation (design §6.8): one `scoped` event with the whole new set
  * while proposed, accepted or deprecated, or nothing when the set doesn't change. Invalid globs,
@@ -1365,7 +1254,7 @@ async function planScopeEvents(
     }
     events.push(event);
   }
-  const files = filesOf(events, read);
+  const files = eventFiles(read.layout, events);
   const { after, added } = await precheck(read, files);
   if (added.length > 0) return { ok: false, decision: given, findings: added };
   const involved = sorted(changes.map((ch) => ch.id));
@@ -1383,7 +1272,7 @@ async function planScopeEvents(
       eventDirs,
       draft: null,
       commit: null,
-      trailers: pairsOf(events),
+      trailers: eventPairs(events, TRAILER_KEYS),
       decision: input.id === null ? null : viewOf(after, input.id),
       affected: changes.map((ch) => viewOf(after, ch.id)),
       findings: [],
@@ -1419,13 +1308,6 @@ function emptyPlan(
   };
 }
 
-/** The renamed files and the tracked files before and after them (design §3.4). */
-interface StagedRenames {
-  readonly renames: readonly Rename[];
-  readonly before: readonly string[];
-  readonly after: readonly string[];
-}
-
 /**
  * Plans `adr scope [<decision>] --follow-renames` (design §6.8 steps 1–4): the given decision's
  * globs, or every decision's, rewritten by `followRenames`. Decisions whose status forbids
@@ -1449,37 +1331,16 @@ async function planFollowRenames(
     };
   }
   const views = given !== null ? [given] : [...read.projection.views.values()];
-  const notes: string[] = [];
-  const changes: { id: string; set: readonly string[] }[] = [];
-  for (const view of [...views].sort((a, b) => (a.id < b.id ? -1 : 1))) {
-    const result = followRenames({ globs: view.applies_to, ...staged });
-    if (!result.changed) continue;
-    const named = namedView(view);
-    if (!adrKind.machine.allowed(view.status, "scoped")) {
-      const covers = globMatcher(view.applies_to);
-      const leaving = staged.renames.filter((r) => covers(r.from).length > 0).length;
-      notes.push(
-        `${named} is ${view.status}; its scope can't follow renames (${leaving} renamed files leave it)`,
-      );
-      continue;
-    }
-    if (result.globs.length > 200) {
-      throw new UsageError(
-        `following the renames gives ${named} ${result.globs.length} globs; the limit is 200`,
-      );
-    }
-    for (const s of result.skipped) {
-      notes.push(
-        `${s.to} can't be written as a scope glob (${s.problem}); ${named} no longer covers it`,
-      );
-    }
-    for (const path of result.gained) {
-      notes.push(
-        `${path} is now covered by ${named}'s scope but wasn't before the rename; check it`,
-      );
-    }
-    changes.push({ id: view.id, set: result.globs });
-  }
+  const followed = followRenamesChanges(views, staged, {
+    named: namedView,
+    blocked: (view, leaving) =>
+      adrKind.machine.allowed(view.status, "scoped")
+        ? null
+        : `${namedView(view)} is ${view.status}; its scope can't follow renames (${leaving} renamed files leave it)`,
+    change: (view, globs) => ({ change: { id: view.id, set: globs } }),
+  });
+  if (!followed.ok) return followed.stop;
+  const { changes, notes } = followed;
   if (changes.length === 0) return emptyPlan(id ?? "", given, notes);
   const r = await planScopeEvents(read, changes, { id, actor: input.actor }, c);
   return r.ok ? { ok: true, plan: { ...r.plan, notes } } : r;
@@ -1820,27 +1681,6 @@ export async function applyPlan(
 
 /** The `ADR`/`ADR-Event` trailer keys. */
 const TRAILER_KEYS = { subject: "ADR", event: "ADR-Event" } as const;
-
-/**
- * The staged event files among `paths` as (decision, type) refs, in path order (by decision,
- * then event time), deduplicated by decision and type.
- */
-function stagedEventRefs(layout: LogLayout, paths: readonly string[]): EventRef[] {
-  const found: EventRef[] = [];
-  for (const p of sorted(paths.filter(isYaml))) {
-    const c = classifyPath(layout, p);
-    if (c.area !== "event" || c.subject === null || c.file.includes("/")) continue;
-    const name = parseEventFileName(c.file);
-    if (name !== null) found.push({ subject: c.subject, type: name.type });
-  }
-  const seen = new Set<string>();
-  return found.filter((r) => {
-    const key = `${r.subject}\0${r.type}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
 
 /** The new bytes of each file a plan replaces. */
 const replaceBytes = (plan: WritePlan): Record<string, Uint8Array> =>
