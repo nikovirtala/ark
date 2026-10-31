@@ -373,6 +373,13 @@ export {
   type ToolWriteOptions,
 } from "./surfaces/tool-index.js";
 export {
+  initToolLog,
+  namesSkill,
+  type ToolInitOptions,
+  type ToolInitResult,
+  type ToolInitSpec,
+} from "./surfaces/tool-init.js";
+export {
   type NumberingKeys,
   openToolLog,
   parseNumberingKeys,
