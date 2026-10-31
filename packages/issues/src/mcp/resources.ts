@@ -1,13 +1,15 @@
-import { resolveSubjectInput, UsageError } from "@nikovirtala/ledger";
-import type { McpResource, McpResourceTemplate } from "@nikovirtala/ledger/mcp";
+import { resolveSubjectInput } from "@nikovirtala/ledger";
+import {
+  checkResourceId,
+  type McpResource,
+  type McpResourceTemplate,
+} from "@nikovirtala/ledger/mcp";
 import { issueKind } from "../kind.js";
 import { type IssuesRead, readIssues, resolveIssue } from "../log.js";
 import { renderIssueIndexText } from "../log-index.js";
 import { readyIssues, showIssue } from "../views.js";
 import { mcpHeader } from "./text.js";
 import { type IssuesMcpEnv, openLog } from "./tools.js";
-
-const MAX_ID = 64;
 
 /**
  * Where an MCP client reads an issue: `issues://issue/17` when numbered (the bare number, since a
@@ -70,11 +72,7 @@ export function issueResource(e: IssuesMcpEnv): McpResourceTemplate {
       "One issue: its state header, then its description. {id} is the id (6930v8w9), the number (4), or %3F4 for ?4",
     mimeType: "text/markdown",
     async read({ id = "" }) {
-      if (id.length > MAX_ID) {
-        throw new UsageError(
-          `invalid issue ${JSON.stringify(`${id.slice(0, MAX_ID)}…`)}: an id or number is at most ${MAX_ID} characters`,
-        );
-      }
+      checkResourceId(id, "issue");
       const read = await readIssues(await openLog(e));
       const r = resolveSubjectInput(id, {
         subjects: new Set(read.folded.subjects.keys()),

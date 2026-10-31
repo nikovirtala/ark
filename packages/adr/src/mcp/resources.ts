@@ -1,13 +1,15 @@
-import { resolveSubjectInput, UsageError } from "@nikovirtala/ledger";
-import type { McpResource, McpResourceTemplate } from "@nikovirtala/ledger/mcp";
+import { resolveSubjectInput } from "@nikovirtala/ledger";
+import {
+  checkResourceId,
+  type McpResource,
+  type McpResourceTemplate,
+} from "@nikovirtala/ledger/mcp";
 import { adrKind } from "../kind.js";
 import { type DecisionsRead, readDecisions, resolveDecision } from "../log.js";
 import { renderDecisionIndexText } from "../log-index.js";
 import { showDecision } from "../views.js";
 import { mcpHeader } from "./text.js";
 import { type AdrMcpEnv, openLog } from "./tools.js";
-
-const MAX_ID = 64;
 
 /**
  * Where an MCP client reads a decision: `adr://decision/ADR-0012` when numbered, else
@@ -45,11 +47,7 @@ export function decisionResource(e: AdrMcpEnv): McpResourceTemplate {
       "One decision: its state header, then its body. {id} is the id (k3f9q8a1), the number (12) or ADR-0012",
     mimeType: "text/markdown",
     async read({ id = "" }) {
-      if (id.length > MAX_ID) {
-        throw new UsageError(
-          `invalid decision ${JSON.stringify(`${id.slice(0, MAX_ID)}…`)}: an id or number is at most ${MAX_ID} characters`,
-        );
-      }
+      checkResourceId(id, "decision");
       const read = await readDecisions(await openLog(e));
       const r = resolveSubjectInput(id, {
         subjects: new Set(read.folded.subjects.keys()),

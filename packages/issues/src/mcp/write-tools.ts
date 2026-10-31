@@ -1,5 +1,20 @@
 import { type JsonValue, type SetOp, UsageError } from "@nikovirtala/ledger";
-import { type McpTool, type McpToolResult, mcpAttribution } from "@nikovirtala/ledger/mcp";
+import {
+  doc,
+  GLOBS,
+  ID,
+  type McpSchema,
+  type McpTool,
+  type McpToolResult,
+  mcpAttribution,
+  object,
+  SECTIONS,
+  sectionsOf,
+  str,
+  strings,
+  TEXT,
+  WRITE,
+} from "@nikovirtala/ledger/mcp";
 import { RELS } from "../kind/schemas.js";
 import { type IssueLog, readIssues, resolveIssue } from "../log.js";
 import {
@@ -18,32 +33,9 @@ import {
   unlinkIssue,
 } from "../write.js";
 import { type WriteTextOptions, writeText } from "./text.js";
-import {
-  ASSIGNEES,
-  doc,
-  GLOBS,
-  ID,
-  type IssuesMcpEnv,
-  LABELS,
-  object,
-  openLog,
-  REF,
-  type Schema,
-  SECTIONS,
-  str,
-  strings,
-  TEXT,
-  WRITE,
-} from "./tools.js";
+import { ASSIGNEES, type IssuesMcpEnv, LABELS, openLog, REF } from "./tools.js";
 
 const TITLE = { type: "string", minLength: 1, maxLength: 200 } as const;
-
-const sectionsOf = (v: JsonValue | undefined): Record<string, string> =>
-  typeof v === "object" && v !== null && !Array.isArray(v)
-    ? Object.fromEntries(
-        Object.entries(v).flatMap(([k, x]) => (typeof x === "string" ? [[k, x]] : [])),
-      )
-    : {};
 
 /** How the set tools' messages name `set`, `add`, `remove` and clearing: as their inputs. */
 const MCP_NAMES = { set: "set", add: "add", remove: "remove", clear: "set: []" } as const;
@@ -299,7 +291,7 @@ function setTool(
     readonly name: string;
     readonly title: string;
     readonly description: string;
-    readonly items: Schema;
+    readonly items: McpSchema;
     readonly write: (
       log: IssueLog,
       input: SetIssueInput,
