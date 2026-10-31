@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M69076Y5EEGRXDC0CBHPX1PY
+subject: bstz5kyj
+type: closed
+at: 2026-10-31T12:51:12Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: (1) packages/ledger/src/index.ts exports lookupPaths with the PathLookup and UnresolvedAnchor types (packages/ledger/src/scope/paths.ts) and listKindTemplates with ListedTemplate (packages/ledger/src/templates/list.ts, importing only layers 0 to 4 as layers.test.ts checks); ledger's README documents them in the Scope Lookup bullet and the Other layers Templates bullet, and scope/paths.test.ts (path count and length, outside the repository, directories in the work tree, only in the index and at a ref, a symlink as a file, cwd and duplicates, tracked in the index and at a ref, glob and anchor matches, other-log and not-found, a known subject outside globSubjects still matching) and templates/list.test.ts (built-ins, sorting, lint and parse failures shadowing their built-in) test them. (2) adr's and issues' scope.ts call lookupPaths and keep only their globSubjects filter (GLOBS_APPLY, ACTIVE), issues' shown filter, ordering and per-path fields; their templates/list.ts call listKindTemplates with the kind's requireSections and add format, root, default, kind and notes. grep finds no repoPath, MAX_PATH_LENGTH, lstat, loadTemplates or listing loop in packages/adr/src/scope.ts, packages/issues/src/scope.ts, packages/adr/src/templates/list.ts or packages/issues/src/templates/list.ts; UnresolvedAnchorJson and UnresolvedIssueAnchorJson alias UnresolvedAnchor with the same shape. (3) git diff origin/main on packages/adr/src and packages/issues/src test files is empty, and the adr (56 files) and issues (80 files) suites pass, with ledger's (94 files). A minor @nikovirtala/ledger changeset names the new exports. (4) This close is in the same change.
+data:
+  resolution: done
