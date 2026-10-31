@@ -8,6 +8,23 @@
  */
 export { LedgerError, UsageError } from "../errors.js";
 export { mcpAgentName, mcpAttribution } from "./attribution.js";
+export {
+  checkResourceId,
+  doc,
+  GLOBS,
+  ID,
+  MAX_ID,
+  type McpSchema,
+  object,
+  READ,
+  SECTIONS,
+  SOURCE,
+  sectionsOf,
+  str,
+  strings,
+  TEXT,
+  WRITE,
+} from "./inputs.js";
 export { serveMcp } from "./serve.js";
 export type {
   McpAnnotations,
