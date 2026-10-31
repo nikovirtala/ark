@@ -1,5 +1,21 @@
 # @nikovirtala/issues
 
+## 0.5.5
+
+### Patch Changes
+
+- ecbc2fe: A `[[sources]]` entry may point at a SHA-256 repository. Each source cache uses its source's object format, and a cache whose format no longer matches its source is recreated. `Git.initBare` takes `{ objectFormat }`.
+  
+  Changed behaviour:
+  - A SHA-256 source fetches, pins and reads instead of failing with `cannot fetch source … mismatched algorithms`.
+  - A cache whose source changed object format is recreated, and its old pin is dropped instead of being served as stale.
+- bbbcbb1: `issues list --source <name>`, `issues search --source <name>` and `adr list --source <name>` print only the `<name> not fetched` note for a `[[sources]]` entry that isn't fetched, without also saying that numbers are unavailable because there is no main branch.
+- Updated dependencies [ecbc2fe]
+- Updated dependencies [bbbcbb1]
+- Updated dependencies [bbbcbb1]
+  - @nikovirtala/ledger@0.13.0
+  - @nikovirtala/adr@0.5.9
+
 ## 0.5.4
 
 ### Patch Changes
