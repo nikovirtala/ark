@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M69D6CEKXKQE6MX4MPPFVEJ0
+subject: 4134kcnt
+type: closed
+at: 2026-10-31T16:37:56Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: '(1) packages/ledger/src/mcp/inputs.ts defines McpSchema, MAX_ID, ID, TEXT, SECTIONS, GLOBS, SOURCE, object, READ, WRITE, str, strings, sectionsOf, doc and checkResourceId, exported from @nikovirtala/ledger/mcp (mcp/index.ts; inputs.ts imports only errors, scope/glob and sources/config, as layers.test.ts checks); ledger''s README documents them in the MCP section''s Inputs bullet and the entry list, and mcp/inputs.test.ts tests them (each schema compiled with compileInputSchema at its limits: ID at 64, 65 and empty, TEXT, SECTIONS keys and 51 properties, GLOBS 501-character glob and 201 items, SOURCE anchored with Bad and 33 characters; object''s required and additionalProperties; str, strings, sectionsOf and doc on mixed inputs; checkResourceId at 64 and 65 characters with the exact message for decision and issue). (2) adr''s mcp/tools.ts and issues'' mcp/read-tools.ts and write-tools.ts import them from @nikovirtala/ledger/mcp, and both mcp/resources.ts call checkResourceId(id, "decision") and checkResourceId(id, "issue"); issues'' tools.ts keeps only REF, LABELS, ASSIGNEES, STATES, LIMIT, int, readFor and openLog. grep finds no MAX_ID, 65_536, maxProperties: 50, MAX_GLOB_LENGTH, SOURCE_NAME, type Schema, str, strings, sectionsOf or doc helper definitions in packages/adr/src/mcp or packages/issues/src/mcp. The resolveSubjectInput call and its not-found return after the guard stay in each resources.ts: they need the tool''s own kind and folded read, which checkResourceId(id, noun) does not take, so lifting them is left for a later resource change. (3) The only test file change in packages/adr/src and packages/issues/src is issues'' mcp/source-schema.test.ts, which checks issues_list''s and issues_search''s source input instead of the removed SOURCE constant, with the same expected schema; the adr (56 files) and issues (80 files) suites pass, with ledger''s (95 files). A minor @nikovirtala/ledger changeset names the new exports. (4) This close is in the same change.'
+data:
+  resolution: done
