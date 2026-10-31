@@ -10,4 +10,5 @@ Move the helper that turns a source's committed index numbers into a `Numbering`
 ## Done when
 - ledger exports one helper that turns a source's committed index numbers into a `Numbering`, and one source-name pattern or validator.
 - adr and issues use them, and no copy of either remains in adr, issues or ledger's `sources-command.ts`.
+- ledger's `sources/qualified-id.ts` and `scope/anchors.ts` build their source-name part from the shared pattern, and so do the MCP `SOURCE` schemas of adr and issues and issues' `ISSUE_REF`, whose schema strings don't change.
 - The PR that does this closes the issue in the same change, with a reason saying how each of these conditions was met.

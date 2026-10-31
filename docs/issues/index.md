@@ -7,8 +7,13 @@
 | --- | --- | --- | --- | --- |
 | ?1 | [Garbage-collect unused source caches](items/65qt4pp3-garbage-collect-unused-source-caches.md) |  |  | 2026-10-26 |
 | ?12 | [Share the index-numbering and source-name helpers in ledger](items/3gyr85xq-share-the-index-numbering-and-source-name-helpers-in-ledger.md) |  |  | 2026-10-27 |
-| ?29 | [Find what adr and issues implement the same way](items/mvz52a5s-find-what-adr-and-issues-implement-the-same-way.md) |  |  | 2026-10-30 |
 | ?37 | [Order the index's recently closed issues newest first](items/838e32bj-order-the-indexs-recently-closed-issues-newest-first.md) |  | type:bug | 2026-10-31 |
+
+## Open
+
+| Issue | Title | Assignees | Labels | Since |
+| --- | --- | --- | --- | --- |
+| ?29 | [Find what adr and issues implement the same way](items/mvz52a5s-find-what-adr-and-issues-implement-the-same-way.md) |  |  | 2026-10-30 |
 
 ## Recently closed
 
