@@ -52,7 +52,8 @@ function hasControlChar(s: string): boolean {
   return false;
 }
 
-function isTable(v: unknown): v is Record<string, unknown> {
+/** Whether `v` is a TOML table: an object that isn't an array or a date. */
+export function isTable(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v) && !(v instanceof Date);
 }
 

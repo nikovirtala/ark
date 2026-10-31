@@ -318,7 +318,18 @@ export {
   runLogIndex,
   type ToolWriteOptions,
 } from "./surfaces/tool-index.js";
-export { openToolLog, type ToolLog, type ToolLogOptions } from "./surfaces/tool-log.js";
+export {
+  type NumberingKeys,
+  openToolLog,
+  parseNumberingKeys,
+  parseSharedKeys,
+  type SharedKeyOptions,
+  type SharedKeys,
+  type ToolConfigReader,
+  type ToolLog,
+  type ToolLogOptions,
+  toolConfigReader,
+} from "./surfaces/tool-log.js";
 export { findTemplateVersion, loadTemplates } from "./templates/history.js";
 export { lintDocument, lintTemplate } from "./templates/lint.js";
 export {
