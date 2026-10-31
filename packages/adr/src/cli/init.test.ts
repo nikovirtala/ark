@@ -3,9 +3,10 @@ import { join } from "node:path";
 import type { TempRepo } from "@nikovirtala/ledger/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import { agentsPointer, INIT_RERUN } from "../init.js";
+import { INDEX_AFTER } from "../log-index.js";
 import { SKILL_MD } from "../skill.js";
 import { BUILTIN_TEMPLATES } from "../templates/builtin.js";
-import { cliRepo, failingPreCommit, hintCommand, runAdr } from "../test-support/cli.js";
+import { cliRepo, failingPreCommit, hintCommand, postCommit, runAdr } from "../test-support/cli.js";
 
 const repos: TempRepo[] = [];
 afterEach(async () => {
@@ -21,6 +22,8 @@ async function git(r: TempRepo, ...args: string[]): Promise<string> {
 }
 const read = (r: TempRepo, path: string) => readFile(join(r.root, path), "utf8");
 
+/** A repo adr.toml that makes the log commit its index, so init writes `docs/adr/index.md`. */
+const COMMITTED_INDEX = '[log]\nindex = "committed"\n';
 const INIT_KEYS = ["commit", "config", "format", "kept", "notes", "root", "skill", "written"];
 type InitDoc = {
   format: string;
@@ -199,6 +202,29 @@ describe("adr init", { timeout: 60_000 }, () => {
     const again = runAdr(r, ["init", "--commit"]);
     expect(again.status).toBe(0);
     expect(await git(r, "rev-parse", "HEAD")).toBe(before);
+  });
+
+  it("ends the recovery hint with the index step when the refused commit writes index.md", async () => {
+    const r = await repo({ "adr.toml": COMMITTED_INDEX });
+    await failingPreCommit(r);
+    const out = runAdr(r, ["init", "--commit"]);
+    expect(out.status).toBe(2);
+    expect(out.stderr).toContain("  docs/adr/index.md\n");
+    expect(out.stderr).toContain(INIT_RERUN);
+    expect(out.stderr.endsWith(`${INDEX_AFTER("docs/adr")}\n`)).toBe(true);
+  });
+
+  it("notes a stale index.md when the refresh after the commit fails", async () => {
+    const r = await repo({ "adr.toml": COMMITTED_INDEX });
+    // writeIndexCopy then reads a directory: EISDIR.
+    await postCommit(r, "rm docs/adr/index.md && mkdir docs/adr/index.md");
+    const out = runAdr(r, ["init", "--commit", "--json"]);
+    expect(out.status, out.stderr).toBe(0);
+    const d = doc(out.stdout);
+    expect(d.commit).not.toBeNull();
+    expect(d.notes).toContain(
+      "docs/adr/index.md may be stale: EISDIR: illegal operation on a directory, read; run adr index",
+    );
   });
 
   it("exits 2 for an unknown template and for --ref, writing nothing", async () => {

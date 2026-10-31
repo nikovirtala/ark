@@ -3,19 +3,22 @@ import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 import { promisify } from "node:util";
-import { parseToolConfig, UsageError } from "@nikovirtala/ledger";
+import { CommitFailedError, parseToolConfig, UsageError } from "@nikovirtala/ledger";
 import { createTempRepo, type TempRepo } from "@nikovirtala/ledger/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_ISSUES_CONFIG, parseIssuesConfig } from "./config.js";
-import { agentsPointer, initIssueLog, namesSkill, starterConfig } from "./init.js";
+import { agentsPointer, INIT_RERUN, initIssueLog, namesSkill, starterConfig } from "./init.js";
 import { openIssueLog } from "./log.js";
+import { INDEX_AFTER } from "./log-index.js";
 import { SKILL_MD } from "./skill.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
+import { failingPreCommit, postCommit } from "./test-support/cli.js";
 import {
   assertInvariants,
   CONFIG,
   INDEX,
   newIssue,
+  ROOT,
   stagedBlobs,
 } from "./test-support/index-invariant.js";
 
@@ -197,6 +200,28 @@ describe("initIssueLog with a committed index (?38)", () => {
     const doc = await initIssueLog(await open(r));
     expect(doc).toMatchObject({ written: [INDEX], commit: null });
     expect(await readFile(join(r.root, INDEX), "utf8")).toContain("Not committed yet");
+  });
+
+  it("ends the recovery hint with the index step when git refuses the commit", async () => {
+    const r = await uncommittedIssue();
+    await failingPreCommit(r);
+    const err = await initIssueLog(await open(r), { commit: true }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(CommitFailedError);
+    const message = (err as CommitFailedError).message;
+    expect(message).toContain(`  ${INDEX}\n`);
+    expect(message).toContain(INIT_RERUN);
+    expect(message.endsWith(INDEX_AFTER(ROOT))).toBe(true);
+  });
+
+  it("notes a stale index.md when the refresh after the commit fails", async () => {
+    const r = await uncommittedIssue();
+    // writeIndexCopy then reads a directory: EISDIR.
+    await postCommit(r, `rm ${INDEX} && mkdir ${INDEX}`);
+    const doc = await initIssueLog(await open(r), { commit: true });
+    expect(doc.commit).not.toBeNull();
+    expect(doc.notes).toContain(
+      "docs/issues/index.md may be stale: EISDIR: illegal operation on a directory, read; run issues index",
+    );
   });
 });
 

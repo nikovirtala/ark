@@ -114,6 +114,15 @@ export async function failingPreCommit(repo: TempRepo): Promise<string> {
   return path;
 }
 
+/** Installs a `post-commit` hook that runs `script` (sh) in the work tree's top; its path. */
+export async function postCommit(repo: TempRepo, script: string): Promise<string> {
+  const path = join(repo.git.gitDir, "hooks", "post-commit");
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, `#!/bin/sh\n${script}\n`);
+  await chmod(path, 0o755);
+  return path;
+}
+
 /** The manual commit command of a `commit-failed` hint (design 2b D5), from adr's stderr. */
 export function hintCommand(stderr: string): string {
   const lines = stderr.split("\n");
