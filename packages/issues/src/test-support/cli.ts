@@ -172,6 +172,23 @@ export async function hooksRepo(files: Readonly<Record<string, string>> = {}): P
   return r;
 }
 
+/** Installs the git hook `name` in `repo`, a sh script running `script`; its path. */
+async function installHook(repo: TempRepo, name: string, script: string): Promise<string> {
+  const path = join(repo.git.gitDir, "hooks", name);
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, `#!/bin/sh\n${script}\n`);
+  await chmod(path, 0o755);
+  return path;
+}
+
+/** Installs a foreign `pre-commit` hook that prints `hook says no` and exits 1; its path. */
+export const failingPreCommit = (repo: TempRepo): Promise<string> =>
+  installHook(repo, "pre-commit", 'echo "hook says no" >&2\nexit 1');
+
+/** Installs a `post-commit` hook that runs `script` (sh) in the work tree's top; its path. */
+export const postCommit = (repo: TempRepo, script: string): Promise<string> =>
+  installHook(repo, "post-commit", script);
+
 /** Runs git like a user would, hooks included, in `repo` with `cliEnv`. */
 export function runGit(
   repo: TempRepo,
