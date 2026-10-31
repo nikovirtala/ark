@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M68WWTBJXX5CPJK527A5E7FM
+subject: 3gyr85xq
+type: closed
+at: 2026-10-31T11:53:06Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: (1) packages/ledger/src/index.ts exports indexNumbering (packages/ledger/src/log-index/render.ts, also re-exported from log-index/index.ts), which turns readIndexNumbers' result into a Numbering, and SOURCE_NAME ("[a-z][a-z0-9-]{0,31}") with isSourceName (packages/ledger/src/sources/config.ts); ledger's README documents them under Index and Other layers > Sources, and render.test.ts and config.test.ts test them. (2) adr's and issues' sources.ts lost their indexNumbering copies, issues' readSourceIssues in log.ts calls indexNumbering(await readIndexNumbers(...)) instead of its inline copy, adr's write.ts (planLink) and issues' log.ts use isSourceName instead of their SOURCE_NAME regexes, and ledger's cli/sources-command.ts dropped its NAME for isSourceName; the source-name config check in sources/config.ts uses it too. git grep finds the {0,31} pattern outside tests only in SOURCE_NAME and the KEYWORD and SERVER_NAME rules, which stay apart on purpose. (3) sources/qualified-id.ts builds QUALIFIED_ID and scope/anchors.ts builds its git grep pattern from SOURCE_NAME, as do the MCP SOURCE schemas in adr's and issues' mcp/tools.ts and issues' ISSUE_REF in kind/schemas.ts (built as const, so the emitted type keeps its literal). Their strings are unchanged and pinned by adr/src/mcp/source-schema.test.ts, issues/src/mcp/source-schema.test.ts and issues/src/kind/schemas.test.ts, and the --source and sources fetch messages by adr/src/cli/sources.test.ts, issues/src/cli/list.test.ts and ledger's sources-command.test.ts. A minor @nikovirtala/ledger changeset names the new exports. (4) This close is in the same change.
+data:
+  resolution: done
