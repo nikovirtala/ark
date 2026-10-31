@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M68E0X8EGRSB46ZQS5SVG90E
+subject: 838e32bj
+type: opened
+at: 2026-10-31T07:33:11Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Order the index's recently closed issues newest first
+  template: bug
+  template_version: 1
