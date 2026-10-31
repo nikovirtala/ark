@@ -4,6 +4,8 @@
  */
 import { ConfigError, UsageError } from "../errors.js";
 import type { Trailer } from "../git/git.js";
+import { parseEventFileName } from "../identity/files.js";
+import { classifyPath, type LogLayout } from "../identity/layout.js";
 import type { ToolConfig } from "../sources/config.js";
 
 /** The longest description (the subject after a Conventional prefix), in UTF-16 code units. */
@@ -363,6 +365,27 @@ export function eventTrailers(
     if (seen.has(key)) continue;
     seen.add(key);
     out.push([keys.subject, e.subject], [keys.event, e.type]);
+  }
+  return out;
+}
+
+/**
+ * The event files among the repo-relative `paths` as (subject, type) refs, in path order (by
+ * subject, then event time), deduplicated by subject and type. Only `.yaml`/`.yml` files directly
+ * in a subject's event directory whose name parses as an event file count.
+ */
+export function stagedEventRefs(layout: LogLayout, paths: readonly string[]): EventRef[] {
+  const seen = new Set<string>();
+  const out: EventRef[] = [];
+  for (const p of [...new Set(paths.filter((p) => /\.ya?ml$/.test(p)))].sort()) {
+    const c = classifyPath(layout, p);
+    if (c.area !== "event" || c.subject === null || c.file.includes("/")) continue;
+    const name = parseEventFileName(c.file);
+    if (name === null) continue;
+    const key = `${c.subject}\0${name.type}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ subject: c.subject, type: name.type });
   }
   return out;
 }
