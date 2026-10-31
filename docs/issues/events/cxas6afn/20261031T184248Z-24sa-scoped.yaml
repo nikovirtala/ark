@@ -1,0 +1,18 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M69MB08EDVT3DD9TGVXM24SA
+subject: cxas6afn
+type: scoped
+at: 2026-10-31T18:42:48Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/*/src/init*.ts
+    - packages/*/src/skill.ts
+    - packages/ledger/src/**/init*.ts

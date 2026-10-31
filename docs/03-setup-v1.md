@@ -1,0 +1,172 @@
+# Agent setup: Design Doc
+
+Oct 31, 2026 · drafted by Claude for @Niko Virtala
+
+## Context and scope
+
+ark's tools keep a project's decisions and work in its repository, usable the same way by people and agents. Agents reach them through three things the tools ship: MCP servers (`adr mcp`, `issues mcp`), skills that tell an agent when to use them, and hooks that bring records to the point of work. Git hooks and CI check that nothing invalid lands.
+
+Setting all of that up is today four separate, opt-in steps:
+
+| Piece | How it is set up today | Where it lives |
+| --- | --- | --- |
+| The log | `<tool> init` | the repository |
+| The skill | `<tool> init --skill` | the repository |
+| Git hooks | `<tool> hooks install` | `.git/hooks`, one clone only |
+| MCP server | a snippet the README asks you to paste into the client's config | wherever the person puts it |
+| Harness hooks and permission rules | nothing | nowhere |
+
+ark itself shows the result. Its decision and issue logs were created on 22–23 October; the MCP servers arrived on the 26th. Nothing brought the existing setup up to date, nothing reported that it was incomplete, and agents kept working through the workspace CLI, as `AGENTS.md` says, so the gap went unnoticed. ark's own agents work on ark without ark. If it happened here, it will happen in every repository that adopts the tools.
+
+This design covers what a complete setup is, how the tools write it, keep it current and report gaps, and which versions ark itself runs. It does not cover the content of the skills or what the hooks show beyond naming the commands they run.
+
+## Why a design doc
+
+Three things are open together and depend on each other: what init should write for each harness, how a rerun can update files people may have edited, and which versions a repository that develops the tools should run on itself. Each could be decided alone, but the answers only hold if they fit.
+
+## Goals and non-goals
+
+**Goals**
+
+- A repository that runs `init` once has the whole integration: log, skills, MCP config, harness hooks, permission rules and git hooks.
+- Rerunning `init` is the upgrade: it adds what a new release brings and updates what it owns.
+- A gap in the setup is reported, at the start of every agent session and in CI.
+- Per-clone state, the git hooks, installs itself.
+- ark runs its own tools from the previous release and updates them through reviewed pull requests.
+
+**Non-goals**
+
+- Supporting every agent harness. Claude Code and Kiro first; others get the skill and `AGENTS.md`.
+- Configuring a person's machine. Everything here is project-level and committed, except what names the person.
+- Enforcing behaviour inside the agent. The setup makes the right path the default and the wrong paths unavailable; scenario evaluations, a separate piece of work, measure how agents actually behave.
+
+## Overview
+
+ledger's shared init (`initToolLog`, from ?43), used by every ark tool, is extended to write the complete setup for each harness it detects and marks what it owns. Running it again updates what it owns and leaves everything else alone. A `doctor` command, also shared, checks the same pieces and reports what is missing or out of date; the session-start hook runs it and installs missing git hooks. ark itself pins exact published versions in its setup, and its release workflow bumps the pins and reruns `init` in a pull request: the bootstrapping pattern self-hosting compilers use.
+
+## Detailed design
+
+### What a complete setup is
+
+| Piece | Claude Code | Kiro | Written by |
+| --- | --- | --- | --- |
+| MCP servers | `.mcp.json` | `.kiro/settings/mcp.json` | `init` |
+| Skills | `.claude/skills/<tool>/SKILL.md` | `.kiro/skills/<tool>/SKILL.md` | `init` |
+| Pointer for other agents | `AGENTS.md` line | `AGENTS.md` line | `init` |
+| Session-start hook | `.claude/settings.json` | Kiro agent hook | `init` |
+| Before-edit hook | `.claude/settings.json` | Kiro agent hook | `init` |
+| Permission rules | `.claude/settings.json` | Kiro's equivalent, where it has one | `init` |
+| Git hooks | per clone | per clone | the `prepare` script and the session-start hook |
+
+The exact file formats of each harness change over time; the implementation follows each harness's current documentation and keeps the formats in one module per harness.
+
+**MCP servers** run the tool with `npx -y @nikovirtala/<tool>@<exact version> mcp`, with `ARK_AGENT` naming the harness. `ARK_ON_BEHALF_OF` names a person, so it is never committed: the config passes it through from each developer's environment, and the tool notes when it is unset (ADR-0007).
+
+**The session-start hook** runs `doctor --fix-clone` (below), then `<tool> list --since <last seen>` for each installed tool and `issues ready`, and adds the output to the agent's context. **The before-edit hook** runs `adr for <path>` and `issues for <path>` the first time a session edits a file, and adds the result. Both are small commands the tools provide (`<tool> hooks agent session-start` and `… before-edit`), so the harness configuration only names a command and the logic stays in the tools.
+
+**Permission rules** deny agents direct edits to `docs/*/events/**`, `docs/*/index.md` and decision bodies, so records change only through the tools, which validate and attribute every write.
+
+### Starting point: ledger's shared init
+
+?43 (pull request #86, open when this was written) moved init's steps into ledger: `initToolLog` in `packages/ledger/src/surfaces/tool-init.ts` takes a `ToolInitSpec` (the tool's config, templates, skill text, AGENTS.md pointer and index render) and `ToolInitOptions`. It already does several things this design needs:
+
+- It never overwrites a file; it reports what it left as `kept`.
+- It notes a SKILL.md that differs from the tool's version, so the tool already knows when a skill is out of date; it just doesn't act on it.
+- It removes what it wrote, and restores AGENTS.md, when a step fails.
+- It adds the AGENTS.md pointer only when no line already names the skill.
+- It commits only what it wrote.
+
+What it lacks is the rest of the setup table, more than one skill directory (`skill` takes one `dir`), and a way to update what it wrote earlier. The hook steps in `hook-steps.ts` and `tool-hooks.ts` are shared in the same pull request, so the `prepare` script and the session-start hook's git-hook install call the same code as `<tool> hooks install`. The design below extends these functions; it adds no second init.
+
+### init: complete by default, safe to rerun
+
+`init` detects the harnesses a repository uses (their config directories, or flags) and writes every piece for each. Flags opt out of a piece (`--no-mcp`, `--no-hooks`, `--harness claude`), never in.
+
+**Ownership.** `init` owns what it wrote, and only that. In a JSON config it owns the entries under its own server or hook names; in a markdown file, the lines it added; a skill file whole. It records a hash of what it wrote for each owned piece in `<git common dir>/ark/setup.json`, which is per clone, and also in a committed `ark-setup.lock` beside the configs, so every clone knows what the last `init` wrote.
+
+**Rerun.** For each piece: if it is missing, write it; if it matches what `init` last wrote, replace it with the new version (today's `kept` case, now updated instead of skipped); if someone changed it, leave it in `kept` and print a note naming the file and the command that would overwrite it (`init --force <piece>`). A rerun with nothing to do changes nothing.
+
+**Git hooks** cannot be committed. `init` adds `"prepare": "<tool> hooks install --quiet"` to `package.json` in JavaScript repositories, so installing dependencies installs the hooks; in any repository, the session-start hook installs them if they are missing (below).
+
+### doctor
+
+`doctor` checks every piece in the table above against what the installed tool would write, and reports each gap with the command that fixes it: missing, outdated (written by an older version), changed by someone, or pointing at a version other than the one installed. It exits 1 when something is missing. `--fix-clone` also installs what is per clone, the git hooks, because that can never be wrong to install. It runs in the session-start hook and in CI as a warning.
+
+### Which versions a repository runs: bootstrapping
+
+A repository that only uses the tools pins exact versions in its configs and updates them by rerunning `init` after upgrading.
+
+ark, which develops the tools, follows the proposed decision to run its own agent tooling from the previous release (`adr:jgdhvxtq`):
+
+1. **Stage 0 runs the work.** ark's configs pin the last published versions, so a broken workspace build never takes its agents' tools down.
+2. **Stage 1 proves the change.** CI builds the workspace and runs it against ark's own logs before a release.
+3. **The release is the self-update.** After publishing, the release workflow bumps the pins and reruns `init` in a pull request; merging it is when ark starts using the new version on itself.
+
+## Requirements
+
+- **R1** `init` MUST write every piece in the setup table for each detected harness unless a flag opts that piece out.
+- **R2** Rerunning `init` MUST NOT change a piece someone else edited; it MUST name each such piece and the command that would overwrite it.
+- **R3** Rerunning `init` with nothing to update MUST leave the working tree unchanged.
+- **R4** MCP configs MUST pin an exact version, and MUST NOT contain `ARK_ON_BEHALF_OF`'s value.
+- **R5** `doctor` MUST exit 1 when any piece is missing, and print the fixing command for each gap.
+- **R6** The session-start hook MUST install missing git hooks in the clone, or say why it cannot.
+- **R7** The before-edit hook SHOULD report each file once per session.
+- **R8** ark's configs MUST pin published versions, never the workspace build.
+- **R9** Running the shared `init` on ark MUST produce ark's committed setup with no diff.
+
+## Worked examples
+
+### EX-fresh-clone: a new contributor's first session
+
+Given ark's committed setup and a fresh clone:
+
+1. `pnpm install` runs `prepare`, which installs the git hooks.
+2. The person opens Claude Code. It reads `.mcp.json` and starts `adr` and `issues` at the pinned versions.
+3. The session-start hook runs `doctor --fix-clone` (nothing to fix), then lists ready issues and recent decisions.
+4. The agent's first edit to `packages/ledger/src/git.ts` triggers the before-edit hook, which shows ADR-0002 and the open issues scoped to that file.
+
+Expected: no manual setup step, and the agent has seen the governing decision before its first edit.
+
+### EX-rerun-after-upgrade: a release adds a hook
+
+Given a repository set up by version 0.6, where someone added their own server to `.mcp.json`, and the tool upgraded to 0.7, which adds a before-edit hook:
+
+1. `adr init` finds its `.mcp.json` entry unchanged since 0.6 and updates its pin to 0.7.
+2. It leaves the other server in `.mcp.json` alone; it never owned it.
+3. It adds the before-edit hook, which is missing.
+
+Expected: a diff touching only the pin and the new hook, and no note, because nothing it owned was edited.
+
+## Alternatives considered
+
+- **Keep setup opt-in and document it better.** Cheapest, and what exists. It is the reason ark itself ended up without the integration; documentation is a thing people must remember.
+- **A separate `ark setup` command.** One command for every tool is appealing, but it needs a package that knows every tool, which ark's design rules out apart from the read-only context tool. A shared `init` in ledger gives the same result with each tool installing its own pieces.
+- **Write the setup once and never touch it again.** Avoids the ownership problem, but every release that adds a capability would need a manual migration in every repository.
+- **Run the workspace build in ark's own config.** Dogfoods every change at once, but a broken build or a half-finished change takes the agents' tools down mid-task. Rejected in favour of bootstrapping.
+
+## Cross-cutting concerns
+
+- **Security.** `npx -y` downloads and runs a package; pinning an exact version limits it to a reviewed release. Permission rules reduce what an agent can change directly. No personal identity or credential is committed.
+- **Privacy.** `ARK_ON_BEHALF_OF` stays in each developer's environment.
+- **Observability.** `doctor` makes the setup's state visible; agent writes stay attributed (ADR-0007).
+- **Agent use.** The setup is what makes the skills' instructions true by default: the MCP servers they name exist, and the records they say to read arrive at the edit.
+
+## Open questions
+
+- **Q1** Where should the record of what `init` wrote live: a committed `ark-setup.lock`, managed-block markers inside each file, or both?
+- **Q2** Should `init` detect harnesses, or should a repository list them in a shared config?
+- **Q3** Should `doctor` fail CI, or only warn, once a repository has run the new `init`?
+- **Q4** Is this document a design for the design tool to manage once it exists, and if so, does it move into its log as the tool's first record?
+
+## Work
+
+- 8706c0vk: configure ark's own agents with MCP servers, skills, hooks and permissions (by hand, now; implements `adr:jgdhvxtq`)
+- cxas6afn: make init set up the whole agent integration, and safe to rerun (extends ?43's `initToolLog`; waits on #86)
+- ram953kt: report missing or outdated agent setup with a doctor command
+- t9vg1qty: bump ark's own tool pins when a release publishes (implements `adr:jgdhvxtq`)
+
+## Sources
+
+- [ark: Design Doc](00-ark-v1.md), [adr: Design Doc](01-adr-v1.md), [issues: Design Doc](02-issues-v1.md)
+- ADR-0007 (attributing agent writes), ADR-0011 (one hook shim per hook), the proposed `adr:jgdhvxtq`
+- ark's history: the logs were created on 2026-10-22 and 2026-10-23; the MCP entry landed on 2026-10-26
