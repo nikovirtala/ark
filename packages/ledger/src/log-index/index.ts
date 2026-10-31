@@ -11,6 +11,7 @@ export {
   escapeMarkdown,
   INDEX_FORMAT,
   type IndexSpec,
+  indexNumbering,
   parseIndexNumbers,
   readIndexNumbers,
   renderIndex,

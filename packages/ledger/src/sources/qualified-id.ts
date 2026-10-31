@@ -1,4 +1,5 @@
 import { InvalidArgumentError } from "../errors.js";
+import { SOURCE_NAME } from "./config.js";
 
 /** A subject id, optionally qualified by a source name: `k3f9q8a1` or `platform:k3f9q8a1`. */
 export interface QualifiedId {
@@ -7,7 +8,7 @@ export interface QualifiedId {
   readonly id: string;
 }
 
-const QUALIFIED_ID = /^(?:([a-z][a-z0-9-]{0,31}):)?([0-9a-hjkmnp-tv-z]{8})$/;
+const QUALIFIED_ID = new RegExp(`^(?:(${SOURCE_NAME}):)?([0-9a-hjkmnp-tv-z]{8})$`);
 
 export function parseQualifiedId(s: string): QualifiedId | null {
   const m = QUALIFIED_ID.exec(s);

@@ -1,4 +1,4 @@
-import type { Numbering } from "../fold/numbering.js";
+import { NO_INDEX_NUMBERING, type Numbering } from "../fold/numbering.js";
 import type { TreeReader } from "../git/tree.js";
 
 /** The format of the numbers line a generated index ends with. */
@@ -116,4 +116,21 @@ export async function readIndexNumbers(
   const bytes = await tree.read(path);
   if (bytes === null || bytes.byteLength > MAX_INDEX_BYTES) return null;
   return parseIndexNumbers(new TextDecoder().decode(bytes));
+}
+
+/**
+ * The numbers a tree read without history, such as a cached source's, gets from its committed
+ * index: `readIndexNumbers`' map as a `Numbering` with reason `"index"`, or `NO_INDEX_NUMBERING`
+ * for `null`.
+ */
+export function indexNumbering(byId: ReadonlyMap<string, number> | null): Numbering {
+  if (byId === null) return NO_INDEX_NUMBERING;
+  return {
+    available: true,
+    reason: "index",
+    ref: null,
+    commit: null,
+    byId,
+    byNumber: new Map([...byId].map(([id, n]) => [n, id])),
+  };
 }

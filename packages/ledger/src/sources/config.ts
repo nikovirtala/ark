@@ -26,7 +26,20 @@ export interface ToolConfig {
 /** Config files larger than this are rejected without parsing. */
 export const MAX_CONFIG_BYTES = 1_048_576;
 
-const NAME = /^[a-z][a-z0-9-]{0,31}$/;
+/**
+ * The rule for a `[[sources]]` name, the prefix of a qualified id: a lowercase letter, then up to
+ * 31 lowercase letters, digits or `-`. Unanchored, so callers anchor it or embed it in a larger
+ * pattern.
+ */
+export const SOURCE_NAME = "[a-z][a-z0-9-]{0,31}";
+
+const NAME = new RegExp(`^${SOURCE_NAME}$`);
+
+/** Whether `s` is a valid `[[sources]]` name (`SOURCE_NAME`, anchored). */
+export function isSourceName(s: string): boolean {
+  return NAME.test(s);
+}
+
 const KIND = /^[a-z][a-z0-9-]*$/;
 const ABBREVIATED_SHA = /^(?:[0-9a-f]{7,39}|[0-9a-f]{41,63})$/;
 const encoder = new TextEncoder();
@@ -65,7 +78,7 @@ function validateSource(
   const ref = str("ref", true) ?? "";
   const root = str("root", false);
 
-  if (!NAME.test(name)) throw fail(`${where}.name must match ${NAME.source}`);
+  if (!isSourceName(name)) throw fail(`${where}.name must match ^${SOURCE_NAME}$`);
   if (kind.length > 64 || !KIND.test(kind)) {
     throw fail(`${where}.kind must match ${KIND.source} and be at most 64 chars`);
   }

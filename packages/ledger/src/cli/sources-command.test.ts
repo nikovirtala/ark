@@ -117,7 +117,9 @@ describe("sourcesCommand", () => {
     expect(await err(["sources", "fetch", "tracker"])).toBe(
       "w: error: source tracker has kind issues, which w doesn't read\n",
     );
-    expect(await err(["sources", "fetch", "Bad"])).toContain("source names must match");
+    expect(await err(["sources", "fetch", "Bad"])).toBe(
+      "w: error: source names must match ^[a-z][a-z0-9-]{0,31}$: Bad\n",
+    );
     expect(await err(["sources", "pull"])).toContain("unknown sources action");
     expect(await err(["sources", "fetch", "--ref", "HEAD"])).toContain("--ref");
     const many = Array.from({ length: 33 }, (_, i) => `s${i}`);
