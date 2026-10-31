@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M68EM2E8A4DBPYEJ295RPMFM
+subject: mvz52a5s
+type: closed
+at: 2026-10-31T07:43:39Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: 'The comment on this issue lists every candidate: relations, the write path, index helpers, source helpers, agent surfaces, and the log read, config keys, init and hooks, and test support it also found. For each it gives the files on each side, what is the same, what differs and whether that is domain or accidental, and a recommendation; each lifted candidate also gets a proposed ledger API, the risk and a size in commits, and each one left in the tools says it has none. Every candidate recommended for lifting, now or later, has its own issue, part of this one, with a Done when, scope globs and depends-on links: ?12 (3gyr85xq, now part of this issue, its scope and Done when widened to the extra copies of the source-name pattern, so it is the source-helpers lift and no duplicate was filed), bdxj8s17 (config keys), g4nkb621 (index command), hw8h6qt0 (log read, depends on ?12, ?35, ?36), g0qddk0t (write path, depends on g4nkb621), nb1rxznb (init and hooks, depends on 7zzt1n0x, bdxj8s17, g4nkb621), bstz5kyj (for-path lookup and template listing), f0eskrvw (qualified-reference checks, lift later, depends on ?12) and 4134kcnt (MCP helpers, lift later, depends on ?12). The `issues init` index bug the comparison found is filed as 7zzt1n0x, related to this issue. The children stay open as the lift work, so the closed-with-open-children warning is expected. The chosen lifts differ from "most likely the relation layer", so docs/00-ark-v1.md step 5 now names them, the relation paragraph of "What this tells ledger''s design" says the same, and so does docs/02-issues-v1.md''s relations paragraph, and packages/ledger/README.md lists only qualified-reference checks as the later relation work. All of this, and this close, are in pull request #73.'
+data:
+  resolution: done
