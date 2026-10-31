@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M691747A2S0MCQR8TCKB3H93
+subject: b3ny9n1w
+type: opened
+at: 2026-10-31T13:08:38Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Test lookupPaths' exclude globs and symlinked cwd
+  template: task
+  template_version: 1
