@@ -1,5 +1,27 @@
 # @nikovirtala/issues
 
+## 0.5.6
+
+### Patch Changes
+
+- 46e346f: A committing `issues init` now commits the index of the tree it commits: with `[log] index = "committed"`, the `index.md` it writes lists only the issues in HEAD plus init's own files, not uncommitted issues in the work tree, and the work tree's copy is refreshed after the commit, as `adr init` does.
+- 46e346f: `index.md` and `issues://index` list recently closed issues newest closed first, and the in-progress, ready, blocked and other open issues oldest first by the date in Since, the time each issue entered its state.
+- d6f5cb9: `@nikovirtala/ledger` exports the git hook code and the editor adr and issues shared by copy: `hookRegistrations` lists a tool's hook commands in hook order, `toolHookCommands`, `installToolHooks`, `uninstallToolHooks`, `printToolHooks` and `toolHooksResult` are a tool's `hooks install`, `uninstall` and `print` with their `ToolHooksJson` document, `readCommitMessage` and `stagedEventTrailers` are the shared part of the `commit-msg` step, and `runPreCommitHook` is the `pre-commit` step, with the types `ToolHooksSpec`, `ToolHookRegistration`, `FollowRenames`, `PreCommitHookOptions` and `PreCommitHookResult`. `@nikovirtala/ledger/cli` exports the `hooksCommand` factory and `editorFromEnv` with its `Edit` type. `adr hooks`, `issues hooks` and both tools' editors now use them; their output, JSON documents and `--help` are unchanged.
+- 20b06ed: `@nikovirtala/ledger` exports the index code adr and issues shared by copy: `renderLogIndex`, `unstagedLogFiles` and `unstagedIndexText` render a log's `index.md` and explain a stale staged copy, `logIndexCheck` and `runLogIndex` are the `index/stale` check and the `index` run, with the recovery hints `indexRerunHint`, `indexBeforeHint` and `indexAfterHint` and the types `ToolWriteOptions`, `LogIndexJson` and `IndexRun`, and `@nikovirtala/ledger/cli` exports the `indexCommand` factory. `adr index` and `issues index` now use them; their output, JSON documents and `--help` are unchanged.
+- Updated dependencies [e2bfc24]
+- Updated dependencies [c2e3c59]
+- Updated dependencies [d6f5cb9]
+- Updated dependencies [20b06ed]
+- Updated dependencies [54e4e3c]
+- Updated dependencies [cad0369]
+- Updated dependencies [89f6231]
+- Updated dependencies [3cfdbe8]
+- Updated dependencies [46e346f]
+- Updated dependencies [9e8f00b]
+- Updated dependencies [73efa48]
+  - @nikovirtala/ledger@0.14.0
+  - @nikovirtala/adr@0.5.10
+
 ## 0.5.5
 
 ### Patch Changes
