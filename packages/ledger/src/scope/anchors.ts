@@ -19,7 +19,8 @@ export interface Anchor {
   readonly id: string;
 }
 
-const KEYWORD = /^[a-z][a-z0-9-]{0,31}$/;
+/** The rule for an anchor keyword, such as `adr` in `// adr:<id>`. */
+export const KEYWORD = /^[a-z][a-z0-9-]{0,31}$/;
 const LEADERS = ["//", "/*", "#", "--", ";", "%", "<!--", "(*"] as const;
 const ID_CHAR = /[0-9a-hjkmnp-tv-z]/;
 const SOURCE_FIRST = /[a-z]/;
