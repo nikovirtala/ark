@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M6903P54FXM8SZJS9ZJA0RGA
+subject: 1e6ygf2s
+type: assigned
+at: 2026-10-31T12:49:16Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - nikovirtala@users.noreply.github.com
