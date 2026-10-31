@@ -1,0 +1,23 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M68EG2XAFK31PGX5JW12V5NZ
+subject: bdxj8s17
+type: scoped
+at: 2026-10-31T07:41:28Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/adr/src/config.ts
+    - packages/issues/src/config.ts
+    - packages/issues/src/sources.ts
+    - packages/ledger/README.md
+    - packages/ledger/src/index.ts
+    - packages/ledger/src/scope/anchors.ts
+    - packages/ledger/src/sources/config.ts
+    - packages/ledger/src/surfaces/**
