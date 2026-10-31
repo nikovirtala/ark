@@ -15,6 +15,7 @@
 | ?48 | [Test that issues reads an adr.toml with bad keys it doesn't read](items/1dxqyzxt-test-that-issues-reads-an-adr-toml-with-bad-keys-it-doesnt.md) |  |  | 2026-10-31 |
 | ?51 | [Order the hooks command's install lines by HOOK\_NAMES](items/ww9n0z55-order-the-hooks-commands-install-lines-by-hook-names.md) |  |  | 2026-10-31 |
 | ?52 | [Drop the unreachable AGENTS.md restore from init's rollback](items/ja27z1g7-drop-the-unreachable-agents-md-restore-from-inits-rollback.md) |  |  | 2026-10-31 |
+| ?53 | [Title an index-only adr init commit as the decision log](items/rhb2vwnt-title-an-index-only-adr-init-commit-as-the-decision-log.md) |  |  | 2026-10-31 |
 
 ## Recently closed
 
@@ -41,4 +42,4 @@
 | ?10 | [Drop empty optional sections from issue descriptions](items/wy4r966a-drop-empty-optional-sections-from-issue-descriptions.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
 | ?9 | [Fix the subcommand help and two show messages](items/984qb8rg-fix-the-subcommand-help-and-two-show-messages.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
 
-<!-- ledger-index/v1 numbers: 65qt4pp3=1 pcmzc2dz=2 1w06qws8=3 6930v8w9=4 f4f25st2=5 jdpc6bn7=6 m5xh8bkd=7 cqpzxvcs=8 984qb8rg=9 wy4r966a=10 vpq5v23q=11 3gyr85xq=12 0megpv2e=13 qy2ch92c=14 516asy8r=15 s3v2jada=16 f3my0702=17 1fgqfkf3=18 exnj9tym=19 wedm13pe=20 7n5e4nkf=21 bd0nsd5s=22 j897bps4=23 688fexss=24 na46n52h=25 def9qp6q=26 0vckaxpf=27 9v1rd2xt=28 mvz52a5s=29 c181sywx=30 vg2acrhm=31 66c2zs20=32 5z5rsn65=33 tcwy0e79=34 g84z3z2t=35 r2nj95bs=36 838e32bj=37 7zzt1n0x=38 bdxj8s17=39 g4nkb621=40 hw8h6qt0=41 g0qddk0t=42 nb1rxznb=43 bstz5kyj=44 f0eskrvw=45 4134kcnt=46 1e6ygf2s=47 1dxqyzxt=48 am7ghfmb=49 b3ny9n1w=50 ww9n0z55=51 ja27z1g7=52 -->
+<!-- ledger-index/v1 numbers: 65qt4pp3=1 pcmzc2dz=2 1w06qws8=3 6930v8w9=4 f4f25st2=5 jdpc6bn7=6 m5xh8bkd=7 cqpzxvcs=8 984qb8rg=9 wy4r966a=10 vpq5v23q=11 3gyr85xq=12 0megpv2e=13 qy2ch92c=14 516asy8r=15 s3v2jada=16 f3my0702=17 1fgqfkf3=18 exnj9tym=19 wedm13pe=20 7n5e4nkf=21 bd0nsd5s=22 j897bps4=23 688fexss=24 na46n52h=25 def9qp6q=26 0vckaxpf=27 9v1rd2xt=28 mvz52a5s=29 c181sywx=30 vg2acrhm=31 66c2zs20=32 5z5rsn65=33 tcwy0e79=34 g84z3z2t=35 r2nj95bs=36 838e32bj=37 7zzt1n0x=38 bdxj8s17=39 g4nkb621=40 hw8h6qt0=41 g0qddk0t=42 nb1rxznb=43 bstz5kyj=44 f0eskrvw=45 4134kcnt=46 1e6ygf2s=47 1dxqyzxt=48 am7ghfmb=49 b3ny9n1w=50 ww9n0z55=51 ja27z1g7=52 rhb2vwnt=53 -->

@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M69FFZBECJZR2NS13Y25JWY4
+subject: rhb2vwnt
+type: opened
+at: 2026-10-31T17:18:08Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Title an index-only adr init commit as the decision log
+  template: task
+  template_version: 1
