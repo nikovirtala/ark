@@ -25,6 +25,7 @@
 | Issue | Title | Assignees | Labels | Since |
 | --- | --- | --- | --- | --- |
 | ?60 | [Report missing or outdated agent setup with a doctor command](items/ram953kt-report-missing-or-outdated-agent-setup-with-a-doctor-command.md) |  |  | 2026-10-31 |
+| ?61 | [Bump ark's own tool pins when a release publishes](items/t9vg1qty-bump-arks-own-tool-pins-when-a-release-publishes.md) |  |  | 2026-10-31 |
 
 ## Recently closed
 
@@ -51,4 +52,4 @@
 | ?11 | [Name the real reason when a source's numbers are unavailable](items/vpq5v23q-name-the-real-reason-when-a-sources-numbers-are-unavailable.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
 | ?30 | [Add init --skill's AGENTS.md pointer when the skill sits at the repository root](items/c181sywx-add-init-skills-agents-md-pointer-when-the-skill-sits-at-the.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
 
-<!-- ledger-index/v1 numbers: 65qt4pp3=1 pcmzc2dz=2 1w06qws8=3 6930v8w9=4 f4f25st2=5 jdpc6bn7=6 m5xh8bkd=7 cqpzxvcs=8 984qb8rg=9 wy4r966a=10 vpq5v23q=11 3gyr85xq=12 0megpv2e=13 qy2ch92c=14 516asy8r=15 s3v2jada=16 f3my0702=17 1fgqfkf3=18 exnj9tym=19 wedm13pe=20 7n5e4nkf=21 bd0nsd5s=22 j897bps4=23 688fexss=24 na46n52h=25 def9qp6q=26 0vckaxpf=27 9v1rd2xt=28 mvz52a5s=29 c181sywx=30 vg2acrhm=31 66c2zs20=32 5z5rsn65=33 tcwy0e79=34 g84z3z2t=35 r2nj95bs=36 838e32bj=37 7zzt1n0x=38 bdxj8s17=39 g4nkb621=40 hw8h6qt0=41 g0qddk0t=42 nb1rxznb=43 bstz5kyj=44 f0eskrvw=45 4134kcnt=46 1e6ygf2s=47 1dxqyzxt=48 am7ghfmb=49 b3ny9n1w=50 vw51h1jx=51 86tbn2ym=52 6h2mvcse=53 489m7ag1=54 ww9n0z55=55 ja27z1g7=56 rhb2vwnt=57 8706c0vk=58 cxas6afn=59 ram953kt=60 -->
+<!-- ledger-index/v1 numbers: 65qt4pp3=1 pcmzc2dz=2 1w06qws8=3 6930v8w9=4 f4f25st2=5 jdpc6bn7=6 m5xh8bkd=7 cqpzxvcs=8 984qb8rg=9 wy4r966a=10 vpq5v23q=11 3gyr85xq=12 0megpv2e=13 qy2ch92c=14 516asy8r=15 s3v2jada=16 f3my0702=17 1fgqfkf3=18 exnj9tym=19 wedm13pe=20 7n5e4nkf=21 bd0nsd5s=22 j897bps4=23 688fexss=24 na46n52h=25 def9qp6q=26 0vckaxpf=27 9v1rd2xt=28 mvz52a5s=29 c181sywx=30 vg2acrhm=31 66c2zs20=32 5z5rsn65=33 tcwy0e79=34 g84z3z2t=35 r2nj95bs=36 838e32bj=37 7zzt1n0x=38 bdxj8s17=39 g4nkb621=40 hw8h6qt0=41 g0qddk0t=42 nb1rxznb=43 bstz5kyj=44 f0eskrvw=45 4134kcnt=46 1e6ygf2s=47 1dxqyzxt=48 am7ghfmb=49 b3ny9n1w=50 vw51h1jx=51 86tbn2ym=52 6h2mvcse=53 489m7ag1=54 ww9n0z55=55 ja27z1g7=56 rhb2vwnt=57 8706c0vk=58 cxas6afn=59 ram953kt=60 t9vg1qty=61 -->
