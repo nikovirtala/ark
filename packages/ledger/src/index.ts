@@ -294,6 +294,7 @@ export {
   type RenderedCommit,
   readCommitTemplate,
   renderCommitMessage,
+  stagedEventRefs,
   wrapParagraph,
 } from "./surfaces/commit-message.js";
 export {
@@ -335,6 +336,23 @@ export {
   type ToolLogOptions,
   toolConfigReader,
 } from "./surfaces/tool-log.js";
+export {
+  checkReason,
+  checkText,
+  chooseTemplate,
+  eventFiles,
+  eventPairs,
+  findingKey,
+  followRenamesChanges,
+  MAX_TEXT_BYTES,
+  newEvent,
+  type PlanRead,
+  precheck,
+  refusal,
+  type StagedRenames,
+  subjectView,
+  unmatchedGlobs,
+} from "./surfaces/write-plan.js";
 export { findTemplateVersion, loadTemplates } from "./templates/history.js";
 export { lintDocument, lintTemplate } from "./templates/lint.js";
 export { type ListedTemplate, listKindTemplates } from "./templates/list.js";

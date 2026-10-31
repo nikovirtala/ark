@@ -2,34 +2,36 @@ import {
   type Actor,
   applySetOp,
   bodyFileName,
+  checkReason,
+  checkText,
+  chooseTemplate,
   compileKind,
-  ENVELOPE_VERSION,
   type EventEnvelope,
   eventDir,
-  eventPath,
+  eventFiles,
+  eventPairs,
   FileExistsError,
   type Finding,
   finding,
-  followRenames,
-  globMatcher,
+  followRenamesChanges,
   InvalidArgumentError,
+  newEvent as ledgerNewEvent,
+  precheck as ledgerPrecheck,
+  refusal as ledgerRefusal,
   lintDocument,
-  lintTemplate,
   newSubjectId,
-  nextEventIdentity,
-  overlayTree,
   parseGlob,
-  parseTemplate,
-  type Rename,
   renderTemplate,
   replaceSections,
   type SetOp,
-  serializeEvent,
+  type StagedRenames,
   slugify,
+  subjectView,
   type Template,
   type TemplateSource,
   type Trailer,
   UsageError,
+  unmatchedGlobs,
 } from "@nikovirtala/ledger";
 import {
   ACTIONS,
@@ -170,8 +172,8 @@ export type PlanResult =
 
 const encoder = new TextEncoder();
 const compiled = compileKind(issueKind);
-const TEMPLATE_NAME = /^[a-z][a-z0-9-]*$/;
-const MAX_TEXT_BYTES = 64 * 1024;
+/** The `Issue`/`Issue-Event` trailer keys. */
+const TRAILER_KEYS = { subject: "Issue", event: "Issue-Event" } as const;
 const MAX_DEPENDS_ON = 50;
 const SUBJECT_ATTEMPTS = 5;
 const ASSIGNEE_RE = new RegExp(ASSIGNEE);
@@ -186,24 +188,6 @@ const RESOLUTION_TITLES: Readonly<Record<Resolution, string>> = {
 const sorted = (xs: Iterable<string>): string[] => [...new Set(xs)].sort();
 const templatePath = (read: IssuesRead, name: string) => `${read.root}/templates/${name}.md`;
 
-/** A text argument within the 64 KiB cap and without NUL characters, else `UsageError`. */
-export function checkText(what: string, text: string): void {
-  if (text.includes("\0")) throw new UsageError(`${what} must not contain NUL characters`);
-  const size = encoder.encode(text).byteLength;
-  if (size > MAX_TEXT_BYTES) {
-    throw new UsageError(`${what} is ${size} bytes; the limit is ${MAX_TEXT_BYTES} (64 KiB)`);
-  }
-}
-
-/** `--reason`: trimmed and non-empty when given, else `null`. */
-function checkReason(reason: string | null | undefined): string | null {
-  if (reason === undefined || reason === null) return null;
-  const r = reason.trim();
-  if (r === "") throw new UsageError("--reason must not be empty");
-  checkText("--reason", r);
-  return r;
-}
-
 /** A title: trimmed, one line of 1 to 200 characters, else `UsageError`. */
 function checkTitle(title: string): string {
   const t = title.trim();
@@ -214,29 +198,14 @@ function checkTitle(title: string): string {
 }
 
 /** The view of a folded issue (resolve it first). */
-function viewOf(read: IssuesRead, id: string): IssueView {
-  const view = read.projection.views.get(id);
-  if (view === undefined)
-    throw new UsageError(`${id} has no valid opened event; run issues verify`);
-  return view;
-}
+const viewOf = (read: IssuesRead, id: string): IssueView =>
+  subjectView(read.projection, id, {
+    missing: (id) => `${id} has no valid opened event; run issues verify`,
+  });
 
 /** A refusal finding about issue `subject`, on its body (or events directory). */
-function refusal(read: IssuesRead, rule: string, message: string, subject: string): Finding {
-  const loaded = read.folded.subjects.get(subject)?.loaded;
-  return finding({
-    severity: "error",
-    rule,
-    message,
-    file: loaded?.bodyPaths[0] ?? eventDir(read.layout, subject),
-    subject,
-    kind: issueKind.name,
-  });
-}
-
-/** The key the precheck compares findings by; kind messages use ids, so it's stable. */
-export const findingKey = (f: Finding): string =>
-  [f.rule, f.subject ?? "", f.file ?? "", f.message].join("\0");
+const refusal = (read: IssuesRead, rule: string, message: string, subject: string) =>
+  ledgerRefusal(read, issueKind.name, rule, message, subject);
 
 /**
  * The precheck: folds the would-be log and returns the findings the write adds. Problems that
@@ -247,19 +216,19 @@ async function precheck(
   files: Readonly<Record<string, Uint8Array>>,
   replace: Readonly<Record<string, Uint8Array>> = {},
 ): Promise<{ after: IssuesRead; errors: Finding[]; warnings: Finding[] }> {
-  const after = await readIssuesFrom(overlayTree(read.tree, { ...files, ...replace }), {
-    layout: read.layout,
-    issues: read.issues,
-    numbering: read.numbering,
-    sources: read.options.sources,
-    decisions: read.decisions,
-    ref: read.ref,
-    commit: read.commit,
-    notes: read.notes,
-    configured: read.sources,
-  });
-  const before = new Set(read.findings.map(findingKey));
-  const added = after.findings.filter((f) => !before.has(findingKey(f)));
+  const { after, added } = await ledgerPrecheck(read, files, replace, (tree) =>
+    readIssuesFrom(tree, {
+      layout: read.layout,
+      issues: read.issues,
+      numbering: read.numbering,
+      sources: read.options.sources,
+      decisions: read.decisions,
+      ref: read.ref,
+      commit: read.commit,
+      notes: read.notes,
+      configured: read.sources,
+    }),
+  );
   return {
     after,
     errors: added.filter((f) => f.severity === "error"),
@@ -268,50 +237,11 @@ async function precheck(
 }
 
 /** A new event of `subject`, sorting after its existing ones and `after`. */
-function newEvent(
+const newEvent = (
   read: IssuesRead,
   c: PlanContext,
-  o: {
-    readonly subject: string;
-    readonly type: string;
-    readonly data: Record<string, unknown>;
-    readonly reason?: string | null;
-    readonly actor: Actor;
-    readonly after?: readonly EventEnvelope[];
-  },
-): EventEnvelope {
-  const existing = (read.folded.subjects.get(o.subject)?.loaded.events ?? []).flatMap((e) =>
-    e.event === null ? [] : [e.event],
-  );
-  const { at, id } = nextEventIdentity([...existing, ...(o.after ?? [])], {
-    now: c.now,
-    ...(c.random === undefined ? {} : { random: c.random }),
-  });
-  return {
-    envelope: ENVELOPE_VERSION,
-    kind: issueKind.name,
-    schema: issueKind.schema,
-    id,
-    subject: o.subject,
-    type: o.type,
-    at,
-    actor: o.actor,
-    ...(o.reason === undefined || o.reason === null ? {} : { reason: o.reason }),
-    data: o.data,
-  };
-}
-
-function filesOf(read: IssuesRead, events: readonly EventEnvelope[]): Record<string, Uint8Array> {
-  return Object.fromEntries(
-    events.map((e) => [eventPath(read.layout, e), encoder.encode(serializeEvent(e))]),
-  );
-}
-
-const pairsOf = (events: readonly EventEnvelope[]): Trailer[] =>
-  events.flatMap((e): Trailer[] => [
-    ["Issue", e.subject],
-    ["Issue-Event", e.type],
-  ]);
+  o: Parameters<typeof ledgerNewEvent>[3],
+): EventEnvelope => ledgerNewEvent(read, c, issueKind, o);
 
 /** The issues reachable from `root` in `read` through local links and `duplicateOf`, by id. */
 export function reachOf(read: IssuesRead, root: string): Record<string, ReachedIssue> {
@@ -443,7 +373,7 @@ async function planEvents(
     }
     events.push(event);
   }
-  const files = filesOf(read, events);
+  const files = eventFiles(read.layout, events);
   const { after, errors, warnings } = await precheck(read, files);
   if (errors.length > 0 && o.refuseAdded !== false) return refused(errors);
   const notes = [...(o.notes ?? []), ...errors.map((f) => `${f.rule}: ${f.message}`)];
@@ -461,7 +391,7 @@ async function planEvents(
       reach: reachOf(after, id),
       draft: null,
       commit: o.commit(view),
-      trailers: pairsOf(events),
+      trailers: eventPairs(events, TRAILER_KEYS),
       issue: after.projection.views.get(id) ?? view,
       affected: o.affected?.(after) ?? [],
       findings: [...warnings, ...(o.findings?.(after) ?? [])],
@@ -491,42 +421,6 @@ export function slotOf(
     display: v.display,
     body: o.body ?? [],
   };
-}
-
-/** The template `new` uses: the repo's `<root>/templates/<name>.md`, else a built-in to copy. */
-async function chooseTemplate(
-  read: IssuesRead,
-  name: string,
-  c: PlanContext,
-): Promise<
-  | { ok: true; template: Template; materialize: string | null; path: string }
-  | { ok: false; findings: Finding[] }
-> {
-  if (name.length > 64 || !TEMPLATE_NAME.test(name)) {
-    throw new UsageError(`invalid template name ${JSON.stringify(name)}`);
-  }
-  const path = templatePath(read, name);
-  const bytes = await read.tree.read(path);
-  let text: string;
-  let materialize: string | null = null;
-  if (bytes !== null) {
-    text = new TextDecoder().decode(bytes);
-  } else {
-    const builtin = Object.hasOwn(c.builtins, name) ? c.builtins[name] : undefined;
-    if (builtin === undefined) {
-      const known = Object.keys(c.builtins).sort().join(", ");
-      throw new UsageError(`unknown template ${name}; add ${path} or use one of ${known}`);
-    }
-    text = builtin;
-    materialize = builtin;
-  }
-  const parsed = parseTemplate(text, { path });
-  if (!parsed.ok) return { ok: false, findings: parsed.findings };
-  const lint = lintTemplate(parsed.template, {
-    requireSections: issueKind.def.templates?.requireSections ?? [],
-  });
-  if (lint.length > 0) return { ok: false, findings: lint };
-  return { ok: true, template: parsed.template, materialize, path };
 }
 
 /** Labels for `new --label`: valid, at most 50, sorted and deduplicated. */
@@ -576,7 +470,13 @@ export async function planOpen(
   }
   const dependsOn = [...new Set(given.map((d) => resolveTarget(read, d, "depends-on")))];
   const labels = checkLabels(input.labels ?? []);
-  const chosen = await chooseTemplate(read, input.template ?? read.issues.defaultTemplate, c);
+  const chosen = await chooseTemplate(
+    read.tree,
+    read.root,
+    input.template ?? read.issues.defaultTemplate,
+    c.builtins,
+    issueKind.def.templates?.requireSections ?? [],
+  );
   if (!chosen.ok) return { ok: false, issue: null, findings: chosen.findings };
   const t = chosen.template;
   const sections = input.sections ?? {};
@@ -631,7 +531,7 @@ export async function planOpen(
   const body = encoder.encode(rendered.text);
   const files: Record<string, Uint8Array> = { [bodyPath]: body };
   if (chosen.materialize !== null) files[chosen.path] = encoder.encode(chosen.materialize);
-  Object.assign(files, filesOf(read, events));
+  Object.assign(files, eventFiles(read.layout, events));
 
   const { after, errors, warnings } = await precheck(read, files);
   if (errors.length > 0) return { ok: false, issue: null, findings: errors };
@@ -658,7 +558,7 @@ export async function planOpen(
         display: id,
         body: [],
       },
-      trailers: pairsOf(events),
+      trailers: eventPairs(events, TRAILER_KEYS),
       issue: after.projection.views.get(id) ?? null,
       affected: [],
       findings: [...lint, ...warnings],
@@ -1009,13 +909,6 @@ export interface SetInput {
   };
 }
 
-/** The globs of `globs` that match none of `files`. */
-function unmatchedGlobs(globs: readonly string[], files: readonly string[]): string[] {
-  const matches = globMatcher(globs);
-  const hit = new Set(files.flatMap((f) => matches(f)));
-  return globs.filter((g) => !hit.has(g));
-}
-
 const SET_EVENTS = {
   assign: {
     type: "assigned",
@@ -1272,11 +1165,7 @@ export const INIT_COMMIT: Omit<CommitParts, "id" | "display" | "body"> = Object.
 });
 
 /** The renamed files and the tracked files before and after them. */
-export interface StagedRenames {
-  readonly renames: readonly Rename[];
-  readonly before: readonly string[];
-  readonly after: readonly string[];
-}
+export type { StagedRenames };
 
 /**
  * Plans `issues scope [<issue>] --follow-renames` (adr's `planFollowRenames`): the given issue's
@@ -1324,53 +1213,36 @@ export async function planFollowRenames(
     };
   }
   const views = given !== null ? [given] : [...read.projection.views.values()];
-  const notes: string[] = [];
-  const events: EventEnvelope[] = [];
-  for (const view of [...views].sort((a, b) => (a.id < b.id ? -1 : 1))) {
-    const result = followRenames({ globs: view.applies_to, ...staged });
-    if (!result.changed) continue;
-    const shown = named(view);
-    if (view.state === "closed" || !issueKind.machine.allowed(view.state, "scoped")) {
-      const covers = globMatcher(view.applies_to);
-      const leaving = staged.renames.filter((r) => covers(r.from).length > 0).length;
-      notes.push(
-        `${shown} is ${view.state}; its scope doesn't follow renames (${leaving} renamed files leave it)`,
-      );
-      continue;
-    }
-    if (result.globs.length > 200) {
-      throw new UsageError(
-        `following the renames gives ${shown} ${result.globs.length} globs; the limit is 200`,
-      );
-    }
-    for (const s of result.skipped) {
-      notes.push(
-        `${s.to} can't be written as a scope glob (${s.problem}); ${shown} no longer covers it`,
-      );
-    }
-    for (const path of result.gained) {
-      notes.push(
-        `${path} is now covered by ${shown}'s scope but wasn't before the rename; check it`,
-      );
-    }
-    const event = newEvent(read, c, {
-      subject: view.id,
-      type: "scoped",
-      data: { set: [...result.globs] },
-      actor: input.actor,
-    });
-    const valid = compiled.validate(event, { file: null });
-    if (!valid.ok) {
-      return {
-        ok: false,
-        issue: given,
-        findings: valid.findings.map((f) => ({ ...f, subject: view.id, kind: issueKind.name })),
-      };
-    }
-    events.push(event);
-  }
+  const followed = followRenamesChanges(views, staged, {
+    named,
+    blocked: (view, leaving) =>
+      view.state === "closed" || !issueKind.machine.allowed(view.state, "scoped")
+        ? `${named(view)} is ${view.state}; its scope doesn't follow renames (${leaving} renamed files leave it)`
+        : null,
+    change: (view, globs): { change: EventEnvelope } | { stop: PlanResult } => {
+      const event = newEvent(read, c, {
+        subject: view.id,
+        type: "scoped",
+        data: { set: [...globs] },
+        actor: input.actor,
+      });
+      const valid = compiled.validate(event, { file: null });
+      if (!valid.ok) {
+        return {
+          stop: {
+            ok: false,
+            issue: given,
+            findings: valid.findings.map((f) => ({ ...f, subject: view.id, kind: issueKind.name })),
+          },
+        };
+      }
+      return { change: event };
+    },
+  });
+  if (!followed.ok) return followed.stop;
+  const { changes: events, notes } = followed;
   if (events.length === 0) return nothing(notes);
-  const files = filesOf(read, events);
+  const files = eventFiles(read.layout, events);
   const { after, errors, warnings } = await precheck(read, files);
   if (errors.length > 0) return { ok: false, issue: given, findings: errors };
   const dirs = sorted(events.map((e) => eventDir(read.layout, e.subject)));
@@ -1388,7 +1260,7 @@ export async function planFollowRenames(
       reach: Object.assign({}, ...events.map((e) => reachOf(after, e.subject))),
       draft: null,
       commit: null,
-      trailers: pairsOf(events),
+      trailers: eventPairs(events, TRAILER_KEYS),
       issue: id === null ? null : (after.projection.views.get(id) ?? given),
       affected: events.flatMap((e) => {
         const v = after.projection.views.get(e.subject);

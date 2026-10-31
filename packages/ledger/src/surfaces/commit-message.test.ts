@@ -2,6 +2,7 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { ConfigError, UsageError } from "../errors.js";
 import { commitMessageText } from "../git/git.js";
+import { eventFileName } from "../identity/files.js";
 import { parseToolConfig } from "../sources/config.js";
 import {
   type CommitSlot,
@@ -12,6 +13,7 @@ import {
   parseCommitTemplate,
   readCommitTemplate,
   renderCommitMessage,
+  stagedEventRefs,
   wrapParagraph,
 } from "./commit-message.js";
 
@@ -594,5 +596,52 @@ describe("eventTrailers", () => {
       ["Issue-Event", "scoped"],
     ]);
     expect(eventTrailers([], keys)).toEqual([]);
+  });
+});
+
+describe("stagedEventRefs", () => {
+  const layout = { root: "log", bodies: "items", events: "events" };
+  const A = "a7c2m9xd";
+  const B = "b8d3n0ye";
+  const file = (subject: string, type: string, second: number, ext = "yaml") =>
+    `log/events/${subject}/${eventFileName({
+      at: `2026-01-01T00:00:0${second}Z`,
+      id: `01JGFJJZ00000000000000000${second}`,
+      type,
+    }).replace(/\.yaml$/, `.${ext}`)}`;
+
+  it("gives the event files' refs in path order, one per subject and type", () => {
+    expect(
+      stagedEventRefs(layout, [
+        file(B, "noted", 1),
+        file(A, "noted", 3),
+        file(A, "created", 1),
+        file(A, "noted", 2),
+        file(A, "noted", 2),
+        file(A, "frozen", 4),
+      ]),
+    ).toEqual([
+      { subject: A, type: "created" },
+      { subject: A, type: "noted" },
+      { subject: A, type: "frozen" },
+      { subject: B, type: "noted" },
+    ]);
+  });
+
+  it("leaves out bodies, other files, nested files and names that don't parse", () => {
+    expect(
+      stagedEventRefs(layout, [
+        `log/items/${A}.md`,
+        "log/index.md",
+        "src/a.yaml",
+        `log/events/${A}/notes.txt`,
+        `log/events/${A}/nested/${file(A, "noted", 1).split("/").pop()}`,
+        `log/events/not-an-id/${file(A, "noted", 1).split("/").pop()}`,
+        `log/events/${A}/garbage.yaml`,
+        file(A, "noted", 1, "yml"),
+        "log/events/stray.yaml",
+      ]),
+    ).toEqual([]);
+    expect(stagedEventRefs(layout, [])).toEqual([]);
   });
 });

@@ -2,7 +2,6 @@ import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   CommitFailedError,
-  classifyPath,
   commitWithRecovery,
   type EventRef,
   eventPath,
@@ -16,10 +15,10 @@ import {
   indexPath,
   indexReader,
   overlayTree,
-  parseEventFileName,
   type RenderedCommit,
   replaceFile,
   saveCommitRecovery,
+  stagedEventRefs,
   type Trailer,
   type TreeReader,
   UsageError,
@@ -323,7 +322,7 @@ export async function applyPlan(
   let rendered: RenderedCommit | null = null;
   if (commit && scope !== null) {
     const extra = await extraOf();
-    const extraRefs = stagedEventRefs(log, extra);
+    const extraRefs = stagedEventRefs(log.layout, extra);
     const planRefs = plan.events.map((e) => ({ subject: e.subject, type: e.type }));
     rendered =
       o.compose === undefined
@@ -426,26 +425,6 @@ export async function applyPlan(
     notes,
     rendered,
   };
-}
-
-/**
- * The staged event files among `paths` as (issue, type) refs, in path order (by issue, then
- * event time), deduplicated by issue and type.
- */
-function stagedEventRefs(log: IssueLog, paths: readonly string[]): EventRef[] {
-  const seen = new Set<string>();
-  const out: EventRef[] = [];
-  for (const p of sorted(paths.filter(isYaml))) {
-    const c = classifyPath(log.layout, p);
-    if (c.area !== "event" || c.subject === null || c.file.includes("/")) continue;
-    const name = parseEventFileName(c.file);
-    if (name === null) continue;
-    const key = `${c.subject}\0${name.type}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({ subject: c.subject, type: name.type });
-  }
-  return out;
 }
 
 /** The new bytes of each file a plan replaces. */
