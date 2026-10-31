@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M69MBAWZPD5M5J0SDVDZZ6TY
+subject: t9vg1qty
+type: scoped
+at: 2026-10-31T18:42:59Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - .github/workflows/release.yml
