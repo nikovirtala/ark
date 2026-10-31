@@ -1,0 +1,15 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M68WW3KRWWBQ4T5X48Z82YJ4
+subject: nb1rxznb
+type: commented
+at: 2026-10-31T11:52:42Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  text: 'The fix for ?38 makes `issues init`''s index step match `adr init`''s, including two recovery paths: the recovery hint ending with `INDEX_AFTER(root)` when git refuses the commit, and the `<root>/index.md may be stale: …` note when the post-commit refresh fails. Neither tool tests these paths, so this lift''s "existing tests pass with no change to what they assert" would not catch dropping them. ?47 (`1e6ygf2s`) adds those tests in both tools; doing it before this lift, or as its first step, lets the lift rely on them.'
