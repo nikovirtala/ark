@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M68WX7GJS9GWA0WK905HDPFE
+subject: 7zzt1n0x
+type: closed
+at: 2026-10-31T11:53:19Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "(1) packages/issues/src/init.ts now does what adr init does: when init commits, a missing index.md is rendered from overlayTree(headTree(HEAD), init's files) rather than the work tree, the commit's recovery hint gains INDEX_AFTER(root), and after the commit the work tree's copy is re-rendered against the new commit and written and staged with writeIndexCopy (a failure becomes the note '<root>/index.md may be stale: ...; run issues index'). Without a commit it still renders the work tree. (2) The describe 'initIssueLog with a committed index (?38)' in packages/issues/src/init.test.ts commits init with an uncommitted issue in the work tree and checks that HEAD:index.md leaves the issue out, that the work tree's copy lists it, and test-support's assertInvariants (HEAD's index matches its render, verify --ref HEAD has no errors, the work-tree and staged copies are current); it fails against the old init.ts. A second test checks that a non-committing init renders the work tree. Tests for the recovery hint and the stale note in both tools are filed as ?47. (3) .changeset/init-commits-its-index.md is a patch changeset for @nikovirtala/issues saying that a committing issues init now commits the index of the tree it commits. (4) This close is in the same change."
+data:
+  resolution: done
