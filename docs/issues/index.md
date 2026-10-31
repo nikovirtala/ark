@@ -5,7 +5,6 @@
 
 | Issue | Title | Assignees | Labels | Since |
 | --- | --- | --- | --- | --- |
-| ?37 | [Order the index's recently closed issues newest first](items/838e32bj-order-the-indexs-recently-closed-issues-newest-first.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-31 |
 | ?38 | [Commit the index of the tree issues init commits](items/7zzt1n0x-commit-the-index-of-the-tree-issues-init-commits.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-31 |
 
 ## Ready
@@ -32,6 +31,7 @@
 
 | Issue | Title | Assignees | Labels | Since |
 | --- | --- | --- | --- | --- |
+| ?37 | [Order the index's recently closed issues newest first](items/838e32bj-order-the-indexs-recently-closed-issues-newest-first.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-31 |
 | ?12 | [Share the index-numbering and source-name helpers in ledger](items/3gyr85xq-share-the-index-numbering-and-source-name-helpers-in-ledger.md) | nikovirtala@users.noreply.github.com |  | 2026-10-31 |
 | ?29 | [Find what adr and issues implement the same way](items/mvz52a5s-find-what-adr-and-issues-implement-the-same-way.md) |  |  | 2026-10-31 |
 | ?2 | [Support SHA-256 source repositories](items/pcmzc2dz-support-sha-256-source-repositories.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
@@ -51,6 +51,5 @@
 | ?32 | [List what a pull brought in log order](items/66c2zs20-list-what-a-pull-brought-in-log-order.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
 | ?4 | [Add the MCP server, agent skill and search to issues](items/6930v8w9-add-the-mcp-server-agent-skill-and-search-to-issues.md) |  |  | 2026-10-30 |
 | ?16 | [Add issues' MCP prompts and agent skill](items/s3v2jada-add-issues-mcp-prompts-and-agent-skill.md) |  |  | 2026-10-30 |
-| ?27 | [Split the issues MCP tests that sit at their duration share](items/0vckaxpf-split-the-issues-mcp-tests-that-sit-at-their-duration-share.md) | nikovirtala@users.noreply.github.com |  | 2026-10-29 |
 
 <!-- ledger-index/v1 numbers: 65qt4pp3=1 pcmzc2dz=2 1w06qws8=3 6930v8w9=4 f4f25st2=5 jdpc6bn7=6 m5xh8bkd=7 cqpzxvcs=8 984qb8rg=9 wy4r966a=10 vpq5v23q=11 3gyr85xq=12 0megpv2e=13 qy2ch92c=14 516asy8r=15 s3v2jada=16 f3my0702=17 1fgqfkf3=18 exnj9tym=19 wedm13pe=20 7n5e4nkf=21 bd0nsd5s=22 j897bps4=23 688fexss=24 na46n52h=25 def9qp6q=26 0vckaxpf=27 9v1rd2xt=28 mvz52a5s=29 c181sywx=30 vg2acrhm=31 66c2zs20=32 5z5rsn65=33 tcwy0e79=34 g84z3z2t=35 r2nj95bs=36 838e32bj=37 7zzt1n0x=38 bdxj8s17=39 g4nkb621=40 hw8h6qt0=41 g0qddk0t=42 nb1rxznb=43 bstz5kyj=44 f0eskrvw=45 4134kcnt=46 1e6ygf2s=47 -->

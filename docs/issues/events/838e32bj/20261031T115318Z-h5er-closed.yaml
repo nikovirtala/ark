@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M68WX6G5T7SWE0JDV0ZMH5ER
+subject: 838e32bj
+type: closed
+at: 2026-10-31T11:53:18Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "(1) ISSUE_INDEX.order in packages/issues/src/log-index.ts sorts Recently closed with byLatestClose: closed_at newest first, ties broken by id. (2) The in-progress, Ready, Blocked and Open sections sort by state_at, the time of the issue's last opened, started, stopped, closed or reopened event, oldest first, ties broken by number, then opened_at, then id. (3) The Since cell is still v.state_at.slice(0, 10), and the new test asserts it is a YYYY-MM-DD date. (4) recentlyClosedOf picks the listed issues with the same byLatestClose, the rule the old inline sort used, and RECENTLY_CLOSED stays 20, so the same 20 issues are listed. (5) issues://index in packages/issues/src/mcp/resources.ts renders through renderIssueIndexText with ISSUE_INDEX, and its description now says 'grouped and ordered as in index.md'; no other surface describes the grouping or order. (6) docs/02-issues-v1.md 'Generated index' names the Since column, each section's order with its tie-breaks, the count of 20, and says issues ready keeps its priority order. (7) The test 'the index's order' in packages/issues/src/log-index.test.ts asserts the exact Ready order (state_at order against number order, a same-second pair broken by number against id order) and the exact Recently closed order (same-second pairs inside the list and at the 20/21 boundary, the id tie-break, and the dropped issues absent); it fails with the old comparator. (8) docs/issues/index.md was regenerated in the same commit as the code; index --check and verify pass. A patch @nikovirtala/issues changeset describes the new order."
+data:
+  resolution: done
