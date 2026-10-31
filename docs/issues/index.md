@@ -11,6 +11,7 @@
 | ?38 | [Commit the index of the tree issues init commits](items/7zzt1n0x-commit-the-index-of-the-tree-issues-init-commits.md) |  | type:bug | 2026-10-31 |
 | ?39 | [Share the config keys adr and issues both read in ledger](items/bdxj8s17-share-the-config-keys-adr-and-issues-both-read-in-ledger.md) |  |  | 2026-10-31 |
 | ?40 | [Share the index command and its freshness check in ledger](items/g4nkb621-share-the-index-command-and-its-freshness-check-in-ledger.md) |  |  | 2026-10-31 |
+| ?44 | [Share the for-path lookup and the template listing in ledger](items/bstz5kyj-share-the-for-path-lookup-and-the-template-listing-in-ledger.md) |  |  | 2026-10-31 |
 
 ## Blocked
 
@@ -51,4 +52,4 @@
 | ?35 | [Drop the "no main branch" note for a source that isn't fetched](items/g84z3z2t-drop-the-no-main-branch-note-for-a-source-that-isnt-fetched.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
 | ?36 | [Stop calling a source's committed index a shallow clone in adr](items/r2nj95bs-stop-calling-a-sources-committed-index-a-shallow-clone-in.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
 
-<!-- ledger-index/v1 numbers: 65qt4pp3=1 pcmzc2dz=2 1w06qws8=3 6930v8w9=4 f4f25st2=5 jdpc6bn7=6 m5xh8bkd=7 cqpzxvcs=8 984qb8rg=9 wy4r966a=10 vpq5v23q=11 3gyr85xq=12 0megpv2e=13 qy2ch92c=14 516asy8r=15 s3v2jada=16 f3my0702=17 1fgqfkf3=18 exnj9tym=19 wedm13pe=20 7n5e4nkf=21 bd0nsd5s=22 j897bps4=23 688fexss=24 na46n52h=25 def9qp6q=26 0vckaxpf=27 9v1rd2xt=28 mvz52a5s=29 c181sywx=30 vg2acrhm=31 66c2zs20=32 5z5rsn65=33 tcwy0e79=34 g84z3z2t=35 r2nj95bs=36 838e32bj=37 7zzt1n0x=38 bdxj8s17=39 g4nkb621=40 hw8h6qt0=41 g0qddk0t=42 nb1rxznb=43 -->
+<!-- ledger-index/v1 numbers: 65qt4pp3=1 pcmzc2dz=2 1w06qws8=3 6930v8w9=4 f4f25st2=5 jdpc6bn7=6 m5xh8bkd=7 cqpzxvcs=8 984qb8rg=9 wy4r966a=10 vpq5v23q=11 3gyr85xq=12 0megpv2e=13 qy2ch92c=14 516asy8r=15 s3v2jada=16 f3my0702=17 1fgqfkf3=18 exnj9tym=19 wedm13pe=20 7n5e4nkf=21 bd0nsd5s=22 j897bps4=23 688fexss=24 na46n52h=25 def9qp6q=26 0vckaxpf=27 9v1rd2xt=28 mvz52a5s=29 c181sywx=30 vg2acrhm=31 66c2zs20=32 5z5rsn65=33 tcwy0e79=34 g84z3z2t=35 r2nj95bs=36 838e32bj=37 7zzt1n0x=38 bdxj8s17=39 g4nkb621=40 hw8h6qt0=41 g0qddk0t=42 nb1rxznb=43 bstz5kyj=44 -->
