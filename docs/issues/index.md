@@ -23,12 +23,6 @@
 | ?45 | [Share qualified-reference checks in ledger](items/f0eskrvw-share-qualified-reference-checks-in-ledger.md) |  |  | 2026-10-31 |
 | ?46 | [Share the MCP schema and argument helpers in ledger/mcp](items/4134kcnt-share-the-mcp-schema-and-argument-helpers-in-ledger-mcp.md) |  |  | 2026-10-31 |
 
-## Open
-
-| Issue | Title | Assignees | Labels | Since |
-| --- | --- | --- | --- | --- |
-| ?29 | [Find what adr and issues implement the same way](items/mvz52a5s-find-what-adr-and-issues-implement-the-same-way.md) |  |  | 2026-10-30 |
-
 ## Recently closed
 
 | Issue | Title | Assignees | Labels | Since |
@@ -42,10 +36,10 @@
 | ?18 | [Say which field matched when a search result has no excerpt](items/1fgqfkf3-say-which-field-matched-when-a-search-result-has-no-excerpt.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
 | ?19 | [Test the remaining Table B cells of the issues mcp writes](items/exnj9tym-test-the-remaining-table-b-cells-of-the-issues-mcp-writes.md) | nikovirtala@users.noreply.github.com | type:test | 2026-10-30 |
 | ?20 | [Make the test suites faster](items/wedm13pe-make-the-test-suites-faster.md) |  |  | 2026-10-29 |
-| ?24 | [Cut the git processes one write spawns](items/688fexss-cut-the-git-processes-one-write-spawns.md) | nikovirtala@users.noreply.github.com |  | 2026-10-29 |
 | ?26 | [Run ledger's Git.open test with the temp repo's environment](items/def9qp6q-run-ledgers-git-open-test-with-the-temp-repos-environment.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
 | ?27 | [Split the issues MCP tests that sit at their duration share](items/0vckaxpf-split-the-issues-mcp-tests-that-sit-at-their-duration-share.md) | nikovirtala@users.noreply.github.com |  | 2026-10-29 |
 | ?28 | [Name the skipped CI test job without an unfilled expression](items/9v1rd2xt-name-the-skipped-ci-test-job-without-an-unfilled-expression.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
+| ?29 | [Find what adr and issues implement the same way](items/mvz52a5s-find-what-adr-and-issues-implement-the-same-way.md) |  |  | 2026-10-31 |
 | ?30 | [Add init --skill's AGENTS.md pointer when the skill sits at the repository root](items/c181sywx-add-init-skills-agents-md-pointer-when-the-skill-sits-at-the.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
 | ?31 | [Polish the rough edges left by the issues reviews](items/vg2acrhm-polish-the-rough-edges-left-by-the-issues-reviews.md) |  |  | 2026-10-30 |
 | ?32 | [List what a pull brought in log order](items/66c2zs20-list-what-a-pull-brought-in-log-order.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-30 |
