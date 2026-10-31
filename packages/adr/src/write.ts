@@ -1,16 +1,18 @@
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type Actor,
+  type AfterStage,
+  type AppliedPlan,
   applySetOp,
   bodyFileName,
   bodySha256,
   CommitFailedError,
+  type ComposeInput,
   ConfigError,
   checkReason,
   checkText,
   chooseTemplate,
-  commitWithRecovery,
   compileKind,
   type EventEnvelope,
   EventExistsError,
@@ -18,42 +20,34 @@ import {
   eventDir,
   eventFiles,
   eventPairs,
-  eventPath,
-  eventTrailers,
   extractSections,
   FileExistsError,
   type Finding,
-  firstLine,
   followRenamesChanges,
-  headBytes,
-  headTree,
   historyTemplates,
-  holdsText,
+  type IndexRender,
   InvalidArgumentError,
-  indexPath,
   indexReader,
   invalidateGitOperation,
   isSourceName,
   isSubjectId,
   joinActions,
+  type WritePlan as LedgerWritePlan,
+  applyPlan as ledgerApplyPlan,
   newEvent as ledgerNewEvent,
   precheck as ledgerPrecheck,
   refusal as ledgerRefusal,
   lintDocument,
   newSubjectId,
-  overlayTree,
   parseGlob,
   type RenderedCommit,
   refReader,
   renderCommitMessage,
   renderTemplate,
-  replaceFile,
   replaceSections,
   type SetOp,
   type StagedRenames,
-  saveCommitRecovery,
   slugify,
-  stagedEventRefs,
   stagedRenames,
   subjectView,
   type Template,
@@ -63,14 +57,7 @@ import {
   templateHistoryRef,
   UsageError,
   unmatchedGlobs,
-  unstagedIndexText,
-  unstagedLogFiles,
   withGitOperation,
-  withoutPaths,
-  worktreeReader,
-  writeEvents,
-  writeIndexCopy,
-  writeNewFile,
 } from "@nikovirtala/ledger";
 import {
   ACTIONS,
@@ -88,9 +75,11 @@ import {
   readDecisionsFrom,
   resolveDecision,
 } from "./log.js";
-import { INDEX_AFTER, INDEX_BEFORE, renderDecisionIndex } from "./log-index.js";
+import { renderDecisionIndex } from "./log-index.js";
 import { readDecisionSources } from "./sources.js";
 import { BUILTIN_TEMPLATES } from "./templates/builtin.js";
+
+export { type AfterStage, type AppliedPlan, WRITE_RERUN } from "@nikovirtala/ledger";
 
 /** `adr <write command> --json` (design §5.5, §6.1). */
 export interface WriteResultJson {
@@ -168,7 +157,7 @@ export interface PlanContext {
 }
 
 /** Everything one write command does, computed without touching git or the disk. */
-export interface WritePlan {
+export interface WritePlan extends LedgerWritePlan {
   readonly command: "new" | "accept" | "supersede" | "event";
   readonly subject: string;
   /** New files, repo-relative path → bytes, in write order: body, materialized template, events. */
@@ -1356,63 +1345,12 @@ async function trackedFiles(log: DecisionLog): Promise<string[]> {
   return filePaths(await indexReader(log.git));
 }
 
-/** What the editor step decided (§5.4 step 4a). */
-export interface AfterStage {
-  /** Draft lint findings to report instead of `plan.findings`; `null` keeps `plan.findings`. */
-  readonly findings: readonly Finding[] | null;
-  /** `false` skips the commit: the files stay written and staged, and `commit` is `null`. */
-  readonly commit: boolean;
-}
-
-const isYaml = (path: string) => /\.ya?ml$/.test(path);
-
-/** What `applyPlan` did. */
-export interface AppliedPlan {
-  /** Repo-relative paths written: the plan's files, then `<root>/index.md` when it was written. */
-  readonly written: string[];
-  readonly commit: string | null;
-  readonly findings: readonly Finding[];
-  /** Notes about the index ("not updated", "may be stale"); `[]` when none. */
-  readonly notes: readonly string[];
-  /** The message `compose` rendered, or `null` without `compose` or a commit. */
-  readonly rendered: RenderedCommit | null;
-}
-
 /**
- * What the recovery hint says about rerunning a write command after `git commit` failed (design
- * 2b D5): the batch is already in the log, so a rerun is refused, writes nothing or duplicates it.
+ * Applies a plan (§5.4) with ledger's `applyPlan` and adr's bindings: the `ADR`/`ADR-Event`
+ * trailers, the plan's own commit scope, and after the editor step an index rendered again from
+ * the plan's bytes only when the staged events changed (design 2b §4.5).
  */
-export const WRITE_RERUN =
-  "Don't run the command again: the log already holds the change, so a rerun would be refused, do nothing, or write it a second time.";
-
-/**
- * A write leaves the work tree's render of `index.md` (`staged`) staged, and it lists decision
- * files that may not be staged. When some aren't and the index's own render differs, the next
- * plain commit's hook fails; the note says so, as its `index/stale` finding does. `null`
- * otherwise, or when that render fails.
- */
-async function unstagedIndexNote(
-  log: DecisionLog,
-  at: string,
-  staged: string,
-  history: string | null,
-  render: (tree: TreeReader, history: string | null) => Promise<string | null>,
-): Promise<string | null> {
-  const files = await unstagedLogFiles(log.git, log.layout);
-  if (files.length === 0) return null;
-  const own = await render(await indexReader(log.git), history).catch(() => null);
-  if (own === null || own === staged) return null;
-  return `${unstagedIndexText(at, files, "decision")}; git add them before you commit, or move them out of the work tree and run adr index`;
-}
-
-/**
- * Applies a plan (§5.4): refuses a commit whose scope has unstaged or needed untracked paths,
- * writes the files (removing them again if a write fails), stages them, runs `afterStage`, and
- * commits `plan.stage` plus the involved subjects' already-staged files with exact trailers. A
- * failed `git commit` throws `CommitFailedError` with the manual command (design 2b D5) and the
- * notes made so far.
- */
-export async function applyPlan(
+export function applyPlan(
   log: DecisionLog,
   plan: WritePlan,
   o: {
@@ -1427,264 +1365,29 @@ export async function applyPlan(
      * commit sweeps in (by file name, deduplicated by subject and type), and `tree` is the
      * commit's tree. Exclusive with `message`.
      */
-    readonly compose?: (c: {
-      readonly plan: readonly EventRef[];
-      readonly extra: readonly EventRef[];
-      readonly tree: TreeReader;
-    }) => RenderedCommit;
+    readonly compose?: (c: ComposeInput) => RenderedCommit;
     readonly afterStage?: () => Promise<AfterStage>;
     /**
      * Renders the log's index for `tree`, which builds on `history` (HEAD, the new commit, or
      * null on an unborn HEAD); `null` when the numbers can't be projected. Given only when the log
      * keeps a committed index (design 2b D2, §4.5).
      */
-    readonly index?: (tree: TreeReader, history: string | null) => Promise<string | null>;
+    readonly index?: IndexRender;
   },
 ): Promise<AppliedPlan> {
-  const { git } = log;
-  if (o.commit && o.message === undefined && o.compose === undefined) {
-    throw new InvalidArgumentError("applyPlan needs a message to commit");
-  }
-  if (o.message !== undefined && o.compose !== undefined) {
-    throw new InvalidArgumentError("applyPlan takes a message or compose, not both");
-  }
-  const stage = new Set(plan.stage);
-  // This check runs before anything is written. It stays correct with an editor in between for
-  // the body, which is in `plan.stage` and is re-staged after a successful edit; every other path
-  // in the scope (a materialized template, say) is checked again by the editor step once the
-  // editor has closed, because `--only` would commit its work-tree content.
-  if (o.commit) {
-    const unstaged = new Set(await git.unstagedPaths(plan.commitScope));
-    const dirs = new Set(plan.eventDirs);
-    const untracked = new Set([
-      ...(await git.untrackedPaths(plan.commitScope.filter((p) => !dirs.has(p)))),
-      ...(await git.untrackedPaths(plan.eventDirs)).filter(isYaml),
-    ]);
-    const dirty = sorted([...unstaged, ...untracked]).filter((p) => !stage.has(p));
-    const [first] = dirty;
-    if (first !== undefined) {
-      throw new UsageError(
-        unstaged.has(first)
-          ? `${first} has unstaged changes; stage or discard them, or run without --commit`
-          : `${first} is not tracked; git add it, or run without --commit`,
-      );
-    }
-  }
-
-  // The index (design 2b §4.5) is rendered before anything is written, so a projection error
-  // leaves nothing behind. A committing write renders the tree `git commit --only` builds: HEAD
-  // (or nothing) with every `only` path's work-tree bytes, which are `plan.files`' for new files.
-  const root = log.layout.root;
-  const at = indexPath(log.layout);
-  const notes: string[] = [];
-  const head = await git.resolveCommit("HEAD");
-  const extraOf = async () =>
-    (await git.stagedPaths(plan.commitScope)).filter((p) => !stage.has(p));
-  const commitTree = async (extra: readonly string[]): Promise<TreeReader> => {
-    const work = worktreeReader(git);
-    const files: Record<string, Uint8Array> = {};
-    const gone = new Set<string>();
-    for (const p of sorted([...plan.stage, ...extra])) {
-      const bytes = plan.files[p] ?? plan.replace?.[p]?.bytes ?? (await work.read(p));
-      if (bytes === null) gone.add(p);
-      else files[p] = bytes;
-    }
-    return withoutPaths(overlayTree(await headTree(git, head), files), gone);
-  };
-  const extra0 = o.commit && o.index !== undefined ? await extraOf() : [];
-  let text: string | null = null;
-  if (o.index !== undefined) {
-    const tree = o.commit
-      ? await commitTree(extra0)
-      : overlayTree(worktreeReader(git), { ...plan.files, ...replaceBytes(plan) });
-    text = await o.index(tree, head);
-    if (text === null) {
-      notes.push(
-        `${at} not updated: numbers need history in this shallow clone; run git fetch --unshallow, then adr index`,
-      );
-    }
-  }
-
-  const toStage: string[] = [];
-  // Assigned in the closures below, so typed without narrowing.
-  let indexWritten = false as boolean;
-  let indexOld = null as Uint8Array | null;
-  let indexInCommit = false as boolean;
-  /** Brings the work-tree copy to `t` and stages it (now, or with the batch) where they differ. */
-  const refresh = async (t: string, now: boolean): Promise<boolean> => {
-    const r = await writeIndexCopy(git, at, t);
-    if (r.wrote && !indexWritten) indexOld = r.old;
-    indexWritten ||= r.wrote;
-    if (r.stage) {
-      if (now) await git.add([at]);
-      else toStage.push(at);
-    }
-    return r.wrote || r.stage;
-  };
-  /** Step 3's rules: committing, HEAD's copy decides; otherwise the work tree and the index. */
-  const place = async (t: string, committing: boolean, now: boolean): Promise<void> => {
-    if (!committing) {
-      await refresh(t, now);
-      return;
-    }
-    indexInCommit = !holdsText(await headBytes(git, at), t);
-    if (indexInCommit) await refresh(t, now);
-  };
-
-  const eventPaths = new Set(plan.events.map((e) => eventPath(log.layout, e)));
-  const written: string[] = [];
-  const replaced: string[] = [];
-  try {
-    for (const [path, r] of Object.entries(plan.replace ?? {})) {
-      await replaceFile(git, path, r.bytes, { expected: r.expected });
-      replaced.push(path);
-    }
-    for (const [path, bytes] of Object.entries(plan.files)) {
-      if (eventPaths.has(path)) continue;
-      await writeNewFile(git, path, bytes, { stage: false });
-      written.push(path);
-    }
-    if (text !== null) await place(text, o.commit, false);
-    await writeEvents(git, log.layout, plan.events, { kind: log.compiled, stage: false });
-  } catch (err) {
-    const top = git.root ?? "";
-    if (indexWritten) {
-      if (indexOld === null) await rm(join(top, at), { force: true });
-      else await writeFile(join(top, at), indexOld);
-    }
-    for (const path of written) await rm(join(top, path), { force: true });
-    for (const path of replaced) {
-      const r = plan.replace?.[path];
-      if (r !== undefined)
-        await replaceFile(git, path, r.expected, { expected: r.bytes }).catch(() => {});
-    }
-    throw err;
-  }
-  await git.add([...plan.stage, ...toStage]);
-  /** The work tree's render that ends up staged, and the commit it builds on. */
-  let stagedIndex: { readonly text: string; readonly history: string | null } | null =
-    !o.commit && text !== null ? { text, history: head } : null;
-
-  let findings = plan.findings;
-  let commit = o.commit;
-  if (o.afterStage !== undefined) {
-    const after = await o.afterStage();
-    findings = after.findings ?? plan.findings;
-    commit = commit && after.commit;
-  }
-
-  const stale = (err: unknown) => `${at} may be stale: ${firstLine(err)}; run adr index`;
-  let sha: string | null = null;
-  let rendered: RenderedCommit | null = null;
-  if (commit) {
-    const extra = await extraOf();
-    const extraRefs = stagedEventRefs(log.layout, extra);
-    const planRefs = plan.events.map((e) => ({ subject: e.subject, type: e.type }));
-    rendered =
-      o.compose === undefined
-        ? null
-        : o.compose({ plan: planRefs, extra: extraRefs, tree: await commitTree(extra) });
-    const message = rendered?.message ?? o.message ?? "";
-    const mergeTrailers = o.mergeTrailers === true;
-    // One pair per (decision, type): a staged event of a type the plan writes too adds nothing.
-    const pairs = eventTrailers([...extraRefs, ...planRefs], TRAILER_KEYS);
-    const named = new Set(pairs.filter(([k]) => k === "ADR").map(([, v]) => v));
-    const trailers = [
-      ...pairs,
-      ...(plan.events.length === 0
-        ? plan.trailers.filter(([k, v]) => k !== "ADR" || !named.has(v))
-        : []),
-    ];
-    const sameEvents =
-      sorted(extra.filter(isYaml)).join("\0") === sorted(extra0.filter(isYaml)).join("\0");
-    if (text !== null && o.index !== undefined && o.afterStage !== undefined && !sameEvents) {
-      // Step 4: the editor step ran while other events were staged; render the new tree.
-      try {
-        const again = await o.index(await commitTree(extra), head);
-        if (again !== null) await place(again, true, true);
-      } catch (err) {
-        const recovery = await saveCommitRecovery(git, {
-          message,
-          mergeTrailers,
-          trailers,
-          only: sorted([...plan.stage, ...extra, at]),
-        });
-        throw new CommitFailedError(
-          {
-            recovery,
-            headline: `${at} couldn't be refreshed: ${firstLine(err)}`,
-            detail: "",
-            rerun: WRITE_RERUN,
-            before: INDEX_BEFORE(root),
-            after: null,
-            notes,
-          },
-          { cause: err },
-        );
-      }
-    }
-    try {
-      sha = await commitWithRecovery(git, {
-        message,
-        mergeTrailers,
-        trailers,
-        only: sorted([...plan.stage, ...extra, ...(indexInCommit ? [at] : [])]),
-        rerun: WRITE_RERUN,
-        after: indexInCommit ? INDEX_AFTER(root) : null,
-      });
-    } catch (err) {
-      // The notes made so far (an index not updated, say) explain the state the hint describes.
-      throw err instanceof CommitFailedError ? err.withNotes(notes) : err;
-    }
-    // Step 5: the commit's render leaves out other decisions' uncommitted entries; the work tree
-    // and the index get them back.
-    if (text !== null && o.index !== undefined) {
-      try {
-        const again = await o.index(worktreeReader(git), sha);
-        if (again !== null) {
-          await refresh(again, true);
-          stagedIndex = { text: again, history: sha };
-        }
-      } catch (err) {
-        notes.push(stale(err));
-      }
-    }
-  } else if (o.commit && text !== null && o.index !== undefined) {
-    // Step 4: the editor step turned the commit off, so the index must match the work tree.
-    try {
-      const again = await o.index(worktreeReader(git), head);
-      if (again !== null) {
-        await refresh(again, true);
-        stagedIndex = { text: again, history: head };
-      }
-    } catch (err) {
-      notes.push(stale(err));
-    }
-  }
-  if (stagedIndex !== null && o.index !== undefined) {
-    const { text: t, history } = stagedIndex;
-    const note = await unstagedIndexNote(log, at, t, history, o.index);
-    if (note !== null) notes.push(note);
-  }
-  return {
-    written: [
-      ...Object.keys(plan.replace ?? {}),
-      ...Object.keys(plan.files),
-      ...(indexWritten ? [at] : []),
-    ],
-    commit: sha,
-    findings,
-    notes,
-    rendered,
-  };
+  return ledgerApplyPlan(log, plan, {
+    ...o,
+    trailerKeys: TRAILER_KEYS,
+    tool: "adr",
+    noun: "decision",
+    plural: "decisions",
+    rerenderAfterEdit: "when-events-change",
+    afterEditBytes: "plan",
+  });
 }
 
 /** The `ADR`/`ADR-Event` trailer keys. */
 const TRAILER_KEYS = { subject: "ADR", event: "ADR-Event" } as const;
-
-/** The new bytes of each file a plan replaces. */
-const replaceBytes = (plan: WritePlan): Record<string, Uint8Array> =>
-  Object.fromEntries(Object.entries(plan.replace ?? {}).map(([p, r]) => [p, r.bytes]));
 
 /**
  * The clock, the randomness and `applyPlan` the write functions use. Only tests pass their own
