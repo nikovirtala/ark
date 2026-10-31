@@ -193,9 +193,14 @@ export {
   type IndexSpec,
   indexCheck,
   indexNumbering,
+  indexPath,
+  type LogIndexInput,
   parseIndexNumbers,
   readIndexNumbers,
   renderIndex,
+  renderLogIndex,
+  unstagedIndexText,
+  unstagedLogFiles,
   withoutPaths,
   writeIndexCopy,
   writeIndexFile,
@@ -300,6 +305,19 @@ export {
   searchExcerpt,
   searchTerms,
 } from "./surfaces/text-search.js";
+export {
+  type IndexRun,
+  indexAfterHint,
+  indexBeforeHint,
+  indexRerunHint,
+  type LogIndexCheckOptions,
+  type LogIndexJson,
+  type LogIndexRender,
+  type LogIndexRunOptions,
+  logIndexCheck,
+  runLogIndex,
+  type ToolWriteOptions,
+} from "./surfaces/tool-index.js";
 export { openToolLog, type ToolLog, type ToolLogOptions } from "./surfaces/tool-log.js";
 export { findTemplateVersion, loadTemplates } from "./templates/history.js";
 export { lintDocument, lintTemplate } from "./templates/lint.js";
