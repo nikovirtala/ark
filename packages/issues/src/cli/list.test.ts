@@ -97,5 +97,8 @@ describe("issues list", () => {
       expect(runIssues(repo, ["list", ...args]).status, args.join(" ")).toBe(2);
     }
     expect(runIssues(repo, ["list", "--since", base, "--source", "platform"]).status).toBe(2);
+    expect(runIssues(repo, ["list", "--source", "Bad"]).stderr).toContain(
+      "issues: error: --source must match ^[a-z][a-z0-9-]{0,31}$: Bad\n",
+    );
   });
 });

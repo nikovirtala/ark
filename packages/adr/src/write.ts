@@ -31,6 +31,7 @@ import {
   InvalidArgumentError,
   indexReader,
   invalidateGitOperation,
+  isSourceName,
   isSubjectId,
   joinActions,
   type LogLayout,
@@ -1111,7 +1112,6 @@ export function planNote(
 }
 
 const LINK_RELS: readonly LinkRel[] = ["relates-to", "refines", "depends-on"];
-const SOURCE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
 
 export interface LinkInput {
   readonly id: string;
@@ -1154,7 +1154,7 @@ export async function planLink(
   if (at >= 0) {
     const source = target.slice(0, at);
     const local = target.slice(at + 1);
-    if (!SOURCE_NAME.test(source) || !isSubjectId(local)) {
+    if (!isSourceName(source) || !isSubjectId(local)) {
       throw new UsageError(`invalid decision ${JSON.stringify(input.to)}`);
     }
     if (!(o.sources ?? []).includes(source)) {

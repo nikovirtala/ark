@@ -194,6 +194,9 @@ describe("adr's cross-repository references", { timeout: 120_000 }, () => {
     expect(search.stderr).toContain("numbers come from platform's committed index.md");
     expect(search.stderr).not.toContain("shallow clone");
     expect(runAdr(r, ["list", "--source", "nope"]).status).toBe(2);
+    expect(runAdr(r, ["list", "--source", "Bad"]).stderr).toContain(
+      "adr: error: --source must match ^[a-z][a-z0-9-]{0,31}$: Bad\n",
+    );
     expect(runAdr(r, ["list", "--source", "platform", "--since", "HEAD"]).status).toBe(2);
 
     const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();

@@ -1,14 +1,15 @@
 import {
   compileKind,
   foldLog,
+  indexNumbering,
+  isSourceName,
   loadLog,
   MemoryTree,
-  NO_INDEX_NUMBERING,
   NO_NUMBERING,
-  type Numbering,
   projectLog,
   readIndexNumbers,
   readSources,
+  SOURCE_NAME,
   type SourceConfig,
   type SourceStatus,
   sourceLogRef,
@@ -33,19 +34,6 @@ export interface DecisionSources {
 export const DECISION_SOURCE_KINDS: readonly string[] = ["adr"];
 
 const compiled = compileKind(adrKind);
-
-/** Numbers recorded in a source's committed index, as a `Numbering`. */
-function indexNumbering(byId: ReadonlyMap<string, number> | null): Numbering {
-  if (byId === null) return NO_INDEX_NUMBERING;
-  return {
-    available: true,
-    reason: "index",
-    ref: null,
-    commit: null,
-    byId,
-    byNumber: new Map([...byId].map(([id, n]) => [n, id])),
-  };
-}
 
 /** The `[[sources]]` entries adr reads and the ones it skips, in config order. */
 export function decisionSourceConfigs(log: DecisionLog): {
@@ -104,8 +92,6 @@ export async function readDecisionSources(
   return { logs, statuses: reads.map((r) => r.status), notes };
 }
 
-const SOURCE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
-
 /**
  * The cached decision log of the `[[sources]]` entry `name`, as a `DecisionsRead` for `adr list
  * --source` and `adr search --source` (cache only, never the network). An uncached source reads as
@@ -114,8 +100,8 @@ const SOURCE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
  */
 export async function readSourceDecisions(log: DecisionLog, name: string): Promise<DecisionsRead> {
   return withGitOperation(async () => {
-    if (!SOURCE_NAME.test(name)) {
-      throw new UsageError(`--source must match ${SOURCE_NAME.source}: ${name}`);
+    if (!isSourceName(name)) {
+      throw new UsageError(`--source must match ^${SOURCE_NAME}$: ${name}`);
     }
     const { sources, skipped } = decisionSourceConfigs(log);
     const other = skipped.find((s) => s.name === name);

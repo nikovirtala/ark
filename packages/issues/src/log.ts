@@ -8,13 +8,14 @@ import {
   type FoldedLogOf,
   foldLog,
   type GitOptions,
+  indexNumbering,
   invariantsCheck,
+  isSourceName,
   isSubjectId,
   type LogLayout,
   loadFindings,
   loadLog,
   MemoryTree,
-  NO_INDEX_NUMBERING,
   NO_NUMBERING,
   type Numbering,
   numberLog,
@@ -27,6 +28,7 @@ import {
   refReader,
   relateCheck,
   resolveSubjectInput,
+  SOURCE_NAME,
   sortFindings,
   sortInLogOrder,
   sourceLogRef,
@@ -214,8 +216,6 @@ export async function readIssuesFrom(
   };
 }
 
-const SOURCE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
-
 /**
  * The cached issue log of the `[[sources]]` entry `name`, for `issues list --source` and `issues
  * search --source` (cache only, never the network), numbered from its committed `index.md`. An
@@ -224,8 +224,8 @@ const SOURCE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
  */
 export async function readSourceIssues(log: IssueLog, name: string): Promise<IssuesRead> {
   return withGitOperation(async () => {
-    if (!SOURCE_NAME.test(name)) {
-      throw new UsageError(`--source must match ${SOURCE_NAME.source}: ${name}`);
+    if (!isSourceName(name)) {
+      throw new UsageError(`--source must match ^${SOURCE_NAME}$: ${name}`);
     }
     const configs = log.config?.sources ?? [];
     const config = configs.find((s) => s.name === name);
@@ -254,21 +254,10 @@ export async function readSourceIssues(log: IssueLog, name: string): Promise<Iss
       layout: issueKind.def.layout,
       defaultRoot: issueKind.def.defaultRoot,
     });
-    const byId = await readIndexNumbers(ref.tree, `${ref.layout.root}/index.md`);
     return readIssuesFrom(ref.tree, {
       ...base,
       layout: ref.layout,
-      numbering:
-        byId === null
-          ? NO_INDEX_NUMBERING
-          : {
-              available: true,
-              reason: "index",
-              ref: null,
-              commit: null,
-              byId,
-              byNumber: new Map([...byId].map(([id, n]) => [n, id])),
-            },
+      numbering: indexNumbering(await readIndexNumbers(ref.tree, `${ref.layout.root}/index.md`)),
       commit: r.source.commit,
       notes: [...log.notes],
     });

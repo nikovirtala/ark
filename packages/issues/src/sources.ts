@@ -5,8 +5,8 @@ import {
   type FetchedSource,
   type FoldedLogOf,
   foldLog,
+  indexNumbering,
   loadLog,
-  NO_INDEX_NUMBERING,
   type Numbering,
   numberLog,
   openToolLog,
@@ -168,19 +168,6 @@ export interface IssueSources {
 
 const compiledIssues = compileKind(issueKind);
 const compiledDecisions = compileKind(adrKind);
-
-/** Numbers recorded in a source's committed index, as a `Numbering`. */
-function indexNumbering(byId: ReadonlyMap<string, number> | null): Numbering {
-  if (byId === null) return NO_INDEX_NUMBERING;
-  return {
-    available: true,
-    reason: "index",
-    ref: null,
-    commit: null,
-    byId,
-    byNumber: new Map([...byId].map(([id, n]) => [n, id])),
-  };
-}
 
 /** A cached source's subjects, folded with its kind and numbered from its committed index. */
 async function foreignSubjects(
