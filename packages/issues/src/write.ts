@@ -1,25 +1,25 @@
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type Actor,
-  CommitFailedError,
   type CommitSlot,
-  ConfigError,
-  EventExistsError,
+  checkCommitIdentity,
+  checkWorkTree,
+  editorStep,
   type Finding,
-  historyTemplates,
   InvalidArgumentError,
   indexReader,
   invalidateGitOperation,
-  lintDocument,
   type RenderedCommit,
+  readIfPresent,
   refReader,
   renderCommitMessage,
+  runWrite,
   type SetOp,
+  sameBytes,
   stagedRenames,
   type TreeReader,
-  templateHistoryRef,
   UsageError,
+  viewsAfter,
   withGitOperation,
 } from "@nikovirtala/ledger";
 import { type AfterStage, applyPlan, type ComposeInput } from "./apply.js";
@@ -103,26 +103,6 @@ const DEFAULT_DEPS: WriteDeps = { now: Date.now, apply: applyPlan };
 /** An editor run on an absolute path: `null` when it exited 0, else a note for the user. */
 export type Editor = (absPath: string) => Promise<string | null>;
 
-const decoder = new TextDecoder();
-
-/** `--commit` needs an author and a committer identity; checked before anything is written. */
-async function checkCommitIdentity(log: IssueLog): Promise<void> {
-  if ((await log.git.identity()) === null || (await log.git.committerIdentity()) === null) {
-    throw new ConfigError("--commit needs a git identity; set git user.name and user.email");
-  }
-}
-
-function checkWorkTree(log: IssueLog): void {
-  if (log.ref !== null) {
-    throw new InvalidArgumentError("writes read the work tree; open the log without a ref");
-  }
-  if (log.tree.label !== "worktree") {
-    throw new InvalidArgumentError(
-      "writes read the work tree; open the log with the worktree reader",
-    );
-  }
-}
-
 /**
  * What every write passes `applyPlan` besides the plan: the commit and either the user's own
  * message (`-m`) or `compose`, which renders `[commit] subject` once the extra staged events are
@@ -200,197 +180,78 @@ async function commitMessage(
   return r.shortened && batch.name !== null ? named(UPDATE_ACTION) : r;
 }
 
-/** The views after a commit, read again so a commit on the main ref shows its numbers. */
-async function viewsAfter(
-  log: IssueLog,
-  plan: WritePlan,
-  sha: string | null,
-): Promise<{ issue: IssueView | null; affected: readonly IssueView[] }> {
-  if (sha === null) return { issue: plan.issue, affected: plan.affected };
-  const read = await readIssues({ ...log, commit: sha });
-  const view = (v: IssueView) => read.projection.views.get(v.id) ?? v;
-  return {
-    issue: plan.issue === null ? null : view(plan.issue),
-    affected: plan.affected.map(view),
-  };
-}
+/** The views of `issues-write/v1`: the plan's issue and the issues it affected. */
+const viewsOf = (plan: WritePlan) => ({ primary: plan.issue, affected: plan.affected });
 
-async function planContext(log: IssueLog, read: IssuesRead, deps: WriteDeps): Promise<PlanContext> {
-  const ref = await templateHistoryRef(log.git, { type: "full" });
-  return {
-    now: deps.now,
-    ...(deps.random === undefined ? {} : { random: deps.random }),
-    templates: historyTemplates(log.git, log.tree, `${read.root}/templates`, { ref }),
-    builtins: BUILTIN_TEMPLATES,
-  };
-}
+/** The views of the log read again at `sha`, so a commit on the main ref shows its numbers. */
+const reread = (log: IssueLog) => async (sha: string) =>
+  (await readIssues({ ...log, commit: sha })).projection.views;
 
 /**
- * Plan, then apply, with one retry on `EventExistsError` (another process wrote the same event
- * path in the same instant). `o.message` replaces the rendered commit message; `o.notes` come
- * before the write's own. A plan with nothing to write is reported without touching the
- * repository.
+ * Plan, then apply, with ledger's `runWrite` and the `issues-write/v1` document: one retry on
+ * `EventExistsError` (another process wrote the same event path in the same instant).
+ * `o.message` replaces the rendered commit message; `o.notes` come before the write's own, and a
+ * refusal's own notes after them. A plan with nothing to write, and every plan with `dryRun`, is
+ * reported without touching the repository.
  */
-async function write(
+function write(
   log: IssueLog,
   command: WriteCommand,
   plan: (read: IssuesRead, c: PlanContext) => Promise<PlanResult>,
-  o: WriteOptions,
+  o: WriteOptions & { readonly dryRun?: boolean },
   deps: WriteDeps,
   afterStage?: (
     plan: WritePlan,
     commit: boolean,
   ) => (scope: readonly string[]) => Promise<AfterStage>,
 ): Promise<IssueWriteJson> {
-  return withGitOperation(async () => {
-    checkWorkTree(log);
-    const commit = o.commit ?? log.issues.autoCommit;
-    if (commit) await checkCommitIdentity(log);
-    const notes = [...log.notes, ...(o.notes ?? [])];
-    for (let attempt = 0; ; attempt++) {
-      const read = await readIssues(log);
-      const r = await plan(read, await planContext(log, read, deps));
-      if (!r.ok) {
-        return {
-          format: "issues-write/v1",
-          command,
-          ok: false,
-          issue: r.issue,
-          affected: [],
-          written: [],
-          commit: null,
-          findings: r.findings,
-          notes: [...notes, ...(r.notes ?? [])],
-        };
-      }
-      const empty =
-        r.plan.events.length === 0 &&
-        Object.keys(r.plan.files).length === 0 &&
-        Object.keys(r.plan.replace ?? {}).length === 0;
-      if (empty) {
-        return {
-          format: "issues-write/v1",
-          command,
-          ok: true,
-          issue: r.plan.issue,
-          affected: r.plan.affected,
-          written: [],
-          commit: null,
-          findings: r.plan.findings,
-          notes: [...notes, ...(r.plan.notes ?? [])],
-        };
-      }
-      const options = applyOptions(log, command, r.plan, { ...o, commit });
-      try {
-        const applied = await deps.apply(log, r.plan, {
-          ...options,
-          ...(afterStage === undefined ? {} : { afterStage: afterStage(r.plan, commit) }),
-        });
-        const views = await viewsAfter(log, r.plan, applied.commit);
-        return {
-          format: "issues-write/v1",
-          command,
-          ok: true,
-          issue: views.issue,
-          affected: views.affected,
-          written: applied.written,
-          commit: applied.commit,
-          findings: applied.findings,
-          notes: [
-            ...notes,
-            ...(r.plan.notes ?? []),
-            ...applied.notes,
-            ...(applied.commit !== null && applied.rendered?.note != null
-              ? [applied.rendered.note]
-              : []),
-          ],
-        };
-      } catch (err) {
-        if (err instanceof CommitFailedError) {
-          throw err.withNotes([...notes, ...(r.plan.notes ?? [])]);
-        }
-        if (!(err instanceof EventExistsError) || attempt > 0) throw err;
-      }
-    }
+  return runWrite<
+    IssuesRead,
+    WritePlan,
+    Extract<PlanResult, { ok: false }>,
+    IssueView,
+    IssueWriteJson
+  >({
+    log,
+    autoCommit: log.issues.autoCommit,
+    ...(o.commit === undefined ? {} : { commit: o.commit }),
+    ...(o.notes === undefined ? {} : { notes: o.notes }),
+    ...(o.dryRun === undefined ? {} : { dryRun: o.dryRun }),
+    deps,
+    builtins: BUILTIN_TEMPLATES,
+    read: () => readIssues(log),
+    plan,
+    apply: (p, _read, commit) =>
+      deps.apply(log, p, {
+        ...applyOptions(log, command, p, { ...o, commit }),
+        ...(afterStage === undefined ? {} : { afterStage: afterStage(p, commit) }),
+      }),
+    views: viewsOf,
+    reread: reread(log),
+    refusalNotes: (r) => r.notes ?? [],
+    refused: (r, notes) => ({
+      format: "issues-write/v1",
+      command,
+      ok: false,
+      issue: r.issue,
+      affected: [],
+      written: [],
+      commit: null,
+      findings: r.findings,
+      notes,
+    }),
+    done: (w) => ({
+      format: "issues-write/v1",
+      command,
+      ok: true,
+      issue: w.primary,
+      affected: w.affected,
+      written: w.written,
+      commit: w.commit,
+      findings: w.findings,
+      notes: w.notes,
+    }),
   });
-}
-
-const sameBytes = (a: Uint8Array, b: Uint8Array) =>
-  a.byteLength === b.byteLength && a.every((x, i) => x === b[i]);
-
-async function readIfPresent(path: string): Promise<Uint8Array | null> {
-  try {
-    return await readFile(path);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
-    throw err;
-  }
-}
-
-/**
- * The editor step of `new` (adr's): runs `edit` on the staged draft, re-stages the edited body
- * when the editor exited 0, and skips the commit when committing would take content nobody
- * confirmed or a draft with unfilled required sections. The findings are the draft's lint.
- */
-function editorStep(
-  log: IssueLog,
-  edit: Editor,
-  onNote: ((note: string) => void) | undefined,
-): (
-  plan: WritePlan,
-  commitRequested: boolean,
-) => (scope: readonly string[]) => Promise<AfterStage> {
-  return (plan, commitRequested) => async (scope) => {
-    const d = plan.draft;
-    if (d === null) return { findings: null, commit: true };
-    const abs = join(log.git.root ?? "", d.path);
-    const note = await edit(abs);
-    // The editor may run other processes or wait on a person: drop what the operation cached.
-    invalidateGitOperation();
-    const bytes = await readIfPresent(abs);
-    let commit: boolean;
-    if (bytes === null) {
-      commit = false;
-      onNote?.(
-        `${d.path} was removed while editing; the rendered draft is still staged. Restore it with \`git checkout -- ${d.path}\``,
-      );
-    } else if (note === null) {
-      await log.git.add([d.path]);
-      commit = true;
-    } else if (sameBytes(bytes, d.rendered)) {
-      onNote?.(note);
-      commit = true;
-    } else {
-      commit = false;
-      onNote?.(note);
-      if (commitRequested) {
-        onNote?.(
-          `${d.path} changed while the editor failed; review it, then git add it and commit`,
-        );
-      }
-    }
-    if (commit && commitRequested) {
-      // The whole scope the commit takes, reached issues' files included.
-      const late = (await log.git.unstagedPaths(scope)).filter((p) => p !== d.path);
-      const [first] = late;
-      if (first !== undefined) {
-        commit = false;
-        onNote?.(
-          `${first} changed while the editor was open; review it, then git add it and commit`,
-        );
-      }
-    }
-    const text = decoder.decode(bytes ?? d.rendered);
-    const findings = lintDocument(d.template, text, { file: d.path, subject: plan.subject }).map(
-      (f) => ({ ...f, kind: issueKind.name }),
-    );
-    // Never commit a draft that verify then fails; it stays staged.
-    if (commit && commitRequested && findings.length > 0) {
-      commit = false;
-      onNote?.(`${d.path} still has unfilled required sections; fill them in, then commit`);
-    }
-    return { findings, commit };
-  };
 }
 
 /**
@@ -420,7 +281,15 @@ export async function openIssue(
       }),
     o,
     deps,
-    o.edit === undefined ? undefined : editorStep(log, o.edit, onNote),
+    o.edit === undefined
+      ? undefined
+      : editorStep({
+          git: log.git,
+          edit: o.edit,
+          onNote,
+          editorNotes: true,
+          finding: (f) => ({ ...f, kind: issueKind.name }),
+        }),
   );
   return notes.length === 0 ? doc : { ...doc, notes: [...doc.notes, ...notes] };
 }
@@ -453,7 +322,7 @@ export async function editIssue(
     if (o.edit === undefined) throw new UsageError("no editor: set VISUAL or EDITOR");
     checkWorkTree(log);
     const commit = o.commit ?? log.issues.autoCommit;
-    if (commit) await checkCommitIdentity(log);
+    if (commit) await checkCommitIdentity(log.git);
     const notes = [...log.notes, ...(o.notes ?? [])];
     const read = await readIssues(log);
     const id = resolveIssue(read, input.id);
@@ -513,9 +382,9 @@ export async function editIssue(
       findings: [],
     };
     const applied = await deps.apply(log, plan, applyOptions(log, "edit", plan, { ...o, commit }));
-    const views = await viewsAfter(log, plan, applied.commit);
+    const views = await viewsAfter(applied.commit, viewsOf(plan), reread(log));
     return result({
-      issue: views.issue ?? now,
+      issue: views.primary ?? now,
       written: [path, ...applied.written.filter((p) => p !== path)],
       commit: applied.commit,
       notes: [
@@ -701,23 +570,11 @@ export async function followScopeRenames(
           };
     const plan = (read: IssuesRead, c: PlanContext) =>
       planFollowRenames(read, { id: input.id ?? null, actor: input.actor }, staged, c);
+    // A dry run reports the plan without the note below.
     if (o.dryRun === true) {
-      checkWorkTree(log);
-      const read = await readIssues(log);
-      const r = await plan(read, await planContext(log, read, deps));
-      return {
-        format: "issues-write/v1",
-        command: "scope",
-        ok: r.ok,
-        issue: r.ok ? r.plan.issue : r.issue,
-        affected: r.ok ? r.plan.affected : [],
-        written: [],
-        commit: null,
-        findings: r.ok ? r.plan.findings : r.findings,
-        notes: [...log.notes, ...(o.notes ?? []), ...((r.ok ? r.plan.notes : r.notes) ?? [])],
-      };
+      return write(log, "scope", plan, { ...o, commit: false, dryRun: true }, deps);
     }
-    const doc = await write(log, "scope", plan, { ...o, commit: false }, deps);
+    const doc = await write(log, "scope", plan, { ...o, commit: false, dryRun: false }, deps);
     return log.issues.autoCommit && doc.ok && doc.affected.length > 0
       ? {
           ...doc,
