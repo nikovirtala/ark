@@ -416,6 +416,8 @@ export async function pieceStates(
       const merged = mergedBytes(merge, current);
       const currentOwned = ownedHashOf(merge, current);
       const obj = parseObject(current);
+      // Only the first owned entry is version-checked. Every current MCP piece owns a single
+      // entry; a merge piece that ever owns two versioned entries would need this generalized.
       const entryKey = Object.keys(merge.ownership.entries)[0];
       const currentValue =
         obj === null || entryKey === undefined ? undefined : getPath(obj, entryKey);
