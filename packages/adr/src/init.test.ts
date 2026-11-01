@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { ARK_PINS } from "@nikovirtala/ledger";
 import type { TempRepo } from "@nikovirtala/ledger/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import { initDecisionLog, namesSkill } from "./init.js";
@@ -53,7 +54,7 @@ describe("adr init --setup (the agent setup plumbing)", () => {
     expect(await exists(r, "ark-setup.lock")).toBe(true);
     // The MCP pin is an exact version, and the env never carries ARK_ON_BEHALF_OF's value (R4/R8).
     const mcp = await readFile(join(r.root, ".mcp.json"), "utf8");
-    expect(mcp).toContain("@nikovirtala/adr@0.5.10");
+    expect(mcp).toContain(`@nikovirtala/adr@${ARK_PINS.adr}`);
     expect(mcp).not.toContain("workspace:");
     // biome-ignore lint/suspicious/noTemplateCurlyInString: the expected shell placeholder
     expect(mcp).toContain("${ARK_ON_BEHALF_OF}");
