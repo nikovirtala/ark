@@ -16,4 +16,4 @@ ARK_ON_BEHALF_OF names a person, so it is never committed: the configs read it f
 - A session-start hook shows ready issues and records changed since the last session; a hook before each file edit shows the decisions and open issues for that file, in both harnesses.
 - Direct edits to docs/*/events/**, docs/*/index.md and docs/adr/decisions/** are denied to agents in both harnesses.
 - pnpm install in a fresh clone installs the git hooks.
-- adr:jgdhvxtq is accepted in the same pull request.
+- ADR-0017's scope adds back .mcp.json, .claude/** and .kiro/** in the same pull request that creates them (they were removed while no file matched).
