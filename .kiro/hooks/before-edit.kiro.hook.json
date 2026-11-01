@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "ark before edit",
+      "description": "Before an edit, report the decisions and open issues that govern the file.",
+      "trigger": "PreToolUse",
+      "matcher": "write",
+      "action": {
+        "type": "command",
+        "command": ".kiro/hooks/before-edit.sh"
+      }
+    }
+  ]
+}
