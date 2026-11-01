@@ -151,6 +151,15 @@ Expected: a diff touching only the pin and the new hook, and no note, because no
 - **Observability.** `doctor` makes the setup's state visible; agent writes stay attributed (ADR-0007).
 - **Agent use.** The setup is what makes the skills' instructions true by default: the MCP servers they name exist, and the records they say to read arrive at the edit.
 
+## What the hand setup settled
+
+?58 wrote ark's setup by hand against the pinned published tools (adr 0.5.10, issues 0.5.6), ahead of `init` writing it. Two things the table above assumes are not true of those pinned versions, and the hand setup records the gap rather than inventing commands that cannot run:
+
+- **No `doctor` and no `<tool> hooks agent …` subcommands yet.** The pinned CLIs expose `hooks install | uninstall | print | run pre-commit | trailers`, with no `hooks agent session-start` / `… before-edit`, and no `doctor`. So the harness hooks cannot "name a command and keep the logic in the tools" yet. The hand setup keeps the logic in small committed scripts (`.claude/hooks/*.sh`, `.kiro/hooks/*.sh`) that call the commands the pinned versions do have: `hooks install` in place of `doctor --fix-clone`, then `adr list --since <rev>` / `issues list --since <rev>` and `issues ready` for session start, and `adr for <path>` / `issues for <path>` for before-edit. When `doctor` and the `hooks agent` subcommands ship (later slices, and `doctor` in `ram953kt`), `init` replaces these scripts with the one-line command form the table describes, and R9 is checked against that version's output, not this one.
+- **`prepare` has no `--quiet` in the pinned versions.** The design's `"prepare": "<tool> hooks install --quiet"` is written as `npx -y @nikovirtala/adr@0.5.10 hooks install && npx -y @nikovirtala/issues@0.5.6 hooks install` (both tools, pinned, no `--quiet`). `init` gains the `--quiet` form once the tool supports it.
+
+**Kiro has no committed permission-rule file (answers the table's "Kiro's equivalent, where it has one").** Kiro's permission rules live per-user outside the repository (`~/.kiro/settings/permissions.yaml` and `~/.kiro/workspace-roots/<hash>/permissions.yaml`); the docs state a cloned repo cannot inject permission rules. The only in-repo expression is the `permissions` field of a committed custom agent profile (`.kiro/agents/*.json`), which ark does not ship. So the deny rules (`docs/*/events/**`, `docs/*/index.md`, `docs/adr/decisions/**`) are written on the Claude side only (`.claude/settings.json` `permissions.deny`); Kiro's layer is a documented gap, not an invented file.
+
 ## Open questions
 
 - **Q1** Where should the record of what `init` wrote live: a committed `ark-setup.lock`, managed-block markers inside each file, or both?
