@@ -186,6 +186,43 @@ describe("initToolLog: the skill and AGENTS.md", () => {
     expect(await text(r, "AGENTS.md")).toBe("Widgets are managed by widget: read SKILL.md.\n");
   });
 
+  it("writes one SKILL.md per directory with a single AGENTS.md pointer to the first", async () => {
+    const r = await repo();
+    const dirs = [".claude/skills/widget", ".kiro/skills/widget"];
+    const doc = await init(r, { skill: { dirs, version: "1.2.3" } });
+    expect(doc.skill).toBe(".claude/skills/widget/SKILL.md");
+    expect(doc.written).toEqual([
+      "log/widget.toml",
+      "log/templates/plain.md",
+      ".claude/skills/widget/SKILL.md",
+      ".kiro/skills/widget/SKILL.md",
+      "AGENTS.md",
+    ]);
+    expect(await text(r, ".claude/skills/widget/SKILL.md")).toBe("# Widget skill\n");
+    expect(await text(r, ".kiro/skills/widget/SKILL.md")).toBe("# Widget skill\n");
+    // One pointer, naming the first directory's skill.
+    expect(await text(r, "AGENTS.md")).toBe(
+      "Widgets are managed by widget: read .claude/skills/widget/SKILL.md.\n",
+    );
+    // A rerun keeps every skill and the pointer.
+    expect(await init(r, { skill: { dirs, version: "1.2.3" } })).toMatchObject({
+      written: [],
+      kept: [
+        "log/widget.toml",
+        "log/templates/plain.md",
+        ".claude/skills/widget/SKILL.md",
+        ".kiro/skills/widget/SKILL.md",
+        "AGENTS.md",
+      ],
+    });
+  });
+
+  it("de-duplicates repeated skill directories", async () => {
+    const r = await repo();
+    const doc = await init(r, { skill: { dirs: [".claude/w", ".claude/w"], version: "1" } });
+    expect(doc.written.filter((p) => p.endsWith("SKILL.md"))).toEqual([".claude/w/SKILL.md"]);
+  });
+
   it("keeps a SKILL.md that differs, with a note", async () => {
     const r = await repo({ [SKILL_PATH]: "old\n" });
     const doc = await init(r, { skill: SKILL });

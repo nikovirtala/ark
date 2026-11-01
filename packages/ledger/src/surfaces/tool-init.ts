@@ -75,10 +75,29 @@ export interface ToolInitOptions {
   readonly commit?: boolean;
   readonly message?: string | null;
   /**
-   * Also write `<dir>/SKILL.md` (`dir` repo-relative, `""` for the root) and the AGENTS.md
-   * pointer; `version` is the tool's, for the note on a SKILL.md that differs.
+   * Also write the agent skill as `<dir>/SKILL.md` and the AGENTS.md pointer. A single `dir`
+   * writes one skill; `dirs` writes one SKILL.md per directory (a harness each, e.g.
+   * `.claude/skills/<tool>` and `.kiro/skills/<tool>`). A directory is repo-relative, `""` for
+   * the root. The AGENTS.md pointer names the first directory's skill. `version` is the tool's,
+   * for the note on a SKILL.md that differs.
    */
-  readonly skill?: { readonly dir: string; readonly version: string };
+  readonly skill?: {
+    readonly dir?: string;
+    readonly dirs?: readonly string[];
+    readonly version: string;
+  };
+}
+
+/** The SKILL.md path a skill directory writes (`""` is the repo root). */
+function skillPath(dir: string): string {
+  return dir === "" ? "SKILL.md" : `${dir}/SKILL.md`;
+}
+
+/** The skill directories a {@link ToolInitOptions.skill} asks for, in order, de-duplicated. */
+function skillDirs(skill: ToolInitOptions["skill"]): readonly string[] {
+  if (skill === undefined) return [];
+  const dirs = skill.dirs ?? (skill.dir === undefined ? [] : [skill.dir]);
+  return [...new Set(dirs)];
 }
 
 export interface ToolInitResult {
@@ -125,8 +144,9 @@ export function namesSkill(text: string, skill: string): boolean {
  * without `--root`; when that file exists for another log, the config goes in the root, with a
  * note. With `[log] index = "committed"` it also writes `<root>/index.md` unless one exists,
  * rendered from the tree the commit (or the work tree) will hold, and refreshes it after the
- * commit. With `o.skill` it also writes the agent skill, unless a SKILL.md is there, and adds the
- * pointer line to `AGENTS.md`, unless a line already names the skill's path as a whole path (see
+ * commit. With `o.skill` it also writes the agent skill to each requested directory (one `dir`,
+ * or several `dirs`, one SKILL.md per harness), unless a SKILL.md is there, and adds one pointer
+ * line to `AGENTS.md` naming the first directory's skill, unless a line already names it (see
  * {@link namesSkill}); an AGENTS.md with unstaged changes or not tracked is refused with a commit
  * and left unstaged without one. A failed write removes what init wrote.
  * With a commit (default `[policy] auto_commit`) only what init wrote and removed is committed;
@@ -207,25 +227,28 @@ export async function initToolLog(
     if (t.indexStep === "before-skill") await indexStep();
     const logFiles = files.length;
 
-    // The skill: SKILL.md is never overwritten; AGENTS.md gets one pointer line. Checked before
-    // anything is written.
-    const skill =
-      o.skill === undefined ? null : o.skill.dir === "" ? "SKILL.md" : `${o.skill.dir}/SKILL.md`;
+    // The skill: each SKILL.md is never overwritten; AGENTS.md gets one pointer line naming the
+    // first directory's skill. Checked before anything is written.
+    const dirs = skillDirs(o.skill);
+    const skillPaths = dirs.map(skillPath);
+    const skill = skillPaths[0] ?? null;
     let agents: {
       readonly bytes: Uint8Array;
       readonly expected: Uint8Array | null;
       readonly stage: boolean;
     } | null = null;
     if (skill !== null) {
-      const current = await log.tree.read(skill);
-      if (current === null) {
-        files.push([skill, t.skillText]);
-      } else {
-        kept.push(skill);
-        if (decoder.decode(current) !== t.skillText) {
-          notes.push(
-            `${skill} differs from ${t.tool} ${o.skill?.version ?? ""}'s skill; delete it and run ${t.tool} init --skill again to replace it`,
-          );
+      for (const path of skillPaths) {
+        const current = await log.tree.read(path);
+        if (current === null) {
+          files.push([path, t.skillText]);
+        } else {
+          kept.push(path);
+          if (decoder.decode(current) !== t.skillText) {
+            notes.push(
+              `${path} differs from ${t.tool} ${o.skill?.version ?? ""}'s skill; delete it and run ${t.tool} init --skill again to replace it`,
+            );
+          }
         }
       }
       const old = await log.tree.read(AGENTS);
