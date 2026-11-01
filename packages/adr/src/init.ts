@@ -1,4 +1,4 @@
-import { initToolLog } from "@nikovirtala/ledger";
+import { initToolLog, type ToolSetup } from "@nikovirtala/ledger";
 import type { DecisionLog } from "./log.js";
 import { INDEX_AFTER, renderDecisionIndex } from "./log-index.js";
 import { SKILL_MD } from "./skill.js";
@@ -69,7 +69,13 @@ export async function initDecisionLog(
      * Also write `<dir>/SKILL.md` (`dir` repo-relative, `""` for the root) and the AGENTS.md
      * pointer (design §9); `version` is adr's, for the note on a SKILL.md that differs.
      */
-    readonly skill?: { readonly dir: string; readonly version: string };
+    readonly skill?: {
+      readonly dir?: string;
+      readonly dirs?: readonly string[];
+      readonly version: string;
+    };
+    /** Also write the agent setup (MCP config, hooks, permissions, prepare) for each harness. */
+    readonly setup?: ToolSetup;
   } = {},
 ): Promise<InitResultJson> {
   const r = await initToolLog(

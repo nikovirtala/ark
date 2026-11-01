@@ -1,8 +1,10 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { TempRepo } from "@nikovirtala/ledger/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import { initDecisionLog, namesSkill } from "./init.js";
 import { openDecisionLog } from "./log.js";
-import { cliRepo, seedDecision } from "./test-support/cli.js";
+import { cliRepo, runAdr, seedDecision } from "./test-support/cli.js";
 import { INDEX, INDEX_CONFIG } from "./test-support/index-repo.js";
 
 const repos: TempRepo[] = [];
@@ -30,6 +32,52 @@ describe("initDecisionLog commit title (?57)", () => {
     expect(doc.written).toEqual([INDEX]);
     expect(doc.commit).not.toBeNull();
     expect(await subject(r)).toBe("docs(adr): set up the decision log");
+  });
+});
+
+describe("adr init --setup (the agent setup plumbing)", () => {
+  const exists = (r: TempRepo, p: string) =>
+    readFile(join(r.root, p)).then(
+      () => true,
+      () => false,
+    );
+
+  it("writes the MCP config, hooks, permissions and the committed lock for each harness", async () => {
+    const r = await cliRepo();
+    const run = runAdr(r, ["init", "--setup", "--no-commit"]);
+    expect(run.status).toBe(0);
+    expect(await exists(r, ".mcp.json")).toBe(true);
+    expect(await exists(r, ".claude/settings.json")).toBe(true);
+    expect(await exists(r, ".claude/hooks/session-start.sh")).toBe(true);
+    expect(await exists(r, ".kiro/settings/mcp.json")).toBe(true);
+    expect(await exists(r, "ark-setup.lock")).toBe(true);
+    // The MCP pin is an exact version, and the env never carries ARK_ON_BEHALF_OF's value (R4/R8).
+    const mcp = await readFile(join(r.root, ".mcp.json"), "utf8");
+    expect(mcp).toContain("@nikovirtala/adr@0.5.10");
+    expect(mcp).not.toContain("workspace:");
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the expected shell placeholder
+    expect(mcp).toContain("${ARK_ON_BEHALF_OF}");
+    // The skill went to both harnesses.
+    expect(await exists(r, ".claude/skills/adr/SKILL.md")).toBe(true);
+    expect(await exists(r, ".kiro/skills/adr/SKILL.md")).toBe(true);
+  });
+
+  it("opts a piece out with --no-mcp and a harness out with --harness kiro", async () => {
+    const r = await cliRepo();
+    const run = runAdr(r, ["init", "--setup", "--no-mcp", "--harness", "kiro", "--no-commit"]);
+    expect(run.status).toBe(0);
+    expect(await exists(r, ".mcp.json")).toBe(false);
+    expect(await exists(r, ".kiro/settings/mcp.json")).toBe(false);
+    // Claude hooks still written; Kiro opted out entirely.
+    expect(await exists(r, ".claude/hooks/session-start.sh")).toBe(true);
+    expect(await exists(r, ".kiro/hooks/session-start.sh")).toBe(false);
+  });
+
+  it("refuses --no-mcp without --setup", async () => {
+    const r = await cliRepo();
+    const run = runAdr(r, ["init", "--no-mcp"]);
+    expect(run.status).not.toBe(0);
+    expect(run.stderr).toContain("--no-mcp needs --setup");
   });
 });
 
