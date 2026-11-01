@@ -92,7 +92,13 @@ export async function initDecisionLog(
       indexAfter: INDEX_AFTER,
       rerun: INIT_RERUN,
       action: "set up",
-      commitTitle: ({ logFiles }) => (logFiles > 0 ? "the decision log" : "the adr agent skill"),
+      // Title by whether init wrote anything other than the skill files: adr's index step runs
+      // after the skill step, so index.md never counts in logFiles (?57, rhb2vwnt). An index-only
+      // committing run still sets up the decision log, not just the skill.
+      commitTitle: ({ written, removed, skill }) =>
+        removed.length === 0 && written.every((p) => p === skill || p === "AGENTS.md")
+          ? "the adr agent skill"
+          : "the decision log",
     },
     o,
   );
