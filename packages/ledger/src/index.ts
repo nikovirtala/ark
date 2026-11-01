@@ -295,6 +295,14 @@ export {
   type WritePlan,
 } from "./surfaces/apply-plan.js";
 export {
+  ARK_PINS,
+  type ArkPins,
+  arkPrepare,
+  arkServers,
+  arkSetup,
+  arkShared,
+} from "./surfaces/ark-setup.js";
+export {
   type CommitName,
   type CommitSlot,
   type CommitTemplate,
@@ -337,6 +345,24 @@ export {
   unavailableReason,
 } from "./surfaces/log-read.js";
 export {
+  type ApplySetupOptions,
+  applySetup,
+  type MergeOwnership,
+  type PieceOutcome,
+  SETUP_LOCK,
+  type SetupPiece,
+  type SetupResult,
+  type WholeOwnership,
+} from "./surfaces/setup.js";
+export {
+  detectHarnesses,
+  HARNESSES,
+  type Harness,
+  type HarnessShared,
+  type McpServerEntry,
+  mcpStdioServer,
+} from "./surfaces/setup-claude.js";
+export {
   readSourceLog,
   readSourceSubjects,
   type SourceLogRead,
@@ -378,6 +404,7 @@ export {
   type ToolInitOptions,
   type ToolInitResult,
   type ToolInitSpec,
+  type ToolSetup,
 } from "./surfaces/tool-init.js";
 export {
   type NumberingKeys,

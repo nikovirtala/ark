@@ -9,6 +9,14 @@ import { indexPath } from "../log-index/tool-render.js";
 import { readToolConfig } from "../sources/config.js";
 import { renderCommitMessage } from "./commit-message.js";
 import { commitWithRecovery } from "./commit-recovery.js";
+import { applySetup, type SetupPiece } from "./setup.js";
+import {
+  claudePieces,
+  type Harness,
+  type HarnessShared,
+  type McpServerEntry,
+} from "./setup-claude.js";
+import { kiroPieces } from "./setup-kiro.js";
 import type { LogIndexRender } from "./tool-index.js";
 import type { SharedKeys, ToolLog } from "./tool-log.js";
 
@@ -86,11 +94,87 @@ export interface ToolInitOptions {
     readonly dirs?: readonly string[];
     readonly version: string;
   };
+  /**
+   * Also write the agent setup (MCP config, harness hooks, permission rules and a `prepare`
+   * script) for the harnesses in {@link ToolSetup.harnesses}, owning only what init wrote and safe
+   * to rerun (design "init: complete by default, safe to rerun"). Omitted means no setup is
+   * written, so the existing log/skill behaviour is unchanged.
+   */
+  readonly setup?: ToolSetup;
+}
+
+/**
+ * The agent-setup content a tool's init writes, supplied by the tool because it is tool- and
+ * repo-specific (the pins, the `ARK_AGENT` value, the hook scripts and the deny globs). init turns
+ * it into the per-harness pieces and applies them with {@link applySetup}.
+ */
+export interface ToolSetup {
+  /** The harnesses to write, after detection and `--harness`/`--no-*` opt-outs. */
+  readonly harnesses: readonly Harness[];
+  /** This tool's MCP server entry per harness (merged under `mcpServers.<name>`). */
+  readonly servers: Readonly<Record<Harness, McpServerEntry>>;
+  /** The exact file contents of the shared, ark-specific pieces per harness. */
+  readonly shared: Readonly<Record<Harness, HarnessShared>>;
+  /** The `scripts.prepare` value for `package.json`, or `null` to write none. */
+  readonly prepare?: string | null;
+  /** Opt out of a piece/harness: piece ids (e.g. `mcp`, `hooks`) or harness names, pre-expanded. */
+  readonly skip?: ReadonlySet<string>;
+  /** Overwrite a piece even when someone changed it, by piece id (`init --force <piece>`). */
+  readonly force?: ReadonlySet<string>;
 }
 
 /** The SKILL.md path a skill directory writes (`""` is the repo root). */
 function skillPath(dir: string): string {
   return dir === "" ? "SKILL.md" : `${dir}/SKILL.md`;
+}
+
+/** The setup pieces a {@link ToolSetup} asks for: the per-harness pieces plus the prepare script. */
+function setupPieces(setup: ToolSetup): SetupPiece[] {
+  const pieces: SetupPiece[] = [];
+  for (const h of setup.harnesses) {
+    const server = setup.servers[h];
+    const shared = setup.shared[h];
+    const built =
+      h === "claude" ? claudePieces({ server, shared }) : kiroPieces({ server, shared });
+    pieces.push(...built);
+  }
+  if (setup.prepare !== undefined && setup.prepare !== null) {
+    pieces.push({
+      id: "prepare",
+      file: "package.json",
+      ownership: {
+        kind: "merge",
+        scaffold: { scripts: {} },
+        entries: { "scripts.prepare": setup.prepare },
+        front: ["scripts.prepare"],
+      },
+    });
+  }
+  return pieces;
+}
+
+/** The groups a piece id belongs to, for `--no-mcp` / `--no-hooks` opt-outs. */
+function pieceGroups(id: string): readonly string[] {
+  if (id.includes(".mcp.")) return ["mcp"];
+  if (id.includes(".hook.") || id === "prepare") return ["hooks"];
+  if (id.endsWith(".settings")) return ["hooks"];
+  return [];
+}
+
+/**
+ * Expands the opt-out `skip` groups (`mcp`, `hooks`) and raw piece ids into the concrete piece ids
+ * {@link applySetup} skips. A group name opts out every piece in it; a piece id opts out that one.
+ */
+function expandSkip(
+  skip: ReadonlySet<string> | undefined,
+  pieces: readonly SetupPiece[],
+): ReadonlySet<string> {
+  const out = new Set<string>();
+  if (skip === undefined) return out;
+  for (const piece of pieces) {
+    if (skip.has(piece.id) || pieceGroups(piece.id).some((g) => skip.has(g))) out.add(piece.id);
+  }
+  return out;
 }
 
 /** The skill directories a {@link ToolInitOptions.skill} asks for, in order, de-duplicated. */
@@ -286,7 +370,9 @@ export async function initToolLog(
     }
     if (t.indexStep === "after-skill") await indexStep();
 
-    const commit = (files.length > 0 || agents !== null) && commitRequested;
+    const commit =
+      (files.length > 0 || agents !== null || (o.setup?.harnesses.length ?? 0) > 0) &&
+      commitRequested;
     if (
       commit &&
       ((await log.git.identity()) === null || (await log.git.committerIdentity()) === null)
@@ -313,6 +399,26 @@ export async function initToolLog(
     }
     const staged = written.filter((p) => p !== AGENTS || agents?.stage === true);
     if (staged.length > 0) await log.git.add(staged);
+
+    // The agent setup: MCP config, harness hooks, permission rules and a prepare script, owned by
+    // init and safe to rerun. Its written files are staged and committed with the rest.
+    const setupStaged: string[] = [];
+    if (o.setup !== undefined && o.setup.harnesses.length > 0) {
+      const pieces = setupPieces(o.setup);
+      const skip = expandSkip(o.setup.skip, pieces);
+      const r = await applySetup(log.git, pieces, {
+        tool: t.tool,
+        skip,
+        ...(o.setup.force === undefined ? {} : { force: o.setup.force }),
+      });
+      for (const path of r.written) {
+        if (!written.includes(path)) written.push(path);
+        setupStaged.push(path);
+      }
+      await log.git.add(setupStaged);
+      notes.push(...r.notes);
+    }
+
     // The placeholder goes once the log has real files (not for the skill alone): after the
     // writes, so a failed write leaves it alone.
     const removed: string[] = [];
@@ -343,7 +449,7 @@ export async function initToolLog(
         }).message;
       sha = await commitWithRecovery(log.git, {
         message,
-        only: [...staged, ...tracked],
+        only: [...staged, ...setupStaged, ...tracked],
         rerun: t.rerun,
         after: indexed ? t.indexAfter(root) : null,
       });
