@@ -95,6 +95,9 @@ jobs:
       id-token: write # npm trusted publishing (OIDC) and provenance
     env:
       NPM_CONFIG_PROVENANCE: "true"
+    outputs:
+      published: ${{ steps.publish.outputs.published }}
+      published-packages: ${{ steps.publish.outputs.published-packages }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -106,6 +109,61 @@ jobs:
           package-manager-cache: false # avoid cache poisoning
       - run: pnpm install --frozen-lockfile
       - name: Publish packages
+        id: publish
         uses: changesets/action/publish@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
           pack-dir-artifact-id: ${{ needs.pack.outputs.pack-dir-artifact-id }}
+
+  # The release is the self-update (adr:jgdhvxtq, docs/03-setup-v1.md "bootstrapping"): once a
+  # release publishes new tool versions, bump ark's own pins to the just-published exact versions
+  # and rerun `init --setup`, so every pin (.mcp.json, .kiro/settings/mcp.json, the package.json
+  # `prepare` script, the committed hook scripts) and ark-setup.lock update together. The result is
+  # a PULL REQUEST reviewed like any other change with CI passing before merge, never a direct
+  # push to main. `init` regenerates all pins from the single `ARK_PINS` constant, so the bump edits
+  # one source file and lets init rewrite the rest (no brittle per-file sed).
+  self-update:
+    needs: publish
+    if: github.repository == 'nikovirtala/ark' && needs.publish.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create-pull-request pushes the self-update branch (NOT main)
+      pull-requests: write # create-pull-request opens the self-update PR
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          package-manager-cache: false # avoid cache poisoning
+      - run: pnpm install --frozen-lockfile
+      - name: Bump ark's own pins to the published versions
+        id: bump
+        env:
+          # JSON: [{"name":"@nikovirtala/adr","version":"x.y.z"}, …] from the publish step.
+          PUBLISHED_PACKAGES: ${{ needs.publish.outputs.published-packages }}
+        run: node scripts/bump-ark-pins.mjs
+      - name: Regenerate ark's setup from the bumped pins
+        if: steps.bump.outputs.changed == 'true'
+        run: |
+          pnpm build
+          node packages/adr/dist/cli.js init --setup --no-commit
+          node packages/issues/dist/cli.js init --setup --no-commit
+      - name: Open the self-update pull request
+        if: steps.bump.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          branch: release/ark-pin-bump
+          base: main
+          commit-message: "ci: bump ark's own tool pins and rerun init on release"
+          title: "ci: bump ark's own tool pins and rerun init on release"
+          body: |
+            A release published new tool versions, so this PR adopts them on ark itself
+            (adr:jgdhvxtq, docs/03-setup-v1.md "bootstrapping"): it bumps `ARK_PINS` and
+            reruns `init --setup`, which rewrites every pin and `ark-setup.lock` together.
+
+            Published this release: ${{ needs.publish.outputs.published-packages }}
+
+            Review and merge like any other change; CI (R9 and the `verify` steps) must pass.
+          labels: release
