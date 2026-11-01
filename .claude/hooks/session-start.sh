@@ -3,15 +3,15 @@
 #
 # The design wants this logic inside the tools as `<tool> hooks agent session-start`,
 # and the first step to be `doctor --fix-clone`. Neither the `hooks agent` subcommand
-# nor `doctor` exists in the pinned published versions (adr 0.5.10 / issues 0.5.6);
+# nor `doctor` exists in the pinned published versions (adr 0.6.0 / issues 0.6.0);
 # doctor arrives in a later slice. Until then this script runs the equivalent commands
 # the pinned CLIs do expose: `hooks install` installs any missing git hooks in this
 # clone (the `--fix-clone` part), then each tool lists what changed since the last
 # session and `issues ready` lists pickable work. Keep the pins in step with .mcp.json.
 set -eu
 
-ADR="npx -y @nikovirtala/adr@0.5.10"
-ISSUES="npx -y @nikovirtala/issues@0.5.6"
+ADR="npx -y @nikovirtala/adr@0.6.0"
+ISSUES="npx -y @nikovirtala/issues@0.6.0"
 
 # Install git hooks if this clone is missing them (stand-in for `doctor --fix-clone`).
 $ADR hooks install >/dev/null 2>&1 || true
