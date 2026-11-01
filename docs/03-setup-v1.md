@@ -72,7 +72,7 @@ The exact file formats of each harness change over time; the implementation foll
 
 - It never overwrites a file; it reports what it left as `kept`.
 - It notes a SKILL.md that differs from the tool's version, so the tool already knows when a skill is out of date; it just doesn't act on it.
-- It removes what it wrote, and restores AGENTS.md, when a step fails.
+- It removes what it wrote when a step fails (?56 dropped an unreachable AGENTS.md restore: `writeNewFile` and the `replaceFile` guard never leave AGENTS.md half-written, so the rollback only removes the files init wrote).
 - It adds the AGENTS.md pointer only when no line already names the skill.
 - It commits only what it wrote.
 
@@ -162,10 +162,10 @@ Expected: a diff touching only the pin and the new hook, and no note, because no
 
 ## Open questions
 
-- **Q1** Where should the record of what `init` wrote live: a committed `ark-setup.lock`, managed-block markers inside each file, or both?
-- **Q2** Should `init` detect harnesses, or should a repository list them in a shared config?
-- **Q3** Should `doctor` fail CI, or only warn, once a repository has run the new `init`?
-- **Q4** Is this document a design for the design tool to manage once it exists, and if so, does it move into its log as the tool's first record?
+- **Q1 (answered).** Where should the record of what `init` wrote live? **A committed `ark-setup.lock` beside the configs, plus a per-clone `<git common dir>/ark/setup.json`.** The committed lock is what lets every clone know what the last `init` wrote without the per-clone file, so a fresh clone's rerun is a no-op and R2 can tell "init wrote this" from "someone changed this". The per-clone file mirrors it for state git never tracks. Managed-block markers inside each file were rejected: they would force `init` to edit inside files it does not own line-for-line (a shared `.mcp.json`, `AGENTS.md`, `package.json`), and a hash of the owned entries keeps ownership precise without touching anyone else's content. The lock records one SHA-256 per piece: for a whole-file piece the file's bytes, for a merged JSON piece only the owned entries, so another server in the same file never reads as an edit. ?59 added `ark-setup.lock` to ark's committed setup so R9's no-diff holds.
+- **Q2 (answered).** Should `init` detect harnesses, or should a repository list them in a shared config? **`init` detects them by their config directories (`.claude`, `.kiro`); a repository with neither gets every harness.** Flags only opt a harness or piece *out* (`--harness claude|kiro`, `--no-mcp`, `--no-hooks`), never in (R1), so a new harness is picked up by its directory rather than a list someone must remember to edit, the same reason the setup is complete-by-default. A shared opt-in list would repeat the gap this design exists to close.
+- **Q3** Should `doctor` fail CI, or only warn, once a repository has run the new `init`? (Deferred to the `doctor` slice, `ram953kt`.)
+- **Q4** Is this document a design for the design tool to manage once it exists, and if so, does it move into its log as the tool's first record? (For Niko.)
 
 ## Work
 

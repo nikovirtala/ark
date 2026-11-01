@@ -78,6 +78,9 @@ jobs:
       # tsc -b (declarations and test typecheck) and tsdown bundles for the whole workspace:
       # dependents need their dependencies built.
       - run: pnpm build
+      # R9: the shared init reproduces ark's committed agent setup with no diff (docs/03-setup-v1.md).
+      - name: Verify ark's agent setup (R9)
+        run: node scripts/check-agent-setup.mjs
       # ark has no [[sources]] in docs/adr/adr.toml or docs/issues/issues.toml, so neither verify
       # step passes --fetch-sources (it would fetch nothing). Add it to both when ark gets a source.
       - name: Verify ark's decision log
