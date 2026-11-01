@@ -5,6 +5,7 @@ import { decisionSourceConfigs, readDecisionSources } from "../sources.js";
 import { adrChecks, decisionVerifyInputs } from "../verify.js";
 import { acceptCommand } from "./accept.js";
 import { deprecateCommand } from "./deprecate.js";
+import { adrDoctorCommand } from "./doctor.js";
 import { forCommand } from "./for.js";
 import { hooksCommand } from "./hooks.js";
 import { indexCommand } from "./index-command.js";
@@ -81,6 +82,7 @@ export function adrCli(version: string): ToolCli {
       scopeCommand,
       indexCommand,
       hooksCommand,
+      adrDoctorCommand(),
       forCommand,
       listCommand,
       showCommand,
