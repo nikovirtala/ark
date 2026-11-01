@@ -128,7 +128,7 @@ export function namesSkill(text: string, skill: string): boolean {
  * commit. With `o.skill` it also writes the agent skill, unless a SKILL.md is there, and adds the
  * pointer line to `AGENTS.md`, unless a line already names the skill's path as a whole path (see
  * {@link namesSkill}); an AGENTS.md with unstaged changes or not tracked is refused with a commit
- * and left unstaged without one. A failed write removes what init wrote and restores AGENTS.md.
+ * and left unstaged without one. A failed write removes what init wrote.
  * With a commit (default `[policy] auto_commit`) only what init wrote and removed is committed;
  * nothing written means nothing committed. No events are written.
  */
@@ -271,7 +271,6 @@ export async function initToolLog(
       throw new ConfigError("--commit needs a git identity; set git user.name and user.email");
     }
     const written: string[] = [];
-    let replaced = false;
     try {
       for (const [path, text] of files) {
         await writeNewFile(log.git, path, encoder.encode(text));
@@ -280,18 +279,12 @@ export async function initToolLog(
       if (agents !== null) {
         if (agents.expected === null) await writeNewFile(log.git, AGENTS, agents.bytes);
         else await replaceFile(log.git, AGENTS, agents.bytes, { expected: agents.expected });
-        replaced = agents.expected !== null;
         written.push(AGENTS);
       }
     } catch (err) {
       const top = log.git.root ?? "";
-      const restore = replaced ? (agents?.expected ?? null) : null;
       for (const path of written) {
-        if (path === AGENTS && restore !== null && agents !== null) {
-          await replaceFile(log.git, AGENTS, restore, { expected: agents.bytes }).catch(() => {});
-        } else {
-          await rm(join(top, path), { force: true });
-        }
+        await rm(join(top, path), { force: true });
       }
       throw err;
     }
