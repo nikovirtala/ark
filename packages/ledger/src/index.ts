@@ -324,6 +324,14 @@ export {
   commitWithRecovery,
   saveCommitRecovery,
 } from "./surfaces/commit-recovery.js";
+export {
+  type DoctorResult,
+  type DoctorSpec,
+  type Gap,
+  type GapKind,
+  type RunDoctorOptions,
+  runDoctor,
+} from "./surfaces/doctor.js";
 export { renderStateHeader, type StateHeader } from "./surfaces/header.js";
 export {
   type FollowRenames,
@@ -349,6 +357,8 @@ export {
   applySetup,
   type MergeOwnership,
   type PieceOutcome,
+  type PieceState,
+  pieceStates,
   SETUP_LOCK,
   type SetupPiece,
   type SetupResult,
@@ -401,6 +411,7 @@ export {
 export {
   initToolLog,
   namesSkill,
+  setupPieces,
   type ToolInitOptions,
   type ToolInitResult,
   type ToolInitSpec,

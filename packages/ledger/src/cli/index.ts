@@ -7,6 +7,7 @@
  */
 export { LedgerError, UsageError } from "../errors.js";
 export { COMMIT_OPTIONS, commitChoice } from "./commit.js";
+export { type DoctorCommandOptions, doctorCommand } from "./doctor-command.js";
 export { type Edit, editorFromEnv } from "./editor.js";
 export type { GlobalFlags } from "./flags.js";
 export { type HooksCommandOptions, hooksCommand } from "./hooks-command.js";

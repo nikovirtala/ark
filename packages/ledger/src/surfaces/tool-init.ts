@@ -129,7 +129,7 @@ function skillPath(dir: string): string {
 }
 
 /** The setup pieces a {@link ToolSetup} asks for: the per-harness pieces plus the prepare script. */
-function setupPieces(setup: ToolSetup): SetupPiece[] {
+export function setupPieces(setup: ToolSetup): SetupPiece[] {
   const pieces: SetupPiece[] = [];
   for (const h of setup.harnesses) {
     const server = setup.servers[h];

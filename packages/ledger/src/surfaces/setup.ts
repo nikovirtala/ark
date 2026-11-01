@@ -347,3 +347,91 @@ async function writeClone(git: Git, text: string): Promise<void> {
   await mkdir(join(git.commonDir, "ark"), { recursive: true });
   await write(path, encoder.encode(text));
 }
+
+/**
+ * What one piece looks like in the working tree compared with what the installed tool would write,
+ * for `doctor`. `present` is whether the piece's owned content is there at all; `matchesTarget` is
+ * whether what is there equals what the installed tool would write (the piece's target); `changed`
+ * is whether what is there differs from the hash init last wrote (from the lock) — the difference
+ * between "someone edited it" and "init wrote it with an older tool". `version`/`targetVersion`
+ * are the exact versions an MCP piece points at now and would point at, so doctor can report a pin
+ * that names a version other than the installed one.
+ */
+export interface PieceState {
+  readonly id: string;
+  readonly file: string;
+  readonly present: boolean;
+  readonly matchesTarget: boolean;
+  readonly changed: boolean;
+  readonly version: string | null;
+  readonly targetVersion: string | null;
+}
+
+/** The last-written hash lookup both locks provide, committed taking precedence over per-clone. */
+async function lastHashes(git: Git): Promise<(id: string) => string | null> {
+  const reader = worktreeReader(git);
+  const committed = parseLock(await reader.read(SETUP_LOCK));
+  const clone = parseLock(await readClone(git));
+  return (id) => committed[id]?.hash ?? clone[id]?.hash ?? null;
+}
+
+/** The first `pkg@x.y.z` version found in a merge piece's owned entries, or `null`. */
+function versionIn(value: unknown): string | null {
+  const json = JSON.stringify(value);
+  const m = /@(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\b/.exec(json);
+  return m?.[1] ?? null;
+}
+
+/**
+ * The {@link PieceState} of each piece against the working tree (R5): what the installed tool
+ * reports for `doctor`. It never writes anything. For a `whole` piece the target is its bytes; for
+ * a `merge` piece the target is its owned entries' hash, so another server in the same file is
+ * ignored. `changed` compares what is there against the committed/per-clone lock.
+ */
+export async function pieceStates(
+  git: Git,
+  pieces: readonly SetupPiece[],
+): Promise<readonly PieceState[]> {
+  const reader = worktreeReader(git);
+  const lastHash = await lastHashes(git);
+  const states: PieceState[] = [];
+  for (const piece of pieces) {
+    const current = await reader.read(piece.file);
+    if (piece.ownership.kind === "whole") {
+      const target = piece.ownership.text;
+      const targetHash = bodySha256(encoder.encode(target));
+      const have = current === null ? null : decoder.decode(current);
+      const haveHash = current === null ? null : bodySha256(current);
+      states.push({
+        id: piece.id,
+        file: piece.file,
+        present: have !== null,
+        matchesTarget: haveHash === targetHash,
+        changed: haveHash !== null && haveHash !== targetHash && haveHash !== lastHash(piece.id),
+        version: null,
+        targetVersion: null,
+      });
+    } else {
+      const merge = piece as SetupPiece & { ownership: MergeOwnership };
+      const merged = mergedBytes(merge, current);
+      const currentOwned = ownedHashOf(merge, current);
+      const obj = parseObject(current);
+      const entryKey = Object.keys(merge.ownership.entries)[0];
+      const currentValue =
+        obj === null || entryKey === undefined ? undefined : getPath(obj, entryKey);
+      states.push({
+        id: piece.id,
+        file: piece.file,
+        present: currentOwned !== null,
+        matchesTarget: currentOwned === merged.ownedHash,
+        changed:
+          currentOwned !== null &&
+          currentOwned !== merged.ownedHash &&
+          currentOwned !== lastHash(piece.id),
+        version: currentValue === undefined ? null : versionIn(currentValue),
+        targetVersion: entryKey === undefined ? null : versionIn(merge.ownership.entries[entryKey]),
+      });
+    }
+  }
+  return states;
+}
