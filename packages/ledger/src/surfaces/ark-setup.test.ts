@@ -7,7 +7,7 @@ describe("ark-setup content", () => {
   it("pins exact versions, never workspace:* or a range, and passes ARK_ON_BEHALF_OF through", () => {
     const servers = arkServers({ pkg: "@nikovirtala/adr", name: "adr", version: ARK_PINS.adr });
     const claude = servers.claude.value as { args: string[]; env: Record<string, string> };
-    expect(claude.args).toEqual(["-y", "@nikovirtala/adr@0.5.10", "mcp"]);
+    expect(claude.args).toEqual(["-y", `@nikovirtala/adr@${ARK_PINS.adr}`, "mcp"]);
     expect(claude.env.ARK_AGENT).toBe("claude-code");
     // The value is passed through as a shell placeholder, never resolved (R4).
     // biome-ignore lint/suspicious/noTemplateCurlyInString: the expected shell placeholder
@@ -47,8 +47,8 @@ describe("ark-setup content", () => {
 
   it("shares identical hook scripts across harnesses' pins and builds a full setup", () => {
     const shared = arkShared(ARK_PINS);
-    expect(shared.claude.sessionStartScript).toContain("@nikovirtala/adr@0.5.10");
-    expect(shared.kiro.beforeEditScript).toContain("@nikovirtala/issues@0.5.6");
+    expect(shared.claude.sessionStartScript).toContain(`@nikovirtala/adr@${ARK_PINS.adr}`);
+    expect(shared.kiro.beforeEditScript).toContain(`@nikovirtala/issues@${ARK_PINS.issues}`);
     const setup = arkSetup({
       harnesses: ["claude", "kiro"],
       pkg: "@nikovirtala/adr",

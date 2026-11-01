@@ -73,7 +73,7 @@ describe("initIssueLog with the agent setup (?59)", () => {
     expect(doc.written).toContain("ark-setup.lock");
     expect(await has(r, ".claude/hooks/before-edit.sh")).toBe(true);
     const mcp = await read(r, ".mcp.json");
-    expect(mcp).toContain("@nikovirtala/issues@0.5.6");
+    expect(mcp).toContain(`@nikovirtala/issues@${ARK_PINS.issues}`);
     expect(mcp).not.toContain("workspace:");
     // A rerun with nothing to update leaves the working tree unchanged (R3).
     await git(r, "add", "-A");
