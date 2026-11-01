@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M6B71K6TWWYG1TF42KJT49BM
+subject: jgdhvxtq
+type: scoped
+at: 2026-11-01T09:28:57Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - .github/workflows/release.yml
