@@ -27,12 +27,12 @@ describe("ark-setup content", () => {
     expect(() => mcpStdioServer({ pkg: "p", version: "1.2.3", agent: "a" })).not.toThrow();
   });
 
-  it("writes the prepare script naming both tools at their pins, with no --quiet", () => {
+  it("writes the build-safe prepare script, not an npx of the workspace-pinned tools", () => {
     const prepare = arkPrepare(ARK_PINS);
-    expect(prepare).toBe(
-      "npx -y @nikovirtala/adr@0.5.10 hooks install && npx -y @nikovirtala/issues@0.5.6 hooks install",
-    );
-    expect(prepare).not.toContain("--quiet");
+    expect(prepare).toBe("node scripts/git-hooks.mjs install --if-built");
+    // ark pins both tools as workspace:*, so prepare must not npx them (R8, and crashes on CI).
+    expect(prepare).not.toContain("npx");
+    expect(prepare).not.toContain("@nikovirtala/");
   });
 
   it("gives Kiro its disabled/autoApprove fields and Claude none", () => {
