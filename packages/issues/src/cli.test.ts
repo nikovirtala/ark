@@ -56,6 +56,7 @@ describe("the issues binary", () => {
       "verify",
       "sources",
       "hooks",
+      "doctor",
       "mcp",
     ]);
   });

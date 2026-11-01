@@ -9,6 +9,7 @@ import { issueKind } from "../kind.js";
 import { readDecisionLog, readIssueSources } from "../sources.js";
 import { issuesChecks, issueVerifyInputs } from "../verify.js";
 import { commentCommand } from "./comment.js";
+import { issuesDoctorCommand } from "./doctor.js";
 import { editCommand } from "./edit.js";
 import { forCommand } from "./for.js";
 import { hooksCommand } from "./hooks.js";
@@ -106,6 +107,7 @@ export function issuesCli(version: string): ToolCli {
       verify,
       sources,
       hooksCommand,
+      issuesDoctorCommand(),
       mcpCommand(version),
     ],
   };
