@@ -84,3 +84,7 @@ ark tracks its open work in `docs/issues/` with its own `issues` tool (`node pac
 - Agents file with `ARK_AGENT` set and `ARK_ON_BEHALF_OF` naming the person they act for.
 - List the filed issues in the PR description under "Filed for later".
 - Design reviews don't file issues. Their low findings are fixed in the design.
+
+Architecture decisions in this repository are managed by adr: read .claude/skills/adr/SKILL.md before changing architecture, and follow it.
+
+Issues in this repository are tracked with issues: read .claude/skills/issues/SKILL.md before starting, continuing or finishing work, and follow it.

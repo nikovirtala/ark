@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "ark session start",
+      "description": "Install git hooks, list decisions and issues changed since last session, and list ready issues.",
+      "trigger": "SessionStart",
+      "action": {
+        "type": "command",
+        "command": ".kiro/hooks/session-start.sh"
+      }
+    }
+  ]
+}
