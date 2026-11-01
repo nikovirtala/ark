@@ -190,9 +190,18 @@ $ADR for "$PATH_EDITED" 2>/dev/null || true
 $ISSUES for "$PATH_EDITED" 2>/dev/null || true
 `;
 
-/** ark's `package.json` `prepare` script: install both tools' git hooks (no `--quiet`; the pinned CLIs lack it). */
-export function arkPrepare(p: ArkPins): string {
-  return `npx -y @nikovirtala/adr@${p.adr} hooks install && npx -y @nikovirtala/issues@${p.issues} hooks install`;
+/**
+ * ark's `package.json` `prepare` script. The design's `<tool> hooks install --quiet` cannot `npx`
+ * the pinned tools in ark itself: ark pins `@nikovirtala/adr` and `@nikovirtala/issues` as
+ * `workspace:*`, so `npx @nikovirtala/<tool>@<version>` resolves to the unbuilt workspace copy and
+ * crashes `pnpm install` on a fresh/CI checkout (and running the workspace build from ark's own
+ * config would violate R8). So ark's setup writes its build-safe installer instead, which installs
+ * the hooks when built and, with `--if-built`, skips with exit 0 on an unbuilt checkout. See
+ * docs/03-setup-v1.md "What the hand setup settled". The arg is kept so the signature stays in step
+ * with the other generators even though the value no longer depends on the pins.
+ */
+export function arkPrepare(_p: ArkPins): string {
+  return "node scripts/git-hooks.mjs install --if-built";
 }
 
 /** The shared, ark-specific file contents per harness (identical whichever tool writes them). */
