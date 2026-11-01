@@ -2,8 +2,8 @@
 # Before-edit hook (ADR-0017; docs/03-setup-v1.md "What a complete setup is").
 #
 # The design wants this logic inside the tools as `<tool> hooks agent before-edit`.
-# That subcommand does not exist in the pinned published versions (adr 0.5.10 /
-# issues 0.5.6), so this script calls the existing `adr for <path>` and
+# That subcommand does not exist in the pinned published versions (adr 0.6.0 /
+# issues 0.6.0), so this script calls the existing `adr for <path>` and
 # `issues for <path>` commands, which report the decisions and open issues that
 # govern the file about to be edited. Keep the pins in step with .mcp.json.
 #
@@ -11,8 +11,8 @@
 # it. Claude Code uses tool_input.file_path; fall back to any "*path" string.
 set -eu
 
-ADR="npx -y @nikovirtala/adr@0.5.10"
-ISSUES="npx -y @nikovirtala/issues@0.5.6"
+ADR="npx -y @nikovirtala/adr@0.6.0"
+ISSUES="npx -y @nikovirtala/issues@0.6.0"
 
 EVENT="$(cat 2>/dev/null || true)"
 PATH_EDITED="$(printf '%s' "$EVENT" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
