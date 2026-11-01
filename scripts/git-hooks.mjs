@@ -1,18 +1,24 @@
 // Installs or removes ark's own git hooks: adr's and issues' four hooks each and commitlint on
 // commit-msg, all in ledger's shared shims (ADR-0011, AGENTS.md "Commit messages"). Usage: pnpm
-// git-hooks install|uninstall.
+// git-hooks install|uninstall [--if-built].
 // Workspace code is loaded with a dynamic import() only after checking that it is built, so an
 // unbuilt checkout gets the "run pnpm install && pnpm build first" message instead of a crash.
+// With --if-built the unbuilt checkout is skipped with exit 0 instead of exit 2, so the `prepare`
+// script can install the hooks when the workspace is built without failing `pnpm install` on a
+// fresh clone whose dist is not yet there (design R8: ark's config never runs the workspace build).
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-const USAGE = "usage: pnpm git-hooks install|uninstall";
+const USAGE = "usage: pnpm git-hooks install|uninstall [--if-built]";
 const COMMITLINT = { tool: "commitlint", commands: { "commit-msg": ["--edit", "{args}"] } };
 
-const action = process.argv[2];
-if (process.argv.length !== 3 || (action !== "install" && action !== "uninstall")) {
+const args = process.argv.slice(2);
+const ifBuilt = args.includes("--if-built");
+const positional = args.filter((a) => a !== "--if-built");
+const action = positional[0];
+if (positional.length !== 1 || (action !== "install" && action !== "uninstall")) {
   console.error(USAGE);
   process.exit(2);
 }
@@ -26,6 +32,10 @@ const bins = ["adr", "issues"].map((tool) => ({
 }));
 if (!existsSync(ledgerEntry) || bins.some((b) => !existsSync(b.bin) || !existsSync(b.dist))) {
   const tools = bins.map((b) => b.tool).join(" and ");
+  if (ifBuilt) {
+    console.error(`git-hooks: ${tools} not built yet; skipping hook install (run pnpm build)`);
+    process.exit(0);
+  }
   console.error(
     `git-hooks: ${tools} must be linked and built; run pnpm install && pnpm build first`,
   );
