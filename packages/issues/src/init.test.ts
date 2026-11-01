@@ -3,7 +3,13 @@ import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 import { promisify } from "node:util";
-import { CommitFailedError, parseToolConfig, UsageError } from "@nikovirtala/ledger";
+import {
+  ARK_PINS,
+  arkSetup,
+  CommitFailedError,
+  parseToolConfig,
+  UsageError,
+} from "@nikovirtala/ledger";
 import { createTempRepo, type TempRepo } from "@nikovirtala/ledger/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_ISSUES_CONFIG, parseIssuesConfig } from "./config.js";
@@ -41,6 +47,55 @@ const open = (r: TempRepo, root?: string) =>
 const git = async (r: TempRepo, ...args: string[]) =>
   (await run("git", args, { cwd: r.root, env: { ...process.env, ...r.env } as NodeJS.ProcessEnv }))
     .stdout;
+
+describe("initIssueLog with the agent setup (?59)", () => {
+  const setup = (harnesses: readonly ("claude" | "kiro")[], force?: ReadonlySet<string>) =>
+    arkSetup({
+      harnesses,
+      pkg: "@nikovirtala/issues",
+      name: "issues",
+      version: ARK_PINS.issues,
+      pins: ARK_PINS,
+      ...(force === undefined ? {} : { force }),
+    });
+  const read = (r: TempRepo, p: string) => readFile(join(r.root, p), "utf8");
+  const has = (r: TempRepo, p: string) =>
+    readFile(join(r.root, p)).then(
+      () => true,
+      () => false,
+    );
+
+  it("writes the MCP config, hooks and the committed lock, and a rerun is a no-op", async () => {
+    const r = await repo();
+    const doc = await initIssueLog(await open(r), { setup: setup(["claude", "kiro"]) });
+    expect(doc.written).toContain(".mcp.json");
+    expect(doc.written).toContain(".kiro/settings/mcp.json");
+    expect(doc.written).toContain("ark-setup.lock");
+    expect(await has(r, ".claude/hooks/before-edit.sh")).toBe(true);
+    const mcp = await read(r, ".mcp.json");
+    expect(mcp).toContain("@nikovirtala/issues@0.5.6");
+    expect(mcp).not.toContain("workspace:");
+    // A rerun with nothing to update leaves the working tree unchanged (R3).
+    await git(r, "add", "-A");
+    await git(r, "-c", "user.email=a@b.c", "-c", "user.name=A", "commit", "-qm", "setup");
+    await initIssueLog(await open(r), { setup: setup(["claude", "kiro"]) });
+    expect((await git(r, "status", "--porcelain")).trim()).toBe("");
+  });
+
+  it("leaves a changed piece alone with a note, and --force overwrites it", async () => {
+    const r = await repo();
+    await initIssueLog(await open(r), { setup: setup(["claude"]) });
+    await writeFile(join(r.root, ".claude/hooks/session-start.sh"), "#!/bin/sh\nedited\n");
+    const kept = await initIssueLog(await open(r), { setup: setup(["claude"]) });
+    expect(kept.notes.some((n) => n.includes("--force claude.hook.session-start"))).toBe(true);
+    expect(await read(r, ".claude/hooks/session-start.sh")).toBe("#!/bin/sh\nedited\n");
+    const forced = await initIssueLog(await open(r), {
+      setup: setup(["claude"], new Set(["claude.hook.session-start"])),
+    });
+    expect(forced.written).toContain(".claude/hooks/session-start.sh");
+    expect(await read(r, ".claude/hooks/session-start.sh")).toContain("npx -y @nikovirtala/adr");
+  });
+});
 
 describe("initIssueLog", () => {
   it("writes the starter config and the task template, staged", async () => {

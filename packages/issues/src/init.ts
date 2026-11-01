@@ -1,4 +1,4 @@
-import { initToolLog } from "@nikovirtala/ledger";
+import { initToolLog, type ToolSetup } from "@nikovirtala/ledger";
 import { ACTIONS, INIT_TITLE, SKILL_TITLE } from "./commit-actions.js";
 import type { IssueLog } from "./log.js";
 import { INDEX_AFTER, renderIssueIndex } from "./log-index.js";
@@ -80,7 +80,13 @@ export async function initIssueLog(
      * Also write `<dir>/SKILL.md` (`dir` repo-relative, `""` for the root) and the AGENTS.md
      * pointer (design §8.2); `version` is issues', for the note on a SKILL.md that differs.
      */
-    readonly skill?: { readonly dir: string; readonly version: string };
+    readonly skill?: {
+      readonly dir?: string;
+      readonly dirs?: readonly string[];
+      readonly version: string;
+    };
+    /** Also write the agent setup (MCP config, hooks, permissions, prepare) for each harness. */
+    readonly setup?: ToolSetup;
   } = {},
 ): Promise<IssuesInitJson> {
   const r = await initToolLog(
