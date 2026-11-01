@@ -88,7 +88,9 @@ jobs:
       - name: Report ark's agent setup (doctor, warning)
         run: |
           echo "## doctor (warning)" >>"$GITHUB_STEP_SUMMARY"
-          { node packages/adr/dist/cli.js doctor && node packages/issues/dist/cli.js doctor; } \
+          # Both tools always report: `;` (not `&&`) so adr's exit 1 on a missing piece never
+          # hides the issues report; `|| true` keeps the whole step a non-failing warning.
+          { node packages/adr/dist/cli.js doctor; node packages/issues/dist/cli.js doctor; } \
             2>&1 | tee -a "$GITHUB_STEP_SUMMARY" || true
       # ark has no [[sources]] in docs/adr/adr.toml or docs/issues/issues.toml, so neither verify
       # step passes --fetch-sources (it would fetch nothing). Add it to both when ark gets a source.
