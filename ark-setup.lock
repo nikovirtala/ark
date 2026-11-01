@@ -1,0 +1,38 @@
+{
+  "claude.hook.before-edit": {
+    "hash": "2b90eebc3bdcc1976a89f7664ab02a982afcd6c90a86bac0973011aea07c91cf"
+  },
+  "claude.hook.session-start": {
+    "hash": "f590f314daef976d05fc655ac8bf5cfa2d582561584d2ec34a8f793cecac40a2"
+  },
+  "claude.mcp.adr": {
+    "hash": "8a43e4b6bd88470d7329965fd94cecfe4bcd0f84bfabc4410116f5ac209eb440"
+  },
+  "claude.mcp.issues": {
+    "hash": "4305a0f5ae1000bf50c2ae2f1567fe90f782d81dd55a70ae7fcb403049288e3b"
+  },
+  "claude.settings": {
+    "hash": "3254f58b36cde961a1a2fef73b4b534e3f131f99340617d7356346686b91fab9"
+  },
+  "kiro.hook.before-edit": {
+    "hash": "d7ff49a24862530d7c606f822a5b20092f4c072f6409a6644b75071b6608b55b"
+  },
+  "kiro.hook.before-edit.def": {
+    "hash": "78259a1ddffbf2114f879ada39d208ea55e84ad644dd4628a67a580ced4b5ce7"
+  },
+  "kiro.hook.session-start": {
+    "hash": "1d0d4fccdd30ae4e1cf7f9dd2dd4a9b8ea77d94ce77e6a04c6350eae343fd094"
+  },
+  "kiro.hook.session-start.def": {
+    "hash": "b0e096bef11cd3814ef8d597188991d5de0c762231b88f4be39579dc17c30d1b"
+  },
+  "kiro.mcp.adr": {
+    "hash": "a1b5ebf002b5eeeeda297566c2524e753b9847cd4e3262a3d68315cf55865d28"
+  },
+  "kiro.mcp.issues": {
+    "hash": "36f4b72fe99ff3a0f824c7770e6cb4877c5308af4b8b36c99d55fc9608161d7c"
+  },
+  "prepare": {
+    "hash": "b518c1aea177cac5f027b3d3a4e4789b20acf2a12f7f5a41e4c2d54f8a58f315"
+  }
+}
