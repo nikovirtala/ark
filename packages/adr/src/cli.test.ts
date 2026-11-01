@@ -40,6 +40,7 @@ describe("the adr binary", () => {
       "scope",
       "index",
       "hooks",
+      "doctor",
       "for",
       "list",
       "show",
