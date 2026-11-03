@@ -1,0 +1,20 @@
+# Code owners for ark's documentation and community-health files.
+# See https://docs.github.com/articles/about-code-owners.
+# Later matching rules win, so the specific docs rules below sit after any
+# broader ones a future maintainer might add.
+
+# The root README is the project's executable contract.
+/README.md @nikovirtala
+
+# All project documentation.
+/docs/ @nikovirtala
+
+# Community-health files.
+/CONTRIBUTING.md @nikovirtala
+/CODE_OF_CONDUCT.md @nikovirtala
+/SECURITY.md @nikovirtala
+/ARCHITECTURE.md @nikovirtala
+/CITATION.cff @nikovirtala
+
+# GitHub templates and metadata.
+/.github/ @nikovirtala
