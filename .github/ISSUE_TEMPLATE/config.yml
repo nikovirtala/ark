@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and discussion
+    url: https://github.com/nikovirtala/ark/discussions
+    about: "Ask usage questions, share ideas, or start a discussion here instead of opening an issue. PLACEHOLDER: enable GitHub Discussions or replace with the real URL."
+  - name: Contributing guide
+    url: https://github.com/nikovirtala/ark/blob/main/CONTRIBUTING.md
+    about: "How to contribute: proposing, committing, and reviewing changes, with pointers to AGENTS.md for the authoritative conventions."

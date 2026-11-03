@@ -1,0 +1,51 @@
+name: Feature request
+description: Suggest a new capability or change for an ark package.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement. Describe the problem first, then the change you have in mind.
+
+        For open-ended questions or discussion, use the links on the previous page instead of opening a feature request.
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      description: Which ark package would this affect?
+      options:
+        - "@nikovirtala/adr"
+        - "@nikovirtala/issues"
+        - "@nikovirtala/ledger"
+        - New or cross-cutting
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and where does ark fall short today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: The behavior, command, or API you would like. Include example usage if you can.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you tried or rejected, and why.
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Links, prior art, or anything else that helps evaluate the request.
+    validations:
+      required: false
