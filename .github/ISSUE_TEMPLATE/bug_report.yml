@@ -1,0 +1,78 @@
+name: Bug report
+description: Report something in an ark package that behaves incorrectly.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please fill in the details below so the behavior can be reproduced.
+
+        For general questions, usage help, or ideas that are not yet a concrete bug, use the links on the previous page instead of opening a bug report.
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      description: Which ark package does this affect?
+      options:
+        - "@nikovirtala/adr"
+        - "@nikovirtala/issues"
+        - "@nikovirtala/ledger"
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: package-version
+    attributes:
+      label: Package version
+      description: The version of the package above. Find it with `npm ls <package>` or in your lockfile.
+      placeholder: "0.6.0"
+    validations:
+      required: true
+  - type: input
+    id: node-version
+    attributes:
+      label: Node version
+      description: Output of `node --version`. ark requires Node 24 or later.
+      placeholder: "v24.22.1"
+    validations:
+      required: true
+  - type: input
+    id: git-version
+    attributes:
+      label: git version
+      description: Output of `git --version`. ark requires git 2.32 or later.
+      placeholder: "2.43.0"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The exact commands and inputs that trigger the bug.
+      placeholder: |
+        1. Run `...`
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened. Paste any error output or stack traces.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else that helps, such as OS, CI environment, or a link to a minimal reproduction.
+    validations:
+      required: false
