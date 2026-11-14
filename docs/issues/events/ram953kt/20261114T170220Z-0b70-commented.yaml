@@ -1,0 +1,15 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7DG53SCBC68B451KFFF0B70
+subject: ram953kt
+type: commented
+at: 2026-11-14T17:02:20Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  text: "Checked against main on 2026-11-14 (implemented in c7f3335 on 2026-11-01): doctor lists every missing or outdated piece with its fixing command and exits 1 when a piece is missing, and CI runs it as a warning in ark (.github/workflows/ci.yml). It stays open for the middle condition: ark's own session-start hook runs 'hooks install', not 'doctor --fix-clone', because ark pins the published 0.6.0 tools, which don't have doctor (ADR-0017, docs/03-setup-v1.md 'doctor'). Close it when a release ships doctor, the pins bump to it, and the session-start template names 'doctor --fix-clone'."

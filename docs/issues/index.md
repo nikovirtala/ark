@@ -17,8 +17,7 @@
 | ?52 | [Pin applyPlan's after hint and stale note and the follow-renames blocked order in ledger's tests](items/86tbn2ym-pin-applyplans-after-hint-and-stale-note-and-the-follow.md) |  |  | 2026-10-31 |
 | ?53 | [Test that issues' follow-renames dry run never adds the never-commits note](items/6h2mvcse-test-that-issues-follow-renames-dry-run-never-adds-the-never.md) |  |  | 2026-10-31 |
 | ?54 | [Use ledger's PlanContext and PlanDeps in adr and issues](items/489m7ag1-use-ledgers-plancontext-and-plandeps-in-adr-and-issues.md) |  |  | 2026-10-31 |
-| ?58 | [Configure ark's own agents with MCP servers, skills, hooks and permissions](items/8706c0vk-configure-arks-own-agents-with-mcp-servers-skills-hooks-and.md) |  |  | 2026-10-31 |
-| ?59 | [Make init set up the whole agent integration, and safe to rerun](items/cxas6afn-make-init-set-up-the-whole-agent-integration-and-safe-to.md) |  |  | 2026-10-31 |
+| ?60 | [Report missing or outdated agent setup with a doctor command](items/ram953kt-report-missing-or-outdated-agent-setup-with-a-doctor-command.md) |  |  | 2026-10-31 |
 | ?62 | [Support every Node.js release line in LTS](items/m1wr4sj5-support-every-node-js-release-line-in-lts.md) |  |  | 2026-11-14 |
 | ?63 | [Let a code owner's approval stand for a human's accept](items/enawzck5-let-a-code-owners-approval-stand-for-a-humans-accept.md) |  |  | 2026-11-14 |
 | ?64 | [Record the date a decision was made with --decided-on](items/8sts9vt4-record-the-date-a-decision-was-made-with-decided-on.md) |  |  | 2026-11-14 |
@@ -37,8 +36,6 @@
 
 | Issue | Title | Assignees | Labels | Since |
 | --- | --- | --- | --- | --- |
-| ?60 | [Report missing or outdated agent setup with a doctor command](items/ram953kt-report-missing-or-outdated-agent-setup-with-a-doctor-command.md) |  |  | 2026-10-31 |
-| ?61 | [Bump ark's own tool pins when a release publishes](items/t9vg1qty-bump-arks-own-tool-pins-when-a-release-publishes.md) |  |  | 2026-10-31 |
 | ?65 | [Import decisions made before the log with adr import](items/zw2a7vx4-import-decisions-made-before-the-log-with-adr-import.md) |  |  | 2026-11-14 |
 | ?76 | [Write the setup for GitHub Copilot](items/22qmqt5y-write-the-setup-for-github-copilot.md) |  |  | 2026-11-14 |
 
@@ -46,6 +43,9 @@
 
 | Issue | Title | Assignees | Labels | Since |
 | --- | --- | --- | --- | --- |
+| ?61 | [Bump ark's own tool pins when a release publishes](items/t9vg1qty-bump-arks-own-tool-pins-when-a-release-publishes.md) |  |  | 2026-11-14 |
+| ?59 | [Make init set up the whole agent integration, and safe to rerun](items/cxas6afn-make-init-set-up-the-whole-agent-integration-and-safe-to.md) |  |  | 2026-11-14 |
+| ?58 | [Configure ark's own agents with MCP servers, skills, hooks and permissions](items/8706c0vk-configure-arks-own-agents-with-mcp-servers-skills-hooks-and.md) |  |  | 2026-11-14 |
 | ?81 | [Test the generated setup the way each harness runs it](items/31n4csh4-test-the-generated-setup-the-way-each-harness-runs-it.md) | nikovirtala@users.noreply.github.com |  | 2026-11-14 |
 | ?79 | [Claude Code never sees the before-edit hook's output](items/gx4hdsde-claude-code-never-sees-the-before-edit-hooks-output.md) | nikovirtala@users.noreply.github.com |  | 2026-11-14 |
 | ?80 | [The deny rules depend on the working directory, and Kiro has none](items/690hzw0j-the-deny-rules-depend-on-the-working-directory-and-kiro-has.md) | nikovirtala@users.noreply.github.com |  | 2026-11-14 |
@@ -63,8 +63,5 @@
 | ?37 | [Order the index's recently closed issues newest first](items/838e32bj-order-the-indexs-recently-closed-issues-newest-first.md) | nikovirtala@users.noreply.github.com | type:bug | 2026-10-31 |
 | ?12 | [Share the index-numbering and source-name helpers in ledger](items/3gyr85xq-share-the-index-numbering-and-source-name-helpers-in-ledger.md) | nikovirtala@users.noreply.github.com |  | 2026-10-31 |
 | ?29 | [Find what adr and issues implement the same way](items/mvz52a5s-find-what-adr-and-issues-implement-the-same-way.md) |  |  | 2026-10-31 |
-| ?2 | [Support SHA-256 source repositories](items/pcmzc2dz-support-sha-256-source-repositories.md) | nikovirtala@users.noreply.github.com |  | 2026-10-30 |
-| ?34 | [Keep adr's and issues' tests from using an outer GIT\_DIR](items/tcwy0e79-keep-adrs-and-issues-tests-from-using-an-outer-git-dir.md) |  | type:bug | 2026-10-30 |
-| ?31 | [Polish the rough edges left by the issues reviews](items/vg2acrhm-polish-the-rough-edges-left-by-the-issues-reviews.md) |  |  | 2026-10-30 |
 
 <!-- ledger-index/v1 numbers: 65qt4pp3=1 pcmzc2dz=2 1w06qws8=3 6930v8w9=4 f4f25st2=5 jdpc6bn7=6 m5xh8bkd=7 cqpzxvcs=8 984qb8rg=9 wy4r966a=10 vpq5v23q=11 3gyr85xq=12 0megpv2e=13 qy2ch92c=14 516asy8r=15 s3v2jada=16 f3my0702=17 1fgqfkf3=18 exnj9tym=19 wedm13pe=20 7n5e4nkf=21 bd0nsd5s=22 j897bps4=23 688fexss=24 na46n52h=25 def9qp6q=26 0vckaxpf=27 9v1rd2xt=28 mvz52a5s=29 c181sywx=30 vg2acrhm=31 66c2zs20=32 5z5rsn65=33 tcwy0e79=34 g84z3z2t=35 r2nj95bs=36 838e32bj=37 7zzt1n0x=38 bdxj8s17=39 g4nkb621=40 hw8h6qt0=41 g0qddk0t=42 nb1rxznb=43 bstz5kyj=44 f0eskrvw=45 4134kcnt=46 1e6ygf2s=47 1dxqyzxt=48 am7ghfmb=49 b3ny9n1w=50 vw51h1jx=51 86tbn2ym=52 6h2mvcse=53 489m7ag1=54 ww9n0z55=55 ja27z1g7=56 rhb2vwnt=57 8706c0vk=58 cxas6afn=59 ram953kt=60 t9vg1qty=61 m1wr4sj5=62 enawzck5=63 8sts9vt4=64 zw2a7vx4=65 rkk6e8ez=66 g16n0509=67 v61hnnfb=68 1ekmrqax=69 2bewx0nv=70 wg6ga7sd=71 gb0dft28=72 95yvfzr2=73 d37cvwm7=74 paf917nq=75 22qmqt5y=76 kwcjqe6c=77 qpcdxp42=78 gx4hdsde=79 690hzw0j=80 31n4csh4=81 -->

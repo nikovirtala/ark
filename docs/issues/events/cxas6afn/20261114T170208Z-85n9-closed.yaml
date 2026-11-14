@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7DG4R3WH7VBY5ARKMZR85N9
+subject: cxas6afn
+type: closed
+at: 2026-11-14T17:02:08Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "Implemented on 2026-11-01 in 7a32d46 and 307b79f, checked against main on 2026-11-14: init --setup writes the log, the skills, the MCP config, the harness hooks, the permission rules and a prepare script for each detected harness unless a flag opts a piece out; a rerun adds what is missing, updates what init owns and leaves a changed file alone with a note naming it and init --force (setup.test.ts, tool-init.test.ts); scripts/check-agent-setup.mjs (R9, CI) shows running init on ark produces ark's committed setup with no diff, now in bytes and in modes."
+data:
+  resolution: done

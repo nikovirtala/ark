@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7DG4TTQXJXYBCV74GEZ6B03
+subject: t9vg1qty
+type: closed
+at: 2026-11-14T17:02:11Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "Implemented on 2026-11-01 in 11437d9 and 637b371, checked against main on 2026-11-14: release.yml's self-update job runs after a publish, bumps ARK_PINS from the published versions (scripts/bump-ark-pins.mjs), reruns init --setup and opens a pull request on release/ark-pin-bump. It has run once: pull request #95 opened by it was merged on 2026-11-01 with CI passing and moved every pin to 0.6.0 (637b371)."
+data:
+  resolution: done

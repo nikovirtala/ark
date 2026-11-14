@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7DG4NE2Z796T8AP2W85Z2V4
+subject: 8706c0vk
+type: closed
+at: 2026-11-14T17:02:05Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "Implemented on 2026-11-01 in c02532c, checked against main on 2026-11-14: .mcp.json and .kiro/settings/mcp.json start adr and issues at the exact published 0.6.0 with ARK_AGENT per harness and ARK_ON_BEHALF_OF from the environment; both skills are installed for both harnesses and AGENTS.md points at them; the session-start and before-edit hooks exist for both harnesses (they only started running with the 100755 mode, the JSON output and the sh invocation fixed in this pull request, ?77 and ?79); direct edits to the events, the indexes and adr's decision bodies are denied for Claude Code and blocked by a hook for Kiro (?80); package.json's prepare installs the git hooks (307b79f); ADR-0017's scope includes .mcp.json, .claude/** and .kiro/**."
+data:
+  resolution: done
