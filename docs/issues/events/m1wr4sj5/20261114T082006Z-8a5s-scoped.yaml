@@ -1,0 +1,22 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7CJ8WH85TNMYC5PXYAJ8A5S
+subject: m1wr4sj5
+type: scoped
+at: 2026-11-14T08:20:06Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - .github/workflows/*.yml
+    - mise.toml
+    - package.json
+    - packages/*/README.md
+    - packages/*/package.json
+    - packages/*/src/cli.ts
+    - packages/*/tsdown.config.ts
