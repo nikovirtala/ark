@@ -1,0 +1,19 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M7CKCR7SBFVK10JDA698HDFD
+subject: 4yen2hj2
+type: proposed
+at: 2026-11-14T08:39:42Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Quote titles as written in Conventional Commits subjects
+  template: nygard
+  template_version: 1
+  supersedes:
+    - q76pmwsw
