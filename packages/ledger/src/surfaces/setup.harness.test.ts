@@ -9,7 +9,7 @@ import {
 } from "../testing/harness-conformance.js";
 import { createTempRepo, type TempRepo } from "../testing/temp-repo.js";
 import { parseOnBehalfOf } from "./actor.js";
-import { ARK_PINS, arkSetup } from "./ark-setup.js";
+import { ARK_PINS, arkDefaultLogs, arkSetup } from "./ark-setup.js";
 import { globMatches, type HarnessRuntime } from "./harness-runtime.js";
 import { HARNESS_RUNTIMES } from "./harness-runtimes.js";
 import { applySetup, type SetupPiece } from "./setup.js";
@@ -29,7 +29,7 @@ import { setupPieces } from "./tool-init.js";
  * change that fixes them lands; such a test is expected to fail (`it.fails`) and starts failing
  * the build when the fix makes it pass, so the entry has to go.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>(["79", "80", "81"]);
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>(["80"]);
 
 type Finding = "77" | "78" | "79" | "80" | "81";
 /** `it`, or `it.fails` while the finding it checks is still open. */
@@ -76,6 +76,7 @@ async function applyBoth(r: TempRepo): Promise<void> {
           name,
           version,
           pins: ARK_PINS,
+          logs: arkDefaultLogs(ARK_PINS),
         }),
       ),
     );

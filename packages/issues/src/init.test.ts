@@ -5,6 +5,7 @@ import { join, sep } from "node:path";
 import { promisify } from "node:util";
 import {
   ARK_PINS,
+  arkDefaultLogs,
   arkSetup,
   CommitFailedError,
   parseToolConfig,
@@ -56,6 +57,7 @@ describe("initIssueLog with the agent setup (?59)", () => {
       name: "issues",
       version: ARK_PINS.issues,
       pins: ARK_PINS,
+      logs: arkDefaultLogs(ARK_PINS),
       ...(force === undefined ? {} : { force }),
     });
   const read = (r: TempRepo, p: string) => readFile(join(r.root, p), "utf8");
@@ -93,7 +95,9 @@ describe("initIssueLog with the agent setup (?59)", () => {
       setup: setup(["claude"], new Set(["claude.hook.session-start"])),
     });
     expect(forced.written).toContain(".claude/hooks/session-start.sh");
-    expect(await read(r, ".claude/hooks/session-start.sh")).toContain("npx -y @nikovirtala/adr");
+    expect(await read(r, ".claude/hooks/session-start.sh")).toContain(
+      "npm exec --yes --package=@nikovirtala/adr",
+    );
   });
 });
 

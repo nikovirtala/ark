@@ -1,4 +1,4 @@
-import { ARK_PINS, arkSetup, detectHarnesses, setupPieces } from "@nikovirtala/ledger";
+import { ARK_PINS, arkLogs, arkSetup, detectHarnesses, setupPieces } from "@nikovirtala/ledger";
 import { type CommandSpec, doctorCommand } from "@nikovirtala/ledger/cli";
 import { openForCli } from "./open.js";
 
@@ -21,6 +21,7 @@ export function adrDoctorCommand(): CommandSpec {
         name: "adr",
         version: ARK_PINS.adr,
         pins: ARK_PINS,
+        logs: await arkLogs(log, "adr", ARK_PINS),
       });
       return { log, spec: { pieces: setupPieces(setup), installedVersion: ARK_PINS.adr } };
     },

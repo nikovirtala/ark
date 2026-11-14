@@ -8,7 +8,8 @@
       "action": {
         "type": "command",
         "command": "sh .kiro/hooks/session-start.sh"
-      }
+      },
+      "timeout": 120
     }
   ]
 }

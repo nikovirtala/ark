@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { InvalidArgumentError } from "../errors.js";
-import { ARK_PINS, arkPrepare, arkServers, arkSetup, arkShared } from "./ark-setup.js";
+import {
+  ARK_PINS,
+  arkDefaultLogs,
+  arkPrepare,
+  arkServers,
+  arkSetup,
+  arkShared,
+} from "./ark-setup.js";
 import { mcpStdioServer } from "./setup-claude.js";
 
 describe("ark-setup content", () => {
@@ -49,7 +56,7 @@ describe("ark-setup content", () => {
   });
 
   it("shares identical hook scripts across harnesses' pins and builds a full setup", () => {
-    const shared = arkShared(ARK_PINS);
+    const shared = arkShared(arkDefaultLogs(ARK_PINS));
     expect(shared.claude.sessionStartScript).toContain(`@nikovirtala/adr@${ARK_PINS.adr}`);
     expect(shared.kiro.beforeEditScript).toContain(`@nikovirtala/issues@${ARK_PINS.issues}`);
     const setup = arkSetup({
@@ -58,6 +65,7 @@ describe("ark-setup content", () => {
       name: "adr",
       version: ARK_PINS.adr,
       pins: ARK_PINS,
+      logs: arkDefaultLogs(ARK_PINS),
     });
     expect(setup.harnesses).toEqual(["claude", "kiro"]);
     expect(setup.prepare).toBe(arkPrepare(ARK_PINS));
