@@ -1,0 +1,18 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7CJAF3VCP3F0K0QD6D4Y5AS
+subject: 1ekmrqax
+type: scoped
+at: 2026-11-14T08:20:58Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/*/README.md
+    - packages/*/src/init.ts
+    - packages/ledger/src/surfaces/tool-init.ts
