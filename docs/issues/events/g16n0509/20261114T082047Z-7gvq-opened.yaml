@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7CJA4D404WPSSQ5Z0VC7GVQ
+subject: g16n0509
+type: opened
+at: 2026-11-14T08:20:47Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Warn at new when a title is too long for the commit subject
+  template: feature
+  template_version: 1
