@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7DG38TAX5KZ3MRPS2WWGS4J
+subject: 31n4csh4
+type: closed
+at: 2026-11-14T17:01:20Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "Per harness, setup.harness.test.ts runs each configured hook command string through the harness's shell from its working directory with its event JSON on stdin and checks exit code, time and output format (Claude Code: additionalContext JSON for PreToolUse, plain text for SessionStart). The adr and issues setup.mcp.test.ts files start each configured MCP server with the env the harness would pass, with the variable unset, set, empty and as the literal placeholder, and make one write. The suite parses every harness config against its documented shape (harness-runtime.test.ts covers the refusals) and checks file modes. The session-start hook runs one npm exec, 2.4 s on a cold npm cache here against Claude Code's 600 s and Kiro's 60 s (the hook sets 120 s). The scripts resolve the main ref like numbering does. docs/03-setup-v1.md records the pages and the date for each harness."
+data:
+  resolution: done
