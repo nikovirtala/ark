@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "ark protect logs",
+      "description": "Refuse a direct edit to the decision and issue logs; they change through the tools.",
+      "trigger": "PreToolUse",
+      "matcher": "write",
+      "action": {
+        "type": "command",
+        "command": "sh .kiro/hooks/protect-logs.sh"
+      }
+    }
+  ]
+}

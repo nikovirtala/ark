@@ -57,6 +57,20 @@ export function kiroPieces(o: {
       ownership: { kind: "whole", text: o.shared.beforeEditScript, executable: true },
     });
   }
+  if (o.shared.protectHook !== undefined) {
+    pieces.push({
+      id: "kiro.hook.protect-logs.def",
+      file: ".kiro/hooks/protect-logs.kiro.hook.json",
+      ownership: { kind: "whole", text: o.shared.protectHook },
+    });
+  }
+  if (o.shared.protectScript !== undefined) {
+    pieces.push({
+      id: "kiro.hook.protect-logs",
+      file: ".kiro/hooks/protect-logs.sh",
+      ownership: { kind: "whole", text: o.shared.protectScript, executable: true },
+    });
+  }
   return pieces;
 }
 

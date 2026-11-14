@@ -1,17 +1,24 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { ARK_PINS, arkDefaultLogs } from "./ark-setup.js";
+import { worktreeReader } from "../git/tree.js";
+import { createTempRepo } from "../testing/temp-repo.js";
+import { ARK_PINS, arkDefaultLogs, arkLogs, claudeDenyRules } from "./ark-setup.js";
+import { globMatches } from "./harness-runtime.js";
 import { claudeRuntime } from "./setup-claude.js";
 import {
   beforeEditScript,
   EXTRACT_EDITED_PATH_JS,
   emitContextJs,
+  type HookLog,
+  protectedPatterns,
+  protectLogsScript,
   sessionStartScript,
 } from "./setup-hook-scripts.js";
 import { kiroRuntime } from "./setup-kiro.js";
+import type { ToolLog } from "./tool-log.js";
 
 const dirs: string[] = [];
 afterAll(() => {
@@ -131,6 +138,140 @@ describe("emitContextJs: the tools' answer, in the harness's format", () => {
   });
 });
 
+describe("the protected paths follow each tool's configured log root", () => {
+  const log = (tool: string, root: string, also: string[] = []): HookLog => ({
+    tool,
+    root,
+    also,
+    pkg: `@nikovirtala/${tool}`,
+    version: "1.0.0",
+  });
+
+  it("lists the events, the index and the tool-only paths below the root", () => {
+    expect(protectedPatterns(log("adr", "decisions", ["bodies/"]))).toEqual([
+      "decisions/events/",
+      "decisions/index.md",
+      "decisions/bodies/",
+    ]);
+  });
+
+  it("anchors every Claude Code deny rule at the project, as an Edit rule", () => {
+    const rules = claudeDenyRules([log("adr", "arch/log", ["decisions/"]), log("issues", "work")]);
+    expect(rules).toEqual([
+      "Edit(/arch/log/events/**)",
+      "Edit(/arch/log/index.md)",
+      "Edit(/arch/log/decisions/**)",
+      "Edit(/work/events/**)",
+      "Edit(/work/index.md)",
+    ]);
+    // No rule names a tool whose path rules never match, or is relative to the session's directory.
+    expect(rules.every((r) => r.startsWith("Edit(/"))).toBe(true);
+  });
+
+  it("matches the rules against files at any depth and no other", () => {
+    const globs = claudeDenyRules([log("adr", "arch/log", ["decisions/"])]).map((r) =>
+      r.slice("Edit(".length, -1),
+    );
+    const hit = (p: string) => globs.some((g) => globMatches(g, p));
+    expect(hit("arch/log/events/abc/20261114T000000Z-x-proposed.yaml")).toBe(true);
+    expect(hit("arch/log/index.md")).toBe(true);
+    expect(hit("arch/log/decisions/x.md")).toBe(true);
+    expect(hit("docs/adr/events/x.yaml")).toBe(false);
+    expect(hit("arch/log/templates/nygard.md")).toBe(false);
+    expect(hit("src/arch/log/index.md")).toBe(false);
+  });
+
+  it("derives both tools' roots from the repository's configs, not a fixed docs/", async () => {
+    const r = await createTempRepo({
+      files: {
+        "README.md": "x\n",
+        // adr's log is elsewhere, named by a repo-level config; issues' is at its default root.
+        "adr.toml": '[log]\nroot = "arch/decisions"\n',
+        "docs/issues/issues.toml": "[log]\n",
+      },
+    });
+    try {
+      const adr = { tree: worktreeReader(r.git), layout: { root: "arch/decisions" } } as Pick<
+        ToolLog,
+        "layout" | "tree"
+      >;
+      const logs = await arkLogs(adr, "adr", ARK_PINS);
+      expect(logs.map((l) => [l.tool, l.root])).toEqual([
+        ["adr", "arch/decisions"],
+        ["issues", "docs/issues"],
+      ]);
+      expect(claudeDenyRules(logs)).toContain("Edit(/arch/decisions/events/**)");
+      expect(claudeDenyRules(logs)).not.toContain("Edit(/docs/adr/events/**)");
+    } finally {
+      await r.dispose();
+    }
+  });
+
+  it("leaves a tool whose config isn't in the repository out", async () => {
+    const r = await createTempRepo({ files: { "README.md": "x\n" } });
+    try {
+      const adr = { tree: worktreeReader(r.git), layout: { root: "docs/adr" } } as Pick<
+        ToolLog,
+        "layout" | "tree"
+      >;
+      expect((await arkLogs(adr, "adr", ARK_PINS)).map((l) => l.tool)).toEqual(["adr"]);
+    } finally {
+      await r.dispose();
+    }
+  });
+});
+
+describe("the protect script for a non-default log root", () => {
+  const root = tmp();
+  spawnSync("git", ["init", "-q"], { cwd: root });
+  const logs: HookLog[] = [
+    { tool: "adr", root: "arch/log", also: ["decisions/"], pkg: "@x/adr", version: "1.0.0" },
+    { tool: "issues", root: "work", pkg: "@x/issues", version: "1.0.0" },
+  ];
+  const script = join(root, "protect.sh");
+  writeFileSync(script, protectLogsScript({ logs, harness: "Kiro", refs: "test" }));
+  const run = (path: string) =>
+    spawnSync("sh", [script], {
+      cwd: root,
+      encoding: "utf8",
+      input: JSON.stringify({ cwd: root, tool_name: "fs_write", tool_input: { path } }),
+      env: { ...process.env, GIT_DIR: undefined, GIT_CEILING_DIRECTORIES: undefined },
+    });
+
+  it("is a script that parses", () => {
+    expect(spawnSync("sh", ["-n", script]).status).toBe(0);
+  });
+
+  it.each([
+    ["arch/log/events/abc/x.yaml", "adr"],
+    ["arch/log/index.md", "adr"],
+    ["arch/log/decisions/x.md", "adr"],
+    ["work/events/k/y.yaml", "issues"],
+    ["work/index.md", "issues"],
+  ])("blocks %s and names the %s tool", (path, tool) => {
+    const r = run(join(root, path));
+    expect(r.status, r.stderr).toBe(2);
+    expect(r.stderr).toContain(`the ${tool} tool`);
+  });
+
+  it.each([
+    "docs/adr/events/x.yaml",
+    "docs/adr/index.md",
+    "arch/log/templates/nygard.md",
+    "arch/logbook.md",
+    "work/templates/task.md",
+    "src/app.ts",
+  ])("lets %s through: it is not a path the tools alone write", (path) => {
+    const r = run(join(root, path));
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stderr).toBe("");
+  });
+
+  it("lets an edit outside the repository through", () => {
+    expect(run("/etc/hosts").status).toBe(0);
+  });
+});
+
 describe("script text", () => {
   const logs = arkDefaultLogs(ARK_PINS);
 
@@ -138,6 +279,7 @@ describe("script text", () => {
     for (const text of [
       sessionStartScript({ logs, harness: "H", refs: "R" }),
       beforeEditScript({ logs, harness: "H", refs: "R", format: "plain" }),
+      protectLogsScript({ logs, harness: "H", refs: "R" }),
     ]) {
       expect(text.startsWith("#!/usr/bin/env sh\n")).toBe(true);
       expect(text).not.toContain("origin/main'");

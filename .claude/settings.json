@@ -25,12 +25,11 @@
   },
   "permissions": {
     "deny": [
-      "Edit(docs/*/events/**)",
-      "Write(docs/*/events/**)",
-      "Edit(docs/*/index.md)",
-      "Write(docs/*/index.md)",
-      "Edit(docs/adr/decisions/**)",
-      "Write(docs/adr/decisions/**)"
+      "Edit(/docs/adr/events/**)",
+      "Edit(/docs/adr/index.md)",
+      "Edit(/docs/adr/decisions/**)",
+      "Edit(/docs/issues/events/**)",
+      "Edit(/docs/issues/index.md)"
     ]
   }
 }

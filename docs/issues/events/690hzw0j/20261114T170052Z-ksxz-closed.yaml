@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7DG2DP4KN1RJDDKJF4RKSXZ
+subject: 690hzw0j
+type: closed
+at: 2026-11-14T17:00:52Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: Claude Code's deny rules are Edit(/<root>/...) rules anchored at the project, and the rule set follows the current permissions docs (Write, NotebookEdit and MultiEdit path rules never match; Edit covers all three), checked by claudeRuntime.denyRules and setup.harness.test.ts. Kiro gets a PreToolUse hook on the write group (protect-logs.sh) that exits 2 with a message naming the tool; the harness test runs it for every edit tool against every protected path. The paths come from each tool's configured log root (arkLogs, setup-hook-scripts.test.ts covers a non-default root). The harness test runs the Claude hooks from a subdirectory and checks the deny rules without depending on the directory.
+data:
+  resolution: done

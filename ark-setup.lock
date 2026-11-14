@@ -12,13 +12,19 @@
     "hash": "9c285e4df2b0a53472d480650dc1bfb18f50309e760eb5d854c68ffd2cfc1c3c"
   },
   "claude.settings": {
-    "hash": "57aabb400b79ce98ceb46ca7ce4758938c582a2ff69596c880a3761d71edbc02"
+    "hash": "c18674f3ade342c72c2087db25e1863989e74d1f994de5049f71d685976bbb16"
   },
   "kiro.hook.before-edit": {
     "hash": "004cb5fa82e5e762d8248994ff0badf021527a826345fcd8d04403e4a13b68c7"
   },
   "kiro.hook.before-edit.def": {
     "hash": "a3443d2c22a8bc94465aa45ba6fd03e64b59cf0a506a056c43b1fcde82177fb8"
+  },
+  "kiro.hook.protect-logs": {
+    "hash": "cfed9c82794d81f07dcf62ab8cdb8cdf9cd48b79c59695bf025c172169339ea9"
+  },
+  "kiro.hook.protect-logs.def": {
+    "hash": "08e5ed6b05ab38a2fc4342170439da81aa3238d2e6d8f40f96a3ccd11656b8cb"
   },
   "kiro.hook.session-start": {
     "hash": "db2005f2c06eb74393533ead7ff7071c41d13280d61f4aa503f916ddeafa10f1"

@@ -108,6 +108,9 @@ export interface HarnessShared {
   readonly beforeEditHook?: string;
   readonly sessionStartScript?: string;
   readonly beforeEditScript?: string;
+  /** Kiro's PreToolUse hook that blocks edits to the logs (Claude Code uses deny rules instead). */
+  readonly protectHook?: string;
+  readonly protectScript?: string;
 }
 
 /** The Claude harness's pieces (design: formats in one module per harness). */

@@ -25,6 +25,8 @@ const SETUP_FILES = [
   ".kiro/hooks/before-edit.kiro.hook.json",
   ".kiro/hooks/session-start.sh",
   ".kiro/hooks/before-edit.sh",
+  ".kiro/hooks/protect-logs.kiro.hook.json",
+  ".kiro/hooks/protect-logs.sh",
   ".claude/skills/adr/SKILL.md",
   ".claude/skills/issues/SKILL.md",
   ".kiro/skills/adr/SKILL.md",

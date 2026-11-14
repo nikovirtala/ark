@@ -16,6 +16,8 @@ export interface HookLog {
   readonly tool: string;
   /** The repo-relative log root, e.g. `docs/adr`. */
   readonly root: string;
+  /** Repo-relative path patterns, below the root, that only the tool writes (besides `events/` and `index.md`). */
+  readonly also?: readonly string[];
   /** The published package the tool runs from, e.g. `@nikovirtala/adr`. */
   readonly pkg: string;
   /** The exact version the setup pins. */
@@ -197,5 +199,57 @@ ${inner}
 
 [ -n "$OUT" ] || exit 0
 printf '%s\\n' "$OUT" | node -e '${emitContextJs(o.format)}'
+`;
+}
+
+/** The path patterns the tool alone writes, below its log root, as `case` patterns. */
+export function protectedPatterns(log: HookLog): readonly string[] {
+  return [
+    `${log.root}/events/`,
+    `${log.root}/index.md`,
+    ...(log.also ?? []).map((p) => `${log.root}/${p}`),
+  ];
+}
+
+/**
+ * The protect script (Kiro): blocks a write to a log path the tools own, with a message naming the
+ * tool, by exiting 2 with the message on stderr (kiro.dev/docs/hooks/actions: a PreToolUse hook that
+ * exits non-zero blocks the call and sends stderr to the agent). The paths come from each tool's
+ * configured log root.
+ */
+export function protectLogsScript(o: {
+  readonly logs: readonly HookLog[];
+  readonly harness: string;
+  readonly refs: string;
+}): string {
+  const cases = o.logs
+    .map((l) => {
+      const pats = protectedPatterns(l).map((p) =>
+        p.endsWith("/") ? `${shQuote(p)}*` : shQuote(p),
+      );
+      return `  ${pats.join("|")}) TOOL=${l.tool} ;;`;
+    })
+    .join("\n");
+  return `#!/usr/bin/env sh
+# ${o.harness} protect-logs hook (${o.refs}).
+#
+# Kiro keeps permission rules per person, outside the repository, so a committed PreToolUse hook
+# is what refuses a direct edit to a log: the events, the generated index and the files only the
+# tools write. It exits 2 with the tool to use on stderr, which Kiro sends to the agent. The
+# protected paths come from each tool's configured log root. Run it as \`sh <this file>\`.
+set -eu
+
+cd "$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+
+FILE="$(node -e '${EXTRACT_EDITED_PATH_JS}')"
+[ -n "$FILE" ] || exit 0
+
+case "$FILE" in
+${cases}
+  *) exit 0 ;;
+esac
+
+echo "$FILE is written only by the $TOOL tool, which validates and attributes every change. Use the $TOOL MCP tools or the $TOOL command instead of editing the file." >&2
+exit 2
 `;
 }

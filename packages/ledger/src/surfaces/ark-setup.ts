@@ -3,7 +3,13 @@ import { readToolConfig } from "../sources/config.js";
 import { stringifyJson } from "./setup.js";
 import type { Harness, HarnessShared, McpServerEntry } from "./setup-claude.js";
 import { mcpStdioServer } from "./setup-claude.js";
-import { beforeEditScript, type HookLog, sessionStartScript } from "./setup-hook-scripts.js";
+import {
+  beforeEditScript,
+  type HookLog,
+  protectedPatterns,
+  protectLogsScript,
+  sessionStartScript,
+} from "./setup-hook-scripts.js";
 import type { ToolSetup } from "./tool-init.js";
 import type { ToolLog } from "./tool-log.js";
 
@@ -39,8 +45,10 @@ const ARK_TOOLS = [
     tool: "adr",
     pkg: "@nikovirtala/adr",
     defaultRoot: "docs/adr",
+    // Decision bodies freeze when accepted, so they change only through the tool (ADR-0021).
+    also: ["decisions/"],
   },
-  { tool: "issues", pkg: "@nikovirtala/issues", defaultRoot: "docs/issues" },
+  { tool: "issues", pkg: "@nikovirtala/issues", defaultRoot: "docs/issues", also: [] },
 ] as const;
 
 /**
@@ -72,6 +80,7 @@ export async function arkLogs(
       logs.push({
         tool: t.tool,
         root,
+        also: t.also,
         pkg: t.pkg,
         version: t.tool === "adr" ? pins.adr : pins.issues,
       });
@@ -85,22 +94,24 @@ export function arkDefaultLogs(pins: ArkPins = ARK_PINS): readonly HookLog[] {
   return ARK_TOOLS.map((t) => ({
     tool: t.tool,
     root: t.defaultRoot,
+    also: t.also,
     pkg: t.pkg,
     version: t.tool === "adr" ? pins.adr : pins.issues,
   }));
 }
 
-/** The deny globs ark's Claude permission rules refuse direct edits to (design "Permission rules"). */
-const DENY_GLOBS: readonly string[] = [
-  "docs/*/events/**",
-  "docs/*/index.md",
-  "docs/adr/decisions/**",
-];
+/** The deny rule for each path a tool alone writes, anchored at the project with a leading `/`. */
+export function claudeDenyRules(logs: readonly HookLog[]): string[] {
+  return logs.flatMap(protectedPatterns).map((p) => `Edit(/${p.endsWith("/") ? `${p}**` : p})`);
+}
 
 /**
- * ark's `.claude/settings.json`: the two harness hooks and the permission deny rules.
+ * ark's `.claude/settings.json`: the two harness hooks and the permission deny rules. `Edit` rules
+ * cover every file-editing tool (`Edit`, `Write`, `NotebookEdit`); `Write(path)` rules are accepted
+ * and never match. A leading `/` anchors a path at the project, whatever directory the session
+ * starts in (code.claude.com/docs/en/permissions).
  */
-function claudeSettings(): string {
+function claudeSettings(logs: readonly HookLog[]): string {
   const value = {
     hooks: {
       SessionStart: [
@@ -126,9 +137,7 @@ function claudeSettings(): string {
         },
       ],
     },
-    permissions: {
-      deny: DENY_GLOBS.flatMap((g) => [`Edit(${g})`, `Write(${g})`]),
-    },
+    permissions: { deny: claudeDenyRules(logs) },
   };
   return stringifyJson(value);
 }
@@ -175,7 +184,7 @@ export function arkShared(logs: readonly HookLog[]): Record<Harness, HarnessShar
   const base = { logs, refs: REFS };
   return {
     claude: {
-      settings: claudeSettings(),
+      settings: claudeSettings(logs),
       sessionStartScript: sessionStartScript({ ...base, harness: "Claude Code" }),
       beforeEditScript: beforeEditScript({
         ...base,
@@ -200,8 +209,17 @@ export function arkShared(logs: readonly HookLog[]): Record<Harness, HarnessShar
         matcher: "write",
         command: "sh .kiro/hooks/before-edit.sh",
       }),
+      protectHook: kiroHook({
+        name: "ark protect logs",
+        description:
+          "Refuse a direct edit to the decision and issue logs; they change through the tools.",
+        trigger: "PreToolUse",
+        matcher: "write",
+        command: "sh .kiro/hooks/protect-logs.sh",
+      }),
       sessionStartScript: sessionStartScript({ ...base, harness: "Kiro" }),
       beforeEditScript: beforeEditScript({ ...base, harness: "Kiro", format: "plain" }),
+      protectScript: protectLogsScript({ ...base, harness: "Kiro" }),
     },
   };
 }
