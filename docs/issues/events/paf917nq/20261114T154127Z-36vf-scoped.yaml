@@ -1,0 +1,20 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7DBH03FH2J57T63JVFC36VF
+subject: paf917nq
+type: scoped
+at: 2026-11-14T15:41:27Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/*/README.md
+    - packages/*/src/config.ts
+    - packages/*/src/init.ts
+    - packages/ledger/src/surfaces/setup-*.ts
+    - packages/ledger/src/surfaces/tool-init.ts
