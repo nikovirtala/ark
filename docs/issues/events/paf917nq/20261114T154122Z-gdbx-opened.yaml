@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7DBGW0Q9ZTC8FR7S6CSGDBX
+subject: paf917nq
+type: opened
+at: 2026-11-14T15:41:22Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Detect the assistants a repository uses and let the person choose
+  template: feature
+  template_version: 1
