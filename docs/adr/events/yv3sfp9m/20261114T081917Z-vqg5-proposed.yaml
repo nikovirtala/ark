@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M7CJ7BZ1DCAQV0F4JACXVQG5
+subject: yv3sfp9m
+type: proposed
+at: 2026-11-14T08:19:17Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Let a code owner's pull request approval stand for a human's accept
+  template: nygard
+  template_version: 1
