@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7DG37RA81ZDDB4QG2KWGVTD
+subject: gx4hdsde
+type: closed
+at: 2026-11-14T17:01:18Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: "The Claude Code hook emits {hookSpecificOutput: {hookEventName: PreToolUse, additionalContext}} and nothing when no record applies (setup-hook-scripts.ts emitContextJs, setup.harness.test.ts checks the format through claudeRuntime.contextOf). Kiro's behaviour is checked against its current docs (a command hook's stdout on exit 0 is added to the agent's context, any other exit blocks a PreToolUse call), the hook uses plain stdout, and the finding is in docs/03-setup-v1.md 'Harness formats'. The matcher covers Edit, Write and NotebookEdit for Claude Code and the write group for Kiro (uncoveredEditTools). The harness-run test checks the output format, not only the exit code."
+data:
+  resolution: done
