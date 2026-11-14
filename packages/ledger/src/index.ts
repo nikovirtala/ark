@@ -305,6 +305,7 @@ export {
   arkServers,
   arkSetup,
   arkShared,
+  claudeDenyRules,
 } from "./surfaces/ark-setup.js";
 export {
   type CommitName,
@@ -397,6 +398,8 @@ export {
   EXTRACT_EDITED_PATH_JS,
   emitContextJs,
   type HookLog,
+  protectedPatterns,
+  protectLogsScript,
   sessionStartScript,
 } from "./surfaces/setup-hook-scripts.js";
 export { kiroRuntime } from "./surfaces/setup-kiro.js";

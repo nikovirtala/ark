@@ -69,6 +69,7 @@ describe("adr init --setup (the agent setup plumbing)", () => {
       ".claude/hooks/before-edit.sh",
       ".kiro/hooks/session-start.sh",
       ".kiro/hooks/before-edit.sh",
+      ".kiro/hooks/protect-logs.sh",
     ]) {
       expect((await stat(join(r.root, f))).mode & 0o111, f).not.toBe(0);
     }
