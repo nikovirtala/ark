@@ -11,8 +11,11 @@ import type { ToolLog } from "./tool-log.js";
  * - `changed`: the piece is there but someone edited it, so it differs from both what init last
  *   wrote and what the installed tool would write.
  * - `wrong-version`: the MCP config points at a version other than the one installed.
+ * - `not-executable`: a hook script is what init writes but lacks its execute bit (a checkout or
+ *   copy dropped it). The configs run scripts as `sh <script>`, so the hook still runs; the fix
+ *   restores the mode.
  */
-export type GapKind = "missing" | "outdated" | "changed" | "wrong-version";
+export type GapKind = "missing" | "outdated" | "changed" | "wrong-version" | "not-executable";
 
 /** One piece that is not what the installed tool would write, with the command that fixes it. */
 export interface Gap {
@@ -69,7 +72,17 @@ function gapFor(tool: string, s: PieceState): Gap | null {
       message: `${s.file}: ${s.id} is missing; run ${fix(tool, s.id, "missing")} to write it`,
     };
   }
-  if (s.matchesTarget) return null;
+  if (s.matchesTarget) {
+    if (s.needsExecutable && !s.executable) {
+      return {
+        id: s.id,
+        file: s.file,
+        kind: "not-executable",
+        message: `${s.file}: ${s.id} is not executable; run chmod +x ${s.file} (or ${fix(tool, s.id, "not-executable")}) to restore the mode`,
+      };
+    }
+    return null;
+  }
   if (s.changed) {
     return {
       id: s.id,

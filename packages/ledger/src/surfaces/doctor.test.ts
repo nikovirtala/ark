@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { chmod, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { exampleMachineKind as kind } from "../testing/example-machine-kind.js";
@@ -145,5 +145,40 @@ describe("runDoctor: --fix-clone installs the git hooks (R6)", () => {
     const doc = await runDoctor(await open(r), { format: "widget-doctor/v1", ...spec([]) });
     expect(doc.fixedClone).toEqual([]);
     await expect(readFile(join(r.git.gitDir, "hooks/pre-commit"), "utf8")).rejects.toThrow();
+  });
+});
+
+describe("runDoctor: a hook script that isn't executable (?77)", () => {
+  const script: SetupPiece = {
+    id: "hook",
+    file: ".hooks/go.sh",
+    ownership: { kind: "whole", text: "#!/bin/sh\n", executable: true },
+  };
+
+  it("reports it with the fix, and does not exit 1", async () => {
+    const r = await repo();
+    await applySetup(r.git, [script], { tool: "widget" });
+    await chmod(join(r.root, ".hooks/go.sh"), 0o644);
+    const doc = await runDoctor(await open(r), { format: "widget-doctor/v1", ...spec([script]) });
+    expect(doc.exit).toBe(0);
+    expect(doc.gaps).toHaveLength(1);
+    expect(doc.gaps[0]).toMatchObject({ id: "hook", kind: "not-executable" });
+    expect(doc.gaps[0]?.message).toContain("chmod +x .hooks/go.sh");
+    expect(doc.gaps[0]?.message).toContain("widget init --setup");
+    expect(doc.pieces[0]).toMatchObject({ ok: false, kind: "not-executable" });
+  });
+
+  it("reports nothing for an executable script", async () => {
+    const r = await repo();
+    await applySetup(r.git, [script], { tool: "widget" });
+    const doc = await runDoctor(await open(r), { format: "widget-doctor/v1", ...spec([script]) });
+    expect(doc.gaps).toEqual([]);
+  });
+
+  it("reports a missing script as missing, not as a mode problem", async () => {
+    const r = await repo();
+    const doc = await runDoctor(await open(r), { format: "widget-doctor/v1", ...spec([script]) });
+    expect(doc.gaps[0]).toMatchObject({ kind: "missing" });
+    expect(doc.exit).toBe(1);
   });
 });

@@ -1,4 +1,4 @@
-import { rm } from "node:fs/promises";
+import { chmod, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { Git } from "../git/git.js";
 import { worktreeReader } from "../git/tree.js";
@@ -32,6 +32,11 @@ export interface WholeOwnership {
   readonly kind: "whole";
   /** The exact bytes the piece should hold. */
   readonly text: string;
+  /**
+   * The file must be executable (mode 100755): hook scripts are run by path, and a checkout that
+   * loses the bit must not lose the hook (?77). Default `false`.
+   */
+  readonly executable?: boolean;
 }
 
 /**
@@ -69,6 +74,8 @@ export interface SetupResult {
   readonly outcomes: readonly PieceOutcome[];
   /** Repo-relative files touched (written), in order, de-duplicated. */
   readonly written: readonly string[];
+  /** The written files that must be executable, so the caller can stage them as 100755. */
+  readonly executable: readonly string[];
   readonly notes: readonly string[];
 }
 
@@ -247,6 +254,7 @@ export async function applySetup(
   // Each file's planned new bytes, so two pieces sharing one file compose, and the lock update.
   const planned = new Map<string, string>();
   const nextLock: LockFile = { ...committedLock };
+  const modeFixes = new Set<string>();
 
   for (const piece of pieces) {
     if (o.skip?.has(piece.id) === true) continue;
@@ -266,7 +274,13 @@ export async function applySetup(
         outcomes.push({ id: piece.id, file: piece.file, status: "wrote" });
       } else if (haveHash === targetHash) {
         nextLock[piece.id] = { hash: targetHash };
-        outcomes.push({ id: piece.id, file: piece.file, status: "kept" });
+        if (piece.ownership.executable === true && !(await isExecutable(git, piece.file))) {
+          // The bytes are right and the mode is not: a checkout that dropped the bit (?77).
+          modeFixes.add(piece.file);
+          outcomes.push({ id: piece.id, file: piece.file, status: "wrote" });
+        } else {
+          outcomes.push({ id: piece.id, file: piece.file, status: "kept" });
+        }
       } else if (forced || haveHash === lastHash(piece.id)) {
         planned.set(piece.file, target);
         nextLock[piece.id] = { hash: targetHash };
@@ -306,15 +320,26 @@ export async function applySetup(
     decoder.decode((await reader.read(SETUP_LOCK)) ?? new Uint8Array()) !== lockText;
   if (lockChanged && planned.size > 0) planned.set(SETUP_LOCK, lockText);
 
+  const wanted = new Set(
+    pieces.flatMap((p) =>
+      p.ownership.kind === "whole" && p.ownership.executable === true && o.skip?.has(p.id) !== true
+        ? [p.file]
+        : [],
+    ),
+  );
   const written: string[] = [];
   for (const [file, text] of planned) {
-    await writeFile(git, file, text);
+    await writeFile(git, file, text, wanted.has(file));
+    written.push(file);
+  }
+  for (const file of modeFixes) {
+    await chmod(join(git.root ?? "", file), EXECUTABLE);
     written.push(file);
   }
   // The per-clone lock mirrors the committed one; written only when something was written.
   if (written.length > 0) await writeClone(git, lockText);
 
-  return { outcomes, written, notes };
+  return { outcomes, written, executable: written.filter((f) => wanted.has(f)), notes };
 }
 
 /** The note a changed piece prints (R2): names the file and the overwrite command. */
@@ -329,11 +354,20 @@ function sortKeys(obj: LockFile): LockFile {
   return out;
 }
 
+const EXECUTABLE = 0o755;
+
 /** Writes a repo file, replacing it if present (setup pieces own their content). */
-async function writeFile(git: Git, path: string, text: string): Promise<void> {
+async function writeFile(git: Git, path: string, text: string, executable = false): Promise<void> {
   const full = join(git.root ?? "", path);
   await rm(full, { force: true });
   await writeNewFile(git, path, encoder.encode(text));
+  if (executable) await chmod(full, EXECUTABLE);
+}
+
+/** Whether the work tree file at `path` has its owner execute bit; `false` when it is missing. */
+async function isExecutable(git: Git, path: string): Promise<boolean> {
+  const s = await stat(join(git.root ?? "", path)).catch(() => null);
+  return s !== null && (s.mode & 0o100) !== 0;
 }
 
 async function readClone(git: Git): Promise<Uint8Array | null> {
@@ -365,6 +399,10 @@ export interface PieceState {
   readonly changed: boolean;
   readonly version: string | null;
   readonly targetVersion: string | null;
+  /** The piece's file must be executable (a hook script). */
+  readonly needsExecutable: boolean;
+  /** The file has its execute bit; meaningful when `present`. */
+  readonly executable: boolean;
 }
 
 /** The last-written hash lookup both locks provide, committed taking precedence over per-clone. */
@@ -410,6 +448,8 @@ export async function pieceStates(
         changed: haveHash !== null && haveHash !== targetHash && haveHash !== lastHash(piece.id),
         version: null,
         targetVersion: null,
+        needsExecutable: piece.ownership.executable === true,
+        executable: await isExecutable(git, piece.file),
       });
     } else {
       const merge = piece as SetupPiece & { ownership: MergeOwnership };
@@ -432,6 +472,8 @@ export async function pieceStates(
           currentOwned !== lastHash(piece.id),
         version: currentValue === undefined ? null : versionIn(currentValue),
         targetVersion: entryKey === undefined ? null : versionIn(merge.ownership.entries[entryKey]),
+        needsExecutable: false,
+        executable: false,
       });
     }
   }

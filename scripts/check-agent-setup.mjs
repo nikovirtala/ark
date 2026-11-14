@@ -1,13 +1,14 @@
 // Enforces R9 (docs/03-setup-v1.md): running the shared init on ark reproduces ark's committed
 // agent setup with no diff. It copies the committed setup inputs into a throwaway git repo, runs
 // the built `adr init --setup` and `issues init --setup`, and fails if any written file (including
-// ark-setup.lock) differs from what the repository ships. Run by `pnpm lint`-adjacent CI and
-// locally: `node scripts/check-agent-setup.mjs`. Needs `pnpm build` first (it spawns dist/cli.js).
+// ark-setup.lock) differs from what the repository ships, in its bytes or in its mode: a hook
+// script that isn't 100755 never runs (?77). Run by `pnpm lint`-adjacent CI and locally:
+// `node scripts/check-agent-setup.mjs`. Needs `pnpm build` first (it spawns dist/cli.js).
 import { execFileSync } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const ADR = join(root, "packages/adr/dist/cli.js");
@@ -33,8 +34,30 @@ const SETUP_FILES = [
   "ark-setup.lock",
 ];
 
+/**
+ * The files whose committed form differs from what init wrote. `want` and `got` map each file to
+ * `{ text, mode }`, `got` being `null` for a file init did not write; `mode` is the git mode
+ * (`100644` or `100755`). Content is compared first; a file with the same bytes but another mode
+ * is reported too, since a hook script without its execute bit never runs.
+ */
+export function diffSetup(want, got) {
+  const diffs = [];
+  for (const [file, w] of Object.entries(want)) {
+    const g = got[file] ?? null;
+    if (g === null || g.text !== w.text) diffs.push(file);
+    else if (g.mode !== w.mode) diffs.push(`${file} (mode ${g.mode}, committed ${w.mode})`);
+  }
+  return diffs;
+}
+
 const git = (cwd, args) =>
   execFileSync("git", args, { cwd, stdio: ["ignore", "pipe", "pipe"] }).toString("utf8");
+
+/** The git mode of the first entry of a `ls-tree` or `ls-files -s` run, or `null` when untracked. */
+function gitMode(cwd, args) {
+  const out = git(cwd, args).trim();
+  return out === "" ? null : out.split(/\s+/)[0];
+}
 
 async function main() {
   const dir = await mkdtemp(join(tmpdir(), "ark-r9-"));
@@ -64,12 +87,26 @@ async function main() {
     execFileSync("node", [ADR, "init", "--setup", "--no-commit"], { cwd: dir, stdio: "ignore" });
     execFileSync("node", [ISSUES, "init", "--setup", "--no-commit"], { cwd: dir, stdio: "ignore" });
 
-    const diffs = [];
+    const want = {};
+    const got = {};
     for (const f of SETUP_FILES) {
-      const want = execFileSync("git", ["show", `HEAD:${f}`], { cwd: root }).toString("utf8");
-      const got = await readFile(join(dir, f), "utf8").catch(() => null);
-      if (got !== want) diffs.push(f);
+      want[f] = {
+        text: execFileSync("git", ["show", `HEAD:${f}`], { cwd: root }).toString("utf8"),
+        mode: gitMode(root, ["ls-tree", "HEAD", "--", f]),
+      };
+      const text = await readFile(join(dir, f), "utf8").catch(() => null);
+      // The mode init staged, and the file system's: both must agree with the committed one.
+      const staged = gitMode(dir, ["ls-files", "-s", "--", f]);
+      const onDisk = await stat(join(dir, f)).then(
+        (s) => ((s.mode & 0o111) !== 0 ? "100755" : "100644"),
+        () => null,
+      );
+      got[f] =
+        text === null
+          ? null
+          : { text, mode: staged === onDisk || staged === null ? onDisk : `${staged}/${onDisk}` };
     }
+    const diffs = diffSetup(want, got);
     if (diffs.length > 0) {
       console.error(
         `R9 failed: init does not reproduce the committed setup for:\n  ${diffs.join("\n  ")}`,
@@ -82,7 +119,9 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { ARK_PINS } from "@nikovirtala/ledger";
 import type { TempRepo } from "@nikovirtala/ledger/testing";
@@ -58,6 +58,17 @@ describe("adr init --setup (the agent setup plumbing)", () => {
     expect(mcp).not.toContain("workspace:");
     // biome-ignore lint/suspicious/noTemplateCurlyInString: the expected shell placeholder
     expect(mcp).toContain("${ARK_ON_BEHALF_OF}");
+    // The hook scripts are executable and the configs run them with sh (?77).
+    for (const f of [
+      ".claude/hooks/session-start.sh",
+      ".claude/hooks/before-edit.sh",
+      ".kiro/hooks/session-start.sh",
+      ".kiro/hooks/before-edit.sh",
+    ]) {
+      expect((await stat(join(r.root, f))).mode & 0o111, f).not.toBe(0);
+    }
+    const staged = (await r.git.run(["ls-files", "-s", ".claude/hooks", ".kiro/hooks"])).stdout;
+    expect(Buffer.from(staged).toString("utf8")).not.toMatch(/^100644 .*\.sh$/m);
     // The skill went to both harnesses.
     expect(await exists(r, ".claude/skills/adr/SKILL.md")).toBe(true);
     expect(await exists(r, ".kiro/skills/adr/SKILL.md")).toBe(true);

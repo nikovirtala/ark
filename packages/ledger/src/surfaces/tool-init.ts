@@ -416,6 +416,10 @@ export async function initToolLog(
         setupStaged.push(path);
       }
       await log.git.add(setupStaged);
+      // The index records 100755 even where the file system can't keep the bit (core.fileMode off).
+      if (r.executable.length > 0) {
+        await log.git.run(["update-index", "--chmod=+x", "--", ...r.executable]);
+      }
       notes.push(...r.notes);
     }
 
