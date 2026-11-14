@@ -1,0 +1,18 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7CJB4V6V456459EKQB8BFWH
+subject: gb0dft28
+type: scoped
+at: 2026-11-14T08:21:20Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/*/README.md
+    - packages/*/src/cli/**
+    - packages/ledger/src/cli/**
