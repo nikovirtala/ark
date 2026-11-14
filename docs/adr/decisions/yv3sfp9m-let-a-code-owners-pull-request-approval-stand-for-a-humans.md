@@ -22,3 +22,4 @@ adr's `[policy]` config, the accept write path and its rules, `adr_accept` in th
 - A person can tell an agent to accept, and the approval that counts is one the forge records and checks.
 - The human gate moves from the write to the merge, so it only holds where branch protection requires code owner review; `verify` warns where nothing requires it.
 - No approval is recorded on an agent's word.
+- With adr:wkq8vyps, the accept is final only when the approved pull request merges, so text fixed during review needs no rewritten branch and no new numbers: accepting again on the branch is enough.
