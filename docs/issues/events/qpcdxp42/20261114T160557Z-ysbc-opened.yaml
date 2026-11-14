@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7DCXW2Z0QEPF3DTZM3QYSBC
+subject: qpcdxp42
+type: opened
+at: 2026-11-14T16:05:57Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: An unset ARK_ON_BEHALF_OF makes every agent write fail
+  template: bug
+  template_version: 1
