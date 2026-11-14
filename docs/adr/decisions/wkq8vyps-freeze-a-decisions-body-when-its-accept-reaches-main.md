@@ -8,8 +8,8 @@ Kiro reported what that costs. After eleven decisions had been accepted on a bra
 ## Decision
 A decision's body freezes when its accept reaches main, not when the accept is written.
 
-- **Renewing.** On a branch, while a decision's accept is not yet on main, its body may still change. `adr accept` on such a decision writes a renewal: another accepted event that pins the current body and names, by event id, the accept it replaces.
-- **Which accept pins the body.** The accepted event that no other one replaces. Two renewals that replace the same accept are a `verify` error, settled by accepting again. Neither clocks nor commit order decide it.
+- **Renewing.** On a branch, while a decision's accept is not yet on main, its body may still change. `adr accept` on such a decision writes a renewal: another accepted event that pins the current body and names, by event id, every accept that nothing replaces yet; usually there is one, and after a fork there are several, so one renewal settles it.
+- **Which accept pins the body.** The accepted event that no other one replaces. Two renewals that replace the same accept are a `verify` error, settled by accepting again: the new renewal replaces both. Neither clocks nor commit order decide it.
 - **Who may renew.** A renewal is an accept, so `[policy] accept_requires_human` applies to it as to the first: under `true` an agent can't renew a person's accept, and the messages tell an agent to ask a person to accept again.
 - **What "on main" means.** The main ref is resolved as for numbering: the configured `main_branch`, otherwise the remote's default branch. An accept is on main when its event file is in that ref's tree, so the test matches event ids and survives rebases and merges. In a shallow clone without that ref, the tool says it can't tell, and refuses to renew. A clone whose main ref is stale can misjudge it, so CI's `verify` on the pull request, run against the current main, is the check that holds.
 - **The freeze.** On main, a decision whose accept is already there can't be accepted again, and its body can't change, as before.
