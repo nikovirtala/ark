@@ -110,6 +110,23 @@ ark, which develops the tools, follows the proposed decision to run its own agen
 2. **Stage 1 proves the change.** CI builds the workspace and runs it against ark's own logs before a release.
 3. **The release is the self-update.** After a release publishes new tool versions, the release workflow's `self-update` job bumps the pins and reruns `init --setup` in a pull request; merging it is when ark starts using the new version on itself. The job runs only when the publish step reports `published == 'true'`, reads the just-published versions from its `published-packages` output, and bumps them in one place: the `ARK_PINS` constant in `packages/ledger/src/surfaces/ark-setup.ts`, the single source every pin is generated from (`scripts/bump-ark-pins.mjs`). It then rebuilds and reruns `adr init --setup` and `issues init --setup`, so `.mcp.json`, `.kiro/settings/mcp.json`, the `package.json` `prepare` script, the committed hook scripts and `ark-setup.lock` all update together, and opens the change as a pull request (`peter-evans/create-pull-request`, branch `release/ark-pin-bump` into `main`). It never pushes the bump to `main`; the PR is reviewed and CI (R9 and the `verify` steps) must pass before merge. A release that carries no newer adr/issues pin (for example a ledger-only release) changes nothing and opens no PR.
 
+### Every other repository: ark is the exception, not the template
+
+The first implementation (?59) wrote ark's own setup into every repository. A user who ran `adr init --setup --skill` in another repository (longplay) found six problems, each one a piece of ark that should never have left it:
+
+- the published 0.6.0 pinned 0.5.10 and 0.5.6, ark's previous-release pins;
+- `package.json` got ark's `prepare` script, `node scripts/git-hooks.mjs install --if-built`, and that file exists only in ark, so `pnpm install` failed;
+- the hooks ran `issues` in a repository that doesn't use it;
+- the generated scripts cited ADR-0017 and this document;
+- a rerun brought back a template the repository had removed;
+- `AGENTS.md` sent every agent to `SKILL.md`, including agents that load skills themselves.
+
+The cause was this design. R9, "init on ark reproduces ark's committed setup", was the only check, so ark was the only fixture, and the code that passed it was ark's setup. So the design now separates the two:
+
+- **The setup a tool writes is generic.** It pins the version of the tool that is running, read from its own package. It writes only that tool's pieces: adr's hooks run adr, and issues adds its own when it is set up. It writes no `prepare` script unless asked; the session-start hook installs missing git hooks (R6). A rerun writes no templates. Comments in generated files explain the file and link the tool's README, not ark's records.
+- **What makes ark different lives in ark's config.** ark's previous-release pins (ADR-0017), its build-safe `prepare` and anything else particular to developing the tools are settings in ark's own config that `init` reads. The release's pin bump (?61) changes that config, not the code.
+- **Both are tested.** R9 keeps ark's setup reproducible; R10 and R11 check repositories that are not ark.
+
 ## Requirements
 
 - **R1** `init` MUST write every piece in the setup table for each detected harness unless a flag opts that piece out.
@@ -120,7 +137,9 @@ ark, which develops the tools, follows the proposed decision to run its own agen
 - **R6** The session-start hook MUST install missing git hooks in the clone, or say why it cannot.
 - **R7** The before-edit hook SHOULD report each file once per session.
 - **R8** ark's configs MUST pin published versions, never the workspace build.
-- **R9** Running the shared `init` on ark MUST produce ark's committed setup with no diff.
+- **R9** Running the shared `init` on ark MUST produce ark's committed setup with no diff, with everything particular to ark coming from ark's config, not from the tools' code.
+- **R10** In a repository other than ark, `init --setup` MUST pin the running tool's own published version, MUST write only that tool's pieces, MUST NOT write a `prepare` script unless asked, and MUST NOT write text that refers to ark's own records. A rerun MUST NOT write templates.
+- **R11** CI MUST run `init --setup` in fixture repositories that are not ark (one with only adr, a JavaScript repository without ark's scripts, and one with no `package.json`) and check that the package install still succeeds, every generated hook script runs, nothing generated names ADR-0017, this document or a tool the repository doesn't use, and a second run changes nothing.
 
 ## Worked examples
 
