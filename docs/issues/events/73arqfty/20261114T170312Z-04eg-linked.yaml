@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7DG6PA0VXSPT828SBYA04EG
+subject: 73arqfty
+type: linked
+at: 2026-11-14T17:03:12Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  to: qpcdxp42
+  rel: relates-to
