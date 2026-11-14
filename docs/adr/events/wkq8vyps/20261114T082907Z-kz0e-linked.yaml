@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M7CJSCZ3SPYH26BXXDT3KZ0E
+subject: wkq8vyps
+type: linked
+at: 2026-11-14T08:29:07Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  to: 27h9h6y7
+  rel: relates-to
