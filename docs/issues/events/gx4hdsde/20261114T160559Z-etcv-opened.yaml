@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7DCXY7BV1BNHSSQYN43ETCV
+subject: gx4hdsde
+type: opened
+at: 2026-11-14T16:05:59Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Claude Code never sees the before-edit hook's output
+  template: bug
+  template_version: 1
