@@ -1,0 +1,20 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7DCYT4ZWSBHYA8H5BXRE7QT
+subject: qpcdxp42
+type: scoped
+at: 2026-11-14T16:06:28Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - .kiro/settings/mcp.json
+    - .mcp.json
+    - packages/*/README.md
+    - packages/ledger/src/surfaces/actor.ts
+    - packages/ledger/src/surfaces/setup-*.ts
