@@ -1,0 +1,20 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7DCYNB70A8SH6X8YHX90H80
+subject: 690hzw0j
+type: scoped
+at: 2026-11-14T16:06:23Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - .claude/**
+    - .kiro/**
+    - packages/ledger/src/surfaces/ark-setup.ts
+    - packages/ledger/src/surfaces/setup-*.ts
+    - packages/ledger/src/surfaces/tool-init.ts
