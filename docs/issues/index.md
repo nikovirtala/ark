@@ -32,7 +32,6 @@
 | ?73 | [Accept again on a branch after the body changes, keeping the number](items/95yvfzr2-accept-again-on-a-branch-after-the-body-changes-keeping-the.md) |  |  | 2026-11-14 |
 | ?74 | [init --setup writes ark's own setup into other repositories](items/d37cvwm7-init-setup-writes-arks-own-setup-into-other-repositories.md) |  |  | 2026-11-14 |
 | ?75 | [Detect the assistants a repository uses and let the person choose](items/paf917nq-detect-the-assistants-a-repository-uses-and-let-the-person.md) |  |  | 2026-11-14 |
-| ?76 | [Write the setup for GitHub Copilot](items/22qmqt5y-write-the-setup-for-github-copilot.md) |  |  | 2026-11-14 |
 
 ## Blocked
 
@@ -41,6 +40,7 @@
 | ?60 | [Report missing or outdated agent setup with a doctor command](items/ram953kt-report-missing-or-outdated-agent-setup-with-a-doctor-command.md) |  |  | 2026-10-31 |
 | ?61 | [Bump ark's own tool pins when a release publishes](items/t9vg1qty-bump-arks-own-tool-pins-when-a-release-publishes.md) |  |  | 2026-10-31 |
 | ?65 | [Import decisions made before the log with adr import](items/zw2a7vx4-import-decisions-made-before-the-log-with-adr-import.md) |  |  | 2026-11-14 |
+| ?76 | [Write the setup for GitHub Copilot](items/22qmqt5y-write-the-setup-for-github-copilot.md) |  |  | 2026-11-14 |
 
 ## Recently closed
 
