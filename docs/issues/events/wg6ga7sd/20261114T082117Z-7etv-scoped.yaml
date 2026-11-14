@@ -1,0 +1,18 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7CJB1X54M0F83HE3VBG7ETV
+subject: wg6ga7sd
+type: scoped
+at: 2026-11-14T08:21:17Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/*/README.md
+    - packages/*/src/mcp/server.ts
+    - packages/ledger/src/surfaces/actor.ts
