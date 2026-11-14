@@ -29,6 +29,13 @@ export {
   forkAndMerge,
 } from "./fork-and-merge.js";
 export {
+  type HookRun,
+  installToolStubs,
+  repoFiles,
+  runHook,
+  type ToolStubs,
+} from "./harness-conformance.js";
+export {
   arbLegalHistory,
   type DataArbs,
   finalHistoryContext,

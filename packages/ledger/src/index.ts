@@ -332,6 +332,19 @@ export {
   type RunDoctorOptions,
   runDoctor,
 } from "./surfaces/doctor.js";
+export {
+  type ConfiguredHook,
+  type ConfiguredMcpServer,
+  FIXTURE_SESSION,
+  globMatches,
+  type HarnessRuntime,
+  type HookInvocation,
+  type HookKind,
+  type HookResult,
+  type HookScenario,
+  type RepoFiles,
+} from "./surfaces/harness-runtime.js";
+export { HARNESS_RUNTIMES } from "./surfaces/harness-runtimes.js";
 export { renderStateHeader, type StateHeader } from "./surfaces/header.js";
 export {
   type FollowRenames,
@@ -365,6 +378,7 @@ export {
   type WholeOwnership,
 } from "./surfaces/setup.js";
 export {
+  claudeRuntime,
   detectHarnesses,
   HARNESSES,
   type Harness,
@@ -372,6 +386,7 @@ export {
   type McpServerEntry,
   mcpStdioServer,
 } from "./surfaces/setup-claude.js";
+export { kiroRuntime } from "./surfaces/setup-kiro.js";
 export {
   readSourceLog,
   readSourceSubjects,
