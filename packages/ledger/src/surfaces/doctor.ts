@@ -1,5 +1,7 @@
 import { installHooks } from "../hooks/install.js";
+import { isUnexpandedPlaceholder } from "./actor.js";
 import { type PieceState, pieceStates, type SetupPiece } from "./setup.js";
+import type { Harness } from "./setup-claude.js";
 import { toolHookCommands } from "./tool-hooks.js";
 import type { ToolLog } from "./tool-log.js";
 
@@ -16,6 +18,19 @@ import type { ToolLog } from "./tool-log.js";
  *   restores the mode.
  */
 export type GapKind = "missing" | "outdated" | "changed" | "wrong-version" | "not-executable";
+
+/**
+ * What `ARK_ON_BEHALF_OF` looks like in the environment doctor runs in, per harness, since the
+ * harness hands the MCP server this variable and a gap there makes agent writes fail or be
+ * attributed to the git identity. `ok` is set; `unset` and `placeholder` say what to do; `approve`
+ * is Kiro's reminder: Kiro expands the variable only once the person approves it, a setting
+ * outside the repository that doctor cannot read.
+ */
+export interface EnvReport {
+  readonly harness: Harness;
+  readonly state: "ok" | "unset" | "placeholder" | "approve";
+  readonly message: string;
+}
 
 /** One piece that is not what the installed tool would write, with the command that fixes it. */
 export interface Gap {
@@ -37,6 +52,8 @@ export interface DoctorResult {
     readonly kind: GapKind | null;
   }[];
   readonly gaps: readonly Gap[];
+  /** `ARK_ON_BEHALF_OF` per harness with an MCP piece; informational, never changes the exit code. */
+  readonly environment: readonly EnvReport[];
   /** 1 when any piece is missing (R5), else 0. */
   readonly exit: 0 | 1;
   /** With `--fix-clone`: the git-hook shims written (none when they were already installed). */
@@ -54,6 +71,8 @@ export interface DoctorSpec {
   readonly pieces: readonly SetupPiece[];
   /** The exact version the installed tool pins, for the wrong-version message. */
   readonly installedVersion: string;
+  /** The environment to report `ARK_ON_BEHALF_OF` from; without it that report is skipped. */
+  readonly env?: NodeJS.ProcessEnv;
 }
 
 /** The fixing command a gap names, after `<tool>`. */
@@ -109,6 +128,39 @@ function gapFor(tool: string, s: PieceState): Gap | null {
   };
 }
 
+/** The `ARK_ON_BEHALF_OF` report for each harness that has an MCP piece. */
+function environmentReports(
+  pieces: readonly SetupPiece[],
+  env: NodeJS.ProcessEnv,
+): readonly EnvReport[] {
+  const harnesses = (["claude", "kiro"] as const).filter((h) =>
+    pieces.some((p) => p.id.startsWith(`${h}.mcp.`)),
+  );
+  const value = (env.ARK_ON_BEHALF_OF ?? "").trim();
+  const state = isUnexpandedPlaceholder(value) ? "placeholder" : value === "" ? "unset" : "ok";
+  const how: Record<Harness, string> = {
+    claude: "export it in the shell that starts claude",
+    kiro: 'export it in the shell that starts Kiro, and approve it under "Mcp Approved Env Vars" in its settings',
+  };
+  return harnesses.map((harness) => {
+    if (state === "ok") {
+      return harness === "kiro"
+        ? {
+            harness,
+            state: "approve",
+            message:
+              'kiro: ARK_ON_BEHALF_OF is set here; Kiro passes it to the MCP servers only after you approve it under "Mcp Approved Env Vars" in its settings (doctor cannot read that setting)',
+          }
+        : { harness, state: "ok", message: "claude: ARK_ON_BEHALF_OF is set" };
+    }
+    const what =
+      state === "placeholder"
+        ? "is the unexpanded placeholder"
+        : "is not set, so agent writes are attributed to the git identity, with a note";
+    return { harness, state, message: `${harness}: ARK_ON_BEHALF_OF ${what}; ${how[harness]}` };
+  });
+}
+
 export interface RunDoctorOptions {
   /** Install the per-clone git hooks; never wrong to install, so doctor always offers it. */
   readonly fixClone?: boolean;
@@ -146,6 +198,7 @@ export async function runDoctor(
     format: spec.format,
     pieces,
     gaps,
+    environment: spec.env === undefined ? [] : environmentReports(spec.pieces, spec.env),
     exit: missing ? 1 : 0,
     fixedClone,
     notes,

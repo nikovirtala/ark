@@ -29,7 +29,7 @@ import { setupPieces } from "./tool-init.js";
  * change that fixes them lands; such a test is expected to fail (`it.fails`) and starts failing
  * the build when the fix makes it pass, so the entry has to go.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>(["78", "79", "80", "81"]);
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>(["79", "80", "81"]);
 
 type Finding = "77" | "78" | "79" | "80" | "81";
 /** `it`, or `it.fails` while the finding it checks is still open. */

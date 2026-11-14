@@ -26,6 +26,7 @@ function doctorText(tool: string, r: DoctorResult): string {
     lines.push(`${tool}: ${r.gaps.length} agent-setup gap${r.gaps.length === 1 ? "" : "s"}:`);
     for (const gap of r.gaps) lines.push(`  ${gap.message}`);
   }
+  for (const e of r.environment) if (e.state !== "ok") lines.push(`  ${e.message}`);
   for (const path of r.fixedClone) lines.push(`installed git hook ${path}`);
   return lines.join("\n");
 }
@@ -54,7 +55,7 @@ export function doctorCommand<L extends ToolLog>(o: DoctorCommandOptions<L>): Co
       const { log, spec } = await o.open({ io, flags });
       const r = await runDoctor(
         log,
-        { tool, format: o.format, ...spec },
+        { tool, format: o.format, env: io.env, ...spec },
         { fixClone: values["fix-clone"] === true },
       );
       return {

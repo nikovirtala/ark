@@ -22,7 +22,7 @@ const LITERAL = "${ARK_ON_BEHALF_OF}";
  * Findings of the 2026-11-14 audit this suite covers that are still open; each is expected to fail
  * until the change that fixes it removes its entry.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>(["78"]);
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>();
 const check = (finding: string) => (KNOWN_FAILING.has(finding) ? it.fails : it);
 
 let repo: TempRepo;

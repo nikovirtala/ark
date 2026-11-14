@@ -182,3 +182,60 @@ describe("runDoctor: a hook script that isn't executable (?77)", () => {
     expect(doc.exit).toBe(1);
   });
 });
+
+describe("runDoctor: ARK_ON_BEHALF_OF per harness (?78)", () => {
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: the literal text a harness leaves
+  const LITERAL = "${ARK_ON_BEHALF_OF}";
+  const pieces: SetupPiece[] = [
+    { ...mcp("1.0.0"), id: "claude.mcp.widget" },
+    { ...mcp("1.0.0"), id: "kiro.mcp.widget", file: ".kiro/settings/mcp.json" },
+  ];
+  const report = async (env: NodeJS.ProcessEnv, ps: readonly SetupPiece[] = pieces) => {
+    const r = await repo();
+    await applySetup(r.git, ps, { tool: "widget" });
+    const doc = await runDoctor(await open(r), {
+      format: "widget-doctor/v1",
+      ...spec(ps),
+      env,
+    });
+    return doc;
+  };
+
+  it("says how to set an unset variable for each harness, and never changes the exit code", async () => {
+    const doc = await report({});
+    expect(doc.exit).toBe(0);
+    expect(doc.environment.map((e) => [e.harness, e.state])).toEqual([
+      ["claude", "unset"],
+      ["kiro", "unset"],
+    ]);
+    expect(doc.environment[0]?.message).toContain("export it in the shell that starts claude");
+    expect(doc.environment[1]?.message).toContain('"Mcp Approved Env Vars"');
+  });
+
+  it("treats a blank value as unset and a placeholder as unexpanded", async () => {
+    expect((await report({ ARK_ON_BEHALF_OF: "  " })).environment[0]?.state).toBe("unset");
+    const p = await report({ ARK_ON_BEHALF_OF: LITERAL });
+    expect(p.environment.map((e) => e.state)).toEqual(["placeholder", "placeholder"]);
+    expect(p.environment[0]?.message).toContain("unexpanded placeholder");
+  });
+
+  it("is quiet for Claude Code when set, and reminds Kiro to approve it", async () => {
+    const doc = await report({ ARK_ON_BEHALF_OF: "niko@example.com" });
+    expect(doc.environment.map((e) => [e.harness, e.state])).toEqual([
+      ["claude", "ok"],
+      ["kiro", "approve"],
+    ]);
+    expect(doc.environment[1]?.message).toContain("cannot read that setting");
+  });
+
+  it("reports only the harnesses that have an MCP piece", async () => {
+    const doc = await report({}, [pieces[0] as SetupPiece]);
+    expect(doc.environment.map((e) => e.harness)).toEqual(["claude"]);
+  });
+
+  it("reports nothing without an environment", async () => {
+    const r = await repo();
+    const doc = await runDoctor(await open(r), { format: "widget-doctor/v1", ...spec(pieces) });
+    expect(doc.environment).toEqual([]);
+  });
+});

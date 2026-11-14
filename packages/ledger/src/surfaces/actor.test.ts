@@ -2,7 +2,13 @@ import { afterEach, describe, expect, it } from "vitest";
 import { ConfigError } from "../errors.js";
 import { Git } from "../git/git.js";
 import { createTempRepo, type TempRepo } from "../testing/temp-repo.js";
-import { parseOnBehalfOf, resolveActor, resolveAttribution } from "./actor.js";
+import {
+  isUnexpandedPlaceholder,
+  PLACEHOLDER_NOTE,
+  parseOnBehalfOf,
+  resolveActor,
+  resolveAttribution,
+} from "./actor.js";
 
 const repos: TempRepo[] = [];
 afterEach(async () => {
@@ -245,3 +251,78 @@ describe("parseOnBehalfOf", () => {
     expect(() => parseOnBehalfOf(value)).toThrow(message);
   });
 });
+
+// biome-ignore-start lint/suspicious/noTemplateCurlyInString: the literal text a harness leaves
+describe("ARK_ON_BEHALF_OF as an unexpanded placeholder (?78)", () => {
+  const LITERAL = "${ARK_ON_BEHALF_OF}";
+  const niko = { name: "Niko", email: "niko@example.com" };
+  const NOTE = `on_behalf_of taken from the git identity ${niko.email}; set ARK_ON_BEHALF_OF to name who you act for`;
+
+  it.each<[string, string | undefined, string | null]>([
+    ["unset", undefined, null],
+    ["empty", "", null],
+    ["blank", "  ", null],
+    ["the literal placeholder", LITERAL, null],
+    ["a placeholder with an empty default", "${ARK_ON_BEHALF_OF:-}", null],
+    ["a placeholder for another variable", "${HOME}", null],
+    ["a placeholder with spaces around it", ` ${LITERAL} `, null],
+    ["a valid address", "niko@example.com", "niko@example.com"],
+  ])("parseOnBehalfOf: %s → %j", (_name, value, want) => {
+    expect(parseOnBehalfOf(value)).toBe(want);
+  });
+
+  it.each([
+    ["text before a placeholder", `x${LITERAL}`],
+    ["an unterminated placeholder", "${ARK_ON_BEHALF_OF"],
+    ["a placeholder that isn't one", "${not a name}"],
+  ])("parseOnBehalfOf: still refuses %s", (_name, value) => {
+    expect(isUnexpandedPlaceholder(value)).toBe(false);
+    expect(() => parseOnBehalfOf(value)).toThrow(ConfigError);
+  });
+
+  it("recognizes only a whole placeholder", () => {
+    expect(isUnexpandedPlaceholder(LITERAL)).toBe(true);
+    expect(isUnexpandedPlaceholder("${A_1:-x}")).toBe(true);
+    expect(isUnexpandedPlaceholder(undefined)).toBe(false);
+    expect(isUnexpandedPlaceholder("niko@example.com")).toBe(false);
+  });
+
+  it("acts for the git identity, with the harness note before the usual one", async () => {
+    const got = await resolveAttribution(fakeGit(niko), {
+      env: { ARK_AGENT: "kiro", ARK_ON_BEHALF_OF: LITERAL },
+    });
+    expect(got.actor).toEqual({
+      kind: "agent",
+      name: "kiro",
+      email: null,
+      agent: "kiro",
+      on_behalf_of: niko.email,
+    });
+    expect(got.notes).toEqual([PLACEHOLDER_NOTE, NOTE]);
+    expect(PLACEHOLDER_NOTE).toContain('"Mcp Approved Env Vars"');
+    expect(PLACEHOLDER_NOTE).toContain("Claude Code");
+  });
+
+  it("gives only the usual note when the variable is unset or empty", async () => {
+    for (const value of [undefined, ""]) {
+      const got = await resolveAttribution(fakeGit(niko), {
+        env: { ARK_AGENT: "kiro", ...(value === undefined ? {} : { ARK_ON_BEHALF_OF: value }) },
+      });
+      expect(got.notes).toEqual([NOTE]);
+    }
+  });
+
+  it("uses a valid address without a note", async () => {
+    const got = await resolveAttribution(fakeGit("unread"), {
+      env: { ARK_AGENT: "kiro", ARK_ON_BEHALF_OF: "a@b.org" },
+    });
+    expect(got).toMatchObject({ actor: { on_behalf_of: "a@b.org" }, notes: [] });
+  });
+
+  it("still refuses an invalid address", async () => {
+    await expect(
+      resolveAttribution(fakeGit(niko), { env: { ARK_AGENT: "kiro", ARK_ON_BEHALF_OF: "niko" } }),
+    ).rejects.toBeInstanceOf(ConfigError);
+  });
+});
+// biome-ignore-end lint/suspicious/noTemplateCurlyInString: the literal text a harness leaves

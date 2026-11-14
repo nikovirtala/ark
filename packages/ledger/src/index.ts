@@ -278,6 +278,8 @@ export {
 } from "./sources/resolve.js";
 export {
   type Attribution,
+  isUnexpandedPlaceholder,
+  PLACEHOLDER_NOTE,
   parseOnBehalfOf,
   resolveActor,
   resolveAttribution,
@@ -327,6 +329,7 @@ export {
 export {
   type DoctorResult,
   type DoctorSpec,
+  type EnvReport,
   type Gap,
   type GapKind,
   type RunDoctorOptions,

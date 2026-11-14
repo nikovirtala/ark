@@ -52,6 +52,22 @@ export interface McpServerEntry {
 }
 
 /**
+ * How Claude Code's `.mcp.json` passes `ARK_ON_BEHALF_OF` through: an unset variable arrives empty,
+ * so the server falls back to the git identity. Without `:-` Claude Code leaves the text
+ * `${ARK_ON_BEHALF_OF}` in place (code.claude.com/docs/en/mcp, "Environment variable expansion").
+ */
+// biome-ignore lint/suspicious/noTemplateCurlyInString: a shell env placeholder, passed through verbatim (R4)
+export const CLAUDE_ON_BEHALF_OF = "${ARK_ON_BEHALF_OF:-}";
+
+/**
+ * Kiro's form. Kiro expands only variables the person approved under "Mcp Approved Env Vars", and
+ * documents no default form (kiro.dev/docs/mcp/configuration/), so an unapproved or unset variable
+ * arrives as this text and the server treats it as unset.
+ */
+// biome-ignore lint/suspicious/noTemplateCurlyInString: a shell env placeholder, passed through verbatim (R4)
+export const KIRO_ON_BEHALF_OF = "${ARK_ON_BEHALF_OF}";
+
+/**
  * An MCP stdio server value: `npx -y <package>@<version> mcp`, with `ARK_AGENT` naming the harness
  * and `ARK_ON_BEHALF_OF` passed through from the environment, never its value (R4). `version` MUST
  * be an exact published version; a range or `workspace:*` is refused.
@@ -71,8 +87,10 @@ export function mcpStdioServer(o: {
   const base: Record<string, unknown> = {
     command: "npx",
     args: ["-y", `${o.pkg}@${o.version}`, "mcp"],
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: a shell env placeholder, passed through verbatim (R4)
-    env: { ARK_AGENT: o.agent, ARK_ON_BEHALF_OF: "${ARK_ON_BEHALF_OF}" },
+    env: {
+      ARK_AGENT: o.agent,
+      ARK_ON_BEHALF_OF: o.kiroFields === true ? KIRO_ON_BEHALF_OF : CLAUDE_ON_BEHALF_OF,
+    },
   };
   return o.kiroFields === true ? { ...base, disabled: false, autoApprove: [] } : base;
 }

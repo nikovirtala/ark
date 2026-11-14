@@ -9,11 +9,14 @@ describe("ark-setup content", () => {
     const claude = servers.claude.value as { args: string[]; env: Record<string, string> };
     expect(claude.args).toEqual(["-y", `@nikovirtala/adr@${ARK_PINS.adr}`, "mcp"]);
     expect(claude.env.ARK_AGENT).toBe("claude-code");
-    // The value is passed through as a shell placeholder, never resolved (R4).
+    // The value is passed through as a shell placeholder, never resolved (R4). Claude Code's has an
+    // empty default, so an unset variable arrives empty (?78); Kiro documents no default form.
     // biome-ignore lint/suspicious/noTemplateCurlyInString: the expected shell placeholder
-    expect(claude.env.ARK_ON_BEHALF_OF).toBe("${ARK_ON_BEHALF_OF}");
+    expect(claude.env.ARK_ON_BEHALF_OF).toBe("${ARK_ON_BEHALF_OF:-}");
     const kiro = servers.kiro.value as { env: Record<string, string> };
     expect(kiro.env.ARK_AGENT).toBe("kiro");
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the expected shell placeholder
+    expect(kiro.env.ARK_ON_BEHALF_OF).toBe("${ARK_ON_BEHALF_OF}");
     expect(JSON.stringify(servers)).not.toContain("workspace:");
   });
 

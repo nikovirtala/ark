@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7DFX4KQV875YNJKGSHB77SR
+subject: qpcdxp42
+type: closed
+at: 2026-11-14T16:57:59Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: Claude Code's .mcp.json (and what init writes) passes ${ARK_ON_BEHALF_OF:-}; ledger's parseOnBehalfOf and resolveAttribution treat a whole ${...} placeholder as unset and add a note naming Kiro's "Mcp Approved Env Vars" and Claude Code's export (actor.test.ts); doctor reports the variable per harness (doctor.test.ts); the adr and issues READMEs have a section on setting it in each harness; adr and issues setup.mcp.test.ts start the built MCP server with the env each harness would pass, with the variable unset, set, empty and as the literal placeholder, and make one write.
+data:
+  resolution: done

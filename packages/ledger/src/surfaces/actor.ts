@@ -13,12 +13,36 @@ export interface Attribution {
 }
 
 /**
- * `ARK_ON_BEHALF_OF`, trimmed: `null` when unset or blank, else an email address (one `@`, no
- * whitespace or address punctuation, at most 254 characters). Throws `ConfigError` otherwise.
+ * A value that is a whole `${NAME}` or `${NAME:-default}` placeholder: what an agent harness leaves
+ * in `ARK_ON_BEHALF_OF` when it doesn't expand the variable (Claude Code with the variable unset
+ * and no default, Kiro before the person approves it under "Mcp Approved Env Vars").
+ */
+const PLACEHOLDER = /^\$\{[A-Za-z_][A-Za-z0-9_]*(?::-[^}]*)?\}$/;
+
+/** Whether `value`, trimmed, is an unexpanded `${…}` placeholder. */
+export function isUnexpandedPlaceholder(value: string | undefined): boolean {
+  return PLACEHOLDER.test((value ?? "").trim());
+}
+
+/**
+ * The note for a placeholder `ARK_ON_BEHALF_OF`: it names the setting that makes the harness pass
+ * the variable on, for each harness that leaves it unexpanded.
+ */
+export const PLACEHOLDER_NOTE =
+  "ARK_ON_BEHALF_OF is still the unexpanded placeholder, so it is treated as unset; the agent harness " +
+  'did not pass the variable on. Kiro: approve ARK_ON_BEHALF_OF under "Mcp Approved Env Vars" in its ' +
+  "settings and export it before starting Kiro. Claude Code: export it before starting claude, or use " +
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: names the placeholder text
+  '"${ARK_ON_BEHALF_OF:-}" in .mcp.json.';
+
+/**
+ * `ARK_ON_BEHALF_OF`, trimmed: `null` when unset, blank or an unexpanded `${…}` placeholder (see
+ * {@link isUnexpandedPlaceholder}), else an email address (one `@`, no whitespace or address
+ * punctuation, at most 254 characters). Throws `ConfigError` otherwise.
  */
 export function parseOnBehalfOf(value: string | undefined): string | null {
   const v = (value ?? "").trim();
-  if (v === "") return null;
+  if (v === "" || PLACEHOLDER.test(v)) return null;
   if (v.length > MAX_EMAIL || !EMAIL.test(v)) {
     throw new ConfigError(
       `ARK_ON_BEHALF_OF ${JSON.stringify(v.slice(0, 100))} is not an email address`,
@@ -46,6 +70,7 @@ export async function resolveAttribution(
     throw new ConfigError(`${what} ${JSON.stringify(agent)} must match ${AGENT.source}`);
   }
   const behalf = parseOnBehalfOf(env.ARK_ON_BEHALF_OF);
+  const unexpanded = isUnexpandedPlaceholder(env.ARK_ON_BEHALF_OF);
   if (agent !== "" && behalf !== null) {
     return {
       actor: { kind: "agent", name: agent, email: null, agent, on_behalf_of: behalf },
@@ -75,6 +100,7 @@ export async function resolveAttribution(
   return {
     actor: { kind: "agent", name: agent, email: null, agent, on_behalf_of: identity.email },
     notes: [
+      ...(unexpanded ? [PLACEHOLDER_NOTE] : []),
       `on_behalf_of taken from the git identity ${identity.email}; set ARK_ON_BEHALF_OF to name who you act for`,
     ],
   };
