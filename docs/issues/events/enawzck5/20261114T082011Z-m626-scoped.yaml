@@ -1,0 +1,21 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7CJ90VSP3DE81D12YK2M626
+subject: enawzck5
+type: scoped
+at: 2026-11-14T08:20:11Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/adr/README.md
+    - packages/adr/src/config.ts
+    - packages/adr/src/kind/rules.ts
+    - packages/adr/src/mcp/tools.ts
+    - packages/adr/src/skill.ts
+    - packages/adr/src/write.ts
