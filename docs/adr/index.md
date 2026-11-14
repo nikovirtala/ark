@@ -13,7 +13,6 @@
 | ADR-0006 | [Keep each tool's kind apart from its CLI and MCP code](decisions/fv88cd54-keep-each-tools-kind-apart-from-its-cli-and-mcp-code.md) | accepted | 2026-10-24 |
 | ADR-0007 | [Attribute agent writes with ARK\_AGENT and ARK\_ON\_BEHALF\_OF](decisions/e2ye7ng3-attribute-agent-writes-with-ark-agent-and-ark-on-behalf-of.md) | accepted | 2026-10-24 |
 | ADR-0008 | [Use Conventional Commits for --commit messages and ark's history](decisions/q76pmwsw-use-conventional-commits-for-commit-messages-and-arks.md) | accepted | 2026-10-24 |
-| ADR-0009 | [Require Node 24 or newer for every ark package](decisions/5v1w33jg-require-node-24-or-newer-for-every-ark-package.md) | accepted | 2026-10-24 |
 | ADR-0010 | [Keep generated indexes committed and fresh in every commit](decisions/btjpf9g1-keep-generated-indexes-committed-and-fresh-in-every-commit.md) | accepted | 2026-10-24 |
 | ADR-0011 | [Run every tool's git hooks through one ledger shim per hook](decisions/rg1aka5e-run-every-tools-git-hooks-through-one-ledger-shim-per-hook.md) | accepted | 2026-10-24 |
 | ADR-0012 | [Return the CLI's JSON documents from MCP tools](decisions/28dd1x6r-return-the-clis-json-documents-from-mcp-tools.md) | accepted | 2026-10-26 |
@@ -22,15 +21,21 @@
 | ADR-0015 | [Display issue numbers with a ? prefix](decisions/553365xh-display-issue-numbers-with-a-prefix.md) | accepted | 2026-10-26 |
 | ADR-0016 | [Read other repositories' logs from a local cache, fetching only when asked](decisions/dhpvv3yt-read-other-repositories-logs-from-a-local-cache-fetching.md) | accepted | 2026-10-28 |
 | ADR-0017 | [Run ark's own agent tooling from the previous release](decisions/jgdhvxtq-run-arks-own-agent-tooling-from-the-previous-release.md) | accepted | 2026-11-01 |
+| ADR-0018 | [Support every Node.js release line in LTS](decisions/xske65j7-support-every-node-js-release-line-in-lts.md) | accepted | 2026-11-14 |
 
 ## Proposed
 
 | Decision | Title | Status | Since |
 | --- | --- | --- | --- |
-| xske65j7 | [Support every Node.js release line in LTS](decisions/xske65j7-support-every-node-js-release-line-in-lts.md) | proposed | 2026-11-14 |
 | yv3sfp9m | [Let a code owner's pull request approval stand for a human's accept](decisions/yv3sfp9m-let-a-code-owners-pull-request-approval-stand-for-a-humans.md) | proposed | 2026-11-14 |
 | 27h9h6y7 | [Record when a decision was made apart from when it was written](decisions/27h9h6y7-record-when-a-decision-was-made-apart-from-when-it-was.md) | proposed | 2026-11-14 |
 | wkq8vyps | [Freeze a decision's body when its accept reaches main](decisions/wkq8vyps-freeze-a-decisions-body-when-its-accept-reaches-main.md) | proposed | 2026-11-14 |
 | 4yen2hj2 | [Quote titles as written in Conventional Commits subjects](decisions/4yen2hj2-quote-titles-as-written-in-conventional-commits-subjects.md) | proposed | 2026-11-14 |
 
-<!-- ledger-index/v1 numbers: gyspf3an=1 c6qyr1jz=2 9z41kzez=3 ew1emghd=4 28dj3jdc=5 fv88cd54=6 e2ye7ng3=7 q76pmwsw=8 5v1w33jg=9 btjpf9g1=10 rg1aka5e=11 28dd1x6r=12 htb7aax6=13 8gs2s4at=14 553365xh=15 dhpvv3yt=16 jgdhvxtq=17 -->
+## Superseded and deprecated
+
+| Decision | Title | Status | Since |
+| --- | --- | --- | --- |
+| ADR-0009 | [Require Node 24 or newer for every ark package](decisions/5v1w33jg-require-node-24-or-newer-for-every-ark-package.md) | superseded by ADR-0018 | 2026-11-14 |
+
+<!-- ledger-index/v1 numbers: gyspf3an=1 c6qyr1jz=2 9z41kzez=3 ew1emghd=4 28dj3jdc=5 fv88cd54=6 e2ye7ng3=7 q76pmwsw=8 5v1w33jg=9 btjpf9g1=10 rg1aka5e=11 28dd1x6r=12 htb7aax6=13 8gs2s4at=14 553365xh=15 dhpvv3yt=16 jgdhvxtq=17 xske65j7=18 -->
