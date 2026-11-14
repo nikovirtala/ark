@@ -1,0 +1,7 @@
+cpus=8
+mem_gb=31
+cpu_model=Intel(R) Xeon(R) Platinum 8488C
+node=v24.22.1
+pnpm=12.15.0
+git=2.50.1
+kernel=6.1.189-236.400.amzn2023.x86_64

@@ -1,0 +1,176 @@
+
+## phases (median (min-max) seconds)
+
+| phase | runs | wall | cpu | cpu/wall |
+|---|---|---|---|---|
+| install-warm | 3 | 0.61 (0.60-2.25) | 0.98 (0.98-1.00) | 1.6 |
+| install-from-store | 3 | 0.59 (0.58-0.60) | 0.98 (0.98-0.99) | 1.7 |
+| install-cold | 3 | 1.57 (1.41-1.66) | 3.30 (3.30-3.36) | 2.1 |
+| lint | 3 | 0.55 (0.55-0.57) | 2.90 (2.87-2.92) | 5.3 |
+| typecheck-warm | 3 | 0.38 (0.36-0.39) | 1.47 (1.47-1.52) | 3.9 |
+| build-warm | 3 | 0.92 (0.89-0.93) | 1.34 (1.31-1.35) | 1.5 |
+| build-clean | 3 | 2.01 (1.89-2.02) | 6.99 (6.73-7.15) | 3.6 |
+| adr-verify | 3 | 0.55 (0.52-0.58) | 0.82 (0.77-0.85) | 1.5 |
+| adr-index-check | 3 | 0.34 (0.33-0.36) | 0.46 (0.44-0.49) | 1.3 |
+| issues-verify | 3 | 0.86 (0.86-0.88) | 1.29 (1.25-1.31) | 1.5 |
+| issues-index-check | 3 | 0.71 (0.70-0.73) | 0.91 (0.86-0.93) | 1.3 |
+| markdownlint | 3 | 1.27 (1.20-1.36) | 2.04 (1.87-2.17) | 1.6 |
+
+## scripts/check-commit.sh per commit kind (median (min-max) seconds)
+
+| mode | runs | failed runs | wall | cpu | cpu/wall |
+|---|---|---|---|---|---|
+| docs | 3 | 0 | 0.6 (0.6-0.6) | 2.9 (2.9-2.9) | 5.1 |
+| log | 3 | 0 | 5.0 (5.0-5.0) | 13.4 (13.1-13.5) | 2.7 |
+| pkg-adr | 3 | 0 | 263.6 (263.0-264.0) | 1830.0 (1827.0-1835.9) | 6.9 |
+| pkg-issues | 3 | 0 | 170.7 (170.6-171.5) | 1177.5 (1176.7-1181.1) | 6.9 |
+| pkg-ledger | 3 | 0 | 280.8 (280.2-282.0) | 1951.0 (1947.1-1959.3) | 6.9 |
+| full | 3 | 0 | 280.3 (279.3-282.4) | 1947.5 (1941.0-1962.0) | 6.9 |
+
+## package test runs (median (min-max) seconds)
+
+| package | workers | runs | failed runs | wall | cpu | cpu/wall |
+|---|---|---|---|---|---|---|
+| adr | 1 | 3 | 0 | 383.1 (381.8-385.1) | 476.4 (474.5-479.0) | 1.2 |
+| adr | 2 | 3 | 0 | 196.7 (196.3-196.9) | 497.4 (496.0-498.2) | 2.5 |
+| adr | 4 | 3 | 0 | 114.2 (113.7-114.6) | 562.3 (560.1-564.6) | 4.9 |
+| adr | 6 | 3 | 0 | 95.0 (94.8-95.0) | 614.4 (613.6-614.9) | 6.5 |
+| adr | 8 | 3 | 0 | 87.7 (87.3-87.7) | 639.4 (637.3-640.1) | 7.3 |
+| adr | 16 | 3 | 2 | 92.5 (92.1-92.7) | 670.7 (670.4-672.4) | 7.2 |
+| adr | default | 5 | 0 | 91.0 (90.3-94.0) | 633.0 (631.7-642.2) | 7.0 |
+| issues | 1 | 3 | 1 | 696.4 (695.9-698.2) | 852.9 (851.9-853.7) | 1.2 |
+| issues | 2 | 3 | 0 | 356.9 (356.6-357.0) | 891.9 (891.4-892.1) | 2.5 |
+| issues | 4 | 3 | 0 | 207.3 (207.0-207.6) | 1013.2 (1011.9-1014.9) | 4.9 |
+| issues | 6 | 3 | 0 | 171.4 (171.0-171.7) | 1105.8 (1103.6-1107.3) | 6.5 |
+| issues | 8 | 3 | 0 | 158.6 (157.9-158.7) | 1163.5 (1158.8-1163.8) | 7.3 |
+| issues | 16 | 3 | 0 | 165.7 (165.5-167.0) | 1208.7 (1202.2-1221.2) | 7.3 |
+| issues | default | 5 | 0 | 164.1 (163.2-170.9) | 1149.8 (1143.3-1156.4) | 7.0 |
+| ledger | 1 | 3 | 0 | 69.7 (69.5-69.7) | 88.2 (88.1-88.3) | 1.3 |
+| ledger | 2 | 3 | 0 | 35.9 (35.7-36.2) | 91.3 (91.1-92.6) | 2.6 |
+| ledger | 4 | 3 | 0 | 21.3 (21.3-21.4) | 105.7 (105.0-105.7) | 4.9 |
+| ledger | 6 | 3 | 0 | 17.8 (17.8-18.2) | 115.2 (115.1-117.4) | 6.5 |
+| ledger | 8 | 3 | 0 | 16.8 (16.8-16.8) | 121.0 (120.7-121.1) | 7.2 |
+| ledger | 16 | 3 | 0 | 17.7 (17.6-17.8) | 127.6 (127.0-128.2) | 7.2 |
+| ledger | default | 5 | 0 | 17.3 (17.1-18.5) | 119.4 (118.3-121.2) | 6.9 |
+
+## all three packages: serial sum (pnpm -r run test) and slowest package (CI matrix)
+
+| workers | runs | serial wall | slowest package wall | cpu |
+|---|---|---|---|---|
+| default | 5 | 272.3 (271.7-283.4) | 164.1 (163.2-170.9) | 1904.9 (1902.8-1906.8) |
+| 6 | 3 | 284.2 (283.6-284.9) | 171.4 (171.0-171.7) | 1835.3 (1832.3-1839.6) |
+| 4 | 3 | 343.1 (342.0-343.3) | 207.3 (207.0-207.6) | 1682.8 (1677.0-1683.5) |
+| 8 | 3 | 262.8 (262.5-263.1) | 158.6 (157.9-158.7) | 1922.1 (1919.6-1924.0) |
+| 2 | 3 | 589.4 (589.4-589.5) | 356.9 (356.6-357.0) | 1480.7 (1480.5-1481.0) |
+| 1 | 3 | 1150.9 (1147.3-1151.0) | 696.4 (695.9-698.2) | 1418.5 (1414.4-1420.1) |
+| 16 | 3 | 275.9 (275.6-277.1) | 165.7 (165.5-167.0) | 2009.3 (1999.9-2019.3) |
+
+## runs per package and workers, and failing tests across them
+
+- adr,w1: 3 reports
+- adr,w16: 3 reports
+- adr,w2: 3 reports
+- adr,w4: 3 reports
+- adr,w6: 3 reports
+- adr,w8: 3 reports
+- adr,wdefault: 5 reports
+- issues,w1: 3 reports
+- issues,w16: 3 reports
+- issues,w2: 3 reports
+- issues,w4: 3 reports
+- issues,w6: 3 reports
+- issues,w8: 3 reports
+- issues,wdefault: 5 reports
+- ledger,w1: 3 reports
+- ledger,w16: 3 reports
+- ledger,w2: 3 reports
+- ledger,w4: 3 reports
+- ledger,w6: 3 reports
+- ledger,w8: 3 reports
+- ledger,wdefault: 5 reports
+
+- failed 2x: adr,w16 | packages/adr/src/cli/scope.test.ts | planned code in a decision's scope (?7) lets a proposed decision name code that doesn't exist, and checks it once accepted
+- failed 1x: issues,w1 | packages/issues/src/mcp/read-tools.test.ts | issues mcp read tools issues_search returns searchIssues' document, headers in its text
+
+## time per category, default workers (sum over the files of a package; median (min-max) seconds)
+
+| package | category | files | tests | runs | sum of file wall times | sum of test durations |
+|---|---|---|---|---|---|---|
+| adr | cli | 39 | 414 | 5 | 555.1 (551.8-563.4) | 908.3 (901.8-921.6) |
+| adr | git | 6 | 154 | 5 | 1.4 (1.3-1.4) | 1.4 (1.3-1.4) |
+| adr | property+cli | 1 | 1 | 5 | 22.2 (20.2-23.8) | 22.2 (20.2-23.8) |
+| adr | property+git | 5 | 62 | 5 | 30.4 (29.5-30.7) | 30.4 (29.5-30.7) |
+| adr | unit | 6 | 58 | 5 | 0.2 (0.1-0.2) | 0.2 (0.1-0.2) |
+| issues | cli | 48 | 431 | 5 | 932.1 (926.6-938.0) | 932.1 (926.6-937.9) |
+| issues | git | 12 | 259 | 5 | 18.1 (17.9-18.6) | 18.1 (17.9-18.6) |
+| issues | property+cli | 1 | 1 | 5 | 40.5 (37.8-41.7) | 40.5 (37.8-41.7) |
+| issues | property+git | 9 | 106 | 5 | 109.9 (109.2-113.4) | 109.9 (109.2-113.4) |
+| issues | property | 1 | 14 | 5 | 0.2 (0.1-0.2) | 0.2 (0.1-0.2) |
+| issues | unit | 10 | 61 | 5 | 0.2 (0.2-0.2) | 0.2 (0.2-0.2) |
+| ledger | cli | 2 | 31 | 5 | 5.4 (5.0-5.6) | 5.4 (5.0-5.6) |
+| ledger | git | 37 | 533 | 5 | 39.1 (38.5-39.7) | 39.1 (38.4-39.6) |
+| ledger | property+git | 8 | 197 | 5 | 19.7 (18.3-19.9) | 19.7 (18.3-19.9) |
+| ledger | property | 29 | 472 | 5 | 26.5 (23.7-28.1) | 26.5 (23.7-28.1) |
+| ledger | unit | 35 | 443 | 5 | 3.3 (3.2-3.3) | 3.3 (3.2-3.3) |
+
+## slowest 20 test files, default workers (file wall time, median (min-max) seconds)
+
+| file | category | tests | time |
+|---|---|---|---|
+| issues/src/mcp-e2e.write.test.ts | cli | 8 | 86.4 (85.9-89.2) |
+| issues/src/mcp/write-tools.test.ts | cli | 9 | 84.4 (83.6-87.0) |
+| issues/src/mcp-e2e.table-b.test.ts | cli | 5 | 59.6 (56.6-59.6) |
+| issues/src/mcp/write-tools.table-b.test.ts | cli | 5 | 57.6 (55.5-57.9) |
+| issues/src/mcp/read-tools.test.ts | cli | 10 | 49.5 (49.4-50.9) |
+| issues/src/e2e-guardrails.test.ts | cli | 6 | 48.7 (48.1-50.6) |
+| adr/src/cli/write.test.ts | cli | 39 | 46.7 (46.4-47.3) |
+| adr/src/cli/hooks.test.ts | cli | 19 | 43.9 (43.4-44.0) |
+| issues/src/hooks.test.ts | cli | 13 | 41.0 (40.3-41.8) |
+| issues/src/cli/commit-staged.test.ts | cli | 22 | 40.8 (40.3-41.3) |
+| issues/src/write.index.property.test.ts | property+cli | 1 | 40.5 (37.8-41.7) |
+| adr/src/cli/index-command.test.ts | cli | 20 | 39.1 (39.0-39.6) |
+| issues/src/mcp/resources.test.ts | cli | 6 | 36.5 (36.1-36.9) |
+| issues/src/test-support/generators.test.ts | property+git | 14 | 32.2 (31.9-33.1) |
+| adr/src/e2e-guardrails.test.ts | cli | 6 | 31.2 (30.7-31.8) |
+| issues/src/verify.test.ts | property+git | 17 | 29.5 (28.7-30.6) |
+| adr/src/cli/scope.test.ts | cli | 14 | 29.0 (28.6-29.0) |
+| issues/src/write.index.pre5.test.ts | cli | 23 | 28.2 (28.0-28.3) |
+| issues/src/write.index.pre3.test.ts | cli | 23 | 26.8 (24.8-27.3) |
+| issues/src/write.index.pre1.test.ts | cli | 23 | 25.8 (25.3-26.5) |
+
+## sum of file wall times and longest single file, default workers
+
+| package | sum of file times | longest file |
+|---|---|---|
+| adr | 607.7 (607.2-617.1) | 46.7 (46.4-47.3) |
+| issues | 1099.8 (1093.0-1111.2) | 86.4 (85.9-89.2) |
+| ledger | 94.2 (89.3-96.1) | 7.9 (7.4-8.1) |
+
+## slowest 12 single tests, default workers (ms)
+
+| package | test | median ms | max ms |
+|---|---|---|---|
+| issues | issues/src/write.index.property.test.ts::index property keeps the invariant over random write sequences | 40456 | 41709 |
+| adr | adr/src/cli/index-invariant.property.test.ts::the index invariant holds for random write paths under combined preconditi | 22241 | 23821 |
+| issues | issues/src/mcp-e2e.table-b.test.ts::issues mcp writes over stdio (built) session W7: Table B over stdio, the shared rows | 21231 | 21400 |
+| issues | issues/src/mcp/write-tools.table-b.test.ts::issues mcp write tools Table B: the shared rows | 20568 | 20744 |
+| issues | issues/src/e2e-subjects.test.ts::issues' default commit subjects names the issue by number and quoted title, and passes  | 17229 | 18648 |
+| issues | issues/src/mcp-e2e.write.test.ts::issues mcp writes over stdio (built) session W1: every write tool, as the client actin | 15170 | 15528 |
+| adr | adr/src/e2e.test.ts::runs the phase 2a demo: init, scope, for, renames, copy-scope, lifecycle, agents | 15065 | 15219 |
+| issues | issues/src/e2e.test.ts::tracks issues and links them to decisions with the built issues and adr binaries | 15024 | 16292 |
+| issues | issues/src/e2e-guardrails.test.ts::issues guardrails end to end 4. a staged adr reject alone warns; a staged mcp_can_clo | 14292 | 14586 |
+| issues | issues/src/mcp-e2e.write.test.ts::issues mcp writes over stdio (built) session W5: with auto_commit and the hooks, write | 14075 | 15022 |
+| adr | adr/src/cli/index-invariant.absent.test.ts::the index invariant index.md is absent supersede | 13389 | 14203 |
+| adr | adr/src/cli/index-invariant.stale-head.test.ts::the index invariant index.md is current in the work tree but stale in HE | 13163 | 14010 |
+
+## duration in ms by workers of tests matching "lets a proposed decision name code"
+
+| package | workers | runs | median (min-max) |
+|---|---|---|---|
+| adr | 1 | 3 | 1333 (1331-1353) |
+| adr | 2 | 3 | 1386 (1382-1453) |
+| adr | 4 | 3 | 1618 (1600-1667) |
+| adr | 6 | 3 | 1965 (1941-2007) |
+| adr | default | 5 | 2255 (2225-2280) |
+| adr | 8 | 3 | 2457 (2443-2509) |
+| adr | 16 | 3 | 5236 (4582-5242) |

@@ -1,0 +1,250 @@
+package,file,category,fast_check,spawns_process,spawns_node,reason
+adr,packages/adr/src/cli.test.ts,cli,false,true,true,child_process
+adr,packages/adr/src/cli/accept-copy.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/cli/attribution.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/cli/doctor.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/cli/editor.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/cli/for.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/cli/hooks.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/cli/index-command.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/cli/index-invariant.absent.test.ts,cli,false,true,true,via packages/adr/src/test-support/index-invariant.ts
+adr,packages/adr/src/cli/index-invariant.auto.test.ts,cli,false,true,true,via packages/adr/src/test-support/index-invariant.ts
+adr,packages/adr/src/cli/index-invariant.others.test.ts,cli,false,true,true,via packages/adr/src/test-support/index-invariant.ts
+adr,packages/adr/src/cli/index-invariant.property.test.ts,property+cli,true,true,true,via packages/adr/src/test-support/index-invariant.ts
+adr,packages/adr/src/cli/index-invariant.stale-head.test.ts,cli,false,true,true,via packages/adr/src/test-support/index-invariant.ts
+adr,packages/adr/src/cli/index-invariant.subject.test.ts,cli,false,true,true,via packages/adr/src/test-support/index-invariant.ts
+adr,packages/adr/src/cli/index-invariant.unborn.test.ts,cli,false,true,true,via packages/adr/src/test-support/index-invariant.ts
+adr,packages/adr/src/cli/init.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/cli/lifecycle.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/cli/list.test.ts,cli,false,true,true,child_process
+adr,packages/adr/src/cli/mcp.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/cli/note-link.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/cli/scope.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/cli/search.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/cli/show.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/cli/sources-no-index.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/cli/sources.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/cli/verify.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/cli/write.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/config.test.ts,unit,false,false,false,
+adr,packages/adr/src/e2e-guardrails.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/e2e-subjects.test.ts,cli,false,true,true,child_process
+adr,packages/adr/src/e2e.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/hooks.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/init.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/kind-isolation.test.ts,cli,false,true,true,child_process
+adr,packages/adr/src/kind.test.ts,unit,false,false,false,
+adr,packages/adr/src/kind/project.test.ts,git,false,true,false,via packages/adr/src/test-support/events.ts
+adr,packages/adr/src/kind/properties.test.ts,property+git,true,true,false,via packages/adr/src/test-support/decision-arbs.ts
+adr,packages/adr/src/kind/rules.test.ts,git,false,true,false,via packages/adr/src/test-support/decision-arbs.ts
+adr,packages/adr/src/kind/transitions.test.ts,git,false,true,false,via packages/adr/src/test-support/events.ts
+adr,packages/adr/src/layers.test.ts,unit,false,false,false,
+adr,packages/adr/src/log-index.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/log.test.ts,property+git,true,true,false,via packages/adr/src/test-support/decision-arbs.ts
+adr,packages/adr/src/mcp-e2e.test.ts,cli,false,true,true,child_process
+adr,packages/adr/src/mcp/policy.test.ts,git,false,true,false,via packages/adr/src/test-support/events.ts
+adr,packages/adr/src/mcp/prompt.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/mcp/resources.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/mcp/source-schema.test.ts,unit,false,false,false,
+adr,packages/adr/src/mcp/tools.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+adr,packages/adr/src/search.test.ts,property+git,true,true,false,via packages/adr/src/test-support/decision-arbs.ts
+adr,packages/adr/src/skill.test.ts,unit,false,false,false,
+adr,packages/adr/src/templates/builtin.test.ts,unit,false,false,false,
+adr,packages/adr/src/templates/list.test.ts,git,false,true,false,via packages/adr/src/test-support/events.ts
+adr,packages/adr/src/verify.test.ts,property+git,true,true,false,via packages/adr/src/test-support/decision-arbs.ts
+adr,packages/adr/src/views.test.ts,git,false,true,false,via packages/adr/src/test-support/events.ts
+adr,packages/adr/src/write.copy-scope-operation.test.ts,cli,false,true,true,child_process
+adr,packages/adr/src/write.model.test.ts,property+git,true,true,false,via packages/adr/src/test-support/events.ts
+adr,packages/adr/src/write.test.ts,cli,false,true,true,via packages/adr/src/test-support/cli.ts
+issues,packages/issues/src/cli.test.ts,cli,false,true,true,child_process
+issues,packages/issues/src/cli/code-checks.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/cli/comment.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/cli/commit-staged.test.ts,cli,false,true,true,child_process
+issues,packages/issues/src/cli/doctor.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/cli/edit.test.ts,cli,false,true,true,child_process
+issues,packages/issues/src/cli/editor.test.ts,unit,false,false,false,
+issues,packages/issues/src/cli/for.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/cli/help.test.ts,unit,false,false,false,
+issues,packages/issues/src/cli/index-command.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/cli/index-invariant.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/cli/init.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/cli/lifecycle.test.ts,cli,false,true,true,child_process
+issues,packages/issues/src/cli/link.test.ts,cli,false,true,true,child_process
+issues,packages/issues/src/cli/list.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/cli/mcp.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/cli/new.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/cli/ready.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/cli/search.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/cli/sets.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/cli/show.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/cli/sources-no-index.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/cli/sources.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/cli/verify.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/cli/work.test.ts,cli,false,true,true,child_process
+issues,packages/issues/src/commits.test.ts,git,false,true,false,via packages/ledger/src/testing/index.ts
+issues,packages/issues/src/config.test.ts,unit,false,false,false,
+issues,packages/issues/src/docs.test.ts,unit,false,false,false,
+issues,packages/issues/src/e2e-guardrails.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/e2e-subjects.test.ts,cli,false,true,true,child_process
+issues,packages/issues/src/e2e.test.ts,cli,false,true,true,child_process
+issues,packages/issues/src/hooks.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/init.test.ts,cli,false,true,true,child_process
+issues,packages/issues/src/kind-isolation.test.ts,cli,false,true,true,child_process
+issues,packages/issues/src/kind.test.ts,unit,false,false,false,
+issues,packages/issues/src/kind/graph.test.ts,property+git,true,true,false,via packages/issues/src/test-support/events.ts
+issues,packages/issues/src/kind/project.test.ts,git,false,true,false,via packages/issues/src/test-support/events.ts
+issues,packages/issues/src/kind/properties.test.ts,property+git,true,true,false,via packages/issues/src/test-support/events.ts
+issues,packages/issues/src/kind/rules.test.ts,git,false,true,false,via packages/issues/src/test-support/events.ts
+issues,packages/issues/src/kind/schemas.test.ts,unit,false,false,false,
+issues,packages/issues/src/kind/transitions.test.ts,git,false,true,false,via packages/issues/src/test-support/events.ts
+issues,packages/issues/src/layers.test.ts,unit,false,false,false,
+issues,packages/issues/src/log-index.test.ts,git,false,true,false,child_process
+issues,packages/issues/src/log.test.ts,property+git,true,true,false,via packages/issues/src/test-support/events.ts
+issues,packages/issues/src/mcp-e2e.prompts.test.ts,cli,false,true,true,via packages/issues/src/test-support/mcp.ts
+issues,packages/issues/src/mcp-e2e.read.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/mcp-e2e.table-b.test.ts,cli,false,true,true,via packages/issues/src/test-support/mcp.ts
+issues,packages/issues/src/mcp-e2e.write.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/mcp/policy.test.ts,unit,false,false,false,
+issues,packages/issues/src/mcp/prompts.test.ts,cli,false,true,true,via packages/issues/src/test-support/mcp.ts
+issues,packages/issues/src/mcp/read-tools.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/mcp/resources.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/mcp/source-schema.test.ts,unit,false,false,false,
+issues,packages/issues/src/mcp/text.test.ts,git,false,true,false,via packages/issues/src/test-support/events.ts
+issues,packages/issues/src/mcp/write-tools.table-b.test.ts,cli,false,true,true,via packages/issues/src/test-support/mcp.ts
+issues,packages/issues/src/mcp/write-tools.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/merge.test.ts,property+git,true,true,false,via packages/issues/src/test-support/events.ts
+issues,packages/issues/src/plan.model.test.ts,property+git,true,true,false,via packages/issues/src/test-support/events.ts
+issues,packages/issues/src/plan.test.ts,git,false,true,false,via packages/issues/src/test-support/events.ts
+issues,packages/issues/src/scope.test.ts,git,false,true,false,via packages/issues/src/test-support/events.ts
+issues,packages/issues/src/search.test.ts,property+git,true,true,false,via packages/issues/src/test-support/events.ts
+issues,packages/issues/src/skill.test.ts,unit,false,false,false,
+issues,packages/issues/src/sources.test.ts,git,false,true,false,child_process
+issues,packages/issues/src/templates/builtin.test.ts,property,true,false,false,
+issues,packages/issues/src/templates/list.test.ts,git,false,true,false,via packages/issues/src/test-support/events.ts
+issues,packages/issues/src/test-support/generators.test.ts,property+git,true,true,false,via packages/issues/src/test-support/history.ts
+issues,packages/issues/src/verify.staged.test.ts,cli,false,true,true,via packages/issues/src/test-support/cli.ts
+issues,packages/issues/src/verify.test.ts,property+git,true,true,false,via packages/issues/src/test-support/events.ts
+issues,packages/issues/src/views.test.ts,property+git,true,true,false,via packages/issues/src/test-support/events.ts
+issues,packages/issues/src/work.test.ts,git,false,true,false,child_process
+issues,packages/issues/src/write.index.failures.test.ts,cli,false,true,true,via packages/issues/src/test-support/index-invariant.ts
+issues,packages/issues/src/write.index.pre1.test.ts,cli,false,true,true,via packages/issues/src/test-support/index-invariant.ts
+issues,packages/issues/src/write.index.pre2.test.ts,cli,false,true,true,via packages/issues/src/test-support/index-invariant.ts
+issues,packages/issues/src/write.index.pre3.test.ts,cli,false,true,true,via packages/issues/src/test-support/index-invariant.ts
+issues,packages/issues/src/write.index.pre4.test.ts,cli,false,true,true,via packages/issues/src/test-support/index-invariant.ts
+issues,packages/issues/src/write.index.pre5.test.ts,cli,false,true,true,via packages/issues/src/test-support/index-invariant.ts
+issues,packages/issues/src/write.index.pre6.test.ts,cli,false,true,true,via packages/issues/src/test-support/index-invariant.ts
+issues,packages/issues/src/write.index.pre7.test.ts,cli,false,true,true,via packages/issues/src/test-support/index-invariant.ts
+issues,packages/issues/src/write.index.pre8.test.ts,cli,false,true,true,via packages/issues/src/test-support/index-invariant.ts
+issues,packages/issues/src/write.index.property.test.ts,property+cli,true,true,true,via packages/issues/src/test-support/index-invariant.ts
+issues,packages/issues/src/write.test.ts,git,false,true,false,child_process
+ledger,packages/ledger/src/cli/commit.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/cli/editor.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/cli/hooks-command.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/cli/index-command.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/cli/prompt.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/cli/run.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/cli/sources-command.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/cli/verify-command.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/dist-entries.test.ts,cli,false,true,true,child_process
+ledger,packages/ledger/src/envelope/kind.test.ts,property,true,false,false,
+ledger,packages/ledger/src/envelope/schema.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/envelope/types.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/envelope/version.test.ts,property,true,false,false,
+ledger,packages/ledger/src/envelope/yaml.test.ts,property,true,false,false,
+ledger,packages/ledger/src/errors.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/findings/finding.test.ts,property,true,false,false,
+ledger,packages/ledger/src/findings/format.test.ts,property,true,false,false,
+ledger,packages/ledger/src/fold/fold.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/fold/numbering.test.ts,property+git,true,true,false,child_process
+ledger,packages/ledger/src/fold/project.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/git/git.test.ts,property+git,true,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/git/history.test.ts,property+git,true,true,false,child_process
+ledger,packages/ledger/src/git/operation.test.ts,git,false,true,false,via packages/ledger/src/testing/spawn-log.ts
+ledger,packages/ledger/src/git/resident.test.ts,git,false,true,false,via packages/ledger/src/testing/spawn-log.ts
+ledger,packages/ledger/src/git/tree.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/hooks/e2e.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/hooks/install.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/hooks/registrations.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/hooks/shim.test.ts,property+git,true,true,false,child_process
+ledger,packages/ledger/src/hooks/snippets.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/identity/crockford.test.ts,property,true,false,false,
+ledger,packages/ledger/src/identity/files.test.ts,property,true,false,false,
+ledger,packages/ledger/src/identity/hash.test.ts,property,true,false,false,
+ledger,packages/ledger/src/identity/ids.test.ts,property,true,false,false,
+ledger,packages/ledger/src/identity/layout.test.ts,property,true,false,false,
+ledger,packages/ledger/src/identity/time.test.ts,property,true,false,false,
+ledger,packages/ledger/src/identity/ulid.test.ts,property,true,false,false,
+ledger,packages/ledger/src/kind/define.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/kind/machine.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/layers.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/log-index/check.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/log-index/copies.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/log-index/render.test.ts,property,true,false,false,
+ledger,packages/ledger/src/log-index/tool-render.test.ts,git,false,true,false,child_process
+ledger,packages/ledger/src/log-index/write.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/log/snapshot.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/log/write.test.ts,property+git,true,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/mcp/attribution.test.ts,property+git,true,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/mcp/inputs.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/mcp/serve-stdio.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/mcp/serve.test.ts,git,false,true,false,child_process
+ledger,packages/ledger/src/mcp/uri.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/scope/anchors.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/scope/checks.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/scope/glob.test.ts,property,true,false,false,
+ledger,packages/ledger/src/scope/lookup.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/scope/paths.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/scope/renames.test.ts,property+git,true,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/scope/set.test.ts,property,true,false,false,
+ledger,packages/ledger/src/sources/config.test.ts,property,true,false,false,
+ledger,packages/ledger/src/sources/fetch-sha256.test.ts,git,false,true,false,via packages/ledger/src/testing/spawn-log.ts
+ledger,packages/ledger/src/sources/fetch.test.ts,cli,false,true,true,child_process
+ledger,packages/ledger/src/sources/qualified-id.test.ts,property,true,false,false,
+ledger,packages/ledger/src/sources/read.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/sources/resolve.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/surfaces/actor.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/surfaces/apply-plan.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/surfaces/ark-setup.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/surfaces/commit-message-refs.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/surfaces/commit-message.test.ts,property,true,false,false,
+ledger,packages/ledger/src/surfaces/commit-recovery.test.ts,git,false,true,false,child_process
+ledger,packages/ledger/src/surfaces/doctor.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/surfaces/editor-step.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/surfaces/header.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/surfaces/hook-steps.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/surfaces/log-read.test.ts,git,false,true,false,child_process
+ledger,packages/ledger/src/surfaces/setup.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/surfaces/source-read.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/surfaces/subject-input.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/surfaces/text-search.test.ts,property,true,false,false,
+ledger,packages/ledger/src/surfaces/tool-config.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/surfaces/tool-hooks.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/surfaces/tool-index.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/surfaces/tool-init.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/surfaces/tool-log.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/surfaces/write-driver.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/surfaces/write-plan.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/templates/history.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/templates/lint.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/templates/list.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/templates/parse.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/templates/render.test.ts,property,true,false,false,
+ledger,packages/ledger/src/templates/source.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/testing/anchors.test.ts,property,true,false,false,
+ledger,packages/ledger/src/testing/arbitraries.test.ts,property,true,false,false,
+ledger,packages/ledger/src/testing/fork-and-merge.test.ts,git,false,true,false,via packages/ledger/src/testing/fork-and-merge.ts
+ledger,packages/ledger/src/testing/history.test.ts,property,true,false,false,
+ledger,packages/ledger/src/testing/log-fixture.test.ts,property,true,false,false,
+ledger,packages/ledger/src/testing/semantic-tamper-detect.test.ts,property,true,false,false,
+ledger,packages/ledger/src/testing/semantic-tamper-freeze.test.ts,property,true,false,false,
+ledger,packages/ledger/src/testing/semantic-tamper.test.ts,property,true,false,false,
+ledger,packages/ledger/src/testing/tamper.test.ts,property,true,false,false,
+ledger,packages/ledger/src/testing/temp-repo.test.ts,git,false,true,false,child_process
+ledger,packages/ledger/src/verify/checks.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/verify/diff.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/verify/fold-checks.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/verify/fold-properties.test.ts,property+git,true,true,false,via packages/ledger/src/testing/fork-and-merge.ts
+ledger,packages/ledger/src/verify/properties.test.ts,property,true,false,false,
+ledger,packages/ledger/src/verify/sample.test.ts,unit,false,false,false,
+ledger,packages/ledger/src/verify/template-check.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
+ledger,packages/ledger/src/verify/verify-git.test.ts,git,false,true,false,via packages/ledger/src/testing/temp-repo.ts
