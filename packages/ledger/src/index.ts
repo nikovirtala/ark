@@ -299,6 +299,8 @@ export {
 export {
   ARK_PINS,
   type ArkPins,
+  arkDefaultLogs,
+  arkLogs,
   arkPrepare,
   arkServers,
   arkSetup,
@@ -389,6 +391,14 @@ export {
   type McpServerEntry,
   mcpStdioServer,
 } from "./surfaces/setup-claude.js";
+export {
+  beforeEditScript,
+  type ContextFormat,
+  EXTRACT_EDITED_PATH_JS,
+  emitContextJs,
+  type HookLog,
+  sessionStartScript,
+} from "./surfaces/setup-hook-scripts.js";
 export { kiroRuntime } from "./surfaces/setup-kiro.js";
 export {
   readSourceLog,

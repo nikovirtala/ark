@@ -2,6 +2,7 @@ import { realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import {
   ARK_PINS,
+  arkLogs,
   arkSetup,
   detectHarnesses,
   HARNESSES,
@@ -131,6 +132,7 @@ export function initCommand(version: string): CommandSpec {
             name: "adr",
             version: ARK_PINS.adr,
             pins: ARK_PINS,
+            logs: await arkLogs(log, "adr", ARK_PINS),
             skip,
             force: new Set(strs(values.force)),
           })

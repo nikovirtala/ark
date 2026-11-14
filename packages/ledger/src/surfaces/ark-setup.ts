@@ -1,7 +1,11 @@
+import { normalizeLayout } from "../identity/layout.js";
+import { readToolConfig } from "../sources/config.js";
 import { stringifyJson } from "./setup.js";
 import type { Harness, HarnessShared, McpServerEntry } from "./setup-claude.js";
 import { mcpStdioServer } from "./setup-claude.js";
+import { beforeEditScript, type HookLog, sessionStartScript } from "./setup-hook-scripts.js";
 import type { ToolSetup } from "./tool-init.js";
+import type { ToolLog } from "./tool-log.js";
 
 /**
  * ark's own agent-setup content, the single source of truth for R9 ("running `init` on ark
@@ -29,6 +33,63 @@ export const ARK_PINS: ArkPins = { adr: "0.6.0", issues: "0.6.0" };
 /** The `ARK_AGENT` value each harness's MCP config carries. */
 const AGENT: Readonly<Record<Harness, string>> = { claude: "claude-code", kiro: "kiro" };
 
+/** The tools ark's shared setup serves: their packages, default log roots and tool-only paths. */
+const ARK_TOOLS = [
+  {
+    tool: "adr",
+    pkg: "@nikovirtala/adr",
+    defaultRoot: "docs/adr",
+  },
+  { tool: "issues", pkg: "@nikovirtala/issues", defaultRoot: "docs/issues" },
+] as const;
+
+/**
+ * The logs the shared hooks and deny rules cover: this tool's own log (at the root it opened), and
+ * every sibling tool whose config is in the repository, at the root that config names (`[log] root`
+ * in a repo-level `<tool>.toml`, else the default root with its config). Both tools derive the same
+ * list, so whichever runs init first writes byte-identical shared pieces (R9), and the protected
+ * paths follow each tool's configured root, never a fixed `docs/`.
+ */
+export async function arkLogs(
+  log: Pick<ToolLog, "layout" | "tree">,
+  tool: string,
+  pins: ArkPins = ARK_PINS,
+): Promise<readonly HookLog[]> {
+  const logs: HookLog[] = [];
+  for (const t of ARK_TOOLS) {
+    let root: string | null = null;
+    if (t.tool === tool) {
+      root = log.layout.root;
+    } else {
+      const repo = await readToolConfig(log.tree, `${t.tool}.toml`);
+      const named = (repo?.raw.log as { root?: unknown } | undefined)?.root;
+      if (typeof named === "string") root = normalizeLayout({ root: named }).root;
+      else if (repo !== null || (await log.tree.read(`${t.defaultRoot}/${t.tool}.toml`)) !== null) {
+        root = t.defaultRoot;
+      }
+    }
+    if (root !== null) {
+      logs.push({
+        tool: t.tool,
+        root,
+        pkg: t.pkg,
+        version: t.tool === "adr" ? pins.adr : pins.issues,
+      });
+    }
+  }
+  return logs;
+}
+
+/** ark's default logs, for tests and callers without a repository: both tools at their default roots. */
+export function arkDefaultLogs(pins: ArkPins = ARK_PINS): readonly HookLog[] {
+  return ARK_TOOLS.map((t) => ({
+    tool: t.tool,
+    root: t.defaultRoot,
+    pkg: t.pkg,
+    version: t.tool === "adr" ? pins.adr : pins.issues,
+  }));
+}
+
 /** The deny globs ark's Claude permission rules refuse direct edits to (design "Permission rules"). */
 const DENY_GLOBS: readonly string[] = [
   "docs/*/events/**",
@@ -36,7 +97,9 @@ const DENY_GLOBS: readonly string[] = [
   "docs/adr/decisions/**",
 ];
 
-/** ark's `.claude/settings.json`: the two harness hooks and the permission deny rules. */
+/**
+ * ark's `.claude/settings.json`: the two harness hooks and the permission deny rules.
+ */
 function claudeSettings(): string {
   const value = {
     hooks: {
@@ -53,7 +116,7 @@ function claudeSettings(): string {
       ],
       PreToolUse: [
         {
-          matcher: "Edit|Write",
+          matcher: "Edit|Write|NotebookEdit",
           hooks: [
             {
               type: "command",
@@ -77,6 +140,7 @@ function kiroHook(o: {
   readonly trigger: string;
   readonly matcher?: string;
   readonly command: string;
+  readonly timeout?: number;
 }): string {
   const hook: Record<string, unknown> = {
     name: o.name,
@@ -84,111 +148,13 @@ function kiroHook(o: {
     trigger: o.trigger,
     ...(o.matcher === undefined ? {} : { matcher: o.matcher }),
     action: { type: "command", command: o.command },
+    ...(o.timeout === undefined ? {} : { timeout: o.timeout }),
   };
   return stringifyJson({ version: "v1", hooks: [hook] });
 }
 
-const claudeSessionStartScript = (p: ArkPins): string => `#!/usr/bin/env sh
-# Session-start hook (ADR-0017; docs/03-setup-v1.md "What a complete setup is").
-#
-# The design wants this logic inside the tools as \`<tool> hooks agent session-start\`,
-# and the first step to be \`doctor --fix-clone\`. Neither the \`hooks agent\` subcommand
-# nor \`doctor\` exists in the pinned published versions (adr ${p.adr} / issues ${p.issues});
-# doctor arrives in a later slice. Until then this script runs the equivalent commands
-# the pinned CLIs do expose: \`hooks install\` installs any missing git hooks in this
-# clone (the \`--fix-clone\` part), then each tool lists what changed since the last
-# session and \`issues ready\` lists pickable work. Keep the pins in step with .mcp.json.
-set -eu
-
-ADR="npx -y @nikovirtala/adr@${p.adr}"
-ISSUES="npx -y @nikovirtala/issues@${p.issues}"
-
-# Install git hooks if this clone is missing them (stand-in for \`doctor --fix-clone\`).
-$ADR hooks install >/dev/null 2>&1 || true
-$ISSUES hooks install >/dev/null 2>&1 || true
-
-# What changed since the last session, and what is ready to pick up.
-# --since takes a git rev; the previous main tip is a reasonable "last seen".
-SINCE="$(git rev-parse --quiet --verify 'origin/main' 2>/dev/null || echo 'HEAD~1')"
-$ADR list --since "$SINCE" 2>/dev/null || true
-$ISSUES list --since "$SINCE" 2>/dev/null || true
-$ISSUES ready 2>/dev/null || true
-`;
-
-const claudeBeforeEditScript = (p: ArkPins): string => `#!/usr/bin/env sh
-# Before-edit hook (ADR-0017; docs/03-setup-v1.md "What a complete setup is").
-#
-# The design wants this logic inside the tools as \`<tool> hooks agent before-edit\`.
-# That subcommand does not exist in the pinned published versions (adr ${p.adr} /
-# issues ${p.issues}), so this script calls the existing \`adr for <path>\` and
-# \`issues for <path>\` commands, which report the decisions and open issues that
-# govern the file about to be edited. Keep the pins in step with .mcp.json.
-#
-# The harness passes the tool-call event as JSON on stdin; pull the edited path from
-# it. Claude Code uses tool_input.file_path; fall back to any "*path" string.
-set -eu
-
-ADR="npx -y @nikovirtala/adr@${p.adr}"
-ISSUES="npx -y @nikovirtala/issues@${p.issues}"
-
-EVENT="$(cat 2>/dev/null || true)"
-PATH_EDITED="$(printf '%s' "$EVENT" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p' | head -n 1)"
-
-# Nothing to look up without a path; let the edit proceed.
-[ -n "$PATH_EDITED" ] || exit 0
-
-$ADR for "$PATH_EDITED" 2>/dev/null || true
-$ISSUES for "$PATH_EDITED" 2>/dev/null || true
-`;
-
-const kiroSessionStartScript = (p: ArkPins): string => `#!/usr/bin/env sh
-# Kiro session-start hook (ADR-0017; docs/03-setup-v1.md "What a complete setup is").
-#
-# The design wants this logic inside the tools as \`<tool> hooks agent session-start\`,
-# with \`doctor --fix-clone\` first. Neither exists in the pinned published versions
-# (adr ${p.adr} / issues ${p.issues}); doctor arrives in a later slice. Until then this runs
-# the equivalent commands the pinned CLIs expose: \`hooks install\` installs any missing
-# git hooks in this clone (the \`--fix-clone\` part), then each tool lists what changed
-# since the last session and \`issues ready\` lists pickable work. The Claude copy of
-# this script is .claude/hooks/session-start.sh; keep the two in step.
-set -eu
-
-ADR="npx -y @nikovirtala/adr@${p.adr}"
-ISSUES="npx -y @nikovirtala/issues@${p.issues}"
-
-$ADR hooks install >/dev/null 2>&1 || true
-$ISSUES hooks install >/dev/null 2>&1 || true
-
-SINCE="$(git rev-parse --quiet --verify 'origin/main' 2>/dev/null || echo 'HEAD~1')"
-$ADR list --since "$SINCE" 2>/dev/null || true
-$ISSUES list --since "$SINCE" 2>/dev/null || true
-$ISSUES ready 2>/dev/null || true
-`;
-
-const kiroBeforeEditScript = (p: ArkPins): string => `#!/usr/bin/env sh
-# Kiro before-edit hook (ADR-0017; docs/03-setup-v1.md "What a complete setup is").
-#
-# The design wants this logic inside the tools as \`<tool> hooks agent before-edit\`.
-# That subcommand does not exist in the pinned published versions (adr ${p.adr} /
-# issues ${p.issues}), so this calls \`adr for <path>\` and \`issues for <path>\`, which report
-# the decisions and open issues that govern the file about to be edited. The Claude
-# copy of this script is .claude/hooks/before-edit.sh; keep the two in step.
-#
-# Kiro passes the tool-call event as JSON on stdin; its V3 write tools carry the target
-# path in tool input as "path" (and some as "file_path"). Pull whichever is present.
-set -eu
-
-ADR="npx -y @nikovirtala/adr@${p.adr}"
-ISSUES="npx -y @nikovirtala/issues@${p.issues}"
-
-EVENT="$(cat 2>/dev/null || true)"
-PATH_EDITED="$(printf '%s' "$EVENT" | sed -n 's/.*"\\(file_path\\|path\\)"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\2/p' | head -n 1)"
-
-[ -n "$PATH_EDITED" ] || exit 0
-
-$ADR for "$PATH_EDITED" 2>/dev/null || true
-$ISSUES for "$PATH_EDITED" 2>/dev/null || true
-`;
+/** What the generated scripts cite: the decision and the design they come from. */
+const REFS = 'ADR-0017; docs/03-setup-v1.md "What a complete setup is"';
 
 /**
  * ark's `package.json` `prepare` script. The design's `<tool> hooks install --quiet` cannot `npx`
@@ -205,12 +171,17 @@ export function arkPrepare(_p: ArkPins): string {
 }
 
 /** The shared, ark-specific file contents per harness (identical whichever tool writes them). */
-export function arkShared(p: ArkPins): Record<Harness, HarnessShared> {
+export function arkShared(logs: readonly HookLog[]): Record<Harness, HarnessShared> {
+  const base = { logs, refs: REFS };
   return {
     claude: {
       settings: claudeSettings(),
-      sessionStartScript: claudeSessionStartScript(p),
-      beforeEditScript: claudeBeforeEditScript(p),
+      sessionStartScript: sessionStartScript({ ...base, harness: "Claude Code" }),
+      beforeEditScript: beforeEditScript({
+        ...base,
+        harness: "Claude Code",
+        format: "claude-json",
+      }),
     },
     kiro: {
       sessionStartHook: kiroHook({
@@ -219,6 +190,8 @@ export function arkShared(p: ArkPins): Record<Harness, HarnessShared> {
           "Install git hooks, list decisions and issues changed since last session, and list ready issues.",
         trigger: "SessionStart",
         command: "sh .kiro/hooks/session-start.sh",
+        // A cold npm cache downloads both tools first (about 2 s here); the default is 60 s.
+        timeout: 120,
       }),
       beforeEditHook: kiroHook({
         name: "ark before edit",
@@ -227,8 +200,8 @@ export function arkShared(p: ArkPins): Record<Harness, HarnessShared> {
         matcher: "write",
         command: "sh .kiro/hooks/before-edit.sh",
       }),
-      sessionStartScript: kiroSessionStartScript(p),
-      beforeEditScript: kiroBeforeEditScript(p),
+      sessionStartScript: sessionStartScript({ ...base, harness: "Kiro" }),
+      beforeEditScript: beforeEditScript({ ...base, harness: "Kiro", format: "plain" }),
     },
   };
 }
@@ -266,13 +239,15 @@ export function arkSetup(o: {
   readonly name: string;
   readonly version: string;
   readonly pins: ArkPins;
+  /** The logs the hooks and deny rules cover; see {@link arkLogs}. */
+  readonly logs: readonly HookLog[];
   readonly skip?: ReadonlySet<string>;
   readonly force?: ReadonlySet<string>;
 }): ToolSetup {
   return {
     harnesses: o.harnesses,
     servers: arkServers({ pkg: o.pkg, name: o.name, version: o.version }),
-    shared: arkShared(o.pins),
+    shared: arkShared(o.logs),
     prepare: arkPrepare(o.pins),
     ...(o.skip === undefined ? {} : { skip: o.skip }),
     ...(o.force === undefined ? {} : { force: o.force }),
