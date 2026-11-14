@@ -1,0 +1,18 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7CJA2TRFYYS04QNS88HRG21
+subject: rkk6e8ez
+type: scoped
+at: 2026-11-14T08:20:46Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/*/README.md
+    - packages/adr/src/write.ts
+    - packages/ledger/src/surfaces/commit-message.ts
