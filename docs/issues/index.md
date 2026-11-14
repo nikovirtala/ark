@@ -7,6 +7,7 @@
 | --- | --- | --- | --- | --- |
 | ?81 | [Test the generated setup the way each harness runs it](items/31n4csh4-test-the-generated-setup-the-way-each-harness-runs-it.md) | nikovirtala@users.noreply.github.com |  | 2026-11-14 |
 | ?79 | [Claude Code never sees the before-edit hook's output](items/gx4hdsde-claude-code-never-sees-the-before-edit-hooks-output.md) | nikovirtala@users.noreply.github.com |  | 2026-11-14 |
+| ?80 | [The deny rules depend on the working directory, and Kiro has none](items/690hzw0j-the-deny-rules-depend-on-the-working-directory-and-kiro-has.md) | nikovirtala@users.noreply.github.com |  | 2026-11-14 |
 
 ## Ready
 
@@ -39,7 +40,6 @@
 | ?73 | [Accept again on a branch after the body changes, keeping the number](items/95yvfzr2-accept-again-on-a-branch-after-the-body-changes-keeping-the.md) |  |  | 2026-11-14 |
 | ?74 | [init --setup writes ark's own setup into other repositories](items/d37cvwm7-init-setup-writes-arks-own-setup-into-other-repositories.md) |  |  | 2026-11-14 |
 | ?75 | [Detect the assistants a repository uses and let the person choose](items/paf917nq-detect-the-assistants-a-repository-uses-and-let-the-person.md) |  |  | 2026-11-14 |
-| ?80 | [The deny rules depend on the working directory, and Kiro has none](items/690hzw0j-the-deny-rules-depend-on-the-working-directory-and-kiro-has.md) |  |  | 2026-11-14 |
 
 ## Blocked
 
