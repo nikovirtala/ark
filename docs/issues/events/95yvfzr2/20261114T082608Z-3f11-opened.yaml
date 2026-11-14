@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7CJKXPPEZ3GA83KA9BF3F11
+subject: 95yvfzr2
+type: opened
+at: 2026-11-14T08:26:08Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Accept again on a branch after the body changes, keeping the number
+  template: feature
+  template_version: 1
