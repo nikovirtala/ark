@@ -48,15 +48,17 @@ ledger's shared init (`initToolLog`, from ?43), used by every ark tool, is exten
 
 ### What a complete setup is
 
-| Piece | Claude Code | Kiro | Written by |
-| --- | --- | --- | --- |
-| MCP servers | `.mcp.json` | `.kiro/settings/mcp.json` | `init` |
-| Skills | `.claude/skills/<tool>/SKILL.md` | `.kiro/skills/<tool>/SKILL.md` | `init` |
-| Pointer for other agents | `AGENTS.md` line | `AGENTS.md` line | `init` |
-| Session-start hook | `.claude/settings.json` | Kiro agent hook | `init` |
-| Before-edit hook | `.claude/settings.json` | Kiro agent hook | `init` |
-| Permission rules | `.claude/settings.json` | Kiro's equivalent, where it has one | `init` |
-| Git hooks | per clone | per clone | the `prepare` script and the session-start hook |
+| Piece | Claude Code | Kiro | GitHub Copilot | Written by |
+| --- | --- | --- | --- | --- |
+| MCP servers | `.mcp.json` | `.kiro/settings/mcp.json` | `.mcp.json` (VS Code and the CLI); the cloud agent's MCP lives in repository settings | `init` |
+| Skills | `.claude/skills/<tool>/SKILL.md` | `.kiro/skills/<tool>/SKILL.md` | `.github/skills/<tool>/SKILL.md` | `init` |
+| Pointer for other agents | `AGENTS.md` line | `AGENTS.md` line | `AGENTS.md` line | `init` |
+| Session-start hook | `.claude/settings.json` | Kiro agent hook | `.github/hooks/<tool>.json` (`sessionStart`; the CLI and the cloud agent) | `init` |
+| Before-edit hook | `.claude/settings.json` | Kiro agent hook | `.github/hooks/<tool>.json` (`preToolUse`) | `init` |
+| Permission rules | `.claude/settings.json` | Kiro's equivalent, where it has one | a `preToolUse` hook that denies the edit | `init` |
+| Git hooks | per clone | per clone | per clone | the session-start hook, and a `prepare` script where asked |
+
+Harnesses share files. Copilot reads the same root `.mcp.json` as Claude Code, and the Copilot CLI also runs the hooks in `.claude/settings.json`. So the setup is written per file, not per harness: a file several selected harnesses read is written once, and a hook that two of them would both run is written where only one of them reads it. The cloud agent's MCP servers can't be set from a file, so `doctor` names the repository setting to add instead.
 
 The exact file formats of each harness change over time; the implementation follows each harness's current documentation and keeps the formats in one module per harness.
 
@@ -65,6 +67,16 @@ The exact file formats of each harness change over time; the implementation foll
 **The session-start hook** runs `doctor --fix-clone` (below), then `<tool> list --since <last seen>` for each installed tool and `issues ready`, and adds the output to the agent's context. **The before-edit hook** runs `adr for <path>` and `issues for <path>` the first time a session edits a file, and adds the result. Both are small commands the tools provide (`<tool> hooks agent session-start` and `… before-edit`), so the harness configuration only names a command and the logic stays in the tools.
 
 **Permission rules** deny agents direct edits to `docs/*/events/**`, `docs/*/index.md` and decision bodies, so records change only through the tools, which validate and attribute every write.
+
+### Which harnesses: detected, then chosen
+
+`init --setup` writes for the harnesses a repository uses, found in two ways and confirmed by the person running it.
+
+- **Detected.** In the repository: `.claude/`, `.kiro/`, and `.github/copilot-instructions.md`, `.github/skills/` or `.github/hooks/`. On the machine, when `init` runs on one: the `claude`, `kiro-cli` and `copilot` commands, and VS Code with the Copilot extension. What the repository shows is shared; what one machine has is a suggestion, because one person's tools shouldn't decide a team's setup.
+- **Chosen.** In a terminal, `init` lists the supported harnesses with the detected ones selected, and the person changes the selection. Without a terminal, as when an agent or CI runs it, `--harness claude,kiro,copilot` chooses, and without the flag the detected ones are used.
+- **Recorded.** The choice is saved in the setup's config (`[setup] harnesses`), so a rerun and every other clone write for the same harnesses without asking again. Removing a harness from the list makes the next run remove the pieces `init` wrote for it, and only those.
+
+This reverses Q2's first answer. With three harnesses, writing for all of them when none is detected fills a repository with files for tools nobody uses, and detection alone can't see an assistant the team is about to start using.
 
 ### Starting point: ledger's shared init
 
@@ -129,7 +141,7 @@ The cause was this design. R9, "init on ark reproduces ark's committed setup", w
 
 ## Requirements
 
-- **R1** `init` MUST write every piece in the setup table for each detected harness unless a flag opts that piece out.
+- **R1** `init` MUST write every piece in the setup table for each chosen harness (detected, then confirmed or set with `--harness`, and recorded in the config) unless a flag opts that piece out.
 - **R2** Rerunning `init` MUST NOT change a piece someone else edited; it MUST name each such piece and the command that would overwrite it.
 - **R3** Rerunning `init` with nothing to update MUST leave the working tree unchanged.
 - **R4** MCP configs MUST pin an exact version, and MUST NOT contain `ARK_ON_BEHALF_OF`'s value.
@@ -191,7 +203,7 @@ Expected: a diff touching only the pin and the new hook, and no note, because no
 ## Open questions
 
 - **Q1 (answered).** Where should the record of what `init` wrote live? **A committed `ark-setup.lock` beside the configs, plus a per-clone `<git common dir>/ark/setup.json`.** The committed lock is what lets every clone know what the last `init` wrote without the per-clone file, so a fresh clone's rerun is a no-op and R2 can tell "init wrote this" from "someone changed this". The per-clone file mirrors it for state git never tracks. Managed-block markers inside each file were rejected: they would force `init` to edit inside files it does not own line-for-line (a shared `.mcp.json`, `AGENTS.md`, `package.json`), and a hash of the owned entries keeps ownership precise without touching anyone else's content. The lock records one SHA-256 per piece: for a whole-file piece the file's bytes, for a merged JSON piece only the owned entries, so another server in the same file never reads as an edit. ?59 added `ark-setup.lock` to ark's committed setup so R9's no-diff holds.
-- **Q2 (answered).** Should `init` detect harnesses, or should a repository list them in a shared config? **`init` detects them by their config directories (`.claude`, `.kiro`); a repository with neither gets every harness.** Flags only opt a harness or piece *out* (`--harness claude|kiro`, `--no-mcp`, `--no-hooks`), never in (R1), so a new harness is picked up by its directory rather than a list someone must remember to edit, the same reason the setup is complete-by-default. A shared opt-in list would repeat the gap this design exists to close.
+- **Q2 (answered, then revised).** Should `init` detect harnesses, or should a repository list them in a shared config? **Revised: both.** Detection proposes and the person chooses; the choice is recorded in the config (see "Which harnesses: detected, then chosen"). The first answer follows. **`init` detects them by their config directories (`.claude`, `.kiro`); a repository with neither gets every harness.** Flags only opt a harness or piece *out* (`--harness claude|kiro`, `--no-mcp`, `--no-hooks`), never in (R1), so a new harness is picked up by its directory rather than a list someone must remember to edit, the same reason the setup is complete-by-default. A shared opt-in list would repeat the gap this design exists to close.
 - **Q3 (answered).** Should `doctor` fail CI, or only warn, once a repository has run the new `init`? **Only warn, at least for ark.** CI already enforces the committed setup through R9 (`init` reproduces ark's committed setup with no diff) and through the decision- and issue-log `verify` steps; those fail the build. `doctor` adds visibility of per-clone and version drift that a warning surfaces without making every change hostage to it, and a repository that wants a hard gate can run `doctor` as its own required step. ark runs it from the workspace build because its pinned published tools do not have `doctor` yet (see "What the hand setup settled"). A repository on a published tool with `doctor` can tighten this to a failure later if it wants to.
 - **Q4** Is this document a design for the design tool to manage once it exists, and if so, does it move into its log as the tool's first record? (For Niko.)
 
