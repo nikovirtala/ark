@@ -1,0 +1,20 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M7CJKJY8DWQQ5ZP6V9HKDNWS
+subject: wkq8vyps
+type: scoped
+at: 2026-11-14T08:25:57Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - packages/adr/README.md
+    - packages/adr/src/kind/**
+    - packages/adr/src/log.ts
+    - packages/adr/src/skill.ts
+    - packages/adr/src/write.ts
