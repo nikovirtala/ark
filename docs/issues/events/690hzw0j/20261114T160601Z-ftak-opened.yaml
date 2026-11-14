@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7DCY0FMEABV39083RMKFTAK
+subject: 690hzw0j
+type: opened
+at: 2026-11-14T16:06:01Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: The deny rules depend on the working directory, and Kiro has none
+  template: bug
+  template_version: 1
