@@ -1,0 +1,22 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M7CKCSE97TQH6YCV1A9X8K60
+subject: 4yen2hj2
+type: scoped
+at: 2026-11-14T08:39:43Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - .github/workflows/ci.yml
+    - AGENTS.md
+    - commitlint.config.*
+    - packages/*/src/config.ts
+    - packages/*/src/write.ts
+    - packages/ledger/src/git/**
+    - packages/ledger/src/surfaces/commit-message.ts
