@@ -56,8 +56,13 @@ describe("adr init --setup (the agent setup plumbing)", () => {
     const mcp = await readFile(join(r.root, ".mcp.json"), "utf8");
     expect(mcp).toContain(`@nikovirtala/adr@${ARK_PINS.adr}`);
     expect(mcp).not.toContain("workspace:");
+    // Claude Code's config gives the variable an empty default, so an unset one arrives empty (?78).
     // biome-ignore lint/suspicious/noTemplateCurlyInString: the expected shell placeholder
-    expect(mcp).toContain("${ARK_ON_BEHALF_OF}");
+    expect(mcp).toContain("${ARK_ON_BEHALF_OF:-}");
+    expect(await readFile(join(r.root, ".kiro/settings/mcp.json"), "utf8")).toContain(
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: the expected shell placeholder
+      '"${ARK_ON_BEHALF_OF}"',
+    );
     // The hook scripts are executable and the configs run them with sh (?77).
     for (const f of [
       ".claude/hooks/session-start.sh",

@@ -163,7 +163,7 @@ The config is `<repo>/adr.toml`, whose `[log] root` chooses the log directory, o
 
 ## Agents
 
-An agent using the CLI sets `ARK_AGENT=<agent-id>`, and `ARK_ON_BEHALF_OF=<email>` for the person it acts for. Its events are recorded as the agent, acting on behalf of that address. Without `ARK_ON_BEHALF_OF` they are recorded on behalf of the git user, and every write says so in a note on stderr and in the JSON `notes`: `on_behalf_of taken from the git identity <email>; set ARK_ON_BEHALF_OF to name who you act for`. An `ARK_ON_BEHALF_OF` that isn't an email address exits 2 before anything is written; without `ARK_AGENT` it is ignored, with a note. With `accept_requires_human` on (the default), `adr accept` refuses an agent with exit 1 (`decision/agent-accepted`), and `adr new` tells the agent to ask a human to review and accept.
+An agent using the CLI sets `ARK_AGENT=<agent-id>`, and `ARK_ON_BEHALF_OF=<email>` for the person it acts for. Its events are recorded as the agent, acting on behalf of that address. Without `ARK_ON_BEHALF_OF` they are recorded on behalf of the git user, and every write says so in a note on stderr and in the JSON `notes`: `on_behalf_of taken from the git identity <email>; set ARK_ON_BEHALF_OF to name who you act for`. An `ARK_ON_BEHALF_OF` that isn't an email address exits 2 before anything is written; one that is still a `${…}` placeholder, which an agent harness leaves when it doesn't pass the variable on, counts as unset and the write's notes say how to fix it; without `ARK_AGENT` it is ignored, with a note. With `accept_requires_human` on (the default), `adr accept` refuses an agent with exit 1 (`decision/agent-accepted`), and `adr new` tells the agent to ask a human to review and accept.
 
 The git identity is git's author identity (`git var GIT_AUTHOR_IDENT` with `user.useConfigOnly`): `GIT_AUTHOR_NAME` and `GIT_AUTHOR_EMAIL` when set, else `user.name` and `user.email`; it is never guessed. Setting `GIT_AUTHOR_*` also changes the author of `--commit` commits, which is why agents should use `ARK_ON_BEHALF_OF` instead. `--commit` also needs a committer identity, and exits 2 before writing without one.
 
@@ -186,6 +186,15 @@ Agents with an MCP client use `adr mcp` instead (below), and `adr init --skill` 
 ```
 
 Set `ARK_ON_BEHALF_OF` in that `env`: stdio clients pass only a few environment variables (`HOME`, `PATH` and the like) to the server, so a value exported in your shell doesn't reach it. Writes are recorded as an agent named by the MCP client (`actor.agent`), on behalf of `ARK_ON_BEHALF_OF`, or of the git user, with a note. An invalid `ARK_ON_BEHALF_OF` makes `adr mcp` exit 2 before serving.
+
+### Setting `ARK_ON_BEHALF_OF` in each harness
+
+`adr init --setup` writes MCP configs that pass `ARK_ON_BEHALF_OF` through from your environment and never hold its value. Set it where the harness can pass it on:
+
+- **Claude Code** reads `.mcp.json`, which passes `"${ARK_ON_BEHALF_OF:-}"`. Export the variable in the shell that starts `claude`, for example `export ARK_ON_BEHALF_OF=you@example.com`. Unset, it arrives empty and writes are recorded on behalf of the git user, with a note. Claude Code asks you to approve a project's MCP servers the first time it sees them.
+- **Kiro** reads `.kiro/settings/mcp.json`, which passes `"${ARK_ON_BEHALF_OF}"`. Kiro expands a variable only after you approve it: open Kiro's settings, search for "Mcp Approved Env Vars", add `ARK_ON_BEHALF_OF`, and export it in the shell that starts Kiro. Until then the server receives the text `${ARK_ON_BEHALF_OF}`. adr treats that as unset, records the write on behalf of the git user, and says in the write's notes which setting fixes it.
+
+`adr doctor` reports the variable for each harness the repository configures: unset, left as a placeholder, or set (for Kiro, with a reminder to approve it; doctor can't read that setting).
 
 | Tools | Listed |
 | --- | --- |

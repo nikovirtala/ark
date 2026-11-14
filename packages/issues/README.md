@@ -207,7 +207,7 @@ Fetching uses plain git and its credentials. For a private source in CI, use an 
 
 ## Agents
 
-An agent using the CLI sets `ARK_AGENT=<agent-id>`, and `ARK_ON_BEHALF_OF=<email>` for the person it acts for. Its events are recorded as the agent, acting on behalf of that address; without `ARK_ON_BEHALF_OF`, on behalf of the git user, with a note on stderr and in the JSON `notes`.
+An agent using the CLI sets `ARK_AGENT=<agent-id>`, and `ARK_ON_BEHALF_OF=<email>` for the person it acts for. Its events are recorded as the agent, acting on behalf of that address; without `ARK_ON_BEHALF_OF`, on behalf of the git user, with a note on stderr and in the JSON `notes`. An `ARK_ON_BEHALF_OF` that is still a `${…}` placeholder, which an agent harness leaves when it doesn't pass the variable on, counts as unset, and the note says how to fix it.
 
 Agents may close issues they finished, unlike accepting decisions, because a closed issue reopens. An agent's `closed` event must have a reason saying how the issue's Done when conditions were met (`issue/agent-reason-required`). With `close_requires_human = true` or `mcp_can_close = false`, an agent's close is refused with exit 1 (`issue/agent-closed`). These are rules of the log: `verify` checks every applied close, so after you turn either key on, a full `verify` reports earlier agent closes too, while `verify --base` reports only the issues a change touches.
 
@@ -239,6 +239,15 @@ The tool list is fixed at startup, so after turning `mcp_can_close` on, restart 
 ```
 
 Set `ARK_ON_BEHALF_OF` in that `env`: stdio clients pass only a few environment variables (`HOME`, `PATH` and the like) to the server, so a value exported in your shell doesn't reach it. `assignee: ["me"]` and `mine` mean that address, or the git user's email without it. An invalid `ARK_ON_BEHALF_OF`, a directory outside a repository or a broken `issues.toml` makes `issues mcp` exit 2 before serving.
+
+### Setting `ARK_ON_BEHALF_OF` in each harness
+
+`issues init --setup` writes MCP configs that pass `ARK_ON_BEHALF_OF` through from your environment and never hold its value. Set it where the harness can pass it on:
+
+- **Claude Code** reads `.mcp.json`, which passes `"${ARK_ON_BEHALF_OF:-}"`. Export the variable in the shell that starts `claude`, for example `export ARK_ON_BEHALF_OF=you@example.com`. Unset, it arrives empty and writes are recorded on behalf of the git user, with a note. Claude Code asks you to approve a project's MCP servers the first time it sees them.
+- **Kiro** reads `.kiro/settings/mcp.json`, which passes `"${ARK_ON_BEHALF_OF}"`. Kiro expands a variable only after you approve it: open Kiro's settings, search for "Mcp Approved Env Vars", add `ARK_ON_BEHALF_OF`, and export it in the shell that starts Kiro. Until then the server receives the text `${ARK_ON_BEHALF_OF}`. issues treats that as unset, records the write on behalf of the git user, and says in the write's notes which setting fixes it.
+
+`issues doctor` reports the variable for each harness the repository configures: unset, left as a placeholder, or set (for Kiro, with a reminder to approve it; doctor can't read that setting).
 
 | Tool | Same document as |
 | --- | --- |

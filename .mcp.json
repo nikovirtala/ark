@@ -5,7 +5,7 @@
       "args": ["-y", "@nikovirtala/adr@0.6.0", "mcp"],
       "env": {
         "ARK_AGENT": "claude-code",
-        "ARK_ON_BEHALF_OF": "${ARK_ON_BEHALF_OF}"
+        "ARK_ON_BEHALF_OF": "${ARK_ON_BEHALF_OF:-}"
       }
     },
     "issues": {
@@ -13,7 +13,7 @@
       "args": ["-y", "@nikovirtala/issues@0.6.0", "mcp"],
       "env": {
         "ARK_AGENT": "claude-code",
-        "ARK_ON_BEHALF_OF": "${ARK_ON_BEHALF_OF}"
+        "ARK_ON_BEHALF_OF": "${ARK_ON_BEHALF_OF:-}"
       }
     }
   }
