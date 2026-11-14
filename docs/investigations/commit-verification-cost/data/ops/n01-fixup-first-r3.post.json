@@ -1,0 +1,9 @@
+[
+  {
+    "sha": "dd12cd26f626",
+    "tree": "9e9906a58587",
+    "patch": "17a60553a0f6",
+    "msg": "8fe2ca0cd82d",
+    "subject": "docs(issues): close ?24 \"cut the git processes one write spawns\""
+  }
+]

@@ -1,0 +1,16 @@
+[
+  {
+    "sha": "91ce8bdf1a0f",
+    "tree": "9e9906a58587",
+    "patch": "17a60553a0f6",
+    "msg": "8fe2ca0cd82d",
+    "subject": "docs(issues): close ?24 \"cut the git processes one write spawns\""
+  },
+  {
+    "sha": "948f26bab945",
+    "tree": "23c954429ea3",
+    "patch": "942d43b0bcad",
+    "msg": "4210434356ae",
+    "subject": "docs(issues): close ?20 \"make the test suites faster\""
+  }
+]

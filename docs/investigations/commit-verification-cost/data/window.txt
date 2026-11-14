@@ -1,0 +1,29 @@
+# Window of real consecutive first-parent commits of ark main, oldest first.
+# c0 is the base the branches fork from; branch of size N = c1..cN. Index is the commit's distance
+# from the newest commit (232beda) at measurement time; mode is what scripts/check-commit.sh does with it.
+c0 13f504e75d257d7a2ae5d6784ad2d331608be5b1 idx=320 mode=docs
+c1 f732db5177d01293ed414896fedc46e613283510 idx=319 mode=log
+c2 4dbdabfbda8057131a684a2a5d56619b62f1a714 idx=318 mode=log
+c3 a938843f8b98cce52bfe9c50b74ad28dc6943685 idx=317 mode=log
+c4 3bf147eddb010c8f916a783f62dd2121fe77fb6c idx=316 mode=log
+c5 d0a9a265178d028839f5a46d41e7fca5e29f1035 idx=315 mode=pkg:issues
+c6 d6d690dfec95a4578f69450808713384d0227673 idx=314 mode=log
+c7 3266ecedf78cf306e7009599a387c55d77136fdb idx=313 mode=pkg:adr+issues+ledger
+c8 4c8becd1a6e663ea75f4f1089b5380a1b5bb4b77 idx=312 mode=log
+c9 591eb3e6ad8f3d12e7ff461d3fd05a7325314865 idx=311 mode=log
+c10 f25a91be24d331edc598f260f5b34c0fdd828fca idx=310 mode=log
+c11 8aec4cc9f62b7fce2b52268b03b8184feb39b6a0 idx=309 mode=log
+c12 f585589c84fd7ea1d89af23ba5d972c0b61eaf9a idx=308 mode=pkg:issues
+c13 98798fadbc324930d3c347ba507714406f862b72 idx=307 mode=pkg:issues
+c14 987995d044054dff86cf5c6a78ed79d2b3e1c5a5 idx=306 mode=pkg:issues
+c15 dd845aa0dc88412d94536d28bb6cb88f1c21c66c idx=305 mode=docs
+c16 9ce02e5df099cc3923d06a826aae80f065ed9c15 idx=304 mode=docs
+c17 a76fa3f24ad3df7f079a2d88a0af4e01844ebea7 idx=303 mode=log
+c18 fe2732195f640791a3087a4adbd50214f6c29ff8 idx=302 mode=log
+c19 ff0e05814a2436f20dbaa4dd8d32df60f37c5b0e idx=301 mode=log
+c20 451199c7ac9492d5d1660ce5bb68439a53490494 idx=300 mode=docs
+# Newer main: three real, later docs commits, replayed onto c0 in this order by ops-setup.sh.
+# They touch only files that do not exist or do not change on the branch, so the branch rebases cleanly.
+m d6f5cb9172c087436377fcacc6eb35f9b6766ef6 idx=151 mode=docs
+m 54e4e3ca433f128ff17aaf94322665464cfdb4d3 idx=147 mode=docs
+m 86b7e5e90f494fa3b6c33ed44f253aa74895321d idx=131 mode=docs

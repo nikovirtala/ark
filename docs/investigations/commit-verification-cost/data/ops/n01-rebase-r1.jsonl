@@ -1,0 +1,1 @@
+{"cell":"n01-rebase-r1","seq":1,"sha":"3a22bcc6f0c7","tree":"417f6eb3df83","subject":"docs(issues): close ?24 \"cut the git processes one write spawns\"","mode":"log","pkgs":"","wall_s":4.133,"user_s":10.385,"sys_s":1.444,"exit":0,"start_s":0.015,"end_s":4.154,"test_files":0,"tests":0,"tests_by_pkg":{}}
