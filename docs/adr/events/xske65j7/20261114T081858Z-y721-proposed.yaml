@@ -1,0 +1,19 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M7CJ6T8FD1TMDXJNAQHBY721
+subject: xske65j7
+type: proposed
+at: 2026-11-14T08:18:58Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Support every Node.js release line in LTS
+  template: nygard
+  template_version: 1
+  supersedes:
+    - 5v1w33jg
