@@ -1,0 +1,22 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7DB30MSHBFTNH9QNWH0V8T6
+subject: d37cvwm7
+type: scoped
+at: 2026-11-14T15:33:48Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - .github/workflows/*.yml
+    - packages/*/README.md
+    - packages/*/src/config.ts
+    - packages/*/src/init.ts
+    - packages/ledger/src/surfaces/ark-setup.ts
+    - packages/ledger/src/surfaces/tool-init.ts
+    - scripts/bump-ark-pins.mjs
