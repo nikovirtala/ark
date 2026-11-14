@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7DG5TC5MJ2A13PXPCF7FSBV
+subject: 5bxmyspv
+type: opened
+at: 2026-11-14T17:02:43Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Confirm Kiro's hook events and the approved-variable setting in a real session
+  template: task
+  template_version: 1
