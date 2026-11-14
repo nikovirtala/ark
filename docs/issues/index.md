@@ -22,7 +22,6 @@
 | ?62 | [Support every Node.js release line in LTS](items/m1wr4sj5-support-every-node-js-release-line-in-lts.md) |  |  | 2026-11-14 |
 | ?63 | [Let a code owner's approval stand for a human's accept](items/enawzck5-let-a-code-owners-approval-stand-for-a-humans-accept.md) |  |  | 2026-11-14 |
 | ?64 | [Record the date a decision was made with --decided-on](items/8sts9vt4-record-the-date-a-decision-was-made-with-decided-on.md) |  |  | 2026-11-14 |
-| ?65 | [Import decisions made before the log with adr import](items/zw2a7vx4-import-decisions-made-before-the-log-with-adr-import.md) |  |  | 2026-11-14 |
 
 ## Blocked
 
@@ -30,6 +29,7 @@
 | --- | --- | --- | --- | --- |
 | ?60 | [Report missing or outdated agent setup with a doctor command](items/ram953kt-report-missing-or-outdated-agent-setup-with-a-doctor-command.md) |  |  | 2026-10-31 |
 | ?61 | [Bump ark's own tool pins when a release publishes](items/t9vg1qty-bump-arks-own-tool-pins-when-a-release-publishes.md) |  |  | 2026-10-31 |
+| ?65 | [Import decisions made before the log with adr import](items/zw2a7vx4-import-decisions-made-before-the-log-with-adr-import.md) |  |  | 2026-11-14 |
 
 ## Recently closed
 
