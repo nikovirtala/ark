@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7DG62Z15WPKK184S4XX1DZF
+subject: 5bxmyspv
+type: scoped
+at: 2026-11-14T17:02:52Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - docs/03-setup-v1.md
+    - packages/ledger/src/surfaces/setup-kiro.ts
