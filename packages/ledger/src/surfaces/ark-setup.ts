@@ -46,7 +46,7 @@ function claudeSettings(): string {
           hooks: [
             {
               type: "command",
-              command: '"$CLAUDE_PROJECT_DIR"/.claude/hooks/session-start.sh',
+              command: 'sh "$CLAUDE_PROJECT_DIR"/.claude/hooks/session-start.sh',
             },
           ],
         },
@@ -57,7 +57,7 @@ function claudeSettings(): string {
           hooks: [
             {
               type: "command",
-              command: '"$CLAUDE_PROJECT_DIR"/.claude/hooks/before-edit.sh',
+              command: 'sh "$CLAUDE_PROJECT_DIR"/.claude/hooks/before-edit.sh',
             },
           ],
         },
@@ -218,14 +218,14 @@ export function arkShared(p: ArkPins): Record<Harness, HarnessShared> {
         description:
           "Install git hooks, list decisions and issues changed since last session, and list ready issues.",
         trigger: "SessionStart",
-        command: ".kiro/hooks/session-start.sh",
+        command: "sh .kiro/hooks/session-start.sh",
       }),
       beforeEditHook: kiroHook({
         name: "ark before edit",
         description: "Before an edit, report the decisions and open issues that govern the file.",
         trigger: "PreToolUse",
         matcher: "write",
-        command: ".kiro/hooks/before-edit.sh",
+        command: "sh .kiro/hooks/before-edit.sh",
       }),
       sessionStartScript: kiroSessionStartScript(p),
       beforeEditScript: kiroBeforeEditScript(p),

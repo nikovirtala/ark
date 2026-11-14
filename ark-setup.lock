@@ -12,19 +12,19 @@
     "hash": "d685bea83387fa570320763bc1a3be0c9605314956d4f9a27a343f17545a0654"
   },
   "claude.settings": {
-    "hash": "3254f58b36cde961a1a2fef73b4b534e3f131f99340617d7356346686b91fab9"
+    "hash": "06f5b31593ffd41bfd656f2f22b205ddc34596eca58a1e0e4fda72ed0ccb2d97"
   },
   "kiro.hook.before-edit": {
     "hash": "eff577500cd20916ab17507a10d940153b5b862b14e585f1aed8d54cf9f69079"
   },
   "kiro.hook.before-edit.def": {
-    "hash": "78259a1ddffbf2114f879ada39d208ea55e84ad644dd4628a67a580ced4b5ce7"
+    "hash": "a3443d2c22a8bc94465aa45ba6fd03e64b59cf0a506a056c43b1fcde82177fb8"
   },
   "kiro.hook.session-start": {
     "hash": "c3abeff8a02253b56f8199eae7b7cc2b9673d3fbea712f16420d7ca3465fa7ac"
   },
   "kiro.hook.session-start.def": {
-    "hash": "b0e096bef11cd3814ef8d597188991d5de0c762231b88f4be39579dc17c30d1b"
+    "hash": "97c89eeae7fb8c047dfccd4699c368e74d4ce7ac6157c3c1e352aa6c0f89a0bb"
   },
   "kiro.mcp.adr": {
     "hash": "00fe4be5eb3eaa7174093d0fa6a671a4e4aeecbe056a352347a68eef8ba7f485"

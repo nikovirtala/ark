@@ -1,8 +1,8 @@
-import { readFile } from "node:fs/promises";
+import { chmod, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createTempRepo, type TempRepo } from "../testing/temp-repo.js";
-import { applySetup, SETUP_LOCK, type SetupPiece } from "./setup.js";
+import { applySetup, pieceStates, SETUP_LOCK, type SetupPiece } from "./setup.js";
 
 const repos: TempRepo[] = [];
 afterEach(async () => {
@@ -157,5 +157,84 @@ describe("applySetup: merge pieces", () => {
       mcpServers: Record<string, unknown>;
     };
     expect(Object.keys(after.mcpServers).sort()).toEqual(["adr", "mine"]);
+  });
+});
+
+describe("applySetup: executable pieces (?77)", () => {
+  const script = (text = "#!/bin/sh\necho hi\n"): SetupPiece => ({
+    id: "hook",
+    file: ".hooks/go.sh",
+    ownership: { kind: "whole", text, executable: true },
+  });
+  const mode = async (r: TempRepo, path: string) => (await stat(join(r.root, path))).mode & 0o777;
+
+  it("writes an executable piece as 755 and a plain one as the umask makes it", async () => {
+    const r = await repo();
+    const doc = await applySetup(r.git, [script(), whole("plain", ".hooks/readme.txt", "x\n")], {
+      tool: "widget",
+    });
+    expect(await mode(r, ".hooks/go.sh")).toBe(0o755);
+    expect((await mode(r, ".hooks/readme.txt")) & 0o111).toBe(0);
+    expect(doc.executable).toEqual([".hooks/go.sh"]);
+  });
+
+  it("restores the bit on a rerun when the bytes are right and the mode isn't, and touches nothing else", async () => {
+    const r = await repo();
+    await applySetup(r.git, [script()], { tool: "widget" });
+    const lock = await read(r, SETUP_LOCK);
+    await chmod(join(r.root, ".hooks/go.sh"), 0o644);
+    const doc = await applySetup(r.git, [script()], { tool: "widget" });
+    expect(doc.outcomes).toEqual([{ id: "hook", file: ".hooks/go.sh", status: "wrote" }]);
+    expect(doc.written).toEqual([".hooks/go.sh"]);
+    expect(doc.executable).toEqual([".hooks/go.sh"]);
+    expect(await mode(r, ".hooks/go.sh")).toBe(0o755);
+    expect(await read(r, SETUP_LOCK)).toBe(lock);
+    // And a second rerun has nothing to do.
+    const again = await applySetup(r.git, [script()], { tool: "widget" });
+    expect(again.outcomes[0]?.status).toBe("kept");
+    expect(again.written).toEqual([]);
+    expect(again.executable).toEqual([]);
+  });
+
+  it("keeps the bit when it updates the bytes of an unchanged piece", async () => {
+    const r = await repo();
+    await applySetup(r.git, [script("one\n")], { tool: "widget" });
+    const doc = await applySetup(r.git, [script("two\n")], { tool: "widget" });
+    expect(doc.outcomes[0]?.status).toBe("wrote");
+    expect(await mode(r, ".hooks/go.sh")).toBe(0o755);
+  });
+
+  it("leaves a changed piece alone, mode included", async () => {
+    const r = await repo();
+    await applySetup(r.git, [script("one\n")], { tool: "widget" });
+    await r.write(".hooks/go.sh", "edited\n");
+    await chmod(join(r.root, ".hooks/go.sh"), 0o644);
+    const doc = await applySetup(r.git, [script("two\n")], { tool: "widget" });
+    expect(doc.outcomes[0]?.status).toBe("changed");
+    expect(await mode(r, ".hooks/go.sh")).toBe(0o644);
+  });
+
+  it("reports the mode in pieceStates", async () => {
+    const r = await repo();
+    await applySetup(r.git, [script()], { tool: "widget" });
+    const [ok] = await pieceStates(r.git, [script()]);
+    expect(ok).toMatchObject({ present: true, needsExecutable: true, executable: true });
+    await chmod(join(r.root, ".hooks/go.sh"), 0o644);
+    const [lost] = await pieceStates(r.git, [script()]);
+    expect(lost).toMatchObject({ matchesTarget: true, needsExecutable: true, executable: false });
+    const [plain] = await pieceStates(r.git, [whole("p", ".hooks/go.sh", "#!/bin/sh\necho hi\n")]);
+    expect(plain?.needsExecutable).toBe(false);
+  });
+
+  it("stages 100755 in the index when the file system can't keep the bit", async () => {
+    const r = await repo();
+    await r.git.run(["config", "core.fileMode", "false"]);
+    const doc = await applySetup(r.git, [script()], { tool: "widget" });
+    await r.git.add(doc.written);
+    await r.git.run(["update-index", "--chmod=+x", "--", ...doc.executable]);
+    const staged = Buffer.from(
+      (await r.git.run(["ls-files", "-s", ".hooks/go.sh"])).stdout,
+    ).toString("utf8");
+    expect(staged).toMatch(/^100755 /);
   });
 });

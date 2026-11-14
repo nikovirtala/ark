@@ -8,7 +8,7 @@
       "matcher": "write",
       "action": {
         "type": "command",
-        "command": ".kiro/hooks/before-edit.sh"
+        "command": "sh .kiro/hooks/before-edit.sh"
       }
     }
   ]

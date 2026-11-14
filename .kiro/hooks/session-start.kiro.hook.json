@@ -7,7 +7,7 @@
       "trigger": "SessionStart",
       "action": {
         "type": "command",
-        "command": ".kiro/hooks/session-start.sh"
+        "command": "sh .kiro/hooks/session-start.sh"
       }
     }
   ]

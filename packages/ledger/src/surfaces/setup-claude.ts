@@ -119,14 +119,14 @@ export function claudePieces(o: {
     pieces.push({
       id: "claude.hook.session-start",
       file: ".claude/hooks/session-start.sh",
-      ownership: { kind: "whole", text: o.shared.sessionStartScript },
+      ownership: { kind: "whole", text: o.shared.sessionStartScript, executable: true },
     });
   }
   if (o.shared.beforeEditScript !== undefined) {
     pieces.push({
       id: "claude.hook.before-edit",
       file: ".claude/hooks/before-edit.sh",
-      ownership: { kind: "whole", text: o.shared.beforeEditScript },
+      ownership: { kind: "whole", text: o.shared.beforeEditScript, executable: true },
     });
   }
   return pieces;

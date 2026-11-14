@@ -29,7 +29,7 @@ import { setupPieces } from "./tool-init.js";
  * change that fixes them lands; such a test is expected to fail (`it.fails`) and starts failing
  * the build when the fix makes it pass, so the entry has to go.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>(["77", "78", "79", "80", "81"]);
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>(["78", "79", "80", "81"]);
 
 type Finding = "77" | "78" | "79" | "80" | "81";
 /** `it`, or `it.fails` while the finding it checks is still open. */
@@ -172,15 +172,21 @@ describe.each(HARNESSES)("%s: the generated setup, run as the harness runs it", 
         expect(context).not.toContain("no issues");
       },
     );
+  });
 
-    checks("77", "79")("emits nothing when no record applies", () => {
+  checks("77", "79")(
+    "before-edit hook emits nothing when no record applies, for every edit tool",
+    () => {
       const [hook] = hooks("before-edit");
       if (hook === undefined) throw new Error("no before-edit hook");
-      const run = runHook({ runtime, root: r.root, hook, scenario: edit("README.md"), stubs });
-      expect(run.result.status, run.result.stderr).toBe(0);
-      expect(run.result.stdout.trim()).toBe("");
-    });
-  });
+      for (const tool of runtime.editTools) {
+        const scenario = { kind: "edit", tool, path: join(r.root, "README.md") } as const;
+        const run = runHook({ runtime, root: r.root, hook, scenario, stubs });
+        expect(run.result.status, `${tool}: ${run.result.stderr}`).toBe(0);
+        expect(run.result.stdout.trim(), tool).toBe("");
+      }
+    },
+  );
 
   describe("direct edits to the logs", () => {
     // Written out, not derived from the generator under test.

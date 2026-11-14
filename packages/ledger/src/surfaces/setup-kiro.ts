@@ -47,14 +47,14 @@ export function kiroPieces(o: {
     pieces.push({
       id: "kiro.hook.session-start",
       file: ".kiro/hooks/session-start.sh",
-      ownership: { kind: "whole", text: o.shared.sessionStartScript },
+      ownership: { kind: "whole", text: o.shared.sessionStartScript, executable: true },
     });
   }
   if (o.shared.beforeEditScript !== undefined) {
     pieces.push({
       id: "kiro.hook.before-edit",
       file: ".kiro/hooks/before-edit.sh",
-      ownership: { kind: "whole", text: o.shared.beforeEditScript },
+      ownership: { kind: "whole", text: o.shared.beforeEditScript, executable: true },
     });
   }
   return pieces;

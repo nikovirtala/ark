@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7DFTKR369EDWJ0GDYPQTT7E
+subject: kwcjqe6c
+type: closed
+at: 2026-11-14T16:56:36Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+reason: Generated scripts are written and staged as 100755 (setup.ts executable pieces, tool-init update-index), both configs run them as sh <script> (ark-setup.ts, ark's committed settings and Kiro hook files), git ls-files -s .claude/hooks .kiro/hooks shows 100755 for every script. R9 compares git modes as well as bytes (scripts/check-agent-setup.mjs, ark-setup.r9.test.ts) and doctor reports not-executable with the fix (doctor.test.ts). setup.harness.test.ts runs every configured hook command string through the harness's shell from its working directory with its event JSON on stdin, for each harness module.
+data:
+  resolution: done
