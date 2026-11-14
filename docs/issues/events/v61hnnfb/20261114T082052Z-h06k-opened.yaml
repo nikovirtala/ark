@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7CJA8SJK3HM2N99WTH6H06K
+subject: v61hnnfb
+type: opened
+at: 2026-11-14T08:20:52Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Drop dangling short words from file slugs
+  template: feature
+  template_version: 1
