@@ -1,0 +1,15 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M7CN5K7RB01KM78D5TMT1AFV
+subject: xske65j7
+type: accepted
+at: 2026-11-14T09:10:44Z
+actor:
+  kind: human
+  name: Niko Virtala
+  email: niko.virtala@hey.com
+  agent: null
+  on_behalf_of: null
+data:
+  body_sha256: dd07e3d33cb4059e9f836711b4aa6a00d92051a96f266e98f2b246aec1826720
