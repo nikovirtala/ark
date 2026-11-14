@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7CJ93SQRHEMGWMQN23ZEKB9
+subject: 8sts9vt4
+type: linked
+at: 2026-11-14T08:20:14Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  to: adr:27h9h6y7
+  rel: implements
