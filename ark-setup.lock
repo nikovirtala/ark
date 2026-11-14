@@ -1,21 +1,21 @@
 {
   "claude.hook.before-edit": {
-    "hash": "2436378338e20242efec4fb2d96eb93154d115851cf0083b440907d08c99bea1"
+    "hash": "a539b62ea9ec50feb872ff6d6a9a2f14f2324b59a2ce1e5519b3086a546a10f7"
   },
   "claude.hook.session-start": {
-    "hash": "9dd79c1eb9b840d53fbebcbe4b716a0e0b10be3e1c63ba079c25ab5657234d05"
+    "hash": "6919f7aa7bd30f67985757c9d8f3b503ed039e98b2e6f4512f22506b987a13b7"
   },
   "claude.mcp.adr": {
-    "hash": "27f53313caf7e0057567ade9262609c416fcea0282e75f48ce1c52ad99bd254e"
+    "hash": "e120753a7a3ec9a08ce9573f3b392bf204f7b2baf31fb5d82ba28e4c7dd01b41"
   },
   "claude.mcp.issues": {
-    "hash": "9c285e4df2b0a53472d480650dc1bfb18f50309e760eb5d854c68ffd2cfc1c3c"
+    "hash": "038c85f028bd5b85cb1587e45cfb6874e6efee4a44d7e58c0446f101c3fc05a4"
   },
   "claude.settings": {
     "hash": "c18674f3ade342c72c2087db25e1863989e74d1f994de5049f71d685976bbb16"
   },
   "kiro.hook.before-edit": {
-    "hash": "004cb5fa82e5e762d8248994ff0badf021527a826345fcd8d04403e4a13b68c7"
+    "hash": "4c1046b627d0db87766edf1301ca6392b36db28c38119312aac2e866612afb97"
   },
   "kiro.hook.before-edit.def": {
     "hash": "a3443d2c22a8bc94465aa45ba6fd03e64b59cf0a506a056c43b1fcde82177fb8"
@@ -27,16 +27,16 @@
     "hash": "08e5ed6b05ab38a2fc4342170439da81aa3238d2e6d8f40f96a3ccd11656b8cb"
   },
   "kiro.hook.session-start": {
-    "hash": "db2005f2c06eb74393533ead7ff7071c41d13280d61f4aa503f916ddeafa10f1"
+    "hash": "01d1987e1a1695d7731ede046f3e986be5bf8e0df490b4d75a014c015a2f238b"
   },
   "kiro.hook.session-start.def": {
     "hash": "fd28a72ec4e78124c729f6ea2100d55fdd30c8cce9aab8d9ff3043ea364d527b"
   },
   "kiro.mcp.adr": {
-    "hash": "00fe4be5eb3eaa7174093d0fa6a671a4e4aeecbe056a352347a68eef8ba7f485"
+    "hash": "a9277b0b4c68c1f0fcddd6724e07ad09ebf791555a41084a9eca0d4a0e894983"
   },
   "kiro.mcp.issues": {
-    "hash": "c48a1df6cd7bf902c70dc0f4430d1330ee4fb874ca0d294060f2d975fd175360"
+    "hash": "32c14baeb49db36e43fb23348f6395100e7b8d5378e85bbf20e86d124001e88a"
   },
   "prepare": {
     "hash": "87eb4f45398e1fa30f9c459a5ac240f11e6959692bb5ee679767118949fdbf0c"

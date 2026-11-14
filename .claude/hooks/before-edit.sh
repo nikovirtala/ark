@@ -2,7 +2,7 @@
 # Claude Code before-edit hook (ADR-0017; docs/03-setup-v1.md "What a complete setup is").
 #
 # The design wants this logic inside the tools as `<tool> hooks agent …`. That subcommand does not
-# exist in the pinned published versions (adr 0.6.0 / issues 0.6.0), so this calls the commands they do have.
+# exist in the pinned published versions (adr 0.6.1 / issues 0.6.1), so this calls the commands they do have.
 # `<tool> for <path>` reports the decisions and open issues that govern the file about to be
 # edited. The event arrives as JSON on stdin; the path is read out of it and made relative to the
 # repository. Claude Code delivers a PreToolUse hook's context only as hookSpecificOutput JSON; plain stdout
@@ -32,7 +32,7 @@ process.stdin.on("end", () => {
 # Nothing to look up without a path inside the repository; let the edit proceed.
 [ -n "$FILE" ] || exit 0
 
-OUT="$(npm exec --yes --package=@nikovirtala/adr@0.6.0 --package=@nikovirtala/issues@0.6.0 -- sh -c '
+OUT="$(npm exec --yes --package=@nikovirtala/adr@0.6.1 --package=@nikovirtala/issues@0.6.1 -- sh -c '
 adr for "$1" 2>/dev/null || true
 issues for "$1" 2>/dev/null || true
 ' sh "$FILE" 2>/dev/null || true)"
