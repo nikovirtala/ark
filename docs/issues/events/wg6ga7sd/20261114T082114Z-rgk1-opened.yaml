@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7CJAYRB1BXYG0RPF0D2RGK1
+subject: wg6ga7sd
+type: opened
+at: 2026-11-14T08:21:14Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Say once that on_behalf_of came from the git identity
+  template: feature
+  template_version: 1
