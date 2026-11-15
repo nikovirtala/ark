@@ -1,0 +1,37 @@
+[
+  {
+    "sha": "98193a3ec0b5",
+    "tree": "9e9906a58587",
+    "patch": "17a60553a0f6",
+    "msg": "8fe2ca0cd82d",
+    "subject": "docs(issues): close ?24 \"cut the git processes one write spawns\""
+  },
+  {
+    "sha": "b4e9f02ecbde",
+    "tree": "23c954429ea3",
+    "patch": "942d43b0bcad",
+    "msg": "4210434356ae",
+    "subject": "docs(issues): close ?20 \"make the test suites faster\""
+  },
+  {
+    "sha": "b55c377d34e3",
+    "tree": "c95ae9b77e64",
+    "patch": "891ac6fd3f92",
+    "msg": "11622c072b37",
+    "subject": "docs(issues): open, link and scope 0vckaxpf \"split the issues MCP tests that sit at…\""
+  },
+  {
+    "sha": "7a17878869b5",
+    "tree": "7a6dbf6bbf73",
+    "patch": "2efd5612533b",
+    "msg": "345c15030a36",
+    "subject": "docs(issues): start work on 0vckaxpf \"split the issues MCP tests that sit at their…\""
+  },
+  {
+    "sha": "97dae65fe2b0",
+    "tree": "5e24b827f01b",
+    "patch": "27be4a8c0cc4",
+    "msg": "bb4ac1a5d8ba",
+    "subject": "test(issues): split the mcp tests by session and Table B rows"
+  }
+]

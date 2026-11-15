@@ -93,3 +93,26 @@ node $D/scripts/spurious.mjs
 ```
 
 `analyze-prs.mjs` and `spurious.mjs` need `data/affected-share-400.csv`; `spurious.mjs` also needs `data/pr-summary.json`, so run them in the order above. `affected-share.mjs` needs the full history (`git fetch --tags origin`) and the `--end` commit.
+
+## Result cache prototype and options
+
+| Script | What it does | Output in `data/` |
+|---|---|---|
+| `check-commit-cached.sh` | Prototype: a result cache around `scripts/check-commit.sh` (unchanged), used as the `git rebase --exec` command. Key: tree, parent tree, selection, node, pnpm and git versions, lockfile hash, script hash. Writes only on exit 0. `CACHE_DIR`, `CACHE_MODE` (`rw`, `ro`, `refresh`, `off`), `CACHE_LOG`, `CACHE_NOPARENT` | none (the cache is a directory of files) |
+| `cache-experiment.sh` | Runs the grid operations with the wrapper: one cold run populates the cache, each operation starts from a copy of it. `--repo`, `--cache-root`, `--n`, `--ops` (`X-loose` leaves the parent tree out of the key), `--reps`. Resumable: finished cells are skipped | `cache/cache-cells.csv`, `cache/ops-cells.csv`, `cache/ops/`, `cache/logs/` |
+| `cache-summary.mjs` | Adds one row to `cache/cache-cells.csv` (called by `cache-experiment.sh`): hits, misses, wall and machine time, rewritten and tree-changed counts, and the uncached median of the same cell | `cache/cache-cells.csv` |
+| `options-model.mjs` | Models the options (tree-hash cache, finer selection, workers, incremental build, repeatability, verify touched, CI matrix, merge queue, lazy verification) over N and operation from `affected-share-400-summary.csv`, `fit.csv`, `pr-summary.json` and `cache/cache-cells.csv`. Every row has a `basis` of measured, derived or modelled | `options.csv`, `options-summary.csv` |
+
+`exec-check.sh` runs `$OPS_CHECK` when set (default `scripts/check-commit.sh`), which is how the wrapper is used by the grid.
+
+```sh
+source ~/.nvm/nvm.sh; nvm use 24
+D=docs/investigations/commit-verification-cost; R=<scratch clone prepared with ops-setup.sh>; C=<scratch cache dir>
+$D/scripts/cache-experiment.sh --repo $R --cache-root $C --n 5 --reps 3 --ops "first reword-mid reorder reorder-loose"
+$D/scripts/cache-experiment.sh --repo $R --cache-root $C --n 5 --reps 1 --ops "rebase fixup-first fixup-last fixup-mid reorder-at4"
+$D/scripts/cache-experiment.sh --repo $R --cache-root $C --n 10 --reps 3 --ops "first reword-mid reorder-loose"
+$D/scripts/cache-experiment.sh --repo $R --cache-root $C --n 10 --reps 1 --ops "fixup-last reorder rebase fixup-first"
+node $D/scripts/options-model.mjs
+```
+
+Run time on the measured host: N=5 about 3 minutes per cold or miss-heavy cell and 1 to 10 seconds per hit-heavy cell; N=10 about 8 minutes per miss-heavy cell. Cells run serially.

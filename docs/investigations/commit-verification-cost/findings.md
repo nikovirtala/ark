@@ -1,6 +1,6 @@
 # What verifying every commit of a branch costs
 
-Status: draft, part 3 of 4. This part covers the stack, the workflow, a single verification run, where its time goes, how reproducible it is, the cost over the number of commits, how branches are made, how much of the suite a commit affects, spurious failures, and what the pinned tools offer. The options and recommendation are added in later parts and are marked "to be added" below.
+Status: draft. This part covers the stack, the workflow, a single verification run, where its time goes, how reproducible it is, the cost over the number of commits, how branches are made, how much of the suite a commit affects, spurious failures, what the pinned tools offer, and the options. The options are in the Options section; the recommendation is added in a later part and marked "to be added" below.
 
 ## How to read the numbers
 
@@ -555,10 +555,249 @@ Not found in the vitest, pnpm or git documentation for these versions (**derived
 
 The earlier work cut the cost of a run (fewer tests per commit, faster tests) and made the check cheaper to skip safely. None of it changed how many commits are checked. The numbers in the first row's message (63 to 29 minutes, 33 commits) are the author's reported measurements, not reproduced here; the 29 minutes for 33 commits gives 53 s per commit, which falls in the range of the 400-commit mean (78 s) and of the log-heavy 100-commit window (21 s).
 
+## Options
+
+Nothing here changes a CI job, a test, a test configuration or a dependency. The only code added is the prototype wrapper `scripts/check-commit-cached.sh`, which wraps `scripts/check-commit.sh` and leaves it untouched, and the scripts that measure and model it.
+
+### The cheapest experiment: a tree-hash result cache
+
+`scripts/check-commit-cached.sh` is used as the command of `git rebase --exec` in place of `scripts/check-commit.sh`. The key is the sha256 of the tree hash of the commit, the tree hash of its parent, the selection (the lines that `check-commit.sh` prints for the commit before it runs anything, obtained by running the real script with a stub `pnpm` that stops it after the selection), the versions of node, pnpm and git, the hash of `pnpm-lock.yaml` and the hash of `scripts/check-commit.sh`. A result is written only when `check-commit.sh` exits 0. A run with uncommitted or untracked files bypasses the cache. Entries are files in a scratch directory (`CACHE_DIR`), one per key. `CACHE_MODE=refresh` ignores hits and rewrites them (the periodic full run), `ro` reads only. A second, looser key without the parent tree is written beside each result so one populated cache serves the loose-key runs; it is used only by the `-loose` cells.
+
+`scripts/cache-experiment.sh` runs it on the grid of the cost section: it populates a cache with one cold `first` run, then starts each operation from a copy of that populated cache, so one operation does not help the next. The window is the old one (`data/window.txt`), N=5 holds one issues-package commit (about 170 s) and four log commits, N=10 adds one adr, issues and ledger commit (about 270 s) and four more log commits. Runs were serial on the host above. Raw: `data/cache/` (`cache-cells.csv`, `logs/<cell>.tsv` with one line per commit: hit or miss and its seconds, `ops/<cell>.jsonl` per-commit rows from the grid scripts). All numbers in the next table are **measured**: median wall over the repeats, with the number of repeats. "Uncached" is the median of the earlier grid cells of the same operation and N (`data/ops-cells.csv`).
+
+| N | Operation | Repeats | Hits | Misses | Rewritten | Tree changed | Cached wall (s) | Uncached wall (s) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 5 | first, cold cache | 1 | 0 | 5 | 0 | 0 | 181.9 | 174.4 |
+| 5 | first, run again | 3 | 5 | 0 | 0 | 0 | 1.0 (1.0 to 1.0) | 174.4 |
+| 5 | reword-mid | 3 | 5 | 0 | 3 | 0 | 1.0 (1.0 to 1.0) | 175.4 |
+| 5 | reorder (swap 2 and 3), strict key | 3 | 3 | 2 | 4 | 1 | 9.6 (9.5 to 9.7) | 175.3 |
+| 5 | reorder (swap 2 and 3), key without parent tree | 3 | 4 | 1 | 4 | 1 | 5.3 (5.2 to 5.3) | 175.3 |
+| 5 | reorder-at4 (swap 4 and 5), strict key | 1 | 3 | 2 | 2 | 1 | 170.5 | 174.2 |
+| 5 | fixup-last | 3 | 4 | 1 | 1 | 1 | 169.1 (165.9 to 169.8) | 174.6 |
+| 5 | fixup-mid | 1 | 2 | 3 | 3 | 3 | 174.5 | 174.9 |
+| 5 | fixup-first | 1 | 0 | 5 | 5 | 5 | 183.0 | 175.0 |
+| 5 | rebase onto newer main | 1 | 0 | 5 | 5 | 5 | 182.8 | 175.0 |
+| 10 | first, cold cache | 1 | 0 | 10 | 0 | 0 | 471.1 | 462.3 |
+| 10 | first, run again | 3 | 10 | 0 | 0 | 0 | 2.0 (1.9 to 2.0) | 462.3 |
+| 10 | reword-mid | 3 | 10 | 0 | 6 | 0 | 2.0 (2.0 to 2.0) | 467.2 |
+| 10 | reorder (swap 5 and 6), strict key | 1 | 8 | 2 | 6 | 1 | 173.3 | 466.3 |
+| 10 | reorder (swap 5 and 6), key without parent tree | 3 | 8 | 2 | 6 | 1 | 171.1 (170.6 to 171.5) | 466.3 |
+| 10 | fixup-last (last commit is a log commit) | 1 | 9 | 1 | 1 | 1 | 6.4 | not measured |
+| 10 | fixup-first | 1 | 0 | 10 | 10 | 10 | 477.2 | 467.6 |
+| 10 | rebase onto newer main | 1 | 0 | 10 | 10 | 10 | 476.9 | 462.5 |
+
+What the table says:
+
+- **A repeat and a reword cost 1.0 s at N=5 and 2.0 s at N=10**, 0.13 s per hit (**measured**, `logs/*.tsv`), against 174 to 175 s and 462 to 467 s uncached. Machine time of a repeat at N=5 is 1.1 s (user plus system), against 1150 s uncached (**derived** from `cache-cells.csv`). All 5 (N=5) and all 10 (N=10) commits hit in each of the 3 repeats of both operations, and the second run of the same branch reported all hits, as the verification asked.
+- **A rebase onto newer main and a fixup of the first commit gain nothing**, they miss every commit, because every tree changes. They cost 4.5 % (N=5) and 2 to 3 % (N=10) more than uncached: 1 s of selection probing and `pnpm -v` per miss. The cold first run costs the same 4.3 % and 1.9 % extra. That overhead is the whole price of the cache when it never hits.
+- **A fixup of the last commit** hits all commits but the changed one. At N=5 the changed commit is the issues-package commit, so the saving is 3 % (the heavy commit has to be checked), at N=10 it is a log commit and the run takes 6.4 s. The saving of any rewrite is the cost of the commits that hit, so it depends on whether the changed commits are heavy.
+- **A reorder** misses the two swapped commits when the parent tree is in the key (strict), and when the parent tree is left out the second swapped commit still missed at N=10. The reason is **derived** from the logs: after the swap, the commit that now comes second has the same tree as the original second commit, but the diff against its new parent differs, so check-commit.sh selects other steps ("packages changed: issues" for a commit that was a log commit before), so the selection part of the key differs. Only at N=5 (two log commits swapped) did leaving the parent tree out save a miss (5.3 s against 9.6 s). Strictness costs little here and avoids a wrong hit (see the gap analysis).
+- Failed runs are not cached: the N=2 reorder of the old window exits 1 at the first replayed commit and misses again on the second repeat (`cn02-reorder-r1` and `r2` in `cache-cells.csv`, `failed` = 1 each, **measured**).
+- The rewritten column is not the quantity that matters: reword-mid rewrote 3 (N=5) and 6 (N=10) commits and every one hit. The tree-changed column predicts the misses (1 changed tree gives 1 or 2 misses, 0 gives none).
+
+### How a cache weakens "every commit passes"
+
+Today, `check-commit.sh` run on commit k states: this commit, as it stands, with this parent, built from an empty `dist/` with the installed tools, passed all selected tests in one run. A cache replaces "passed in this run" with "passed in some earlier run for an equal key". Each gap, what it needs, and what closes it:
+
+| Gap | What happens | Is it in the prototype? | What catches it |
+| --- | --- | --- | --- |
+| Tree equal, parent differs | `verify --base` and the selection read the diff against the parent. A commit with the same tree on another parent can be a different change (and can fail) | Closed: the parent tree and the selection are in the key. The reorder cells show it working (the swapped commit missed). The loose key hits where the strict key misses (N=5 reorder) and is the wrong thing to use in general | Key includes the parent tree and the selection. Tip pull request CI checks the final state either way |
+| Tests that read git history | A test that runs `git log` or reads tags and the commit count sees history, not the tree. The same tree on a different history can pass or fail. The tests spawn git processes heavily (about 214,000 per suite run, issue `wedm13pe`), but whether any depends on history above the tree was not audited | Not closed. The key holds one parent tree, not the history | Tip CI. A periodic full run (`CACHE_MODE=refresh`). An audit of the tests for history reads, which this investigation did not do |
+| Tool drift | A new node, pnpm, git, dependency or `check-commit.sh` changes the result for the same tree | Closed for node, pnpm, git, the lockfile hash and the script hash. Not for the OS, the vitest cache, environment variables (locale, `TZ`, `ARK_*`), the registry (the install is frozen, so little) | Version-keyed entries (done), a periodic refresh, CI as a cross-check |
+| A flaky pass cached | A commit that passed by luck (0.035 % random-id flake, perhaps more) is never checked again, so a failing commit can carry an entry forever | Not closed. Only exit 0 is written, so a flaky failure never enters the cache, but a flaky pass does | Periodic refresh. Tip CI. Entries expire after an age. Fixing the flakes |
+| `dist/` and `node_modules` state | A hit skips the install and the clean build, so these are left as the last real check left them, not as this commit has them. The next miss runs its own install and clean build, so a miss is not affected. Only a person who reads `dist/` after a rebase sees the wrong state | Not a gap for the check; the wrapper leaves a stale `dist/` behind after a hit | Run `pnpm build` after a rebase that ended on a hit, as today after any rebase |
+| Stale key, hash collision, shared store | A key that misses an input (a file the script reads outside the tree, such as `scripts/test-inputs.txt`, which is in the tree) or a store shared by people with other tool versions | The tree covers the files; the versions are in the key. A shared store needs a trust model (who may write) | Keep the store local, or write entries only from CI; check that entries match CI results |
+| Reorder where the tree differs | Not a gap. A reorder changes the tree of the first commit replayed and its parent, so it is always a miss, and a reorder of dependent commits fails the check as measured | Closed by construction | The check itself |
+| Selection depends on the diff against the parent | The selection can differ for equal trees (a log commit becomes a package commit after a reorder). A key without the selection would reuse a result of a check that ran fewer steps | Closed: the selection is in the key. At N=10 it turned a would-be hit into a miss | Selection in the key |
+
+Net effect, **derived**: the cache is as safe as the equality "same tree, same parent tree, same selection, same tools implies same result", which holds for any test that is a function of the tree and the tools. It fails for tests that read history, time, the network, the environment or randomness. The residual risk is a commit that passes by cache but would fail on a fresh run. It is bounded by the flake rate of one earlier run for each hit and by the unaudited history reads. Tip CI (a fresh run of the final state in every pull request, **measured** as how CI works today) catches a wrong hit at the tip only; a wrong hit in the middle of the branch stays visible only to `git bisect`, which is what the per-commit check exists to protect. The mitigations in order of cost: version keys (done, free), write only on exit 0 (done), tip CI (exists), a cron or merge-time job that reruns the check with `CACHE_MODE=refresh` over the last merged commits (about 78 s per commit of `main`, modelled), and a CI step that compares the commits the cache says passed with a CI run of the same trees.
+
+### Model for the options
+
+All rows are in `data/options.csv` (one row per option, scenario, operation and N, written by `scripts/options-model.mjs`; summary in `data/options-summary.csv`). Basis of every row is in its `basis` column; this section repeats it.
+
+**Inputs.** Per commit cost classes of the last 400 commits of `main` (`affected-share-400-summary.csv`, **measured**): docs 0.6 s (11.3 %), log 5.0 s (58.3 %), issues only 170.7 s (8.3 %), adr and issues 263.6 s (6.5 %), all packages 280.8 s (15.7 %). Mean 78.4 s per commit (**derived**), 247.2 s per test-running commit. Scenario `mixed` draws commits from all classes. Scenario `test-running` draws only from the three test-running classes (the worst realistic case, a branch of package commits). N: 1, 2, 5 (median work branch), 10, 17 (p90) and 20. The fixed part is 0: the intercepts of the pk fits are -7.8, -18.2, 0.9 and -8.8 s, within the noise of a two-point fit (**derived**). Every operation costs N times the mean before the option (**measured**: every operation costs the same as `first`), so before = 78.4 N.
+
+**Other parameters.** Cache hit 0.13 s and miss overhead 1.0 s (**measured**, above). Misses of a rewrite: rebase and fixup-first N, fixup-last 1, reorder 2, reword and repeat 0 (**measured** at N=5 and 10, generalised). The cost of a miss is the class mean, so the modelled saving of `fixup-last` (80 % at N=5) is higher than the measured 3 % of the cell above, where the changed commit is the heavy one; either can happen. Finer selection removes 13 % of test time at most (**derived**: 87 % of test time is in tests that start the built CLI) times the test share of the check time (96 %). 8 workers instead of 7 saves 3.5 % of test time (**measured**: 272.3 s against 262.8 s, **derived** percentage). Incremental build saves 1.1 s per non-docs commit (**measured**: clean 2.01 s against warm 0.92 s). Repeatability: the expected seconds spent repeating a spurious failure, at 0.035 % per test-running commit (**modelled**, the id flake) and at 5.7 % (the 95 % upper bound of 0 failures in 51 runs, **derived**). CI factor 1.8 (**derived**: CI issues job 295 s against 164 s here); one full CI test run is 508 runner seconds (**measured** medians, 295 + 169 + 44). Merged pull requests per day 4.6 (**derived**: 105 in 23 days). Session mix for the payback (**modelled**): one first verification, then 1.14 rewrites per branch (**measured** force pushes per work branch), of which 40 % rebase, 20 % fixup-last, 20 % reword, 10 % reorder, 10 % fixup-first.
+
+**Assumptions that the reader should challenge.** The options are modelled as independent unless the dependency table says otherwise. Finer selection is an upper bound, and the real gain is unknown. `verify-touched` assumes that unchanged patch-ids stay valid after a rebase, which the per-commit check exists to test. The CI matrix has no queueing and no runner start-up time. The merge queue's tip run is taken as the full 508 runner seconds. Lazy verification assumes a bisect range of 100 commits and 7 probes.
+
+### Wall time over N, per operation
+
+Wall seconds of the verification pass after the option, **modelled** (mixed scenario) unless the option row says derived. "No change" is the before value. `fixup-first` equals `rebase` except for "Verify touched commits only" (78 s at every N) and the merge queue (rebase only). Lazy verification costs 0 s locally by definition; its deferred cost is below.
+
+#### First verification of a branch
+
+| Option | 1 | 2 | 5 | 10 | 17 | 20 |
+|---|---|---|---|---|---|---|
+| No change | 78 | 157 | 392 | 784 | 1332 | 1567 |
+| Tree-hash cache | 79 | 159 | 397 | 794 | 1349 | 1587 |
+| Finer selection (upper bound) | 69 | 137 | 343 | 686 | 1166 | 1372 |
+| 8 workers | 76 | 152 | 379 | 758 | 1288 | 1515 |
+| Incremental build | 77 | 155 | 387 | 774 | 1316 | 1548 |
+| Seeds, timeouts (0.035 %) | 78 | 157 | 392 | 783 | 1332 | 1567 |
+| Seeds, timeouts (5.7 % bound) | 74 | 148 | 370 | 741 | 1259 | 1482 |
+| Verify touched commits only | 78 | 157 | 392 | 784 | 1332 | 1567 |
+| CI matrix per commit | 141 | 237 | 396 | 478 | 501 | 503 |
+| Merge queue | 78 | 157 | 392 | 784 | 1332 | 1567 |
+| Lazy (bisect time) | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| Cache + finer + 8 workers | 67 | 135 | 336 | 673 | 1144 | 1346 |
+
+#### Rebase onto newer main
+
+| Option | 1 | 2 | 5 | 10 | 17 | 20 |
+|---|---|---|---|---|---|---|
+| No change | 78 | 157 | 392 | 784 | 1332 | 1567 |
+| Tree-hash cache | 79 | 159 | 397 | 794 | 1349 | 1587 |
+| Finer selection (upper bound) | 69 | 137 | 343 | 686 | 1166 | 1372 |
+| 8 workers | 76 | 152 | 379 | 758 | 1288 | 1515 |
+| Incremental build | 77 | 155 | 387 | 774 | 1316 | 1548 |
+| Seeds, timeouts (0.035 %) | 78 | 157 | 392 | 783 | 1332 | 1567 |
+| Seeds, timeouts (5.7 % bound) | 74 | 148 | 370 | 741 | 1259 | 1482 |
+| Verify touched commits only | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| CI matrix per commit | 141 | 237 | 396 | 478 | 501 | 503 |
+| Merge queue | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| Lazy (bisect time) | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| Cache + finer + 8 workers | 67 | 135 | 336 | 673 | 1144 | 1346 |
+
+#### Reword
+
+| Option | 1 | 2 | 5 | 10 | 17 | 20 |
+|---|---|---|---|---|---|---|
+| No change | 78 | 157 | 392 | 784 | 1332 | 1567 |
+| Tree-hash cache | 0.1 | 0.3 | 0.7 | 1.3 | 2.2 | 2.6 |
+| Finer selection (upper bound) | 69 | 137 | 343 | 686 | 1166 | 1372 |
+| 8 workers | 76 | 152 | 379 | 758 | 1288 | 1515 |
+| Incremental build | 77 | 155 | 387 | 774 | 1316 | 1548 |
+| Seeds, timeouts (0.035 %) | 78 | 157 | 392 | 783 | 1332 | 1567 |
+| Seeds, timeouts (5.7 % bound) | 74 | 148 | 370 | 741 | 1259 | 1482 |
+| Verify touched commits only | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| CI matrix per commit | 141 | 237 | 396 | 478 | 501 | 503 |
+| Merge queue | 78 | 157 | 392 | 784 | 1332 | 1567 |
+| Lazy (bisect time) | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| Cache + finer + 8 workers | 0.1 | 0.3 | 0.7 | 1.3 | 2.2 | 2.6 |
+
+#### Fixup of the last commit
+
+| Option | 1 | 2 | 5 | 10 | 17 | 20 |
+|---|---|---|---|---|---|---|
+| No change | 78 | 157 | 392 | 784 | 1332 | 1567 |
+| Tree-hash cache | 79 | 80 | 80 | 80 | 82 | 82 |
+| Finer selection (upper bound) | 69 | 137 | 343 | 686 | 1166 | 1372 |
+| 8 workers | 76 | 152 | 379 | 758 | 1288 | 1515 |
+| Incremental build | 77 | 155 | 387 | 774 | 1316 | 1548 |
+| Seeds, timeouts (0.035 %) | 78 | 157 | 392 | 783 | 1332 | 1567 |
+| Seeds, timeouts (5.7 % bound) | 74 | 148 | 370 | 741 | 1259 | 1482 |
+| Verify touched commits only | 78 | 78 | 78 | 78 | 78 | 78 |
+| CI matrix per commit | 141 | 237 | 396 | 478 | 501 | 503 |
+| Merge queue | 78 | 157 | 392 | 784 | 1332 | 1567 |
+| Lazy (bisect time) | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| Cache + finer + 8 workers | 67 | 67 | 68 | 68 | 69 | 70 |
+
+#### Reorder of two commits
+
+| Option | 1 | 2 | 5 | 10 | 17 | 20 |
+|---|---|---|---|---|---|---|
+| No change | n/a | 157 | 392 | 784 | 1332 | 1567 |
+| Tree-hash cache | n/a | 159 | 159 | 160 | 161 | 161 |
+| Finer selection (upper bound) | n/a | 137 | 343 | 686 | 1166 | 1372 |
+| 8 workers | n/a | 152 | 379 | 758 | 1288 | 1515 |
+| Incremental build | n/a | 155 | 387 | 774 | 1316 | 1548 |
+| Seeds, timeouts (0.035 %) | n/a | 157 | 392 | 783 | 1332 | 1567 |
+| Seeds, timeouts (5.7 % bound) | n/a | 148 | 370 | 741 | 1259 | 1482 |
+| Verify touched commits only | n/a | 157 | 157 | 157 | 157 | 157 |
+| CI matrix per commit | n/a | 237 | 396 | 478 | 501 | 503 |
+| Merge queue | n/a | 157 | 392 | 784 | 1332 | 1567 |
+| Lazy (bisect time) | n/a | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| Cache + finer + 8 workers | n/a | 135 | 135 | 136 | 136 | 137 |
+
+The same for a branch of test-running commits (scenario `test-running`, N=5 and 17, before = 1236 s and 4202 s):
+
+#### Test-running, first verification
+
+A rebase costs the same except for "Verify touched commits only" and the merge queue, which cost 0 s.
+
+| Option | 5 | 17 |
+|---|---|---|
+| No change | 1236 | 4202 |
+| Tree-hash cache | 1241 | 4219 |
+| Finer selection (upper bound) | 1078 | 3667 |
+| 8 workers | 1194 | 4058 |
+| Incremental build | 1230 | 4183 |
+| Seeds, timeouts (0.035 %) | 1235 | 4200 |
+| Seeds, timeouts (5.7 % bound) | 1165 | 3962 |
+| Verify touched commits only | 1236 | 4202 |
+| CI matrix per commit | 504 | 505 |
+| Merge queue | 1236 | 4202 |
+| Lazy (bisect time) | 0.0 | 0.0 |
+| Cache + finer + 8 workers | 1046 | 3558 |
+
+#### Test-running, fixup of the last commit
+
+| Option | 5 | 17 |
+|---|---|---|
+| No change | 1236 | 4202 |
+| Tree-hash cache | 249 | 250 |
+| Finer selection (upper bound) | 1078 | 3667 |
+| 8 workers | 1194 | 4058 |
+| Incremental build | 1230 | 4183 |
+| Seeds, timeouts (0.035 %) | 1235 | 4200 |
+| Seeds, timeouts (5.7 % bound) | 1165 | 3962 |
+| Verify touched commits only | 247 | 247 |
+| CI matrix per commit | 504 | 505 |
+| Merge queue | 1236 | 4202 |
+| Lazy (bisect time) | 0.0 | 0.0 |
+| Cache + finer + 8 workers | 210 | 211 |
+
+### What each option changes
+
+The fixed part is 0 for every option (**derived**), so the effect is on the per-commit part and on the share of work that is avoidable. Avoidable work (**measured** counts, **derived** seconds, column `avoidable_s`): at N=5 in the mixed scenario a reword, a repeat and a fixup of the last commit repeat 392, 392 and 314 s of checks of unchanged commits, a rebase and a fixup of the first commit 0 s. At N=17 the same operations repeat 1332, 1332 and 1254 s. Only rewrites that keep the tree of most commits have avoidable work, and a rebase onto newer main has none that a tree-keyed method can see.
+
+| Option | Fixed part | Per-commit part (mixed, before 78.4 s) | Avoidable work removed | Basis |
+| --- | --- | --- | --- | --- |
+| Tree-hash cache | none | 0.13 s on a hit, +1.0 s on a miss | All of it for reword, repeat, fixup-last, reorder; none for rebase and fixup-first | measured at N=5, 10; modelled for other N |
+| Finer selection | none | down to 68.6 s (-12.5 %) at best | none | modelled, upper bound |
+| 8 workers | none | 75.8 s (-3.3 %) | none | derived |
+| Incremental build | none | 77.5 s (-1.1 s) | none | derived |
+| Seeds, timeouts | none | 78.4 to 74.0 s (the expected repeat of a spurious failure: 0.03 to 4.5 s) | none | modelled |
+| Verify touched commits only | none | 78.4 s for each touched commit, 0 for the others | all except touched commits, including rebase | modelled |
+| CI per-commit matrix | none | unchanged per commit; wall is the slowest commit | none (machine time is spent in CI) | modelled |
+| Merge queue | none | unchanged | the rebase onto moved main (46 % of work branches, **derived**) | modelled |
+| Lazy verification | none | 0 until a bisect | all, deferred | modelled |
+
+### Break-even, dependencies and adoption cost
+
+Break-even N is the smallest N at which the wall time after is lower than before, from `data/options-summary.csv` (**modelled**; "never" means the overhead is never repaid for that operation). Payback is the working days until the saving of the modelled session (N=5 and N=17, mixed) equals the effort at 8 hours per person-day and 4.6 branches per day; the effort figures are estimates (**modelled**) and the saving counts waiting time as equal to working time.
+
+| Option | Break-even N (first, rebase, reword) | Session at N=5 and N=17, before to after (s) | Payback in days (N=5, N=17) | Depends on | Effort (person-days) | CI spend | Tooling | Developer workflow |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Tree-hash cache | never, never, 1 | 839 to 660, 2851 to 2156 | 106, 27 | none | 2 to 4 | 0, plus an optional cross-check job | script, cache directory or git notes | none for the author; entries may hide a flake |
+| Finer selection | 1, 1, 1 | 839 to 734, 2851 to 2495 | 603, 177 | none; works with the cache | 5 to 15 | 0 | vitest related, changed or recordDependencies, kept in step with `test-inputs.txt` | none; a missed test is a silent gap |
+| 8 workers | 1, 1, 1 | 839 to 811, 2851 to 2756 | 23, 7 | none | 0.1 | 0 (CI has 4 cores and 6 workers) | one flag in `check-commit.sh` | none; host dependent |
+| Incremental build | 1, 1, 1 | 839 to 828, 2851 to 2816 | 457, 134 | none | 0.5 to 1 | 0 | edit `check-commit.sh` | stale output can hide a missing export |
+| Seeds, timeouts (5.7 % bound) | 1, 1, 1 | 839 to 793, 2851 to 2695 | 274, 81 | none | 1 to 3 | 0 | test fixes outside this investigation | none |
+| Verify touched commits only | never, 1, 1 | 839 to 437, 2851 to 1377 | 24, 6 | a store of verified patch-ids | 1 to 2 | 0 | notes or a file of patch-ids | people verify only what they touched; main movement is not rechecked locally |
+| CI matrix per commit | 6, 6, 6 | 839 to 846, 2851 to 1072 | none at N=5, 5 at N=17 | none; with a cache it gets cheaper | 1 to 2 | (N-1) more checks per push, 564 runner s at N=5 and 2257 at N=17 | workflow change | wait for CI instead of the local run |
+| Merge queue | never, 1, never | 839 to 660, 2851 to 2244 | 27, 8 | none | 0.5 to 1 | one tip run per merge, up to 508 runner s | branch rule and `merge_group` trigger | queue wait |
+| Lazy verification | 1, 1, 1 | 839 to 0, 2851 to 0, deferred | see below | a bisect script; the bisect needs buildable commits | 1 | 0 | bisect runner of `check-commit.sh` | no per-commit assurance at merge |
+| Cache + finer selection + 8 workers | 1, 1, 1 | 839 to 559, 2851 to 1828 | not computed | the parts | sum of the parts | 0 | sum | sum |
+
+Lazy verification, **modelled**: a bisect over 100 commits takes 7 probes of 247 s (test-running commits), 1730 s. The eager session costs 839 s at N=5 and 2851 s at N=17 (mixed), so lazy is cheaper while fewer than 0.48 bisect sessions per branch (N=5) or 1.65 (N=17) are needed. For test-running branches the thresholds are 1.5 and 5.2. The cost that lazy hides is that a commit that does not build or pass is found by the bisect, not at the branch, which is the failure per-commit verification was built to prevent (commit `47c22a5`: a docs-only commit that broke a test and still passed).
+
+Dependencies between options (**derived** from how they work):
+
+- Tree cache, finer selection, 8 workers, incremental build and the repeatability fixes are independent and multiply, so a cache plus the run-time options bring the modelled session at N=5 (mixed) to 559 s against 839 s.
+- Verify touched and the cache save the same work for reword, fixup and reorder; verify touched also skips the rebase and gives up the guarantee that commits are valid on the new base. The cache does not do that, so the cache is a way to get most of verify touched for rewrites that keep trees, without the loss, but gets nothing for a rebase.
+- The CI matrix needs the cache or a CI-side store to avoid its extra (N-1) test runs on repeated pushes; without it, 4.6 branches a day at N=5 spend 564 extra runner seconds each push.
+- The merge queue replaces re-verification after main moves, and only helps together with a per-commit check that runs before the branch is rebased; it does not check commits itself.
+- Lazy verification replaces all the others for the per-commit check, and needs the tip check (CI) and a bisect that can build every commit.
+- Repeatability fixes reduce the cost of the cache's flaky-pass risk and of the cost of rerun; they are a precondition for a safe cache or a CI cross-check.
+
+What the data cannot say: whether any test depends on git history above the tree, the real gain of finer selection beyond the 13 % bound, the size of main movement in the paths a rebase touches (a key built from the tested scope instead of the full tree could hit across a rebase onto docs-only main commits, but 30.5 % of main commits run tests, so for 5 or more moved commits a rebase would be mostly a miss anyway, **modelled**), and CI wall time on the actual runners.
+
 ## To be added in later parts
 
-- Options that change the curve and a recommendation (to be added).
-- A model of the cost for a branch of N commits of mixed kinds beyond the expected-cost table above (to be added; labelled **modelled**).
+- A recommendation (to be added).
 
 ## Reproducing
 
