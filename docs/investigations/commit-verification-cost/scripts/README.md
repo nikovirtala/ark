@@ -56,6 +56,19 @@ node $D/scripts/fit-cost.mjs                                                    
 
 Plans: `ops-plan.txt` (old window, N=1 to 5), `ops-plan-large.txt` (old window, N=10 and 20), `ops-plan-pk.txt`, `ops-plan-pair.txt`, `ops-plan-breaks.txt` (time to first failure). Operations are listed in the header of `run-branch-op.sh`. Run cells serially: parallel runs distort timing. Wall time per cell is the per-commit cost times N (about 300 s per package commit in the pk window, about 4 s per log commit).
 
+| Script | What it does | Output in `data/` |
+|---|---|---|
+| `run-branch-op.sh` | One cell: builds a branch of N commits, applies one operation, runs `git rebase --exec` on it and records the result | one row in `ops-cells.csv`, `ops/<cell>.jsonl` (one row per checked commit), `ops/<cell>.pre.json` and `.post.json` |
+| `run-grid.sh` | Runs the cells of a plan serially within a budget, skipping finished cells | via `run-branch-op.sh` |
+| `ops-setup.sh` | Creates the refs of a window in a scratch clone | none |
+| `exec-check.sh` | The `--exec` command of a cell: runs `$OPS_CHECK` (default `scripts/check-commit.sh`), times it and calls `ops-record.mjs` | rows for `ops/<cell>.jsonl` |
+| `ops-cell.mjs` | Called by `run-branch-op.sh`: writes one row to `ops-cells.csv` (wall and machine time of the verification pass, commits checked, rewritten and changed, per-commit sums) | `ops-cells.csv` |
+| `ops-record.mjs` | Called by `exec-check.sh`: appends one JSON line per checked commit (identity, mode, timing, tests executed, read from vitest's summary) | `ops/<cell>.jsonl` |
+| `fit-cost.mjs` | Derives `fit.csv` (wall and machine time against N; the two-value fits are two-point slopes marked "not fitted" with an empty r2), `kind-costs.csv`, `cost-along-branch.csv`, `model-vs-measured.csv`, `first-failure.csv` and `rewrite-counts.csv` from the cells | those files |
+| `cost-table.mjs` | Writes `cost-table.csv` from `ops-cells.csv` | `cost-table.csv` |
+
+Every row of `fit.csv` is **derived** from measured cells, none is a measurement.
+
 ## Quick mode
 
 `measure.sh --quick` runs one repeat of the phases and the adr tests, about 2 minutes. Use `--out <dir>` to keep a quick run apart from the real data:
@@ -67,6 +80,9 @@ node $D/scripts/summarize.mjs --data /tmp/quick
 ```
 
 ## Caveats
+
+- The raw vitest reports in `data/reports/**/*.json` are formatted by biome (the repository's formatter, run by `pnpm lint`). Their content is the tool's output; the whitespace is not byte-identical to it.
+- The cache key of `check-commit-cached.sh` holds the arguments as text, not the base they resolve to. Use the documented form without an argument (`git rebase --exec scripts/check-commit-cached.sh <base>`); an explicit base argument could hit across a moved base.
 
 - `RESUME=1` matches rows by run, package and workers. Delete a row (and its report) to measure it again. One chunk of the 4-worker sweep ran twice before the resume match was fixed; the CSV keeps the later row of each pair, which matches the report on disk.
 - A test run that fails still gets a row (exit not 0) and its report. `summarize.mjs` lists the failing tests.
@@ -124,7 +140,7 @@ Run time on the measured host: N=5 about 3 minutes per cold or miss-heavy cell a
 | `cost-table.mjs` | Groups `ops-cells.csv` by window, operation and N: median wall and machine time, range, repeats, rewritten and tree-changed counts. Also prints the table as Markdown | `cost-table.csv` |
 | `audit-history-reads.sh` | Read-only audit of the test files for git history commands, use of the working directory as a repository, child processes without a `cwd`, and the files listed in `scripts/test-inputs.txt` | `audit-history-reads.txt` (saved from stdout) |
 | `trace-git-in-repo.sh` | Runs `pnpm -r run test` with a `git` shim first on `PATH` that logs every call whose working directory or argument is inside the checkout, then prints counts per subcommand and the number of history commands. Needs a built repository; about 5.5 minutes. `TRACE_DIR` sets the log directory | `trace-git-in-repo.txt` (the summary, saved with the run header and the list of distinct calls) |
-| `check-numbers.mjs` | Compares 36 numbers quoted in `pull-request-body.md` with the data files and exits 1 on a difference | none |
+| `check-numbers.mjs` | Compares 39 numbers quoted in `pull-request-body.md` with the data files and exits 1 on a difference | none |
 
 ```sh
 source ~/.nvm/nvm.sh; nvm use 24

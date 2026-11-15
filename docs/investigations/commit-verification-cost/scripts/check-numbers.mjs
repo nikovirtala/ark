@@ -93,37 +93,90 @@ const checks = [
   ["ci-matrix N=17 after", opt("ci-matrix", "mixed", "first", 17, "after_wall_s"), 501, 0],
   [
     "session N=5 before",
-    Number(os.find((r) => r.option === "tree-cache" && r.scenario === "mixed").session_before_n5_s),
+    Number(
+      os.find(
+        (r) =>
+          r.option === "tree-cache" && r.scenario === "mixed" && r.policy === "every-force-push",
+      ).session_before_n5_s,
+    ),
     839,
     0,
   ],
   [
     "session N=17 after",
-    Number(os.find((r) => r.option === "tree-cache" && r.scenario === "mixed").session_after_n17_s),
+    Number(
+      os.find(
+        (r) =>
+          r.option === "tree-cache" && r.scenario === "mixed" && r.policy === "every-force-push",
+      ).session_after_n17_s,
+    ),
     2156,
     0,
   ],
   [
     "test-running session N=17 after",
     Number(
-      os.find((r) => r.option === "tree-cache" && r.scenario === "test-running")
-        .session_after_n17_s,
+      os.find(
+        (r) =>
+          r.option === "tree-cache" &&
+          r.scenario === "test-running" &&
+          r.policy === "every-force-push",
+      ).session_after_n17_s,
     ),
     6738,
     0,
   ],
   [
     "payback N=5 days",
-    Number(os.find((r) => r.option === "tree-cache" && r.scenario === "mixed").payback_days_n5),
-    106,
+    Number(
+      os.find(
+        (r) =>
+          r.option === "tree-cache" && r.scenario === "mixed" && r.policy === "every-force-push",
+      ).payback_days_n5,
+    ),
+    142,
     0,
   ],
   [
     "payback finer N=5 days",
     Number(
-      os.find((r) => r.option === "finer-selection" && r.scenario === "mixed").payback_days_n5,
+      os.find(
+        (r) =>
+          r.option === "finer-selection" &&
+          r.scenario === "mixed" &&
+          r.policy === "every-force-push",
+      ).payback_days_n5,
     ),
-    603,
+    812,
+    0,
+  ],
+  [
+    "session N=5 after, once before ready",
+    Number(
+      os.find((r) => r.option === "tree-cache" && r.scenario === "mixed" && r.policy === "once")
+        .session_after_n5_s,
+    ),
+    397,
+    0,
+  ],
+  [
+    "session N=5 after, one rewrite",
+    Number(
+      os.find(
+        (r) => r.option === "tree-cache" && r.scenario === "mixed" && r.policy === "one-rewrite",
+      ).session_after_n5_s,
+    ),
+    627,
+    0,
+  ],
+  [
+    "payback N=5 days, one rewrite",
+    Number(
+      os.find(
+        (r) => r.option === "tree-cache" && r.scenario === "mixed" && r.policy === "one-rewrite",
+      ).payback_days_n5,
+    ),
+    163,
     0,
   ],
   ["cache N=5 first again", cw("cn05-first-r1"), 1.0, 1],

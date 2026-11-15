@@ -57,7 +57,7 @@ const PARAMS = {
   hit_machine_s: 0.22, // measured: user+sys per hit, N=5 and 10 repeat runs
   machine_per_wall: 6.77, // derived: mean machine time per wall second over the 400-commit class mix
   test_share_mixed: 0.96, // measured: share of check time in commits that run tests (400 commits)
-  test_share_pkg: 0.98, // derived: tests are 98 % of a test-running check (phases table)
+  test_share_pkg: 0.97, // derived: tests are 97 % of a test-running check (272.3 s of 280.3 s)
   selectable_test_share: 0.13, // derived: unit, git and property tests that import src (upper bound for related/changed)
   workers8_gain: 1 - 262.8 / 272.3, // derived: default 7 workers 272.3 s vs 8 workers 262.8 s (measured)
   incremental_build_gain_s: 2.01 - 0.92, // measured: clean vs warm build (phases.csv)
@@ -66,7 +66,7 @@ const PARAMS = {
   ci_factor: 1.8, // derived: CI issues job 295 s median vs 164 s here
   ci_full_runner_s: 295 + 169 + 44, // measured: CI test jobs median, issues + adr + ledger
   bisect_range: 100, // modelled: commits between a good and a bad commit
-  branches_per_day: 105 / 23, // derived: 105 merged pull requests in 23 days
+  branches_per_day: prs.work_merged.commits.n / 23, // derived: 78 merged work branches in 23 days (the 27 release-bot branches have N=1 and are not priced)
   force_pushes: prs.work_merged.force_pushes.mean, // measured: 1.14 per work branch
   main_moved_share: prs.work_merged.share_main_moved_while_open, // derived: 0.462
 };
@@ -418,10 +418,14 @@ const mixOps = {
   reorder: 0.1,
   "fixup-first": 0.1,
 }; // modelled assumption
-const session = (opt, sname, n, field) => {
+// Verification policies (modelled). "once": AGENTS.md, one per-commit check before the branch is marked
+// ready, so a session is the first verification only. "one-rewrite": one re-verification after a rewrite.
+// "every-force-push": every force push is re-verified (1.14 per work branch, which also counts amends).
+const policies = { once: 0, "one-rewrite": 1, "every-force-push": PARAMS.force_pushes };
+const session = (opt, sname, n, field, rewrites = PARAMS.force_pushes) => {
   const get = (op) => table[`${opt}|${sname}|${op}|${n}`][field];
   let t = get("first");
-  for (const [op, w] of Object.entries(mixOps)) t += PARAMS.force_pushes * w * get(op);
+  for (const [op, w] of Object.entries(mixOps)) t += rewrites * w * get(op);
   return t;
 };
 const breakEven = (opt, sname, op) => {
@@ -519,45 +523,66 @@ const adoption = {
     "see parts",
   ],
 };
+// How each option weakens "every commit passes on its own" (see findings.md, "How each option weakens...").
+const weakens = {
+  "tree-cache":
+    "a hit reuses an earlier run for an equal key; eight gaps listed in findings.md; closed by key, refresh runs and tip CI",
+  "finer-selection": "a test the selection misses never runs for that commit; silent",
+  "workers-8":
+    "none by design; the timeout margin of scope.test.ts shrinks (2255 to 2457 ms of 5000 ms), so a flaky failure becomes likelier",
+  "incremental-build": "stale dist/ or tsbuildinfo can hide a missing export or a build error",
+  "repeatability-low": "none; fewer spurious failures",
+  "repeatability-bound": "none; the same change priced at the upper bound, not an expected saving",
+  "verify-touched": "untouched commits are not checked on their new base; a rebase checks nothing",
+  "ci-matrix": "none for the commit, but the result arrives after a push, not before it",
+  "merge-queue":
+    "a rebase onto moved main gets a tip check only; commits below the tip are not checked on the new base",
+  "lazy-bisect": "no check at merge; a broken commit is found by a later bisect",
+  "cache+faster": "the sum of the parts",
+};
 const sum = [
-  "option,name,scenario,break_even_n_first,break_even_n_rebase,break_even_n_reword,session_before_n5_s,session_after_n5_s,session_before_n17_s,session_after_n17_s,payback_days_n5,payback_days_n17,depends_on,ci_spend,effort_person_days,tooling,workflow,basis",
+  "option,name,scenario,policy,break_even_n_first,break_even_n_rebase,break_even_n_reword,session_before_n5_s,session_after_n5_s,session_before_n17_s,session_after_n17_s,payback_days_n5,payback_days_n17,depends_on,ci_spend,effort_person_days,tooling,workflow,weakens_every_commit_passes,basis",
 ];
 for (const [sname] of Object.entries(scenarios)) {
-  for (const o of options) {
-    if (o.id === "baseline") continue;
-    const a = adoption[o.id];
-    const s5 = prs.expected_cost.work_median.n;
-    const s17 = prs.expected_cost.work_p90.n;
-    const b5 = session("baseline", sname, s5, "before");
-    const a5 = session(o.id, sname, s5, "after");
-    const b17 = session("baseline", sname, s17, "before");
-    const a17 = session(o.id, sname, s17, "after");
-    const effort = a[2].match(/[\d.]+/g)?.map(Number) ?? [0];
-    const eff = effort.length > 1 ? (effort[0] + effort[1]) / 2 : effort[0];
-    const payback = (save) =>
-      save > 0 && eff ? round((eff * 8 * 3600) / (save * PARAMS.branches_per_day), 1) : "";
-    sum.push(
-      [
-        o.id,
-        `"${o.name}"`,
-        sname,
-        breakEven(o.id, sname, "first"),
-        breakEven(o.id, sname, "rebase"),
-        breakEven(o.id, sname, "reword-mid"),
-        round(b5),
-        round(a5),
-        round(b17),
-        round(a17),
-        payback(b5 - a5),
-        payback(b17 - a17),
-        `"${a[0]}"`,
-        `"${a[3]}"`,
-        `"${a[2]}"`,
-        `"${a[4]}"`,
-        `"${a[5]}"`,
-        "modelled",
-      ].join(","),
-    );
+  for (const [pname, rw] of Object.entries(policies)) {
+    for (const o of options) {
+      if (o.id === "baseline") continue;
+      const a = adoption[o.id];
+      const s5 = prs.expected_cost.work_median.n;
+      const s17 = prs.expected_cost.work_p90.n;
+      const b5 = session("baseline", sname, s5, "before", rw);
+      const a5 = session(o.id, sname, s5, "after", rw);
+      const b17 = session("baseline", sname, s17, "before", rw);
+      const a17 = session(o.id, sname, s17, "after", rw);
+      const effort = a[2].match(/[\d.]+/g)?.map(Number) ?? [0];
+      const eff = effort.length > 1 ? (effort[0] + effort[1]) / 2 : effort[0];
+      const payback = (save) =>
+        save > 0 && eff ? round((eff * 8 * 3600) / (save * PARAMS.branches_per_day), 1) : "";
+      sum.push(
+        [
+          o.id,
+          `"${o.name}"`,
+          sname,
+          pname,
+          breakEven(o.id, sname, "first"),
+          breakEven(o.id, sname, "rebase"),
+          breakEven(o.id, sname, "reword-mid"),
+          round(b5),
+          round(a5),
+          round(b17),
+          round(a17),
+          payback(b5 - a5),
+          payback(b17 - a17),
+          `"${a[0]}"`,
+          `"${a[3]}"`,
+          `"${a[2]}"`,
+          `"${a[4]}"`,
+          `"${a[5]}"`,
+          `"${weakens[o.id]}"`,
+          "modelled",
+        ].join(","),
+      );
+    }
   }
 }
 // Lazy verification: bisect sessions per branch at which lazy costs as much as eager (modelled).
@@ -571,6 +596,7 @@ for (const [sname, s] of Object.entries(scenarios)) {
         `lazy-bisect-breakeven`,
         `"bisect sessions per branch at which lazy equals eager, N=${n}, ${steps} probes of ${round(s.meanTest)} s"`,
         sname,
+        "every-force-push",
         "",
         "",
         "",
@@ -580,6 +606,7 @@ for (const [sname, s] of Object.entries(scenarios)) {
         "",
         round(eager / bisect, 2),
         "",
+        '""',
         '""',
         '""',
         '""',

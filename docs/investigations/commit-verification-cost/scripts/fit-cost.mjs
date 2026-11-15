@@ -68,31 +68,47 @@ function ols(X, y) {
 }
 
 // 1. Per-operation fit. Cells that failed (exit not 0) or are not a plain operation are left out.
+//    Every fit is derived (arithmetic on measured cells), none is a measurement. A line through two
+//    distinct N has no residual by construction: it is a two-point slope, not a fitted model, and its
+//    r2 is left empty. Wall time and machine time (user + sys) are fitted on the same cells.
 const plain = (c) => c.exit === 0 && c.checked === c.n && !/^(break|alone)/.test(c.op);
-const fit = ["cell,window,op,points,distinct_n,fixed_s,per_commit_s,r2,basis"];
-fit.length = 0;
-fit.push("window,op,points,distinct_n,fixed_s,per_commit_s,r2,basis,note");
+const fit = [
+  "window,op,points,distinct_n,fixed_s,per_commit_s,r2,fixed_machine_s,per_commit_machine_s,r2_machine,basis,note",
+];
+const machine = (c) => c.verify_user_s + c.verify_sys_s;
 for (const w of ["pk", "old"]) {
   const ops = [...new Set(cells.filter((c) => c.window === w && plain(c)).map((c) => c.op))];
   for (const op of ops) {
     const cs = cells.filter((c) => c.window === w && c.op === op && plain(c));
     const ns = new Set(cs.map((c) => c.n));
+    const kindNote =
+      w === "old" ? "mixed commit kinds; see kind-costs.csv" : "package-testing commits";
     if (ns.size >= 2) {
-      const { b, r2 } = ols(
-        cs.map((c) => [1, c.n]),
+      const X = cs.map((c) => [1, c.n]);
+      const wall = ols(
+        X,
         cs.map((c) => c.verify_wall_s),
       );
+      const mach = ols(X, cs.map(machine));
+      const two = ns.size === 2;
       fit.push(
         [
           w,
           op,
           cs.length,
           ns.size,
-          f1(b[0]),
-          f1(b[1]),
-          f3(r2),
-          "measured fit",
-          w === "old" ? "mixed commit kinds; see kind-costs.csv" : "package-testing commits",
+          f1(wall.b[0]),
+          f1(wall.b[1]),
+          two ? "" : f3(wall.r2),
+          f1(mach.b[0]),
+          f1(mach.b[1]),
+          two ? "" : f3(mach.r2),
+          two
+            ? "derived; two-point slope; not fitted (under-determined)"
+            : "derived; least squares",
+          two
+            ? `${kindNote}; two distinct N: no residual; intercept and linearity are not established`
+            : kindNote,
         ].join(","),
       );
     } else {
@@ -106,8 +122,11 @@ for (const w of ["pk", "old"]) {
           "",
           f1(mean(cs.map((c) => c.verify_wall_s / n))),
           "",
-          "derived (one N)",
-          `wall over ${n} commits`,
+          "",
+          f1(mean(cs.map((c) => machine(c) / n))),
+          "",
+          "derived (one N; not fitted)",
+          `wall and machine time over ${n} commits divided by ${n}`,
         ].join(","),
       );
     }
@@ -115,20 +134,27 @@ for (const w of ["pk", "old"]) {
 }
 
 // 2. Kind-weighted fit on the per-commit rows of the largest "first" run of the mixed window:
-//    running total(N) = a + b*N + c*(package commits among the first N).
+//    running total(N) = a + b*N + c*(package commits among the first N), for wall and machine time.
 const big = rows("n20-first-r1");
 if (big.length) {
   const cum = [];
   let run = 0;
+  let runM = 0;
   let pk = 0;
   big.forEach((r, i) => {
     run += r.wall_s;
+    runM += r.user_s + r.sys_s;
     if (r.mode === "pkg") pk += 1;
-    cum.push({ n: i + 1, run, pk });
+    cum.push({ n: i + 1, run, runM, pk });
   });
-  const { b, r2 } = ols(
-    cum.map((c) => [1, c.n, c.pk]),
+  const X = cum.map((c) => [1, c.n, c.pk]);
+  const wall = ols(
+    X,
     cum.map((c) => c.run),
+  );
+  const mach = ols(
+    X,
+    cum.map((c) => c.runM),
   );
   fit.push(
     [
@@ -136,10 +162,13 @@ if (big.length) {
       "first; kind-weighted (running total over the 20 prefixes)",
       cum.length,
       cum.length,
-      f1(b[0]),
-      `${f1(b[1])} per commit + ${f1(b[2])} per package commit`,
-      f3(r2),
-      "derived from measured rows",
+      f1(wall.b[0]),
+      `${f1(wall.b[1])} per commit + ${f1(wall.b[2])} per package commit`,
+      f3(wall.r2),
+      f1(mach.b[0]),
+      `${f1(mach.b[1])} per commit + ${f1(mach.b[2])} per package commit`,
+      f3(mach.r2),
+      "derived; least squares on measured rows (prefixes overlap so r2 is optimistic)",
       "total(N) = fixed + per_commit*N + package*Npkg",
     ].join(","),
   );
