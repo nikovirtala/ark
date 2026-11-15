@@ -1,0 +1,8 @@
+window,kind,observations,mean_wall_s,min_wall_s,max_wall_s,mean_tests,basis
+old,docs,3,0.529,0.527,0.531,0.0,measured
+old,log,41,4.167,4.032,4.376,0.0,measured
+old,pkg:adr+issues+ledger,2,267.422,266.989,267.855,768.0,measured
+old,pkg:issues,8,162.585,157.283,167.926,777.8,measured
+pk,pkg:issues,7,309.406,302.343,314.409,733.7,measured
+pr,docs,1,0.529,0.529,0.529,0.0,measured
+pr,pkg:issues,1,319.030,319.030,319.030,768.0,measured

@@ -1,0 +1,16 @@
+# Window pk (data/ops-window.txt), real package-testing commits. Run with OPS_WIN, OPS_PFX=pk, OPS_TAG=pk-.
+# n op rep, in run order.
+1 first 1
+1 rebase 1
+1 fixup-first 1
+1 reword-mid 1
+2 first 1
+2 rebase 1
+2 fixup-first 1
+2 fixup-last 1
+2 reword-mid 1
+2 reorder 1
+1 first 2
+1 first 3
+2 first 2
+# alone-K cells (one commit checked on its own) were run by hand with run-branch-op.sh --n K --op alone-K.

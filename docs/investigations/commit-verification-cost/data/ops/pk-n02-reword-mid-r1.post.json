@@ -1,0 +1,16 @@
+[
+  {
+    "sha": "79286240c277",
+    "tree": "6022c7974107",
+    "patch": "61e27c7b00fc",
+    "msg": "bc2174b5219d",
+    "subject": "feat(issues): let edits refuse an incomplete description when committing (reworded)"
+  },
+  {
+    "sha": "e8d4bb22136d",
+    "tree": "bdc18e88aa74",
+    "patch": "ef7a274c9dd3",
+    "msg": "8c49248f375c",
+    "subject": "feat(issues): add the issues mcp tools that open, update and comment"
+  }
+]

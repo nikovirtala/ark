@@ -1,0 +1,14 @@
+Why a reorder run exits 1 (raw excerpts of the check logs; commit sha prefixes as in the cells)
+
+== n02-reorder (old window, c1 and c2: two log commits that each regenerate docs/issues/index.md)
+git rebase --exec stops at the first failing check: the second commit was never checked (checked=1, exit=1).
+check-commit: issues-verify: check ark's issue log against 13f504e75d257d7a2ae5d6784ad2d331608be5b1
+docs/issues/index.md: error: docs/issues/index.md is not what the tool generates; run issues index and commit it [index/stale]
+1 error, 1 warning
+
+== pk-n02-reorder (window pk, c1 and c2: c2 uses an option that c1 adds)
+check-commit: install: not docs only; makes node_modules match this commit's lockfile
+check-commit: build: CLI and e2e tests spawn the built binaries, and dependents import dependencies' dist/
+packages/issues/src/mcp/write-tools.ts(118,20): error TS2353: Object literal may only specify known properties, and 'refuseIncomplete' does not exist in type 'WriteOptions & { readonly edit?: Editor; }'.
+
+== pr-n02-reorder (independent pair: a test-only commit and a docs-only commit): exit 0, both checked

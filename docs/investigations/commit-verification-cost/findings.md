@@ -1,6 +1,6 @@
 # What verifying every commit of a branch costs
 
-Status: draft, part 1 of 3. This part covers the stack, the workflow, a single verification run, where its time goes, and how reproducible it is. The cost curve over the number of commits, what drives it, and the options and recommendation are added in later parts and are marked "to be added" below.
+Status: draft, part 2 of 3. This part covers the stack, the workflow, a single verification run, where its time goes, how reproducible it is, and the cost over the number of commits. The options and recommendation are added in later parts and are marked "to be added" below.
 
 ## How to read the numbers
 
@@ -289,9 +289,135 @@ All **measured** (greps over `packages/*/src`).
 - The clock: 36 test lines use `Date.now` or `new Date`, no test uses fake timers, and the code stamps events with the real time. Tests that need order use a `clock` option of the temp repository. A run is not bound to the date, and two commits in one millisecond are handled by the ULID factory.
 - The number of cores and the load of the machine, through test timeouts as shown above.
 
+## Cost over the number of commits
+
+Raw data: `data/ops-cells.csv` (one row per cell), `data/ops/<cell>.jsonl` (one row per checked commit), `<cell>.pre.json` and `<cell>.post.json` (the commits before and after the operation). A cell is a branch of N real commits, one operation on it, and then the verification of `AGENTS.md`: `git rebase --exec scripts/check-commit.sh <base>`. The derived tables are written by `node scripts/fit-cost.mjs` into `data/fit.csv`, `kind-costs.csv`, `cost-along-branch.csv`, `model-vs-measured.csv`, `first-failure.csv` and `rewrite-counts.csv`. Runs were serial, one at a time, on the host described above.
+
+### The windows
+
+- **old** (`data/window.txt`): 20 consecutive commits of main that are mostly logs. Of the first 20: 12 log, 3 docs, 4 issues-package and 1 adr, issues and ledger commit (**measured** from `kind-costs.csv`). The first N=1 and N=2 cells (and cells for 5 commits) come from this window. At N=1 and N=2 every commit is a log commit that runs 0 tests. Those cells are kept and labelled **log-only mix, 0 tests, not representative**: 4.2 s per commit measures `lint`, `install`, a build and the log `verify`, nothing else.
+- **pk** (`data/ops-window.txt`): five consecutive issues-package commits, each of which runs the package tests (732 to 754 tests, 59 to 61 files). The N=1 and N=2 cells that the cost curve uses come from here. Cells carry the prefix `pk-`.
+- **pr** (`data/ops-window-pair.txt`): a test-only issues commit and a docs-only commit, an independent pair for the reorder cells. Prefix `pr-`.
+
+### Cost against N
+
+All verification wall times in seconds. **Measured** unless marked. Ranges are min to max over the repeats.
+
+| Cells | N | Repeats | Verification wall time | Tests run |
+| --- | --- | --- | --- | --- |
+| old, log-only mix, `first` | 1 | 3 | 4.2 (4.1 to 4.2) | 0 |
+| old, log-only mix, `first` | 2 | 3 | 8.3 (8.2 to 8.4) | 0 |
+| pk, package commits, `first` | 1 | 3 | 307.2 (302.4 to 311.8) | 732 |
+| pk, package commits, `first` | 2 | 2 | 622.3 (619.5 to 625.0) | 1470 |
+| old, mixed, `first` | 5 | 3 | 174.6 (174.0 to 175.4) | 768 |
+| old, mixed, `first` | 10 | 1 | 462.3 | 1536 |
+| old, mixed, `first` | 20 | 1 | 987.4 | 3918 |
+
+The N=10 and N=20 cells are single repeats. The repeat spread at N=5 is under 1 %, so one repeat is a fair sample, but it is one sample. Raw rows: `ops-cells.csv`.
+
+Every operation costs the same as `first` at the same N, because `git rebase --exec` replays and checks all N commits whatever the operation changed. At N=5 the seven operations ran 173.6 to 179.8 s over 3 repeats, at N=10 `first`, `rebase`, `fixup-first`, `reorder` and `reword-mid` ran 462.3 to 467.6 s (**measured**). N=20 for any operation other than `first` is **modelled** at 987 s (about 1 %, the spread seen at N=5 and N=10), with no measured cell.
+
+### Fit: a fixed part and a part per commit
+
+`data/fit.csv` holds the least-squares fit of verification wall time against N for each operation. On package-testing commits (pk) the line is a straight line through the origin:
+
+| Operation (pk) | Fixed part (s) | Per commit (s) | Points |
+| --- | --- | --- | --- |
+| `first` | -7.8 | 315.0 | 5 cells, N=1 and 2 |
+| `rebase` | -18.2 | 320.1 | 2 cells |
+| `fixup-first` | 0.9 | 303.8 | 2 cells |
+| `reword-mid` | -8.8 | 313.3 | 2 cells |
+| `fixup-last` | n/a | 307.8 | 1 cell (N=2 only) |
+
+Labelled **measured fit** on two values of N, so the intercepts (all within 20 s of zero) are not meaningful. The check has no fixed cost of its own, the operation takes 0.05 to 0.3 s (`op_wall_s`), and one commit costs about 305 to 320 s. A fit on two values of N does not test linearity.
+
+On a mixed branch (old window) a straight line of cost against N does not describe the data. The fit for `first` over N=1, 2, 5, 10 and 20 has intercept -77 s and 52.9 s per commit with r2 0.995, and the other operations give 51 to 58 s per commit. The negative intercept shows that the line is wrong in kind: the cost is a sum over commits of different kinds. The kind-weighted fit on the per-commit rows of the N=20 cell, over its 20 running totals, is (**derived** from measured rows, r2 0.994):
+
+total(N) = 12.9 + 6.6 x N + 173.2 x (package commits among the first N) seconds
+
+The non-test commits cost about 6.6 s each (`lint`, `install`, a clean build and the log `verify`), a package-testing commit adds about 173 s. The mean per commit kind measured in this window (`kind-costs.csv`):
+
+| Kind | Commits | Mean wall (s) | Source |
+| --- | --- | --- | --- |
+| docs | 3 | 0.5 | measured |
+| log | 41 observations | 4.2 | measured |
+| issues package (old window, after the test split) | 8 | 162.6 (157.3 to 167.9) | measured |
+| issues package (pk, before the split) | 7 | 309.4 (302.3 to 314.4) | measured |
+| adr, issues and ledger | 2 | 267.4 | measured |
+
+### Why N=5 averages 35 s per commit
+
+The N=5 cell holds four log commits (4.2 s each) and one issues commit (158.6 s). The mean is (4 * 4.2 + 158.6) / 5 = 35.1 s (**derived**), against 171 to 281 s for any one commit that triggers package tests. Per-commit cost is bimodal, and the average per commit of a branch is the share of test-triggering commits times about 170 to 310 s plus a few seconds. The share in this window is 5 of 20 (25 %), and it is 33 % in the 400 commits of `data/commit-modes.csv` (**measured**; 130 of 400 commits run package or full tests).
+
+The pk commits cost 307 s each while the same kind, an issues-only commit, cost 160 s in the old window and 171 s in the single-kind measurement at the tip. The pk commits predate the commit that split the issues MCP tests (the commit before that window's `c5`). They run 732 tests in 59 files against 768 in 73 files after, with a similar CPU time (819 s against 899 s user time) and nearly twice the wall time. That is consistent with one long test file that sets the wall time (see "Test file durations" in `AGENTS.md`). I did not run the file split to confirm it, so the cause is **inferred**. For the cost of verifying a commit it means that the cost of one commit depends on the test suite as that commit has it, not on the suite at the tip.
+
+The kind-weighted model that uses the per-kind costs of `check-commit.csv` (docs 0.6, log 5.0, issues 171, adr 264, ledger and full 281 s) over-predicts the old window by 4 to 22 % (`model-vs-measured.csv`, **modelled** against **measured**): 20 % at N=1 and 2 (5.0 against 4.2 s per log commit), 9 % at N=5, 6 % at N=10 and 4 % at N=20. For the pk window it under-predicts by 44 to 46 % for the reason above.
+
+### Cost along the branch
+
+`data/cost-along-branch.csv` has the per-commit wall time and the running total (**measured**). In the N=20 run the running total is 175 s after 5 commits, 462 s after 10 and 987 s after 20. The heavy commits (`c5`, `c7` and `c12` to `c14`) are where the curve steps, and the log and docs commits between them add 0.5 to 4.4 s. For the pk window every commit adds 303 to 314 s, a straight line.
+
+### Sequential against separate runs
+
+The second commit of the pk branch cost 310.5 s and 310.6 s inside the two N=2 runs, and 311.3 s checked alone (cell `pk-n02-alone-2-r1`, **measured**). The third commit alone cost 311.6 s. A run in sequence gets no cache benefit from the commits before it: `check-commit.sh` removes `dist/` and rebuilds each time. The N commits therefore cost the same in one `rebase --exec` as in N separate runs on one machine, and the total machine time (user plus system, about 1 050 s per package commit **measured**) is the same.
+
+Separate runs would allow parallelism. A single package commit uses about 3.4 cores on the 8-core host (machine time 1 050 s over 311 s wall), so two separate runs fit the host and a third would not. That is **modelled** from the core count, not measured, because parallel runs distort each other's timing. With one machine per commit the wall time would be that of the slowest commit (about 310 s) rather than the sum.
+
+### Time to the first failure
+
+A commit with a deliberate defect is added to a three-commit pk branch (as a fixup, applied with autosquash) at the first, middle or last position (`data/first-failure.csv`, scratch clone only). A failing check stops `git rebase --exec`, so commits after the failure are not checked. Verification wall time until the stop, **measured**; the clean 3-commit run is **derived** as 3 times the mean pk commit (937 s).
+
+| Defect | Position | Commits checked | Wall time (s) | Share of a clean run |
+| --- | --- | --- | --- | --- |
+| does not compile | first | 1 | 1.8 | 0.2 % |
+| does not compile | middle | 2 | 316.7 | 34 % |
+| does not compile | last | 3 | 631.8 | 67 % |
+| a failing test | first | 1 | 304.8 | 33 % |
+| a failing test | middle | 2 | 612.0 | 65 % |
+| a failing test | last | 3 | 924.6 | 99 % |
+
+A compile error stops the check after `lint` and the start of the build, a few seconds into the broken commit. A failing test stops it only after the test phase of that commit, about 305 s. After the fix, `git rebase --continue` resumes from the fixed commit, so the commits before it are not checked again. The cost of one broken commit at position k is then about k commits of checking before the failure plus the rest after the fix (**derived**).
+
+A first attempt of the failing-test cells wrote a test file that `biome` rejects, so those cells failed at `lint` after 0.5 s. They were discarded and rerun with a formatted file. The rows in the CSV are from the rerun.
+
+### Rewritten against tree-changed commits
+
+`data/rewrite-counts.csv` has, for every cell, the commits rewritten (new sha), those with a changed tree, patch or message, and the time a check that skipped commits whose tree and parent tree are unchanged would save. The counts are **measured**. The saving is **derived** and no such check exists in `scripts/check-commit.sh`.
+
+| Operation | N | Checked | Rewritten | Tree changed | Skippable share of the time (derived) |
+| --- | --- | --- | --- | --- | --- |
+| `first` (no change) | 5 | 5 | 0 | 0 | 100 % (already verified) |
+| `rebase` onto newer main | 5 | 5 | 5 | 5 | 0 % |
+| `fixup-first` | 5 | 5 | 5 | 5 | 0 % |
+| `fixup-mid` | 5 | 5 | 3 | 3 | 5 % |
+| `fixup-last` | 5 | 5 | 1 | 1 | 9 % (the changed commit is the heavy one) |
+| `reword-mid` | 5 | 5 | 3 | 0 | 100 % |
+| `reorder` (swap 2 and 3) | 5 | 5 | 4 | 1 | 95 % |
+| `reorder-at4` | 5 | 5 | 2 | 1 | 7 % |
+| `fixup-first` | 10 | 10 | 10 | 10 | 0 % |
+| `reorder` (swap 5 and 6) | 10 | 10 | 6 | 1 | 64 % |
+| `reword-mid` | 10 | 10 | 6 | 0 | 100 % |
+| `reword-mid` (pk) | 2 | 2 | 2 | 0 | 100 % |
+
+A reword rewrites every commit after it and changes no tree, yet the check runs on all of them and costs the full 462 s at N=10. Table values are single cells or the same in all 3 repeats.
+
+### Why a reorder run fails
+
+Raw excerpts: `data/reorder-failures.txt`. A reorder of two commits exits 1 and checks one commit in two different cells, for two different reasons, and that is a result about "every commit passes":
+
+1. **Old window, N=2** (two log commits): each log commit regenerates `docs/issues/index.md`. After the swap, the first replayed commit carries an index generated for a state that does not exist, and `issues verify` reports `index/stale`. The commit passes in the original order and fails in the swapped order, with no conflict from `git`.
+2. **pk window, N=2**: the second commit uses `refuseIncomplete`, which the first commit adds. After the swap, the build of the commit that now comes first fails with `TS2353` (the option does not exist yet). Wall time 1.8 s, 0 tests.
+
+An independent pair (`pr` window, a test-only commit and a docs-only commit) reorders and passes: 2 checked, exit 0, 324.4 s and 323.6 s over 2 repeats (**measured**). Reordering commits that touch the same generated file or the same code changes what each commit builds, so every commit of a reordered branch has to be checked again, and a reorder of dependent commits fails the first check that it reaches. The cost of a failing reorder is low (a few seconds to the failing commit), but a stop there tells nothing about the later commits.
+
+### Discarded and kept data
+
+- `n10-first-r1` and `n10-rebase-r1` (left uncommitted by an interrupted run): 10 of 10 commits checked, exit 0, JSON rows complete, and consistent with the other N=10 cells. Kept.
+- `n10-fixup-first-r1` from the interrupted run: 6 of 10 rows and no row in `ops-cells.csv`. Discarded and measured again.
+- The first attempt of the `break-test-*` cells: see above. Discarded.
+
 ## To be added in later parts
 
-- The cost of verifying N commits: the curve over N, and what moves it (to be added).
 - Options that change the curve and a recommendation (to be added).
 - A model of the cost for a branch of N commits of mixed kinds, built from the per-kind costs above (to be added; labelled **modelled**).
 

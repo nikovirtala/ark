@@ -1,0 +1,4 @@
+# Window pr (data/ops-window-pair.txt), an independent pair. Run with OPS_PFX=pr, OPS_TAG=pr-.
+2 first 1
+2 reorder 1
+2 reorder 2

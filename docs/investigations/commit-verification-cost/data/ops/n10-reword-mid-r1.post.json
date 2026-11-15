@@ -1,0 +1,72 @@
+[
+  {
+    "sha": "f732db5177d0",
+    "tree": "7bb991d72a9e",
+    "patch": "d92ab96448a2",
+    "msg": "8fe2ca0cd82d",
+    "subject": "docs(issues): close ?24 \"cut the git processes one write spawns\""
+  },
+  {
+    "sha": "4dbdabfbda80",
+    "tree": "1c19ae9c693f",
+    "patch": "942d43b0bcad",
+    "msg": "4210434356ae",
+    "subject": "docs(issues): close ?20 \"make the test suites faster\""
+  },
+  {
+    "sha": "a938843f8b98",
+    "tree": "869358db82fb",
+    "patch": "891ac6fd3f92",
+    "msg": "11622c072b37",
+    "subject": "docs(issues): open, link and scope 0vckaxpf \"split the issues MCP tests that sit at…\""
+  },
+  {
+    "sha": "3bf147eddb01",
+    "tree": "3e5993e732f8",
+    "patch": "2efd5612533b",
+    "msg": "345c15030a36",
+    "subject": "docs(issues): start work on 0vckaxpf \"split the issues MCP tests that sit at their…\""
+  },
+  {
+    "sha": "5084dcc5b4b0",
+    "tree": "cc938e8dd936",
+    "patch": "27be4a8c0cc4",
+    "msg": "06d315a503b1",
+    "subject": "test(issues): split the mcp tests by session and Table B rows (reworded)"
+  },
+  {
+    "sha": "1bbb8496adc8",
+    "tree": "781defe7d960",
+    "patch": "de72f959bfb3",
+    "msg": "3a677fe2aa9e",
+    "subject": "docs(issues): close 0vckaxpf \"split the issues MCP tests that sit at their duration…\""
+  },
+  {
+    "sha": "5abcdf70f5a4",
+    "tree": "d79daa0f110d",
+    "patch": "5fcc2c228550",
+    "msg": "1dc7d47ac303",
+    "subject": "chore: version packages"
+  },
+  {
+    "sha": "63e34a8c2175",
+    "tree": "a20fe3fb8c68",
+    "patch": "cec331debfde",
+    "msg": "31ac08feb874",
+    "subject": "docs(issues): open \"name the skipped CI test job without an unfilled expression\""
+  },
+  {
+    "sha": "438e52f62c46",
+    "tree": "3c1852e2aa2b",
+    "patch": "8985185bc526",
+    "msg": "037ee1b1fa1b",
+    "subject": "docs(issues): open \"find what adr and issues implement the same way\""
+  },
+  {
+    "sha": "238124edb0d6",
+    "tree": "1e5eeb05ee20",
+    "patch": "e57ce55ea5ce",
+    "msg": "0fb8d12e0870",
+    "subject": "docs(issues): link mvz52a5s \"find what adr and issues implement the same way\" to ?12"
+  }
+]

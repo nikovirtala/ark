@@ -1,0 +1,5 @@
+# Old mixed window (data/window.txt), single repeats at N=10 and 20. Run with the default prefix and tag.
+10 fixup-first 1
+10 reorder 1
+10 reword-mid 1
+20 first 1

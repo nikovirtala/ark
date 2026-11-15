@@ -1,0 +1,23 @@
+[
+  {
+    "sha": "d088b6797ae9",
+    "tree": "6022c7974107",
+    "patch": "61e27c7b00fc",
+    "msg": "30e8b911a8dd",
+    "subject": "feat(issues): let edits refuse an incomplete description when committing"
+  },
+  {
+    "sha": "b9b9dc3eba79",
+    "tree": "892c8b428a3a",
+    "patch": "cff5b502cd87",
+    "msg": "8c49248f375c",
+    "subject": "feat(issues): add the issues mcp tools that open, update and comment"
+  },
+  {
+    "sha": "404ce2896dce",
+    "tree": "0c9f89df98f3",
+    "patch": "20c84bad8f2f",
+    "msg": "d7ba1317363a",
+    "subject": "feat(issues): add issues_start, issues_stop and issues_close"
+  }
+]

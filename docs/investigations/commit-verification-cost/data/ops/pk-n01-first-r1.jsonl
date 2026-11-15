@@ -1,0 +1,1 @@
+{"cell":"pk-n01-first-r1","seq":1,"sha":"d088b6797ae9","tree":"6022c7974107","subject":"feat(issues): let edits refuse an incomplete description when committing","mode":"pkg","pkgs":"issues","wall_s":302.343,"user_s":819.044,"sys_s":229.594,"exit":0,"start_s":0.02,"end_s":302.369,"test_files":59,"tests":732,"tests_by_pkg":{"pkg":{"files":59,"tests":732}}}

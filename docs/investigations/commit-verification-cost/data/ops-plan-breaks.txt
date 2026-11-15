@@ -1,0 +1,8 @@
+# Time to first failure: a broken commit at the first, middle or last of 3 commits of window pk.
+# Run with OPS_PFX=pk, OPS_TAG=pk-.
+3 break-build-first 1
+3 break-build-mid 1
+3 break-build-last 1
+3 break-test-first 1
+3 break-test-mid 1
+3 break-test-last 1

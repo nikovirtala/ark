@@ -1,0 +1,9 @@
+[
+  {
+    "sha": "7e3f1267177d",
+    "tree": "b7a687cc6672",
+    "patch": "20c84bad8f2f",
+    "msg": "d7ba1317363a",
+    "subject": "feat(issues): add issues_start, issues_stop and issues_close"
+  }
+]

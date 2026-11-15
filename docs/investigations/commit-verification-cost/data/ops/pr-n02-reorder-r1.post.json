@@ -1,0 +1,16 @@
+[
+  {
+    "sha": "8e8a8b57dd03",
+    "tree": "2662f124a620",
+    "patch": "45e9a00f2e4f",
+    "msg": "89ef60891260",
+    "subject": "docs(issues): document the issues mcp write tools and close policy"
+  },
+  {
+    "sha": "e03a76fe87aa",
+    "tree": "a2505c47c7d5",
+    "patch": "e1ccb8858d3a",
+    "msg": "bc7a645a5958",
+    "subject": "test(issues): run the built issues mcp writes end to end over stdio"
+  }
+]

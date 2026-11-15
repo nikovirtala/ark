@@ -1,0 +1,1 @@
+{"cell":"pk-n01-reword-mid-r1","seq":1,"sha":"97097398aae4","tree":"6022c7974107","subject":"feat(issues): let edits refuse an incomplete description when committing (reworded)","mode":"pkg","pkgs":"issues","wall_s":304.441,"user_s":825.129,"sys_s":231.378,"exit":0,"start_s":0.016,"end_s":304.464,"test_files":59,"tests":732,"tests_by_pkg":{"pkg":{"files":59,"tests":732}}}

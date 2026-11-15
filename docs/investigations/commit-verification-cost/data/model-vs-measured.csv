@@ -1,0 +1,18 @@
+cell,window,n,op,measured_s,model_s,error_pct,basis
+n01-first-r1,old,1,first,4.2,5.0,18.7,measured vs modelled
+n02-first-r1,old,2,first,8.4,10.0,19.7,measured vs modelled
+n01-first-r2,old,1,first,4.2,5.0,19.4,measured vs modelled
+n02-first-r2,old,2,first,8.2,10.0,21.3,measured vs modelled
+n01-first-r3,old,1,first,4.1,5.0,21.7,measured vs modelled
+n02-first-r3,old,2,first,8.4,10.0,19.0,measured vs modelled
+n05-first-r1,old,5,first,175.4,191.0,8.9,measured vs modelled
+n05-first-r2,old,5,first,174.4,191.0,9.5,measured vs modelled
+n05-first-r3,old,5,first,174.0,191.0,9.8,measured vs modelled
+n10-first-r1,old,10,first,462.3,492.0,6.4,measured vs modelled
+pk-n01-first-r1,pk,1,first,302.4,171.0,-43.5,measured vs modelled
+pk-n02-first-r1,pk,2,first,625.0,342.0,-45.3,measured vs modelled
+pk-n01-first-r2,pk,1,first,307.5,171.0,-44.4,measured vs modelled
+pk-n01-first-r3,pk,1,first,311.8,171.0,-45.2,measured vs modelled
+pr-n02-first-r1,pr,2,first,319.7,171.6,-46.3,measured vs modelled
+n20-first-r1,old,20,first,987.4,1026.8,4.0,measured vs modelled
+pk-n02-first-r2,pk,2,first,619.5,342.0,-44.8,measured vs modelled

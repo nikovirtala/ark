@@ -1,0 +1,7 @@
+cell,broken_commit,kind,position,n,checked,verify_wall_s,machine_s,clean_run_estimate_s,saved_pct,basis
+pk-n03-break-build-first-r1,first,build,1,3,1,1.8,8.0,937.4,99.8,measured; clean run derived (N x mean pk commit)
+pk-n03-break-build-mid-r1,mid,build,2,3,2,316.7,1086.1,937.4,66.2,measured; clean run derived (N x mean pk commit)
+pk-n03-break-build-last-r1,last,build,3,3,3,631.8,2212.2,937.4,32.6,measured; clean run derived (N x mean pk commit)
+pk-n03-break-test-first-r1,first,test,1,3,1,304.8,1059.4,937.4,67.5,measured; clean run derived (N x mean pk commit)
+pk-n03-break-test-mid-r1,mid,test,2,3,2,612.0,2165.5,937.4,34.7,measured; clean run derived (N x mean pk commit)
+pk-n03-break-test-last-r1,last,test,3,3,3,924.6,3363.2,937.4,1.4,measured; clean run derived (N x mean pk commit)

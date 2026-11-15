@@ -1,0 +1,9 @@
+[
+  {
+    "sha": "97097398aae4",
+    "tree": "6022c7974107",
+    "patch": "61e27c7b00fc",
+    "msg": "bc2174b5219d",
+    "subject": "feat(issues): let edits refuse an incomplete description when committing (reworded)"
+  }
+]

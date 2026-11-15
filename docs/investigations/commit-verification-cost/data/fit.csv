@@ -1,0 +1,15 @@
+window,op,points,distinct_n,fixed_s,per_commit_s,r2,basis,note
+pk,first,5,2,-7.8,315.0,1.000,measured fit,package-testing commits
+pk,rebase,2,2,-18.2,320.1,1.000,measured fit,package-testing commits
+pk,fixup-first,2,2,0.9,303.8,1.000,measured fit,package-testing commits
+pk,reword-mid,2,2,-8.8,313.3,1.000,measured fit,package-testing commits
+pk,fixup-last,1,1,,307.8,,derived (one N),wall over 2 commits
+old,first,11,5,-76.8,52.9,0.995,measured fit,mixed commit kinds; see kind-costs.csv
+old,rebase,10,4,-72.4,51.4,0.980,measured fit,mixed commit kinds; see kind-costs.csv
+old,fixup-first,10,4,-73.4,51.9,0.979,measured fit,mixed commit kinds; see kind-costs.csv
+old,reword-mid,10,4,-73.3,51.9,0.979,measured fit,mixed commit kinds; see kind-costs.csv
+old,fixup-last,6,2,-102.8,55.6,1.000,measured fit,mixed commit kinds; see kind-costs.csv
+old,fixup-mid,3,1,,35.0,,derived (one N),wall over 5 commits
+old,reorder,4,2,-112.8,57.9,1.000,measured fit,mixed commit kinds; see kind-costs.csv
+old,reorder-at4,3,1,,35.1,,derived (one N),wall over 5 commits
+old,first; kind-weighted (running total over the 20 prefixes),20,20,12.9,6.6 per commit + 173.2 per package commit,0.994,derived from measured rows,total(N) = fixed + per_commit*N + package*Npkg

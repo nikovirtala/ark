@@ -1,0 +1,15 @@
+# Windows of real consecutive first-parent commits of ark main that trigger package tests, oldest first.
+# "pk" (ops-setup.sh with OPS_WIN=this file OPS_PFX=pk): c1..c5 are five consecutive issues-package
+# commits (an issues mcp feature, each changes packages/issues/src), c6 and c7 are docs-only commits.
+# mode is what scripts/check-commit.sh does with the commit (data/commit-modes.csv).
+c0 e5fe53226afe5cac5cd318e065dc64531df5f2d4 mode=log
+c1 d088b6797ae9d439b252fdaae4f5e8b3f334bd48 mode=pkg:issues
+c2 5e672517bf686f46fc5959c5102c756e1b4087cf mode=pkg:issues
+c3 7e3f1267177d80db93298ad34955dc776947c25c mode=pkg:issues
+c4 0039e400a1efeaae0a250a3807d57cd16d230f3b mode=pkg:issues
+c5 b8e4b96b23599861e4059bbc58be50439fb8474b mode=pkg:issues
+c6 3897b89ad927620d3fe9defcb0e43f95ff696766 mode=docs
+c7 166b3ab4f95d32590bb1286a83004c3aca2c1871 mode=docs
+m d6f5cb9172c087436377fcacc6eb35f9b6766ef6 idx=151 mode=docs
+m 54e4e3ca433f128ff17aaf94322665464cfdb4d3 idx=147 mode=docs
+m 86b7e5e90f494fa3b6c33ed44f253aa74895321d idx=131 mode=docs

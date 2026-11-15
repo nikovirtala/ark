@@ -1,0 +1,142 @@
+[
+  {
+    "sha": "f732db5177d0",
+    "tree": "7bb991d72a9e",
+    "patch": "d92ab96448a2",
+    "msg": "8fe2ca0cd82d",
+    "subject": "docs(issues): close ?24 \"cut the git processes one write spawns\""
+  },
+  {
+    "sha": "4dbdabfbda80",
+    "tree": "1c19ae9c693f",
+    "patch": "942d43b0bcad",
+    "msg": "4210434356ae",
+    "subject": "docs(issues): close ?20 \"make the test suites faster\""
+  },
+  {
+    "sha": "a938843f8b98",
+    "tree": "869358db82fb",
+    "patch": "891ac6fd3f92",
+    "msg": "11622c072b37",
+    "subject": "docs(issues): open, link and scope 0vckaxpf \"split the issues MCP tests that sit at…\""
+  },
+  {
+    "sha": "3bf147eddb01",
+    "tree": "3e5993e732f8",
+    "patch": "2efd5612533b",
+    "msg": "345c15030a36",
+    "subject": "docs(issues): start work on 0vckaxpf \"split the issues MCP tests that sit at their…\""
+  },
+  {
+    "sha": "d0a9a265178d",
+    "tree": "cc938e8dd936",
+    "patch": "27be4a8c0cc4",
+    "msg": "bb4ac1a5d8ba",
+    "subject": "test(issues): split the mcp tests by session and Table B rows"
+  },
+  {
+    "sha": "d6d690dfec95",
+    "tree": "781defe7d960",
+    "patch": "de72f959bfb3",
+    "msg": "3a677fe2aa9e",
+    "subject": "docs(issues): close 0vckaxpf \"split the issues MCP tests that sit at their duration…\""
+  },
+  {
+    "sha": "3266ecedf78c",
+    "tree": "d79daa0f110d",
+    "patch": "5fcc2c228550",
+    "msg": "1dc7d47ac303",
+    "subject": "chore: version packages"
+  },
+  {
+    "sha": "4c8becd1a6e6",
+    "tree": "a20fe3fb8c68",
+    "patch": "cec331debfde",
+    "msg": "31ac08feb874",
+    "subject": "docs(issues): open \"name the skipped CI test job without an unfilled expression\""
+  },
+  {
+    "sha": "591eb3e6ad8f",
+    "tree": "3c1852e2aa2b",
+    "patch": "8985185bc526",
+    "msg": "037ee1b1fa1b",
+    "subject": "docs(issues): open \"find what adr and issues implement the same way\""
+  },
+  {
+    "sha": "f25a91be24d3",
+    "tree": "1e5eeb05ee20",
+    "patch": "e57ce55ea5ce",
+    "msg": "0fb8d12e0870",
+    "subject": "docs(issues): link mvz52a5s \"find what adr and issues implement the same way\" to ?12"
+  },
+  {
+    "sha": "8aec4cc9f62b",
+    "tree": "64121ead08c3",
+    "patch": "d9473fdaf9ff",
+    "msg": "dbebedc061dc",
+    "subject": "docs(issues): set the scope of mvz52a5s \"find what adr and issues implement the same…\""
+  },
+  {
+    "sha": "f585589c84fd",
+    "tree": "a13235b6b707",
+    "patch": "00dd94b0d432",
+    "msg": "c9486c490033",
+    "subject": "feat(issues): add the issues_from_discussion and issues_breakdown prompts"
+  },
+  {
+    "sha": "98798fadbc32",
+    "tree": "456dfd4cf02c",
+    "patch": "d5066f731a30",
+    "msg": "5aaba89fc014",
+    "subject": "feat(issues): write the agent skill with init --skill"
+  },
+  {
+    "sha": "987995d04405",
+    "tree": "bc147b64c1cf",
+    "patch": "2e6e95883700",
+    "msg": "407d6f44d5fa",
+    "subject": "docs(issues): describe the agents phase in the issues design"
+  },
+  {
+    "sha": "dd845aa0dc88",
+    "tree": "d675be963c53",
+    "patch": "2bd4e1691ce0",
+    "msg": "3e3dc307b7d1",
+    "subject": "docs(issues): document the prompts and init --skill"
+  },
+  {
+    "sha": "9ce02e5df099",
+    "tree": "6929c9af928a",
+    "patch": "c39f7da7243c",
+    "msg": "da358ebae370",
+    "subject": "chore: add a changeset for the issues prompts and agent skill"
+  },
+  {
+    "sha": "a76fa3f24ad3",
+    "tree": "535b8df074bf",
+    "patch": "d5f26863102f",
+    "msg": "20ec9592934a",
+    "subject": "docs(issues): open, link and scope c181sywx \"add init --skill's AGENTS.md pointer…\""
+  },
+  {
+    "sha": "fe2732195f64",
+    "tree": "c00e086b9747",
+    "patch": "91f8ff32f330",
+    "msg": "d6b30d00ad79",
+    "subject": "docs(issues): close ?16 \"add issues' MCP prompts and agent skill\""
+  },
+  {
+    "sha": "ff0e05814a24",
+    "tree": "53c3bf4ef5e4",
+    "patch": "aa7558094092",
+    "msg": "a082dc672421",
+    "subject": "docs(issues): close ?4 \"add the MCP server, agent skill and search to issues\""
+  },
+  {
+    "sha": "451199c7ac94",
+    "tree": "1ee3c57eea0b",
+    "patch": "9e5e29145687",
+    "msg": "cfbdb4f1945a",
+    "subject": "docs: define change and pull request terminology in AGENTS.md"
+  }
+]

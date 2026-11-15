@@ -1,0 +1,8 @@
+# Window "pr": an independent pair for the reorder cells. c1 is an issues-package test commit that
+# touches one test file and c2 is a docs-only commit; neither reads what the other changes.
+c0 0039e400a1efeaae0a250a3807d57cd16d230f3b mode=pkg:issues
+c1 b8e4b96b23599861e4059bbc58be50439fb8474b mode=pkg:issues
+c2 3897b89ad927620d3fe9defcb0e43f95ff696766 mode=docs
+m d6f5cb9172c087436377fcacc6eb35f9b6766ef6 idx=151 mode=docs
+m 54e4e3ca433f128ff17aaf94322665464cfdb4d3 idx=147 mode=docs
+m 86b7e5e90f494fa3b6c33ed44f253aa74895321d idx=131 mode=docs
