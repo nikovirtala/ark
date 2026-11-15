@@ -40,6 +40,22 @@ node $D/scripts/summarize.mjs --data $D/data --track "lets a proposed decision n
 
 Run time on the measured host (8 cores): phases about 1 minute per repeat, packages about 4.5 minutes per repeat, the worker sweep about 3 hours for all counts, `check-commit-modes.sh` about 17 minutes per repeat.
 
+## Cost over the number of commits
+
+`run-branch-op.sh` measures one cell (a branch of N real commits, one operation, then `git rebase --exec scripts/check-commit.sh`), `run-grid.sh` runs the cells of a plan within a time budget and skips cells already in `data/ops-cells.csv`, and `fit-cost.mjs` derives the tables. `ops-setup.sh` creates the refs of a window in a scratch clone that has the commits and has been installed and built. Windows: `data/window.txt` (default, refs `ops-*`, mostly logs), `data/ops-window.txt` (`OPS_PFX=pk OPS_TAG=pk-`, package commits) and `data/ops-window-pair.txt` (`OPS_PFX=pr OPS_TAG=pr-`, an independent pair). `OPS_ISSUES_COST` sets the per-commit estimate the grid uses for its budget (300 for the pk window).
+
+```sh
+source ~/.nvm/nvm.sh; nvm use 24
+D=docs/investigations/commit-verification-cost; R=<scratch clone>
+OPS_WIN=$PWD/$D/data/ops-window.txt OPS_PFX=pk $D/scripts/ops-setup.sh $R
+export RESUME=1 OPS_WIN=$PWD/$D/data/ops-window.txt OPS_PFX=pk OPS_TAG=pk- OPS_ISSUES_COST=300
+$D/scripts/run-grid.sh --repo $R --plan $D/data/ops-plan-pk.txt --budget 1700   # repeat until "plan finished"
+$D/scripts/run-branch-op.sh --repo $R --n 2 --op alone-2 --rep 1                # one commit checked alone
+node $D/scripts/fit-cost.mjs                                                     # fit.csv and the other tables
+```
+
+Plans: `ops-plan.txt` (old window, N=1 to 5), `ops-plan-large.txt` (old window, N=10 and 20), `ops-plan-pk.txt`, `ops-plan-pair.txt`, `ops-plan-breaks.txt` (time to first failure). Operations are listed in the header of `run-branch-op.sh`. Run cells serially: parallel runs distort timing. Wall time per cell is the per-commit cost times N (about 300 s per package commit in the pk window, about 4 s per log commit).
+
 ## Quick mode
 
 `measure.sh --quick` runs one repeat of the phases and the adr tests, about 2 minutes. Use `--out <dir>` to keep a quick run apart from the real data:

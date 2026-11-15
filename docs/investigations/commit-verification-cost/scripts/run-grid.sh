@@ -16,19 +16,20 @@ while [ $# -gt 0 ]; do
   shift
 done
 start=$(date +%s)
+# OPS_ISSUES_COST overrides the 171 s used for an issues-only commit (window pk: about 300 s).
 # Estimated seconds for a verification of the first N window commits (data/window.txt modes;
 # per-mode costs from check-commit.csv: docs 0.6, log 5, issues 171, adr+issues 264, all 281).
 estimate() {
-  awk -v n="$1" '
+  awk -v n="$1" -v ic="${OPS_ISSUES_COST:-171}" '
     /^c[0-9]+ / { i = substr($1, 2) + 0; if (i == 0 || i > n) next
-      m = $4; sub("mode=", "", m)
-      c = (m == "docs") ? 0.6 : (m == "log") ? 5 : (m == "pkg:issues") ? 171 : (m == "pkg:adr+issues") ? 264 : 281
+      m = ""; for (f = 2; f <= NF; f++) if ($f ~ /^mode=/) m = substr($f, 6)
+      c = (m == "docs") ? 0.6 : (m == "log") ? 5 : (m == "pkg:issues") ? ic : (m == "pkg:adr+issues") ? 264 : 281
       t += c }
-    END { print int(t + 5 * n) }' "$here/../data/window.txt"
+    END { print int(t + 5 * n) }' "${OPS_WIN:-$here/../data/window.txt}"
 }
 while read -r n op rep; do
   case $n in "" | "#"*) continue ;; esac
-  cell=$(printf 'n%02d-%s-r%s' "$n" "$op" "$rep")
+  cell=$(printf '%sn%02d-%s-r%s' "${OPS_TAG:-}" "$n" "$op" "$rep")
   if [ -f "$OUT/ops-cells.csv" ] && grep -q "^$cell," "$OUT/ops-cells.csv"; then continue; fi
   est=$(estimate "$n")
   elapsed=$(($(date +%s) - start))
