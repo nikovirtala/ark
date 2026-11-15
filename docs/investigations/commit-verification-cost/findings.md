@@ -1,6 +1,6 @@
 # What verifying every commit of a branch costs
 
-Status: draft. This part covers the stack, the workflow, a single verification run, where its time goes, how reproducible it is, the cost over the number of commits, how branches are made, how much of the suite a commit affects, spurious failures, what the pinned tools offer, and the options. The options are in the Options section; the recommendation is added in a later part and marked "to be added" below.
+This investigation measures what it costs to verify every commit of a branch with `git rebase --exec scripts/check-commit.sh`, how that cost grows with the number of commits N, and what could reduce it. It covers the stack, the workflow, a single verification run and where its time goes, how reproducible it is, the cost over N, how branches are made, how much of the suite a commit affects, spurious failures, what the pinned tools offer, the options with a measured cache prototype, and a recommendation. `pull-request-body.md` is the short version for the pull request.
 
 ## How to read the numbers
 
@@ -303,15 +303,17 @@ Raw data: `data/ops-cells.csv` (one row per cell), `data/ops/<cell>.jsonl` (one 
 
 All verification wall times in seconds. **Measured** unless marked. Ranges are min to max over the repeats.
 
-| Cells | N | Repeats | Verification wall time | Tests run |
-| --- | --- | --- | --- | --- |
-| old, log-only mix, `first` | 1 | 3 | 4.2 (4.1 to 4.2) | 0 |
-| old, log-only mix, `first` | 2 | 3 | 8.3 (8.2 to 8.4) | 0 |
-| pk, package commits, `first` | 1 | 3 | 307.2 (302.4 to 311.8) | 732 |
-| pk, package commits, `first` | 2 | 2 | 622.3 (619.5 to 625.0) | 1470 |
-| old, mixed, `first` | 5 | 3 | 174.6 (174.0 to 175.4) | 768 |
-| old, mixed, `first` | 10 | 1 | 462.3 | 1536 |
-| old, mixed, `first` | 20 | 1 | 987.4 | 3918 |
+| Cells | N | Repeats | Verification wall time | Machine time (user plus system) | Tests run |
+| --- | --- | --- | --- | --- | --- |
+| old, log-only mix, `first` | 1 | 3 | 4.2 (4.1 to 4.2) | 11.6 | 0 |
+| old, log-only mix, `first` | 2 | 3 | 8.4 (8.2 to 8.4) | 23.8 | 0 |
+| pk, package commits, `first` | 1 | 3 | 307.5 (302.4 to 311.8) | 1063.5 | 732 |
+| pk, package commits, `first` | 2 | 2 | 622.3 (619.5 to 625.0) | 2175.7 | 1470 |
+| old, mixed, `first` | 5 | 3 | 174.4 (174.0 to 175.4) | 1150.0 | 768 |
+| old, mixed, `first` | 10 | 1 | 462.3 | 3081.8 | 1536 |
+| old, mixed, `first` | 20 | 1 | 987.4 | 6685.3 | 3918 |
+
+Machine time exists for every cell of `ops-cells.csv` (`verify_user_s` plus `verify_sys_s`). `data/cost-table.csv`, written by `node scripts/cost-table.mjs`, lists median wall, range and machine time for every window, operation and N, with the commits rewritten and tree-changed. The cache cells of the Options section carry wall and machine time in `data/cache/cache-cells.csv`.
 
 The N=10 and N=20 cells are single repeats. The repeat spread at N=5 is under 1 %, so one repeat is a fair sample, but it is one sample. Raw rows: `ops-cells.csv`.
 
@@ -347,7 +349,7 @@ The non-test commits cost about 6.6 s each (`lint`, `install`, a clean build and
 
 ### Why N=5 averages 35 s per commit
 
-The N=5 cell holds four log commits (4.2 s each) and one issues commit (158.6 s). The mean is (4 * 4.2 + 158.6) / 5 = 35.1 s (**derived**), against 171 to 281 s for any one commit that triggers package tests. Per-commit cost is bimodal, and the average per commit of a branch is the share of test-triggering commits times about 170 to 310 s plus a few seconds. The share in this window is 5 of 20 (25 %), and it is 30.5 % in the 400 commits of `data/commit-modes.csv` (**measured**; 122 of 400 commits run package or full tests, corrected from 130 and 33 % in an earlier draft).
+The N=5 cell holds four log commits (4.2 s each) and one issues commit (158.6 s). The mean is (4 * 4.2 + 158.6) / 5 = 35.1 s (**derived**), against 171 to 281 s for any one commit that triggers package tests. Per-commit cost is bimodal, and the average per commit of a branch is the share of test-triggering commits times about 170 to 310 s plus a few seconds. The share in this window is 5 of 20 (25 %), and it is 30.5 % in the 400 commits of `data/commit-modes.csv` (**measured**; 122 of 400 commits run package or full tests, corrected from 130 and 33 % in an earlier count).
 
 The pk commits cost 307 s each while the same kind, an issues-only commit, cost 160 s in the old window and 171 s in the single-kind measurement at the tip. The pk commits predate the commit that split the issues MCP tests (the commit before that window's `c5`). They run 732 tests in 59 files against 768 in 73 files after, with a similar CPU time (819 s against 899 s user time) and nearly twice the wall time. That is consistent with one long test file that sets the wall time (see "Test file durations" in `AGENTS.md`). I did not run the file split to confirm it, so the cause is **inferred**. For the cost of verifying a commit it means that the cost of one commit depends on the test suite as that commit has it, not on the suite at the tip.
 
@@ -490,7 +492,7 @@ Cancelled runs are expected: the workflow cancels a pull request run when a newe
 | Ledger, or several packages (all run) | 2 | 47 (11.7 %) | 100 % | 280.8 s | 42.1 % |
 | Workspace-level file (all run) | 4 | 16 (4.0 %) | 100 % | 280.8 s | 14.3 % |
 
-(The last 100 commits contain no issues-only or adr-only commit: 87 log, 7 docs, 2 package commits that run all three packages and 4 workspace-level commits.) The Markdown, log and docs commits cost 5 s or less. In the 400 commits, 30.5 % run tests (**measured**; 122 of 400 have mode `pkg` or `full` in `data/commit-modes.csv`, a correction of the 130 of 400, 33 %, in an earlier draft of the section on why N=5 averages 35 s), they take 96 % of the check time. The mean test share per commit is 6.0 % in the last 100 commits and 26.8 % in the last 400 (**derived**). The last 100 commits are a stretch of log work, so they understate the cost of a branch of code commits. The kind of branch decides the cost: a branch of N log commits costs 5 N seconds, a branch of N package commits costs about 171 to 281 N.
+(The last 100 commits contain no issues-only or adr-only commit: 87 log, 7 docs, 2 package commits that run all three packages and 4 workspace-level commits.) The Markdown, log and docs commits cost 5 s or less. In the 400 commits, 30.5 % run tests (**measured**; 122 of 400 have mode `pkg` or `full` in `data/commit-modes.csv`, a correction of the 130 of 400, 33 %, in an earlier count), they take 96 % of the check time. The mean test share per commit is 6.0 % in the last 100 commits and 26.8 % in the last 400 (**derived**). The last 100 commits are a stretch of log work, so they understate the cost of a branch of code commits. The kind of branch decides the cost: a branch of N log commits costs 5 N seconds, a branch of N package commits costs about 171 to 281 N.
 
 What these shares say about avoiding work (**derived**): `check-commit.sh` already skips the tests for 69.5 % of the commits of `main` (log, docs). Within a test-running commit, 87 % of test time sits in tests that start the built CLI (cli and property+cli: 912.7 + 36.4 of 1091.6 s at one worker, from `data/category-times.csv`), and these tests read `dist/`, so a module-graph selection of test files cannot see which of them a source change affects. That limits any file-level selection to about 13 % of test time (**derived**).
 
@@ -795,9 +797,82 @@ Dependencies between options (**derived** from how they work):
 
 What the data cannot say: whether any test depends on git history above the tree, the real gain of finer selection beyond the 13 % bound, the size of main movement in the paths a rebase touches (a key built from the tested scope instead of the full tree could hit across a rebase onto docs-only main commits, but 30.5 % of main commits run tests, so for 5 or more moved commits a rebase would be mostly a miss anyway, **modelled**), and CI wall time on the actual runners.
 
-## To be added in later parts
+## The confirming experiment: do any tests read git history?
 
-- A recommendation (to be added).
+The cheapest check that could overturn the cache is whether any test depends on something the key does not hold. The key holds the tree, the parent tree, the selection and the tool versions, so a test that reads the history of the checkout, its tags or its commit count would make an equal key mean a different result. Two checks were run, a static one and a dynamic one. The cached branch run itself (a branch through `git rebase --exec` with the wrapper) is the cache experiment in the Options section.
+
+**Static audit** (`scripts/audit-history-reads.sh`, output `data/audit-history-reads.txt`, **measured**): of 249 test files, 6 run a git history command (`git log -1` in the two `e2e-subjects` files and `lifecycle.test.ts`, `rev-list` in `fork-and-merge.test.ts`, `operation.test.ts` and `numbering.test.ts`). All run it in a temporary repository the test made (`cwd: r.root`) or count the calls of a stub. 3 files use `process.cwd()`: `hooks/e2e.test.ts` inside a generated tool script that runs in a temporary repository, `index-command.test.ts` as the `cwd` of a CLI call whose `open` is a stub, and `dist-entries.test.ts` as the `cwd` of a CLI call that checks exported modules; the trace below shows none of them ran git on the checkout. 12 child processes start without a `cwd`, and none of them runs git on the checkout: version and help output of the built CLIs, module resolution recorders, `ssh-keygen`, a `git clone` of a temporary repository.
+
+**Dynamic check** (`scripts/trace-git-in-repo.sh`, output `data/trace-git-in-repo.txt`, **measured**): all three packages' tests ran once with a `git` shim first on `PATH` that logged every call whose working directory or argument was inside the checkout. 1747 calls were logged: 1527 `git init` of temporary repositories (started from the package directory), 163 `git version`, 28 `git config core.commentChar`, 24 `git clone` and 4 `git pull` of temporary repositories, and 1 `git status --short` at the repository root (not from a test file that I could find, probably `pnpm`). Zero calls ran `log`, `rev-list`, `describe`, `show`, `tag`, `merge-base`, `blame` or `reflog`. All tests passed (ledger 1676, adr 682 with 7 skipped, issues 858 with 14 skipped). A test that calls git through an absolute path would bypass the shim; the static audit found one such stub (`resident.test.ts`, which wraps the real git for a temporary repository).
+
+Result: no test reads the history of the checkout. What remains outside the key is environment: `git config core.commentChar` reads the local git configuration of the checkout (28 calls), and the tests depend on the installed git, `ssh-keygen`, the clock and random ids. The gap "tests that read git history" of the table above is therefore **not found in the test code**, which weakens it from "not audited" to "audited statically and by a trace on one run". It does not cover the non-test steps of `check-commit.sh`: `adr verify --base` and `issues verify --base` read the history between the base and the commit. In the documented `git rebase --exec scripts/check-commit.sh` form the base is the parent, so the parent tree is in the key. A run with an explicit base argument passes the argument to both the selection probe and the real script, but whether `verify` without `--base` reads older history was not audited.
+
+## Recommendation
+
+All effects are **modelled** from `data/options.csv` unless marked. They rest on the measured cache cells and on the cost classes of the last 400 commits of `main`, which are **measured**. A session is one first verification plus 1.14 rewrites per branch (40 % rebase, 20 % fixup of the last commit, 20 % reword, 10 % reorder, 10 % fixup of the first), at the median work branch (N=5) and the p90 one (N=17).
+
+**First step: run the per-commit check through a tree-hash result cache.** Use `scripts/check-commit-cached.sh` (or the same idea inside `check-commit.sh`) as the `git rebase --exec` command, with the strict key (tree, parent tree, selection, node, pnpm, git, lockfile hash, script hash) and writes only on exit 0. Reasons, in order:
+
+1. It is the only option that removes work the check repeats: after a reword, a repeat run or a fixup of the last commit, the unchanged commits are verified again today. Measured: a repeat or a reword costs 1.0 s at N=5 and 2.0 s at N=10, against 174 to 175 s and 462 to 467 s (`data/cache/cache-cells.csv`).
+2. It keeps the guarantee "every commit passed on this tree, this parent and these tools" for every hit, and a changed tree is always a miss. The audit above found no test that reads history.
+3. It needs no change to a CI job, a test, a test configuration or a dependency, and `check-commit.sh` stays as it is.
+
+Expected change (**modelled**, mixed branch, wall seconds; the measured cell is named where there is one):
+
+| Operation | Before N=5 | After N=5 | Before N=17 | After N=17 | Measured at |
+|---|---|---|---|---|---|
+| first verification | 392 | 397 | 1332 | 1349 | N=5: 174.4 to 181.9 (cold cache, +4.3 %) |
+| rebase onto newer main | 392 | 397 | 1332 | 1349 | N=5: 175.0 to 182.8 (+4.5 %), N=10: 462.5 to 476.9 (+3.1 %) |
+| reword | 392 | 0.7 | 1332 | 2.2 | N=5: 175.4 to 1.0, N=10: 467.2 to 2.0 |
+| fixup of the last commit | 392 | 80 | 1332 | 82 | N=5: 174.6 to 169.1 (the changed commit was the heavy one), N=10 with a log commit last: 6.4 |
+| reorder of two commits | 392 | 159 | 1332 | 161 | N=5: 175.3 to 9.6 (two log commits), N=10: 466.3 to 173.3 |
+| session (first verification plus 1.14 rewrites) | 839 | 660 | 2851 | 2156 | none, derived from the rows above |
+
+The session falls by 21 % at N=5 (179 s) and by 24 % at N=17 (695 s). For a branch of test-running commits the session falls from 2645 to 2062 s at N=5 (22 %) and from 8992 to 6738 s at N=17 (25 %). Machine time falls with wall time: a repeat at N=5 costs 1.1 s of machine time against 1150 s. A cache that never hits, the rebase onto newer main and the fixup of the first commit, costs 3 to 5 % more (1.0 s of selection probe and tool versions per miss). Break-even: it pays on the first reword (N=1) and never pays on a first verification or a rebase (`options-summary.csv`). The effort is 2 to 4 person-days (an estimate, **modelled**), so the payback is 106 working days at N=5 and 27 at N=17 for mixed branches, 33 and 8 for branches of test-running commits. At the median branch the case is weak; it rests on large branches, on branches of package commits and on how often a branch is rewritten (1.14 force pushes per work branch, 1.8 for branches over 10 commits, **measured**).
+
+**What follows, in this order:**
+
+1. **A refresh run that ignores the cache** (`CACHE_MODE=refresh`) on the last merged commits, on a schedule, and tip CI as it is today. This bounds the two residual risks, a flaky pass that stays cached and tool drift that the key does not see (operating system, environment variables). About 78 s per commit of `main` (**modelled**).
+2. **Repeatability fixes** for the known flakes (the random id containing `zzz`, the adr test too close to its timeout). They are a precondition for trusting a cached pass. They save nothing by themselves (0.3 s to 46 s per session, **modelled**).
+3. **A merge queue**, if rebases onto a moved `main` are the main cost. The cache does nothing for a rebase, and 46 % of work branches see `main` move (**derived**). A merge queue tests the tip on the latest `main`, and the per-commit check would then run before the rebase. It costs 0.5 to 1 person-day and one tip run per merge (up to 508 runner seconds, **measured** medians).
+4. **8 workers instead of 7 in `check-commit.sh`**, only for hosts that have 8 or more cores. It saves 3.3 % (28 s per session at N=5, **modelled**), costs 0.1 person-day, and depends on the host's core count.
+
+**What to leave alone:**
+
+- **`scripts/check-commit.sh` selection and the clean build.** The clean build costs 1.1 s more than a warm one, 0.4 % of a 280 s check, and protects against stale output.
+- **Finer test selection** (`vitest related`, `--changed`, `recordDependencies`). 87 % of test time is in tests that start the built CLI, so the gain is at most 13 % (upper bound), and 5 to 15 person-days give a payback of 603 and 177 days. A missed test is a silent gap.
+- **Verify touched commits only and lazy verification.** They remove the guarantee that each commit is valid on its base, which is the failure commit `47c22a5` was written to prevent.
+- **A CI job per commit.** It costs (N-1) extra test runs per push (564 runner seconds at N=5, 2257 at N=17, **modelled**) and does not shorten the local wait for small branches (break-even N=6).
+- **CI jobs, tests, test configuration and dependencies.** This investigation changed none and recommends none.
+
+The recommendation does not claim that the check becomes cheap. At N=17 a session still costs 2156 s (**modelled**), because rebases and fixups of early commits gain nothing from any tree-keyed method.
+
+## Decisions
+
+Each row names the decision, the evidence in this document, and the source in the repository or the documentation.
+
+| Decision | Evidence | Source |
+|---|---|---|
+| Wrap `check-commit.sh` instead of editing it | The wrapper obtains the selection by running the real script with a stub `pnpm`, so the key follows the script's own rules | [`scripts/check-commit.sh`](https://github.com/nikovirtala/ark/blob/main/scripts/check-commit.sh), [commit `7acd69a`](https://github.com/nikovirtala/ark/commit/7acd69a) |
+| Strict key: tree, parent tree, selection, tool versions | Reorder cells: the swapped commit misses, so no wrong hit. The loose key saved one miss at N=5 and none at N=10 | `data/cache/cache-cells.csv`, section "The cheapest experiment" |
+| Write a result only for exit 0 | A failed reorder misses again on the second run | `data/cache/cache-cells.csv` (`cn02-reorder-r1`, `r2`) |
+| Keep the tip-only CI as the cross-check | CI tests the tip only, so a wrong hit in the middle is caught by the refresh run, not by CI | [`.github/workflows/ci.yml`](https://github.com/nikovirtala/ark/blob/main/.github/workflows/ci.yml) |
+| Keep the clean build per commit | 1.1 s saved of 280 s | [commit `7acd69a`](https://github.com/nikovirtala/ark/commit/7acd69a), `data/phases.csv` |
+| Do not recommend finer selection | 87 % of test time starts the built CLI | `data/category-times.csv`, [vitest CLI](https://vitest.dev/guide/cli) |
+| Do not recommend lazy or touched-only verification | Docs-only commit that broke a test and passed | [commit `47c22a5`](https://github.com/nikovirtala/ark/commit/47c22a5) |
+| Do not recommend a CI job per commit | Extra runner seconds per push; the `git rebase` form checks each commit at the end of a fixup series only | [Run job variations](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/run-job-variations), [git-rebase](https://git-scm.com/docs/git-rebase/2.50.0) |
+| Keep the prototype and the data in `docs/investigations/` only | No change to jobs, tests, test configuration or dependencies was asked for | [`AGENTS.md`](https://github.com/nikovirtala/ark/blob/main/AGENTS.md) |
+
+## Not established
+
+- **Modelled cells.** The options tables (`data/options.csv`) are **modelled** from the class costs of the last 400 commits of `main`. Only the cache cells at N=5 and N=10 are measured. What would make them measured: run the cache experiment on a real branch of 17 commits, and on branches of package commits, with the repeats noted below. The effort numbers (person-days) and the payback days are estimates, not measurements, and the payback counts waiting time as working time.
+- **N=20 for the other operations.** Only `first` was measured at N=20 (987.4 s, one repeat). The other operations at N=20 are modelled at the same value, as at N=5 and N=10 they cost within 1 to 2 % of `first`. To measure: the same cells with `ops-plan-large.txt` extended to N=20, about 17 minutes per cell.
+- **One-repeat cells.** Every N=10 and N=20 cell, every pk cell except `first` at N=1 and 2, the break cells, and the cache cells at N=10 and for `reorder-at4`, `fixup-*` and `rebase` are single repeats (see `repeats` in `data/cost-table.csv` and `data/cache/cache-cells.csv`). The repeat spread at N=5 is under 1 % for most operations, and up to 3 % for three operations where one repeat was slow (`reorder`, `reorder-at4`, `reword-mid`).
+- **The cause of CI reruns.** 36 of the 39 reruns passed, and the first attempt's jobs were readable for 4 of them. Whether they were spurious failures or deliberate reruns is unknown. To know it: the logs of the failed first attempts, which the API does not return after a rerun.
+- **The pk window discrepancy.** An issues-only commit costs 307 s per commit in the pk window and 160 to 171 s elsewhere (158.6 s in the old window, 170.7 s at the tip). The 732 against 768 tests and the similar CPU time point at one long test file, as the split of the issues tests suggests, but I did not run the split. To establish it: run the tests of the pk commit with per-file timings (`scripts/check-test-durations.mjs`) and compare with the tip.
+- **Git history reads outside the tests.** The audit covers the test code and one run's git calls. It does not cover `adr verify` and `issues verify` without `--base`, which may read older history, and tests that fail only on some operating systems or git versions.
+- **Cache safety over time.** A flaky pass that stays cached, tool drift beyond the key, and a store shared by several people (who may write) are modelled in the table of gaps, not measured. The rate of flaky passes is bounded by 0 failures in 51 package runs (95 % upper bound 5.7 %) and by the measured id flake, 0.035 % per run.
+- **CI wall time on the real runners.** CI test jobs ran on a 4-core arm runner, this host has 8 x86 cores. All absolute times belong to this host.
 
 ## Reproducing
 

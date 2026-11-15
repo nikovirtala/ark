@@ -1,0 +1,37 @@
+# test files: 249
+
+## 1. Tests that run a git history command (log, rev-list, describe, tag, rev-parse, show, merge-base)
+packages/adr/src/e2e-subjects.test.ts:38:    spawnSync("git", ["log", "-1", `--format=${format}`], {
+packages/issues/src/cli/lifecycle.test.ts:14:  execFileSync("git", ["log", "-1", "--format=%s"], { cwd: root, env }).toString().trim();
+packages/issues/src/e2e-subjects.test.ts:37:    spawnSync("git", ["log", "-1", `--format=${format}`], {
+packages/ledger/src/fold/numbering.test.ts:619:        revList: await log.count(" rev-list "),
+packages/ledger/src/git/operation.test.ts:58:    [["rev-list", "HEAD"], true],
+packages/ledger/src/testing/fork-and-merge.test.ts:25:  (await out(r, ["rev-list", "--parents", "-n", "1", sha])).split(" ").slice(1);
+packages/ledger/src/testing/fork-and-merge.test.ts:63:    expect(await out(r, ["rev-list", "--count", `${res.base}..${res.right}`])).toBe("2");
+packages/ledger/src/testing/fork-and-merge.test.ts:64:    const linear = (await out(r, ["rev-list", "--parents", `${res.base}..${res.merged}`])).split(
+packages/ledger/src/testing/fork-and-merge.test.ts:69:    const rebased = await out(r, ["rev-list", "--reverse", `${res.left}..${res.merged}`]);
+
+## 2. Tests that use the working directory or the directory of the test file as a repository
+packages/ledger/src/cli/index-command.test.ts:61:      cwd: process.cwd(),
+packages/ledger/src/dist-entries.test.ts:67:      cwd: process.cwd(),
+packages/ledger/src/hooks/e2e.test.ts:24:const git = await Git.open(process.cwd());
+
+## 3. Child processes started in the test without a cwd (they inherit the package directory, inside ark's own repository)
+packages/adr/src/cli.test.ts:9:   spawnSync(process.execPath, [requireBuilt(CLI), ...args], { encoding: "utf8" });
+packages/adr/src/kind-isolation.test.ts:37:   const out = spawnSync(process.execPath, ["--import", RECORDER, ...args], { encoding: "utf8" });
+packages/adr/src/write.copy-scope-operation.test.ts:45:   const git = execFileSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).trim();
+packages/issues/src/cli.test.ts:9:   spawnSync(process.execPath, [requireBuilt(CLI), ...args], { encoding: "utf8" });
+packages/issues/src/cli/link.test.ts:195:       execFileSync("git", ["clone", "-q", "--depth", "1", `file://${repo.root}`, clone], {
+packages/issues/src/kind-isolation.test.ts:39:   const out = spawnSync(process.execPath, ["--import", RECORDER, ...args], { encoding: "utf8" });
+packages/ledger/src/dist-entries.test.ts:32:   const out = spawnSync(process.execPath, ["--input-type=module", "-e", CHILD], {
+packages/ledger/src/git/history.test.ts:31:     execFileSync("ssh-keygen", ["-?"], { stdio: "ignore" });
+packages/ledger/src/git/history.test.ts:96:       execFileSync("ssh-keygen", ["-q", "-t", "ed25519", "-N", "", "-C", "ledger", "-f", key]);
+packages/ledger/src/git/resident.test.ts:228:   const child = spawn(real, args, { stdio: ["pipe", "inherit", "inherit"] });
+packages/ledger/src/git/resident.test.ts:254:   const r = spawnSync(real, args, { stdio: "inherit" });
+packages/ledger/src/sources/fetch.test.ts:220:     const { pid } = spawnSync(process.execPath, ["-e", ""]);
+
+## 4. Tests that read files above the package (listed for check-commit.sh in scripts/test-inputs.txt)
+docs/01-adr-v1.md adr
+docs/02-issues-v1.md issues
+commitlint.config.mjs adr
+commitlint.config.mjs issues

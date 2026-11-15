@@ -1,0 +1,29 @@
+Run of: scripts/trace-git-in-repo.sh (pnpm -r run test with a logging git shim), measured on the host in host.txt, commit 220b1d9 plus the investigation files
+tests: exit 0 (ledger 1676 passed; adr 682 passed, 7 skipped; issues 858 passed, 14 skipped)
+calls logged: 1747
+by working directory:
+    641 ark/packages/ledger
+    600 ark/packages/issues
+    505 ark/packages/adr
+      1 ark
+by subcommand:
+   1527 init
+    163 version
+     28 config
+     24 clone
+      4 pull
+      1 status
+history commands (log, rev-list, describe, show, tag, merge-base, blame, reflog): 0
+distinct non-init calls:
+     65 cwd ark/packages/ledger: version
+     57 cwd ark/packages/issues: version
+     41 cwd ark/packages/adr: version
+     21 cwd ark/packages/issues: config core.commentChar
+      7 cwd ark/packages/adr: config core.commentChar
+      6 cwd ark/packages/adr: clone -q --depth 1 file:///tmp/X/repo /tmp/X/clone
+      4 cwd ark/packages/issues: clone -q --depth 1 file:///tmp/X/repo /tmp/X/c
+      4 cwd ark/packages/adr: -C /tmp/X/clone pull -q --ff-only
+      4 cwd ark/packages/adr: clone -q file:///tmp/X/repo /tmp/X/clone
+      3 cwd ark/packages/ledger: clone -q --depth 1 file:///tmp/X/repo /tmp/X/shallow
+      1 cwd ark: status --short
+      1 cwd ark/packages/ledger: clone -q --depth 1 file:///tmp/X/repo /tmp/X/shallow-without-index

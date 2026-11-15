@@ -42,7 +42,7 @@ Run time on the measured host (8 cores): phases about 1 minute per repeat, packa
 
 ## Cost over the number of commits
 
-`run-branch-op.sh` measures one cell (a branch of N real commits, one operation, then `git rebase --exec scripts/check-commit.sh`), `run-grid.sh` runs the cells of a plan within a time budget and skips cells already in `data/ops-cells.csv`, and `fit-cost.mjs` derives the tables. `ops-setup.sh` creates the refs of a window in a scratch clone that has the commits and has been installed and built. Windows: `data/window.txt` (default, refs `ops-*`, mostly logs), `data/ops-window.txt` (`OPS_PFX=pk OPS_TAG=pk-`, package commits) and `data/ops-window-pair.txt` (`OPS_PFX=pr OPS_TAG=pr-`, an independent pair). `OPS_ISSUES_COST` sets the per-commit estimate the grid uses for its budget (300 for the pk window).
+`run-branch-op.sh` measures one cell (a branch of N real commits, one operation, then `git rebase --exec scripts/check-commit.sh`), `run-grid.sh` runs the cells of a plan within a time budget and skips cells already in `data/ops-cells.csv`, and `fit-cost.mjs` derives the tables, and `cost-table.mjs` writes `data/cost-table.csv` (median wall and machine time, range, repeats, rewritten and tree-changed counts per window, operation and N). `ops-setup.sh` creates the refs of a window in a scratch clone that has the commits and has been installed and built. Windows: `data/window.txt` (default, refs `ops-*`, mostly logs), `data/ops-window.txt` (`OPS_PFX=pk OPS_TAG=pk-`, package commits) and `data/ops-window-pair.txt` (`OPS_PFX=pr OPS_TAG=pr-`, an independent pair). `OPS_ISSUES_COST` sets the per-commit estimate the grid uses for its budget (300 for the pk window).
 
 ```sh
 source ~/.nvm/nvm.sh; nvm use 24
@@ -116,3 +116,21 @@ node $D/scripts/options-model.mjs
 ```
 
 Run time on the measured host: N=5 about 3 minutes per cold or miss-heavy cell and 1 to 10 seconds per hit-heavy cell; N=10 about 8 minutes per miss-heavy cell. Cells run serially.
+
+## Audit, trace and number checks
+
+| Script | What it does | Output in `data/` |
+|---|---|---|
+| `cost-table.mjs` | Groups `ops-cells.csv` by window, operation and N: median wall and machine time, range, repeats, rewritten and tree-changed counts. Also prints the table as Markdown | `cost-table.csv` |
+| `audit-history-reads.sh` | Read-only audit of the test files for git history commands, use of the working directory as a repository, child processes without a `cwd`, and the files listed in `scripts/test-inputs.txt` | `audit-history-reads.txt` (saved from stdout) |
+| `trace-git-in-repo.sh` | Runs `pnpm -r run test` with a `git` shim first on `PATH` that logs every call whose working directory or argument is inside the checkout, then prints counts per subcommand and the number of history commands. Needs a built repository; about 5.5 minutes. `TRACE_DIR` sets the log directory | `trace-git-in-repo.txt` (the summary, saved with the run header and the list of distinct calls) |
+| `check-numbers.mjs` | Compares 36 numbers quoted in `pull-request-body.md` with the data files and exits 1 on a difference | none |
+
+```sh
+source ~/.nvm/nvm.sh; nvm use 24
+D=docs/investigations/commit-verification-cost
+node $D/scripts/cost-table.mjs
+$D/scripts/audit-history-reads.sh > $D/data/audit-history-reads.txt
+TRACE_DIR=<scratch dir> $D/scripts/trace-git-in-repo.sh
+node $D/scripts/check-numbers.mjs
+```
