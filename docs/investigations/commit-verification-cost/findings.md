@@ -1,6 +1,6 @@
 # What verifying every commit of a branch costs
 
-Status: draft, part 2 of 3. This part covers the stack, the workflow, a single verification run, where its time goes, how reproducible it is, and the cost over the number of commits. The options and recommendation are added in later parts and are marked "to be added" below.
+Status: draft, part 3 of 4. This part covers the stack, the workflow, a single verification run, where its time goes, how reproducible it is, the cost over the number of commits, how branches are made, how much of the suite a commit affects, spurious failures, and what the pinned tools offer. The options and recommendation are added in later parts and are marked "to be added" below.
 
 ## How to read the numbers
 
@@ -347,7 +347,7 @@ The non-test commits cost about 6.6 s each (`lint`, `install`, a clean build and
 
 ### Why N=5 averages 35 s per commit
 
-The N=5 cell holds four log commits (4.2 s each) and one issues commit (158.6 s). The mean is (4 * 4.2 + 158.6) / 5 = 35.1 s (**derived**), against 171 to 281 s for any one commit that triggers package tests. Per-commit cost is bimodal, and the average per commit of a branch is the share of test-triggering commits times about 170 to 310 s plus a few seconds. The share in this window is 5 of 20 (25 %), and it is 33 % in the 400 commits of `data/commit-modes.csv` (**measured**; 130 of 400 commits run package or full tests).
+The N=5 cell holds four log commits (4.2 s each) and one issues commit (158.6 s). The mean is (4 * 4.2 + 158.6) / 5 = 35.1 s (**derived**), against 171 to 281 s for any one commit that triggers package tests. Per-commit cost is bimodal, and the average per commit of a branch is the share of test-triggering commits times about 170 to 310 s plus a few seconds. The share in this window is 5 of 20 (25 %), and it is 30.5 % in the 400 commits of `data/commit-modes.csv` (**measured**; 122 of 400 commits run package or full tests, corrected from 130 and 33 % in an earlier draft).
 
 The pk commits cost 307 s each while the same kind, an issues-only commit, cost 160 s in the old window and 171 s in the single-kind measurement at the tip. The pk commits predate the commit that split the issues MCP tests (the commit before that window's `c5`). They run 732 tests in 59 files against 768 in 73 files after, with a similar CPU time (819 s against 899 s user time) and nearly twice the wall time. That is consistent with one long test file that sets the wall time (see "Test file durations" in `AGENTS.md`). I did not run the file split to confirm it, so the cause is **inferred**. For the cost of verifying a commit it means that the cost of one commit depends on the test suite as that commit has it, not on the suite at the tip.
 
@@ -416,10 +416,149 @@ An independent pair (`pr` window, a test-only commit and a docs-only commit) reo
 - `n10-fixup-first-r1` from the interrupted run: 6 of 10 rows and no row in `ops-cells.csv`. Discarded and measured again.
 - The first attempt of the `break-test-*` cells: see above. Discarded.
 
+## How branches are made
+
+Source: the GitHub REST API (`scripts/collect-prs.sh`, `scripts/analyze-prs.mjs`), raw rows in `data/prs/` (`pulls.jsonl`, `pull-details.jsonl`, `runs.jsonl`, `jobs.jsonl`, `jobs-prior.jsonl`), one row per pull request in `data/pr-branches.csv`, statistics in `data/pr-summary.json`. Only counts, numbers, shas, branch-name prefixes and timestamps are stored. All numbers in this section are **measured** unless labelled.
+
+**Source reliability.**
+
+- The repository is small and young: 108 closed pull requests collected (105 merged, 3 closed without merging) between 2026-10-22 and 2026-11-14, against 666 commits on `main`. Percentiles over 78 branches are coarse; p90 is the 8th largest value.
+- Merges use "Rebase and merge", so the merge shas differ from the head shas, and `main` stays linear (no merge commits, 0 of 666). The number of commits of a pull request comes from `pulls/{n}`, the commit list from `pulls/{n}/commits`.
+- Not every commit of `main` came through a pull request, and not every pull request commit is on `main` as it was: the merged pull requests carry 674 commits in total (summed `commits`), the first-parent log of `origin/main` at collection time has 666 commits in total, and commits dropped or merged by a rebase or a force push explain the difference. The commit counts below are for pull request branches at merge time, so they describe branches, not all of `main`.
+- Pull requests that the release bot opens (`changeset-release/*` and `release*` branches, 27 of the 105 merged) are shown apart ("release"). The remaining 78 are "work" branches written by people and agents. This split is by branch-name prefix and is a guess at who wrote the branch.
+- A force push is the `head_ref_force_pushed` event of `issues/{n}/events`. The event also fires for a plain `--force-with-lease` after an amend, so it counts rewrites, not rebases onto `main` only.
+- "Main movement" is not readable from `base.sha`: the API reports the base at merge time, so `main_since_base` is 0 for all 105 (in `pr-branches.csv`, kept for the record and not used). The substitute counts commits on `main` whose committer time falls between opening and merging, minus the branch's own commits (`main_while_open`). Rebase merges rewrite committer times and direct pushes count too, so treat it as an estimate of main movement (**derived**, low reliability).
+
+### Commits per branch
+
+| Group | Branches | Mean | Median | p75 | p90 | Max |
+|---|---|---|---|---|---|---|
+| Work, merged | 78 | 8.3 | 5 | 9 | 17 | 60 |
+| Release, merged | 27 | 1.0 | 1 | 1 | 1 | 2 |
+| All merged | 105 | 6.4 | 3 | 8 | 14.6 | 60 |
+
+Histogram of work branches by commits (**measured**): 1: 15, 2: 8, 3 to 5: 19, 6 to 10: 18, 11 to 20: 12, over 20: 6. 23 % of the work branches have more than 10 commits (18 of 78). The work-branch lifetime from opening to merge has median 1.7 h and p90 8.6 h.
+
+### Force pushes and main movement
+
+| Group | Share with at least one force push | Mean force pushes | Median | p90 | Max |
+|---|---|---|---|---|---|
+| Work, merged (78) | 67 % | 1.14 | 1 | 3 | 5 |
+| All merged (105) | 56 % | 1.06 | 1 | 3 | 12 |
+
+By branch size (work branches, **measured**): 1 to 2 commits: 61 % force-pushed (23 branches), 3 to 5: 53 % (19), 6 to 10: 67 % (18), over 10: 89 % (18), with a mean of 1.8 force pushes for the largest. Longer branches get rewritten more often. Per `AGENTS.md`, each rewrite of a branch that is later rebased invalidates a per-commit verification, because the check covers the commits as they were.
+
+On 46 % of the work branches at least one commit landed on `main` while the branch was open (**derived**, see reliability), median 0 and p90 14.6 commits. The tip-only check in CI has no such exposure (it tests the pull request merge), but a per-commit check is only valid for the base it ran on, and a rebase onto the moved `main` replays all N commits.
+
+### Expected cost per branch
+
+**Modelled**: N times the mean per-commit cost of the commits of `main`. The mean is 78.4 s per commit over the last 400 `main` commits (**derived**: each commit classified with the `check-commit.sh` rules and priced with the per-mode times of `data/check-commit.csv`, see the next section; `data/affected-share-400.csv`). The second column uses the kind-weighted fit of the cost section (12.9 + 6.6 N + 173.2 per package commit, with 30.5 % of commits running tests; the 173 s was measured on a window that is mostly issues-only commits, so the fit gives lower numbers). The third column is the worst case in which every commit runs every package (280.8 s each). Times are one verification run on this host.
+
+| Branch size | N | Mixed, 78.4 s each | Fit | Every commit runs all tests |
+|---|---|---|---|---|
+| Work, median | 5 | 392 s (6.5 min) | 310 s | 1404 s (23 min) |
+| Work, p90 | 17 | 1333 s (22 min) | 1023 s | 4774 s (80 min) |
+| All merged, median | 3 | 235 s | 191 s | 842 s |
+| All merged, p90 | 15 | 1176 s | 904 s | 4212 s |
+
+A branch that is rewritten and verified again after each rewrite pays this once per verification. With 1.14 force pushes per work branch on average (**measured**), the cost per branch lies between one verification (only before marking ready, as `AGENTS.md` asks) and about 2.1 times that (**modelled**: 1 + 1.14, if every rewrite is verified again). The CI test job on the 4-core arm runner takes a median of 295 s for issues, 169 s for adr and 44 s for ledger on success (**measured**, `data/pr-summary.json`, `test_jobs_by_package`), against 164, 91 and 17 s here. CI tests only the tip, so a branch with N commits costs CI one run and the per-commit check about N times the mixed mean.
+
+### CI runs and rerun rate
+
+**Measured**, 685 `CI` workflow runs (`data/prs/runs.jsonl`, 581 on pull requests and 104 pushes to `main`):
+
+| Result | Runs |
+|---|---|
+| success | 378 |
+| failure | 76 |
+| cancelled | 218 |
+| action required (first-time approval) | 13 |
+| Run again at least once (`run_attempt` 2) | 39 (36 passed, 3 did not) |
+
+Cancelled runs are expected: the workflow cancels a pull request run when a newer push arrives (`concurrency` with `cancel-in-progress`, `.github/workflows/ci.yml` lines 11 to 13). Of the 454 runs that finished with success or failure, 76 failed (16.7 %). No failed run had a later successful run on the same head sha without a rerun (0 of 76), so failures were fixed by new commits or by a rerun. Of the 685 runs, 39 are reruns. The jobs API only returns the latest attempt of a rerun, and the first attempt's jobs were readable for 4 of the 39 reruns (the others return no jobs): in those 4, the failed first-attempt jobs were `test` (2) and `check` (2). So the cause of the 36 passed reruns is unknown: a spurious failure, an infrastructure failure, or a deliberate rerun. The test matrix jobs failed in 21 of 590 completed jobs (3.6 %): issues 5 of 199, ledger 9 of 193, adr 7 of 198. Those include real failures.
+
+## Share of the suite a commit affects
+
+`scripts/affected-share.mjs` applies the `check-commit.sh` rules to each commit: the changed files of `<sha>~1..<sha>`, the `scripts/test-inputs.txt` of that commit, the workspace graph (ledger, then adr, then issues, so a ledger change tests all three and an adr change tests adr and issues). Each commit gets a test share (the summed default-worker test wall time of the packages it runs, over the sum of all three: 91.0 + 164.1 + 17.3 = 272.4 s, **measured**) and a check wall time from `data/check-commit.csv`. Raw: `data/affected-share.csv` (100 commits ending at `232beda`), `data/affected-share-400.csv` (400 commits). The 400-commit classification gives the same mode for all 400 commits as `data/commit-modes.csv` (**measured**, 0 differences).
+
+| What the commit changes | Last 100 commits | Last 400 commits | Share of the suite's test time | Check wall time each | Share of all check time (400) |
+|---|---|---|---|---|---|
+| Docs only | 7 | 45 (11.3 %) | 0 % | 0.6 s | 0.1 % |
+| Decision or issue log only | 87 | 233 (58.3 %) | 0 % | 5.0 s | 3.7 % |
+| Issues package only | 0 | 33 (8.3 %) | 60.3 % | 170.7 s | 18.0 % |
+| Adr package (adr and issues run) | 0 | 26 (6.5 %) | 93.6 % | 263.6 s | 21.8 % |
+| Ledger, or several packages (all run) | 2 | 47 (11.7 %) | 100 % | 280.8 s | 42.1 % |
+| Workspace-level file (all run) | 4 | 16 (4.0 %) | 100 % | 280.8 s | 14.3 % |
+
+(The last 100 commits contain no issues-only or adr-only commit: 87 log, 7 docs, 2 package commits that run all three packages and 4 workspace-level commits.) The Markdown, log and docs commits cost 5 s or less. In the 400 commits, 30.5 % run tests (**measured**; 122 of 400 have mode `pkg` or `full` in `data/commit-modes.csv`, a correction of the 130 of 400, 33 %, in an earlier draft of the section on why N=5 averages 35 s), they take 96 % of the check time. The mean test share per commit is 6.0 % in the last 100 commits and 26.8 % in the last 400 (**derived**). The last 100 commits are a stretch of log work, so they understate the cost of a branch of code commits. The kind of branch decides the cost: a branch of N log commits costs 5 N seconds, a branch of N package commits costs about 171 to 281 N.
+
+What these shares say about avoiding work (**derived**): `check-commit.sh` already skips the tests for 69.5 % of the commits of `main` (log, docs). Within a test-running commit, 87 % of test time sits in tests that start the built CLI (cli and property+cli: 912.7 + 36.4 of 1091.6 s at one worker, from `data/category-times.csv`), and these tests read `dist/`, so a module-graph selection of test files cannot see which of them a source change affects. That limits any file-level selection to about 13 % of test time (**derived**).
+
+## Spurious failures
+
+Question: how likely is it that at least one of N commits fails for a reason unrelated to the commit, so that the per-commit check stops and a rerun is needed? `scripts/spurious.mjs` computes 1 - (1 - p)^k, with k test-running commits among the N and each such commit failing independently with probability p. The independence assumption is **modelled** and the values of p come from four sources:
+
+1. The random-id flake: 0.035 % per run of the issues package (**modelled**, earlier section; only commits that run issues are exposed, and every test-running mode runs issues).
+2. An illustrative 1 % per test-running commit, to show the shape (not an estimate).
+3. 0 failures in 51 package runs at the default worker count and at 2 to 8 workers (**measured**, `data/packages.csv`). The one-sided 95 % upper bound is 1 - 0.05^(1/51) = 5.7 % per package run (**derived**). It says the data cannot exclude 5.7 %; a rate that high is unlikely given 0 of 51.
+4. CI reruns that passed: 36 of the 454 completed CI runs (7.9 %, **derived**). An upper bound, because a rerun need not follow a spurious failure.
+
+Probability of at least one spurious failure over N commits, in percent (`data/spurious.csv`). Left block: every commit runs tests (a branch of package commits, k = N). Right block: a typical branch, where 30.5 % of the commits run tests (k = 0.305 N, expected value, **modelled**).
+
+| p per test-running commit | N=1 | N=2 | N=5 | N=10 | N=20 | | N=1 | N=2 | N=5 | N=10 | N=20 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0.035 % (id flake) | 0.04 | 0.07 | 0.18 | 0.35 | 0.71 | | 0.01 | 0.02 | 0.05 | 0.11 | 0.22 |
+| 1 % (illustrative) | 1.00 | 1.99 | 4.90 | 9.56 | 18.21 | | 0.31 | 0.61 | 1.52 | 3.02 | 5.95 |
+| 5.7 % (95 % bound, 0 of 51) | 5.70 | 11.08 | 25.45 | 44.42 | 69.11 | | 1.78 | 3.52 | 8.57 | 16.40 | 30.11 |
+| 7.9 % (CI reruns, upper bound) | 7.93 | 15.23 | 33.84 | 56.23 | 80.84 | | 2.49 | 4.92 | 11.84 | 22.27 | 39.59 |
+
+The best supported rows are the first (a known cause, 0.2 % at N=5 on package commits) and the observation of no failure in 51 local runs. The two upper bounds are limits of what the data can show, not estimates. The cost of one spurious failure at commit k of N: the rebase stops at k, the earlier commits keep their result, and the check is repeated by hand at k before `git rebase --continue` (the documented `--reschedule-failed-exec` repeats it automatically), so the extra cost is one repeat of commit k, at most 281 s, and not a restart of the branch. Restarting the whole rebase after a failure repeats every commit before k.
+
+## What the pinned tools offer
+
+Versions are those pinned in the repository: vitest 5.0.5, TypeScript 7.0.2, pnpm 12.15.0, tsdown 0.23.1, git 2.50, GitHub Actions. The vitest documentation site shows the latest version (5.1.0 at the time of writing, from `npm view vitest dist-tags`), so each vitest claim was also checked in the 5.0.5 package (`npm pack vitest@5.0.5`, searching `dist/`). **Measured** or **derived** as marked; "effect" is an estimate of the gain for per-commit verification, not a measurement of the feature.
+
+| Capability | Version | Documentation | Status in the repository | Effect on per-commit cost |
+|---|---|---|---|---|
+| `vitest --changed [since]`, `vitest related <files>` (tests whose static imports reach the changed files) | vitest 5.0.5 (option present in `dist/`) | [CLI](https://vitest.dev/guide/cli) | Not used. `check-commit.sh` selects by package | Little: 87 % of test time is in tests that start the built CLI, which the import graph does not link to `src` (**derived**). Usable only for the 13 % of unit, git and property tests |
+| `experimental.recordDependencies` (records modules each test file loads and uses them for `--changed` and `--related`; a file without a record always runs) | vitest 5.0.5 (`dist/` has the option and its description) | [CLI](https://vitest.dev/guide/cli) | Not used | Could see modules loaded in the test's own process, not in the CLI children it spawns. Experimental. Not evaluated here |
+| `vitest run --last-failed` | Not in 5.0.5 (no match in `dist/`); documented for the latest version | [CLI](https://vitest.dev/guide/cli) | Not available at the pinned version | After a failure, would rerun only failed tests. Needs a vitest upgrade, which this investigation does not change |
+| `--shard=i/n` with blob reports and `--merge-reports` | vitest 5.0.5 (`shard` in `dist/`) | [Improving performance](https://vitest.dev/guide/improving-performance) | Not used. CI splits by package (matrix), not by shard | Splits test files across machines. In CI it can cut a package's wall time. For a local per-commit check on one 8-core host it adds nothing, since the workers already use the cores |
+| Module cache across runs (`fsModuleCache`, on by default) and `NODE_COMPILE_CACHE` | vitest 5.0.5 (`fsModuleCache` in `dist/`, `NODE_COMPILE_CACHE` in `dist/`) | [Improving performance](https://vitest.dev/guide/improving-performance) | Default on locally. Not tried: `NODE_COMPILE_CACHE`; the CLI children start fresh | The docs say the gain is largest for reruns of few files; for full suites parallelism hides it. Expected small here. Not measured |
+| `isolate: false`, `pool: threads`, `fileParallelism` | vitest 5.0.5 | [Improving performance](https://vitest.dev/guide/improving-performance) | Not set | Not evaluated; a test configuration change is outside this investigation |
+| `tsc -b` with `composite` and `incremental` (`.tsbuildinfo`) | TypeScript 7.0.2 (`tsc --help` lists `--build`; the options are in the [tsconfig reference](https://www.typescriptlang.org/tsconfig/)) | [tsconfig](https://www.typescriptlang.org/tsconfig/) | Used (`tsBuildInfoFile` under `dist/types`, project references in `tsconfig.json`), then removed by `check-commit.sh`, which runs `rm -rf packages/*/dist` before the build | The clean build costs 2.0 s against 0.9 s warm (**measured**, phases table), so keeping `dist/` would save about 1 s a commit (0.4 % of a 280 s check) and give up the guarantee that stale output cannot hide a missing export |
+| tsdown incremental or build cache | 0.23.1 | The documentation page could not be fetched; the installed package's `dist/` has no incremental or cache option (grep) | No cache configured (`clean` only removes bundles) | None available. The build is 2 s in total anyway |
+| pnpm `--filter "...[<since>]"`, `--test-pattern`, `--changed-files-ignore-pattern` | pnpm 12.15.0 (since v12.7.0 `<since>` compares against the merge base) | [Filtering](https://pnpm.io/filtering) | `ci.yml` uses the changed filter for `select`; `check-commit.sh` reimplements selection per commit to add `test-inputs.txt` | Same package selection as now. No further saving; the filter also knows nothing about `test-inputs.txt` |
+| GitHub Actions matrix (`fail-fast`, `max-parallel`) | Actions | [Run job variations](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/run-job-variations) | Used: one `test (<package>)` job per package, `fail-fast: false` | Runs packages in parallel on separate runners. A matrix of commits (one job per commit) would test every commit in parallel; it costs the machine time of all N commits but not their wall time (derived, not tried) |
+| GitHub Actions dependency caching | Actions | [Dependency caching](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching) | Used for pnpm (`cache: pnpm` in `setup-node`) | Saves install time only; install is 0.6 s here, so little. Entries unused for 7 days are removed |
+| Merge queue (`merge_group` event) | GitHub | [Managing a merge queue](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue) | Not used; `ci.yml` triggers on `pull_request` and `push` to `main` only | Tests the pull request on top of the latest `main` and of those ahead of it, so it handles main movement (46 % of work branches, derived). It does not test each commit, and the merge method can be "rebase", which keeps the history linear |
+| `git rebase --exec`, `--autosquash`, `--update-refs` | git 2.50 | [git-rebase](https://git-scm.com/docs/git-rebase/2.50.0) | `--exec scripts/check-commit.sh` is the documented workflow | With `--autosquash`, the exec runs only at the end of each squash or fixup series, so fixups are checked once as the final commit, not as intermediate states (documented behaviour). `--exec` implies `--empty=keep` |
+
+Not found in the vitest, pnpm or git documentation for these versions (**derived** from the pages read above): a way to reuse a passing result for a commit whose tree under a package is unchanged. The investigation measured that `reword` rewrites commits whose tree is unchanged (see the section on rewritten and tree-changed commits), so a result cache keyed by tree hash would have to be built, for example in `check-commit.sh`. A caching idea is a recommendation topic and is left to the options section.
+
+### Earlier attempts in the repository
+
+**Source**: `git log` and `docs/issues/`. All were completed. The history shows no attempt that was abandoned.
+
+| Date | Change | What it did | Source |
+|---|---|---|---|
+| 2026-10-22 | `a211ea6` ci: test affected packages on pull requests | CI selects packages from the changed files | `.github/workflows/ci.yml` history |
+| 2026-10-25 | `7acd69a` build: add a per-commit check that tests only what changed | First `scripts/check-commit.sh`. Replay of phase 2b: 29 minutes instead of 63 (33 commits), 2a: 12 instead of 27, "catching the same re-created failures as the full gate". Every non-docs commit still builds from an empty `dist/` because CLI tests spawn the built binary | commit message |
+| 2026-10-25 | `0798891` docs: use the per-commit check script in AGENTS.md | Names the script, so nobody "falls back to the full gate for speed or skips the check because it seems too slow" | commit message |
+| 2026-10-26 | `47c22a5` build: run tests that read docs when those docs change | Adds `scripts/test-inputs.txt` and a lint that keeps it complete. Reason: a docs-only commit broke a test and still passed, which breaks `git bisect` | commit message, `scripts/check-test-inputs.mjs` |
+| 2026-10-27 | `b107f71` build: check docs/issues commits with issues verify, not every test | The decision-log rule applied to `docs/issues` | commit message |
+| 2026-10-28 | `f335273` build: install issues' hooks in ark and check its index per commit | Checks the committed index per commit | commit message |
+| 2026-10-29 | Issue `wedm13pe` "make the test suites faster" (closed as `4dbdabf`), child `688fexss` | Cut git processes per operation: issues suite 182.8 s to 149.6 s, adr 102.5 s to 81.9 s locally. Notes the suites spawn about 214,000 git processes and 2,000 CLI processes | `docs/issues/items/wedm13pe-make-the-test-suites-faster.md`, `docs/issues/events/688fexss/` |
+| 2026-10-29 | Issue `7n5e4nkf` "keep every test file under its package's per-worker share" | `scripts/check-test-durations.mjs` and file splits: `write.index.test.ts` 255 s to 53 s in 9 slices | `docs/issues/items/7n5e4nkf-*.md` |
+| 2026-10-29 | `fc6837c` ci: run each package's tests in its own job; 2026-10-30 `85d78b1` run on the arm runner with 6 workers | CI parallelism by package; "about 20 % faster" on the issues tests | `.github/workflows/ci.yml`, issue `5z5rsn65` as cited there |
+| 2026-10-30 | Issue `0vckaxpf`, `d0a9a26` split the issues MCP tests | Further duration splits | commit history |
+
+The earlier work cut the cost of a run (fewer tests per commit, faster tests) and made the check cheaper to skip safely. None of it changed how many commits are checked. The numbers in the first row's message (63 to 29 minutes, 33 commits) are the author's reported measurements, not reproduced here; the 29 minutes for 33 commits gives 53 s per commit, which falls in the range of the 400-commit mean (78 s) and of the log-heavy 100-commit window (21 s).
+
 ## To be added in later parts
 
 - Options that change the curve and a recommendation (to be added).
-- A model of the cost for a branch of N commits of mixed kinds, built from the per-kind costs above (to be added; labelled **modelled**).
+- A model of the cost for a branch of N commits of mixed kinds beyond the expected-cost table above (to be added; labelled **modelled**).
 
 ## Reproducing
 

@@ -1,0 +1,41 @@
+scenario,p_per_test_commit,basis,commits_with_tests,N,p_at_least_one
+"zzz id flake only (modelled)",0.000355,"all N run tests",1.00,1,0.00035
+"zzz id flake only (modelled)",0.000355,"all N run tests",2.00,2,0.00071
+"zzz id flake only (modelled)",0.000355,"all N run tests",5.00,5,0.00177
+"zzz id flake only (modelled)",0.000355,"all N run tests",10.00,10,0.00354
+"zzz id flake only (modelled)",0.000355,"all N run tests",20.00,20,0.00707
+"zzz id flake only (modelled)",0.000355,"typical branch, 30.5 % run tests",0.30,1,0.00011
+"zzz id flake only (modelled)",0.000355,"typical branch, 30.5 % run tests",0.61,2,0.00022
+"zzz id flake only (modelled)",0.000355,"typical branch, 30.5 % run tests",1.52,5,0.00054
+"zzz id flake only (modelled)",0.000355,"typical branch, 30.5 % run tests",3.05,10,0.00108
+"zzz id flake only (modelled)",0.000355,"typical branch, 30.5 % run tests",6.10,20,0.00216
+"1 % per test-running commit (illustrative)",0.0100,"all N run tests",1.00,1,0.01000
+"1 % per test-running commit (illustrative)",0.0100,"all N run tests",2.00,2,0.01990
+"1 % per test-running commit (illustrative)",0.0100,"all N run tests",5.00,5,0.04901
+"1 % per test-running commit (illustrative)",0.0100,"all N run tests",10.00,10,0.09562
+"1 % per test-running commit (illustrative)",0.0100,"all N run tests",20.00,20,0.18209
+"1 % per test-running commit (illustrative)",0.0100,"typical branch, 30.5 % run tests",0.30,1,0.00306
+"1 % per test-running commit (illustrative)",0.0100,"typical branch, 30.5 % run tests",0.61,2,0.00611
+"1 % per test-running commit (illustrative)",0.0100,"typical branch, 30.5 % run tests",1.52,5,0.01521
+"1 % per test-running commit (illustrative)",0.0100,"typical branch, 30.5 % run tests",3.05,10,0.03019
+"1 % per test-running commit (illustrative)",0.0100,"typical branch, 30.5 % run tests",6.10,20,0.05947
+"95 % upper bound of 0 in 51 local runs (derived)",0.0570,"all N run tests",1.00,1,0.05705
+"95 % upper bound of 0 in 51 local runs (derived)",0.0570,"all N run tests",2.00,2,0.11084
+"95 % upper bound of 0 in 51 local runs (derived)",0.0570,"all N run tests",5.00,5,0.25450
+"95 % upper bound of 0 in 51 local runs (derived)",0.0570,"all N run tests",10.00,10,0.44423
+"95 % upper bound of 0 in 51 local runs (derived)",0.0570,"all N run tests",20.00,20,0.69112
+"95 % upper bound of 0 in 51 local runs (derived)",0.0570,"typical branch, 30.5 % run tests",0.30,1,0.01776
+"95 % upper bound of 0 in 51 local runs (derived)",0.0570,"typical branch, 30.5 % run tests",0.61,2,0.03520
+"95 % upper bound of 0 in 51 local runs (derived)",0.0570,"typical branch, 30.5 % run tests",1.52,5,0.08568
+"95 % upper bound of 0 in 51 local runs (derived)",0.0570,"typical branch, 30.5 % run tests",3.05,10,0.16402
+"95 % upper bound of 0 in 51 local runs (derived)",0.0570,"typical branch, 30.5 % run tests",6.10,20,0.30115
+"CI reruns that passed, 36 of 454 completed runs (upper bound)",0.0793,"all N run tests",1.00,1,0.07930
+"CI reruns that passed, 36 of 454 completed runs (upper bound)",0.0793,"all N run tests",2.00,2,0.15230
+"CI reruns that passed, 36 of 454 completed runs (upper bound)",0.0793,"all N run tests",5.00,5,0.33839
+"CI reruns that passed, 36 of 454 completed runs (upper bound)",0.0793,"all N run tests",10.00,10,0.56227
+"CI reruns that passed, 36 of 454 completed runs (upper bound)",0.0793,"all N run tests",20.00,20,0.80839
+"CI reruns that passed, 36 of 454 completed runs (upper bound)",0.0793,"typical branch, 30.5 % run tests",0.30,1,0.02488
+"CI reruns that passed, 36 of 454 completed runs (upper bound)",0.0793,"typical branch, 30.5 % run tests",0.61,2,0.04915
+"CI reruns that passed, 36 of 454 completed runs (upper bound)",0.0793,"typical branch, 30.5 % run tests",1.52,5,0.11838
+"CI reruns that passed, 36 of 454 completed runs (upper bound)",0.0793,"typical branch, 30.5 % run tests",3.05,10,0.22274
+"CI reruns that passed, 36 of 454 completed runs (upper bound)",0.0793,"typical branch, 30.5 % run tests",6.10,20,0.39586

@@ -1,0 +1,426 @@
+{
+  "expected_cost": {
+    "mean_wall_per_commit_s": 78.4,
+    "test_running_share": 0.305,
+    "work_median": {
+      "n": 5,
+      "mixed_mean_s": 392,
+      "fit_s": 310,
+      "all_package_commits_s": 1404,
+      "log_commits_only_s": 25
+    },
+    "work_p90": {
+      "n": 17,
+      "mixed_mean_s": 1333,
+      "fit_s": 1023,
+      "all_package_commits_s": 4774,
+      "log_commits_only_s": 85
+    },
+    "all_median": {
+      "n": 3,
+      "mixed_mean_s": 235,
+      "fit_s": 191,
+      "all_package_commits_s": 842,
+      "log_commits_only_s": 15
+    },
+    "all_p90": {
+      "n": 15,
+      "mixed_mean_s": 1176,
+      "fit_s": 904,
+      "all_package_commits_s": 4212,
+      "log_commits_only_s": 75
+    }
+  },
+  "collected_pull_requests": 108,
+  "merged": 105,
+  "closed_unmerged": 3,
+  "release_pull_requests_merged": 27,
+  "all_merged": {
+    "commits": {
+      "n": 105,
+      "mean": 6.42,
+      "min": 1,
+      "p25": 1,
+      "median": 3,
+      "p75": 8,
+      "p90": 14.6,
+      "max": 60
+    },
+    "commits_histogram": {
+      "1": 41,
+      "2": 9,
+      "11-20": 12,
+      "6-10": 18,
+      ">20": 6,
+      "3-5": 19
+    },
+    "force_pushes": {
+      "n": 105,
+      "mean": 1.06,
+      "min": 0,
+      "p25": 0,
+      "median": 1,
+      "p75": 1,
+      "p90": 3,
+      "max": 12
+    },
+    "share_with_force_push": 0.562,
+    "force_pushes_total": 111,
+    "lifetime_h": {
+      "n": 105,
+      "mean": 2.75,
+      "min": 0,
+      "p25": 0.31,
+      "median": 1.19,
+      "p75": 3.57,
+      "p90": 8.4,
+      "max": 18.39
+    },
+    "main_since_base": {
+      "n": 105,
+      "mean": 0,
+      "min": 0,
+      "p25": 0,
+      "median": 0,
+      "p75": 0,
+      "p90": 0,
+      "max": 0
+    },
+    "main_while_open": {
+      "n": 105,
+      "mean": 4.77,
+      "min": 0,
+      "p25": 0,
+      "median": 0,
+      "p75": 5,
+      "p90": 13.6,
+      "max": 77
+    },
+    "share_main_moved_while_open": 0.41
+  },
+  "work_merged": {
+    "commits": {
+      "n": 78,
+      "mean": 8.28,
+      "min": 1,
+      "p25": 2,
+      "median": 5,
+      "p75": 9,
+      "p90": 17,
+      "max": 60
+    },
+    "commits_histogram": {
+      "1": 15,
+      "2": 8,
+      "11-20": 12,
+      "6-10": 18,
+      ">20": 6,
+      "3-5": 19
+    },
+    "force_pushes": {
+      "n": 78,
+      "mean": 1.14,
+      "min": 0,
+      "p25": 0,
+      "median": 1,
+      "p75": 2,
+      "p90": 3,
+      "max": 5
+    },
+    "share_with_force_push": 0.667,
+    "force_pushes_total": 89,
+    "lifetime_h": {
+      "n": 78,
+      "mean": 3.19,
+      "min": 0,
+      "p25": 0.71,
+      "median": 1.73,
+      "p75": 4.16,
+      "p90": 8.63,
+      "max": 18.39
+    },
+    "main_since_base": {
+      "n": 78,
+      "mean": 0,
+      "min": 0,
+      "p25": 0,
+      "median": 0,
+      "p75": 0,
+      "p90": 0,
+      "max": 0
+    },
+    "main_while_open": {
+      "n": 78,
+      "mean": 4.81,
+      "min": 0,
+      "p25": 0,
+      "median": 0,
+      "p75": 6.75,
+      "p90": 14.6,
+      "max": 39
+    },
+    "share_main_moved_while_open": 0.462
+  },
+  "work_merged_more_than_one_commit": {
+    "commits": {
+      "n": 63,
+      "mean": 10.02,
+      "min": 2,
+      "p25": 4,
+      "median": 6,
+      "p75": 11,
+      "p90": 19.4,
+      "max": 60
+    },
+    "commits_histogram": {
+      "2": 8,
+      "11-20": 12,
+      "6-10": 18,
+      ">20": 6,
+      "3-5": 19
+    },
+    "force_pushes": {
+      "n": 63,
+      "mean": 1.27,
+      "min": 0,
+      "p25": 0,
+      "median": 1,
+      "p75": 2,
+      "p90": 3,
+      "max": 5
+    },
+    "share_with_force_push": 0.698,
+    "force_pushes_total": 80,
+    "lifetime_h": {
+      "n": 63,
+      "mean": 3.76,
+      "min": 0.04,
+      "p25": 0.96,
+      "median": 2.39,
+      "p75": 4.46,
+      "p90": 9.18,
+      "max": 18.39
+    },
+    "main_since_base": {
+      "n": 63,
+      "mean": 0,
+      "min": 0,
+      "p25": 0,
+      "median": 0,
+      "p75": 0,
+      "p90": 0,
+      "max": 0
+    },
+    "main_while_open": {
+      "n": 63,
+      "mean": 5.43,
+      "min": 0,
+      "p25": 0,
+      "median": 0,
+      "p75": 7.5,
+      "p90": 16,
+      "max": 39
+    },
+    "share_main_moved_while_open": 0.46
+  },
+  "force_pushes_by_branch_size_work": {
+    ">10": {
+      "prs": 18,
+      "mean_force_pushes": 1.83,
+      "share_with_force_push": 0.889
+    },
+    "6-10": {
+      "prs": 18,
+      "mean_force_pushes": 1.11,
+      "share_with_force_push": 0.667
+    },
+    "1-2": {
+      "prs": 23,
+      "mean_force_pushes": 0.91,
+      "share_with_force_push": 0.609
+    },
+    "3-5": {
+      "prs": 19,
+      "mean_force_pushes": 0.79,
+      "share_with_force_push": 0.526
+    }
+  },
+  "ci_runs": {
+    "total_ci": 685,
+    "by_conclusion": {
+      "success": 378,
+      "failure": 76,
+      "cancelled": 218,
+      "action_required": 13
+    },
+    "by_event": {
+      "pull_request": 581,
+      "push": 104
+    },
+    "completed_success_or_failure": 454,
+    "failure_share_of_completed": 0.167,
+    "rerun_runs_attempt_gt_1": 39,
+    "rerun_runs_succeeded": 36,
+    "failed_runs": 76,
+    "failed_runs_same_sha_later_passed": 0,
+    "failed_pull_request_runs": 74,
+    "failed_pull_request_runs_same_sha_later_passed": 0,
+    "failed_runs_with_failed_test_job": 9,
+    "run_seconds_success": {
+      "n": 378,
+      "mean": 283.15,
+      "min": 16,
+      "p25": 84.5,
+      "median": 307.5,
+      "p75": 361.5,
+      "p90": 569.9,
+      "max": 1132
+    },
+    "jobs_without_data_runs": 67,
+    "prior_attempt_job_rows": 34,
+    "prior_attempt_failed_jobs": {
+      "test": 2,
+      "check": 2
+    }
+  },
+  "jobs": {
+    "select": {
+      "runs": 257,
+      "failed": 0,
+      "cancelled": 9,
+      "skipped": 0,
+      "success_seconds": {
+        "n": 248,
+        "mean": 13.08,
+        "min": 8,
+        "p25": 10,
+        "median": 11,
+        "p75": 14,
+        "p90": 18,
+        "max": 84
+      }
+    },
+    "lint docs": {
+      "runs": 27,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "success_seconds": {
+        "n": 27,
+        "mean": 15.33,
+        "min": 10,
+        "p25": 13,
+        "median": 16,
+        "p75": 17.5,
+        "p90": 18.8,
+        "max": 21
+      }
+    },
+    "lint, build and verify": {
+      "runs": 257,
+      "failed": 22,
+      "cancelled": 15,
+      "skipped": 0,
+      "success_seconds": {
+        "n": 220,
+        "mean": 23.2,
+        "min": 14,
+        "p25": 18,
+        "median": 20,
+        "p75": 22,
+        "p90": 28,
+        "max": 365
+      }
+    },
+    "check": {
+      "runs": 622,
+      "failed": 109,
+      "cancelled": 132,
+      "skipped": 0,
+      "success_seconds": {
+        "n": 381,
+        "mean": 113.94,
+        "min": 2,
+        "p25": 3,
+        "median": 4,
+        "p75": 118,
+        "p90": 386,
+        "max": 952
+      }
+    },
+    "test": {
+      "runs": 684,
+      "failed": 21,
+      "cancelled": 54,
+      "skipped": 40,
+      "success_seconds": {
+        "n": 569,
+        "mean": 188.57,
+        "min": 33,
+        "p25": 52,
+        "median": 170,
+        "p75": 288,
+        "p90": 318.2,
+        "max": 577
+      }
+    }
+  },
+  "test_jobs_by_package": {
+    "issues": {
+      "completed": 199,
+      "failed": 5,
+      "success_seconds": {
+        "n": 194,
+        "mean": 324.66,
+        "min": 259,
+        "p25": 284,
+        "median": 295,
+        "p75": 331.75,
+        "p90": 445,
+        "max": 577
+      }
+    },
+    "ledger": {
+      "completed": 193,
+      "failed": 9,
+      "success_seconds": {
+        "n": 184,
+        "mean": 46.55,
+        "min": 33,
+        "p25": 39.75,
+        "median": 44,
+        "p75": 51,
+        "p90": 56,
+        "max": 263
+      }
+    },
+    "adr": {
+      "completed": 198,
+      "failed": 7,
+      "success_seconds": {
+        "n": 191,
+        "mean": 187.17,
+        "min": 146,
+        "p25": 160,
+        "median": 169,
+        "p75": 188,
+        "p90": 254,
+        "max": 345
+      }
+    },
+    "${{ matrix.package }}": {
+      "completed": 0,
+      "failed": 0,
+      "success_seconds": {
+        "n": 0,
+        "mean": null,
+        "min": null,
+        "p25": null,
+        "median": null,
+        "p75": null,
+        "p90": null,
+        "max": null
+      }
+    }
+  }
+}

@@ -71,3 +71,25 @@ node $D/scripts/summarize.mjs --data /tmp/quick
 - `RESUME=1` matches rows by run, package and workers. Delete a row (and its report) to measure it again. One chunk of the 4-worker sweep ran twice before the resume match was fixed; the CSV keeps the later row of each pair, which matches the report on disk.
 - A test run that fails still gets a row (exit not 0) and its report. `summarize.mjs` lists the failing tests.
 - Absolute times belong to the measured host. Compare ratios, not seconds, across machines.
+
+## Branches, affected share and spurious failures
+
+| Script | What it does | Output in `data/` |
+|---|---|---|
+| `collect-prs.sh` | Reads closed pull requests, their commits, events, workflow runs and jobs with `gh api` (REST only). Resumable, `FORCE=1` refetches, `BUDGET_END=<epoch>` stops the jobs step at a time. Stores counts, numbers, shas and timestamps, no logins or emails. About 25 minutes for 108 pull requests and 685 CI runs | `prs/*.jsonl` |
+| `analyze-prs.mjs` | Commits per branch, force pushes, main movement, CI results, test job times and the expected cost per branch | `pr-branches.csv`, `pr-summary.json`, `ci-failures.csv` |
+| `affected-share.mjs` | Classifies the last `--count` first-parent commits up to `--end` with the `check-commit.sh` rules and prices them. `--count 400 --data <dir>` was run in a scratch directory and copied to the `-400` files | `affected-share.csv`, `affected-share-summary.csv`, `affected-share-400.csv`, `affected-share-400-summary.csv` |
+| `spurious.mjs` | Probability of at least one spurious failure over N commits | `spurious.csv` |
+
+```sh
+source ~/.nvm/nvm.sh; nvm use 24
+D=docs/investigations/commit-verification-cost
+$D/scripts/collect-prs.sh
+node $D/scripts/affected-share.mjs --end 232beda --count 100
+# 400 commits: run with --count 400 --data <scratch dir holding copies of check-commit.csv and
+# packages.csv>, then copy affected-share.csv and affected-share-summary.csv to data/ as the -400 files
+node $D/scripts/analyze-prs.mjs
+node $D/scripts/spurious.mjs
+```
+
+`analyze-prs.mjs` and `spurious.mjs` need `data/affected-share-400.csv`; `spurious.mjs` also needs `data/pr-summary.json`, so run them in the order above. `affected-share.mjs` needs the full history (`git fetch --tags origin`) and the `--end` commit.

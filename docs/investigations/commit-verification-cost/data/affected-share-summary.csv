@@ -1,0 +1,5 @@
+class,commits,share_of_commits,mean_test_share,check_wall_s_each,share_of_check_time
+"log",87,0.870,0.000,5.0,0.205
+"docs",7,0.070,0.000,0.6,0.002
+"full: adr+issues+ledger",4,0.040,1.000,280.8,0.529
+"pkg: adr+issues+ledger",2,0.020,1.000,280.8,0.264
