@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 # Per-commit check for `git rebase --exec scripts/check-commit.sh origin/main` (AGENTS.md).
 # Checks HEAD against a base (default HEAD~1, the parent inside `git rebase --exec`) and runs only
-# the steps that the changed files can affect. Run by hand: `scripts/check-commit.sh [base]`;
-# with a base, it checks everything since the merge base, including uncommitted and untracked files.
+# the steps that the changed files can affect. Run by hand: `scripts/check-commit.sh [--tests] [base]`
+# (the flag and the base may come in either order); with a base, it checks everything since the
+# merge base, including uncommitted and untracked files.
+#
+# By default the check does not run tests: a commit has to lint, install, build from an empty dist/
+# and pass the log checks, which keeps every commit of main buildable. Tests run at the branch tip
+# (`pnpm test`, or this script with --tests there) and in CI. With --tests the check also runs the
+# tests of the rows below. To find the commit that broke a test, use scripts/bisect-tests.sh.
 #
 #   only *.md outside docs/adr/, docs/issues/ and    -> lint
 #     packages/*/src/ that no test reads
@@ -11,8 +17,9 @@
 #   docs/adr/ or docs/issues/ (no package or          -> lint, install, build, adr verify,
 #     workspace files)                                   issues verify, and each committed
 #                                                        index.md's --check
-#   packages/<p>/                                     -> the above + tests of <p> and its dependents
-#   anything else, a root or merge commit, no base    -> the above + every package's tests
+#   packages/<p>/                                     -> the above (+ with --tests: tests of <p> and
+#                                                        its dependents)
+#   anything else, a root or merge commit, no base    -> the above (+ with --tests: every package's tests)
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
@@ -31,12 +38,32 @@ step() {
 
 skip() { say "skip $1: $2"; }
 
+# Arguments: --tests and one optional base, in either order.
+run_tests=0
+base_arg=""
+for arg in "$@"; do
+  case $arg in
+  --tests) run_tests=1 ;;
+  -*)
+    echo "usage: scripts/check-commit.sh [--tests] [base]" >&2
+    exit 2
+    ;;
+  *)
+    if [ -n "$base_arg" ]; then
+      echo "usage: scripts/check-commit.sh [--tests] [base]" >&2
+      exit 2
+    fi
+    base_arg=$arg
+    ;;
+  esac
+done
+
 # Resolve the base. Anything unusual gets the full check.
 full=""
 base=""
-if [ $# -ge 1 ]; then
-  if ! base=$(git merge-base "$1" HEAD 2>/dev/null); then
-    full="no merge base with $1"
+if [ -n "$base_arg" ]; then
+  if ! base=$(git merge-base "$base_arg" HEAD 2>/dev/null); then
+    full="no merge base with $base_arg"
     base=""
   fi
 else
@@ -158,10 +185,21 @@ if [ -d docs/issues ]; then
   fi
 fi
 
+mode_tests=none
 case $mode in
 log)
   skip test "only docs/adr or docs/issues changed"
   ;;
+*)
+  if [ "$run_tests" = 0 ]; then
+    skip test "tests run at the tip; see AGENTS.md"
+  else
+    mode_tests=$mode
+  fi
+  ;;
+esac
+
+case $mode_tests in
 full)
   step test "full check: every package" pnpm -r run test
   ;;
