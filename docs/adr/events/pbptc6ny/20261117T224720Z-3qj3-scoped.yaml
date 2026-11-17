@@ -1,0 +1,18 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M7NV2ZZM803XS01QXDKX3QJ3
+subject: pbptc6ny
+type: scoped
+at: 2026-11-17T22:47:20Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - AGENTS.md
+    - scripts/bisect-tests.sh
+    - scripts/check-commit.sh
