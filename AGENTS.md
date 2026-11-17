@@ -17,7 +17,7 @@ on it, and always write it out in full rather than abbreviating it.
 Linear history is required.
 
 - Before starting work and again before merging, run `git fetch` and rebase your branch onto `origin/main`.
-- After rebasing, verify every commit: `git rebase --exec "<test command>" origin/main`.
+- After rebasing, check every commit builds: `git rebase --exec scripts/check-commit.sh origin/main`. This check does not run tests; they run at the branch tip.
 - Merge only via fast-forward or GitHub's "Rebase and merge", so `main` gets the reviewed commits as they are; no merge commits, no squash merges.
 - Never force-push `main`. On your own branches, use `git push --force-with-lease`, never `--force`.
 - Undo changes on `main` with `git revert`, never by rewriting history.
@@ -25,7 +25,7 @@ Linear history is required.
 ## Commits
 
 - Each commit is atomic: one logical change, self-contained.
-- Each commit builds and passes tests on its own, so `git bisect` works at every point in history.
+- Each commit passes `scripts/check-commit.sh` on its own: lint always, and, unless only Markdown changed (outside `docs/adr/`, `docs/issues/` and `packages/*/src/`, and not listed in `scripts/test-inputs.txt`), install, a build from an empty `dist/`, `adr verify`, `issues verify` and the index checks. So `git bisect` works at every point in history. Tests run at the branch tip, not at every commit: a commit in the middle of a branch can fail its tests, and `main` can carry such a commit. See "Finding a regression".
 - To amend an earlier commit on your branch, use `git commit --fixup=<sha>` rather than piling on "address review" commits.
 - Squash fixups before merging: `git rebase -i --autosquash origin/main`. `fixup!` and `squash!` commits must **never** reach `main`.
 
@@ -57,18 +57,29 @@ Do this once, when the work is complete and you're about to request review, not 
 
 1. Squash all `fixup!`/`squash!` commits (`git rebase -i --autosquash origin/main`).
 2. Rebase onto the latest `origin/main`.
-3. Verify every commit: `git rebase --exec scripts/check-commit.sh origin/main`.
-   The script runs only what each commit's changes can affect: lint only for Markdown outside `docs/adr/`, `docs/issues/` and `packages/*/src/` that no test reads (`scripts/test-inputs.txt` lists the files tests read; changing one runs those tests); install, a clean build, `adr verify` and `issues verify` without tests for `docs/adr/` and `docs/issues/`; tests of the changed packages and their dependents; every test for workspace-level files. Every non-docs commit still builds from an empty `dist/`. Even so it costs up to *test suite duration × number of commits*: phase 2b's 33 commits took 29 minutes instead of 63 with the full gate. That's why it runs only at this point. Running it after every fixup or push wastes that time, and any later rebase onto a newer `main` invalidates the result anyway.
-4. Push with `--force-with-lease` and wait for CI to go green.
-5. Finalize the PR description.
+3. Verify every commit builds: `git rebase --exec scripts/check-commit.sh origin/main`.
+   The script runs lint for every commit. Unless only Markdown changed (outside `docs/adr/`, `docs/issues/` and `packages/*/src/`, and not a file that tests read; `scripts/test-inputs.txt` lists those), it also runs install, a clean build from an empty `dist/`, `adr verify`, `issues verify` and the index checks. It runs no tests, so it takes seconds per commit. On this repository's last 5 commits of `main` it took 27 s (572 s with tests), on the last 17 it took 89 s (2036 s with tests).
+4. Run the tests on the branch tip: `pnpm test`, or `scripts/check-commit.sh --tests origin/main` for the tests of the packages the branch changed and their dependents (it also rebuilds from an empty `dist/`). Tests run once, on the final tip.
+5. Push with `--force-with-lease` and wait for CI to go green. CI tests the tip of each push.
+6. Finalize the PR description.
 
-If step 3 fails, fix the offending commit (fixup + autosquash), then rerun steps 2–4. Don't repeat the per-commit check for any other reason.
+If step 3 or 4 fails, fix the offending commit (fixup + autosquash), then rerun steps 2–5. Don't repeat the checks for any other reason.
 
 ### Marking ready
 
 - Mark the PR **ready for review** (remove draft status) only after all of the above is done and nothing is left to do.
 - Use `gh pr ready <number>` or the GraphQL `markPullRequestReadyForReview` mutation. The REST API can't remove draft status. If your environment can't run either, say so explicitly when you hand off, and ask the maintainer to click "Ready for review".
 - If review requires more work, move the PR back to draft, make the changes with ordinary pushes, and repeat the "Before marking ready for review" steps once before marking it ready again.
+
+## Finding a regression
+
+When a test fails on a branch tip or on `main`, find the commit that broke it with `git bisect` and the tests:
+
+    cp scripts/bisect-tests.sh /tmp/
+    git bisect start <bad> <good>
+    git bisect run /tmp/bisect-tests.sh [<package>...]
+
+Always run the copy: commits from before `scripts/bisect-tests.sh` existed don't have it, and `git bisect run` stops on the missing script (exit 127). For each commit, the script installs, builds from an empty `dist/` and runs the tests of the named packages (every package when none is named). Name the failing package to save time. A commit that can't be installed or built is skipped (exit 125), not marked bad. `scripts/check-commit.sh --tests <base>` also works for a branch, but it marks a commit bad for a lint or log failure too, and without `<base>` it tests only the packages the commit itself changed.
 
 ## Test file durations
 
