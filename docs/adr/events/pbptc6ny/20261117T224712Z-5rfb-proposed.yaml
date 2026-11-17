@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M7NV2R664P8WBP2KH0NB5RFB
+subject: pbptc6ny
+type: proposed
+at: 2026-11-17T22:47:12Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Verify every commit builds; run tests at the branch tip
+  template: nygard
+  template_version: 1

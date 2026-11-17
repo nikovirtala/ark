@@ -26,6 +26,12 @@
 | ADR-0021 | [Record when a decision was made apart from when it was written](decisions/27h9h6y7-record-when-a-decision-was-made-apart-from-when-it-was.md) | accepted | 2026-11-14 |
 | ADR-0022 | [Quote titles as written in Conventional Commits subjects](decisions/4yen2hj2-quote-titles-as-written-in-conventional-commits-subjects.md) | accepted | 2026-11-14 |
 
+## Proposed
+
+| Decision | Title | Status | Since |
+| --- | --- | --- | --- |
+| pbptc6ny | [Verify every commit builds; run tests at the branch tip](decisions/pbptc6ny-verify-every-commit-builds-run-tests-at-the-branch-tip.md) | proposed | 2026-11-17 |
+
 ## Superseded and deprecated
 
 | Decision | Title | Status | Since |
