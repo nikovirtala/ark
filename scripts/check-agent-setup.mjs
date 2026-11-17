@@ -52,6 +52,18 @@ export function diffSetup(want, got) {
   return diffs;
 }
 
+/** The text of AGENTS.md without the pointer lines that `adr init` and `issues init` append. */
+export function withoutPointers(text) {
+  const kept = text
+    .split("\n")
+    .filter(
+      (l) =>
+        !l.startsWith("Architecture decisions in this repository are managed by adr:") &&
+        !l.startsWith("Issues in this repository are tracked with issues:"),
+    );
+  return `${kept.join("\n").trimEnd()}\n`;
+}
+
 const git = (cwd, args) =>
   execFileSync("git", args, { cwd, stdio: ["ignore", "pipe", "pipe"] }).toString("utf8");
 
@@ -71,11 +83,15 @@ async function main() {
     git(dir, ["config", "user.email", "r9@example.com"]);
     git(dir, ["config", "user.name", "R9"]);
     // Pre-setup AGENTS.md and package.json, so the pointer lines and prepare are written fresh.
+    // AGENTS.md is the committed one without the pointer lines init appends, so editing its text
+    // doesn't fail this check; package.json is the one before the last commit that touched .mcp.json.
     const base = git(root, ["rev-list", "-1", "HEAD", "--", ".mcp.json"]).trim();
-    for (const f of ["AGENTS.md", "package.json"]) {
-      const before = execFileSync("git", ["show", `${base}^:${f}`], { cwd: root });
-      await (await import("node:fs/promises")).writeFile(join(dir, f), before);
-    }
+    const { writeFile } = await import("node:fs/promises");
+    await writeFile(join(dir, "AGENTS.md"), withoutPointers(git(root, ["show", "HEAD:AGENTS.md"])));
+    await writeFile(
+      join(dir, "package.json"),
+      execFileSync("git", ["show", `${base}^:package.json`], { cwd: root }),
+    );
     for (const f of SETUP_FILES) {
       if (f === "AGENTS.md" || f === "package.json" || f === "ark-setup.lock") continue;
       await rm(join(dir, f), { force: true });
