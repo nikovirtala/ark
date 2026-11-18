@@ -35,6 +35,7 @@
 | va08e4c3 | [Release through next and run other repositories' tools from latest](decisions/va08e4c3-release-through-next-and-run-other-repositories-tools-from.md) | proposed | 2026-11-18 |
 | 4djbfgzc | [Stop the fold at an unknown event type](decisions/4djbfgzc-stop-the-fold-at-an-unknown-event-type.md) | proposed | 2026-11-18 |
 | 0j5y197e | [Ship event format changes read first, write later](decisions/0j5y197e-ship-event-format-changes-read-first-write-later.md) | proposed | 2026-11-18 |
+| 50gsp714 | [Trust an issue's text by who wrote it](decisions/50gsp714-trust-an-issues-text-by-who-wrote-it.md) | proposed | 2026-11-18 |
 | 41bazcsw | [Extract the deployment pipeline into an ark member, deployment](decisions/41bazcsw-extract-the-deployment-pipeline-into-an-ark-member.md) | proposed | 2026-11-21 |
 | axap3xe0 | [Freeze before rolling back, and never roll back a failed task](decisions/axap3xe0-freeze-before-rolling-back-and-never-roll-back-a-failed-task.md) | proposed | 2026-11-21 |
 | ddgs911f | [Run deployment tasks as executables that answer three flags](decisions/ddgs911f-run-deployment-tasks-as-executables-that-answer-three-flags.md) | proposed | 2026-11-21 |
