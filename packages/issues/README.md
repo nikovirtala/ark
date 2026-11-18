@@ -88,7 +88,7 @@ issues verify [--staged | --base origin/main] [--fetch-sources] [--format text|j
 issues mcp
 ```
 
-Every command takes `--json`, `--root <dir>` (the log directory) and `--help`; reads also take `--ref <ref>`, and writes refuse it. Every write stages what it writes and commits only with `--commit` (or `[policy] auto_commit`), with a Conventional Commits subject (see [Commit subjects](#commit-subjects)) and one `Issue:`/`Issue-Event:` trailer pair per issue and event type. `-m` gives your own message; the trailers join its last paragraph when that is a trailer block. An event write commits the issue's events directory, so an unstaged edit of a committed issue's description never blocks `close --commit` and is never swept into it. When the commit takes an issue's `opened` event (the issue was opened without `--commit`), it also takes that issue's staged description and template, and the same for any issue it references that isn't committed yet. It refuses with exit 2, writing nothing, when one of those files has unstaged changes, isn't tracked or is missing.
+Every command takes `--json`, `--root <dir>` (the log directory) and `--help`; reads also take `--ref <ref>`, and writes refuse it. Every write stages what it writes and commits only with `--commit` (or `[policy] auto_commit`, which the config `issues init` writes sets to `true`; `--no-commit` then only stages), with a Conventional Commits subject (see [Commit subjects](#commit-subjects)) and one `Issue:`/`Issue-Event:` trailer pair per issue and event type. `-m` gives your own message; the trailers join its last paragraph when that is a trailer block. An event write commits the issue's events directory, so an unstaged edit of a committed issue's description never blocks `close --commit` and is never swept into it. When the commit takes an issue's `opened` event (the issue was opened without `--commit`), it also takes that issue's staged description and template, and the same for any issue it references that isn't committed yet. It refuses with exit 2, writing nothing, when one of those files has unstaged changes, isn't tracked or is missing.
 
 `list` shows open and in-progress issues unless you pass `--state` or `--all`; `list --since <rev>` shows the issues closed, reopened or assigned to you since `<rev>`, each marked `[new: closed]` and so on (the post-merge hook runs it with `ORIG_HEAD`). `ready` lists open issues that are not blocked, not assigned and have no open child, in `[labels] priority` order, then by number; `--mine` adds the issues assigned to you, first. An issue is blocked while the canonical issue of one of its dependencies isn't closed (a dependency closed as a duplicate blocks until the issue it duplicates is closed).
 
@@ -119,6 +119,8 @@ exclusive = ["priority", "type"]
 [policy]
 close_requires_human = false
 mcp_can_close = true
+# Every write commits; --no-commit only stages.
+auto_commit = true
 
 [commit]
 # {title} holds the title in quotes for new, and the issue's number (or id on a branch) with its title in quotes for every other write, as in: close ?42 "split the orders service".
