@@ -29,35 +29,37 @@ Each decision has a canonical id (`k3f9q8a1`). Accepted decisions also get a num
 
 ## Commands
 
+The examples assume the config `adr init` writes, where `[policy] auto_commit = true` makes every write commit. Add `--no-commit` to only stage; in a log whose config doesn't set `auto_commit`, add `--commit` to commit.
+
 ```sh
 # Set up: write adr.toml (with auto_commit = true) and starter templates; never overwrites a file.
 adr init --template nygard --template madr --commit
 adr init --skill                                     # also the agent skill and an AGENTS.md pointer
 adr init --skill --skill-dir .kiro/skills/adr
 
-# Propose: render a draft from a template, write the body and the proposed event, and stage them.
+# Propose: render a draft from a template, write the body and the proposed event, and commit them.
 adr new "Use Aurora for orders" --section context="We need SQL." --section scope=services/orders
 adr new "Use Aurora Serverless" --supersedes ADR-0002 --template madr --edit
 
 # Accept: lint the draft, hash the body, and write accepted (plus superseded on each declared target).
-adr accept k3f9q8a1 --commit
+adr accept k3f9q8a1
 
 # Supersede an accepted decision by another accepted one.
-adr supersede ADR-0001 --by ADR-0002 --reason "Aurora fits the query load" --commit
+adr supersede ADR-0001 --by ADR-0002 --reason "Aurora fits the query load"
 
 # End a decision's life: reject or withdraw a proposal, deprecate an accepted decision.
-adr reject k3f9q8a1 --reason "Too early" --commit
-adr withdraw k3f9q8a1 --commit                       # --reason is optional
-adr deprecate ADR-0003 --reason "Moving to a managed service" --commit
+adr reject k3f9q8a1 --reason "Too early"
+adr withdraw k3f9q8a1                                # --reason is optional
+adr deprecate ADR-0003 --reason "Moving to a managed service"
 
 # Annotate: a note in any state, and typed links (relates-to, refines, depends-on).
-adr note ADR-0003 "Benchmarks are in the wiki" --commit
-adr link ADR-0004 ADR-0002 --rel refines --commit
+adr note ADR-0003 "Benchmarks are in the wiki"
+adr link ADR-0004 ADR-0002 --rel refines
 adr link ADR-0004 platform:k3f9q8a1                  # a decision in a configured [[sources]] log
 
 # Scope: the code a decision governs, as globs, and which decisions govern a file.
 adr scope ADR-0004 --set 'services/orders/**' --set 'libs/db/**'
-adr scope ADR-0004 --add 'services/billing/**' --remove 'libs/db/**' --commit
+adr scope ADR-0004 --add 'services/billing/**' --remove 'libs/db/**'
 adr scope ADR-0004 --clear
 adr scope --follow-renames                           # after git mv: update the globs, stage, never commit
 adr for services/orders/api.ts
