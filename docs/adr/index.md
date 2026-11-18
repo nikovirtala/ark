@@ -27,6 +27,12 @@
 | ADR-0022 | [Quote titles as written in Conventional Commits subjects](decisions/4yen2hj2-quote-titles-as-written-in-conventional-commits-subjects.md) | accepted | 2026-11-14 |
 | ADR-0023 | [Verify every commit builds; run tests at the branch tip](decisions/pbptc6ny-verify-every-commit-builds-run-tests-at-the-branch-tip.md) | accepted | 2026-11-18 |
 
+## Proposed
+
+| Decision | Title | Status | Since |
+| --- | --- | --- | --- |
+| a48jn9nd | [Commit writes by default in logs that init sets up](decisions/a48jn9nd-commit-writes-by-default-in-logs-that-init-sets-up.md) | proposed | 2026-11-18 |
+
 ## Superseded and deprecated
 
 | Decision | Title | Status | Since |

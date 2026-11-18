@@ -1,0 +1,19 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M7PNYX2RW7WZ6BA8ZMPXXX6D
+subject: a48jn9nd
+type: scoped
+at: 2026-11-18T06:36:58Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  set:
+    - docs/adr/adr.toml
+    - docs/issues/issues.toml
+    - packages/adr/src/init.ts
+    - packages/issues/src/init.ts
