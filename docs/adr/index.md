@@ -33,6 +33,7 @@
 | Decision | Title | Status | Since |
 | --- | --- | --- | --- |
 | va08e4c3 | [Release through next and run other repositories' tools from latest](decisions/va08e4c3-release-through-next-and-run-other-repositories-tools-from.md) | proposed | 2026-11-18 |
+| 4djbfgzc | [Stop the fold at an unknown event type](decisions/4djbfgzc-stop-the-fold-at-an-unknown-event-type.md) | proposed | 2026-11-18 |
 
 ## Superseded and deprecated
 
