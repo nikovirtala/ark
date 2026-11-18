@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M7R6G6G230Q9T1H3NDXTKGKA
+subject: 4djbfgzc
+type: scoped
+at: 2026-11-18T20:45:16Z
+actor:
+  kind: agent
+  name: claude
+  email: null
+  agent: claude
+  on_behalf_of: niko.virtala@hey.com
+data:
+  set:
+    - packages/ledger/src/fold/**

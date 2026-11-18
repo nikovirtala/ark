@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M7R6G87JJHMA1WG1894TY9MS
+subject: 0j5y197e
+type: proposed
+at: 2026-11-18T20:45:18Z
+actor:
+  kind: agent
+  name: claude
+  email: null
+  agent: claude
+  on_behalf_of: niko.virtala@hey.com
+data:
+  title: Ship event format changes read first, write later
+  template: nygard
+  template_version: 1
