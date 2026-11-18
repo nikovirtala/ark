@@ -34,17 +34,17 @@ Record your first architecture decision. Run these commands at the root of a git
 
 ```sh
 npx @nikovirtala/adr init --commit
-npx @nikovirtala/adr new "Use Aurora for orders" --section context="We need SQL." --section decision="Use Aurora for the orders service." --section scope="services/orders" --section consequences="We run a managed database." --commit
+npx @nikovirtala/adr new "Use Aurora for orders" --section context="We need SQL." --section decision="Use Aurora for the orders service." --section scope="services/orders" --section consequences="We run a managed database."
 npx @nikovirtala/adr list
 ```
 
-`adr init` writes `docs/adr/adr.toml` and a starter template. `adr new` proposes the decision and stages its files. `adr list` prints the log with each decision's computed status (the `67svw9m5` id is generated, so yours differs):
+`adr init` writes `docs/adr/adr.toml` and a starter template, and `--commit` commits them. The config sets `auto_commit = true`, so from then on every write commits without the flag: `adr new` proposes the decision and commits it. `adr list` prints the log with each decision's computed status (the `67svw9m5` id is generated, so yours differs):
 
 ```text
 -  67svw9m5  proposed  Use Aurora for orders
 ```
 
-A proposed decision shows its id until a human accepts it with `npx @nikovirtala/adr accept 67svw9m5 --commit`, which assigns the number `ADR-0001`. To go further, read the [adr README](packages/adr) for every command, or the [issues README](packages/issues) to track work the same way.
+A proposed decision shows its id until a human accepts it with `npx @nikovirtala/adr accept 67svw9m5`, which assigns the number `ADR-0001`. To go further, read the [adr README](packages/adr) for every command, or the [issues README](packages/issues) to track work the same way.
 
 ## Why ark
 

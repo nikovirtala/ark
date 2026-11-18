@@ -28,25 +28,27 @@ Each issue has a canonical id (`m4p8x2kd`) and, once its `opened` event lands on
 
 ## Commands
 
+The examples assume the config `issues init` writes, where `[policy] auto_commit = true` makes every write commit. Add `--no-commit` to only stage; in a log whose config doesn't set `auto_commit`, add `--commit` to commit.
+
 ```sh
-# Set up: write issues.toml and starter templates (bug, feature, task); never overwrites a file.
+# Set up: write issues.toml (with auto_commit = true) and starter templates (bug, feature, task); never overwrites a file.
 issues init --template task --template bug --commit
 issues init --skill [--skill-dir .kiro/skills/issues]   # the agent skill and an AGENTS.md pointer
 
 # Open an issue from a template; --section fills a section without an editor. An optional
 # section without content gets no heading.
-issues new "Split the orders service" --section goal="Two services." --section done="Both deploy." --commit
+issues new "Split the orders service" --section goal="Two services." --section done="Both deploy."
 issues new "Extract the consumer" --parent 1 --depends-on 3 --label type:feature --template feature --edit
 
 # Edit the description: in $VISUAL or $EDITOR, or by heading and section. --section <id>=
 # removes an optional section and text adds it back; a commit is refused if lint would fail.
 issues edit 42
-issues edit 42 --title "Split orders and payments" --section done="All three deploy." --commit
+issues edit 42 --title "Split orders and payments" --section done="All three deploy."
 
 # Work on it: start (assigns you when unassigned), stop, close, reopen.
 issues start 42
 issues stop 42 --reason "waiting for review"
-issues close 42 --commit                                   # done
+issues close 42                                            # done
 issues close 42 --resolution wontfix --reason "not needed" # a reason is required unless done
 issues close 42 --duplicate-of 17 --reason "same crash"
 issues reopen 42 --reason "it came back"
