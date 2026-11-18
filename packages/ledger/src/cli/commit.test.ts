@@ -1,12 +1,27 @@
 import { parseArgs } from "node:util";
 import { describe, expect, it } from "vitest";
 import { UsageError } from "../errors.js";
-import { COMMIT_OPTIONS, commitChoice } from "./commit.js";
+import { COMMIT_OPTIONS, collectHints, commitChoice, REDUNDANT_COMMIT_HINT } from "./commit.js";
 
 const parse = (args: string[]) =>
   parseArgs({ args, options: COMMIT_OPTIONS, allowNegative: true, strict: true }).values;
 
 describe("commitChoice", () => {
+  it("hints that --commit isn't needed only when auto_commit already commits", () => {
+    const hintsFor = (args: string[], autoCommit: boolean) => {
+      const values = parse(args);
+      const hints = collectHints(values);
+      commitChoice(values, { autoCommit });
+      commitChoice(values, { autoCommit });
+      return [...hints];
+    };
+    expect(hintsFor(["--commit"], true)).toEqual([REDUNDANT_COMMIT_HINT]);
+    expect(hintsFor(["--commit"], false)).toEqual([]);
+    expect(hintsFor([], true)).toEqual([]);
+    expect(hintsFor(["--no-commit"], true)).toEqual([]);
+    // Values nobody collects hints for get none, and nothing fails.
+    expect(commitChoice(parse(["--commit"]), { autoCommit: true }).commit).toBe(true);
+  });
   it("takes --commit/--no-commit when given, else the auto-commit setting", () => {
     expect(commitChoice(parse([]), { autoCommit: false })).toEqual({
       commit: false,

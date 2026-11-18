@@ -7,6 +7,7 @@ import {
   UsageError,
 } from "../errors.js";
 import { withGitOperation } from "../git/operation.js";
+import { collectHints } from "./commit.js";
 import {
   GLOBAL_OPTIONS,
   type GlobalFlags,
@@ -308,6 +309,7 @@ export async function runCli(tool: ToolCli, io: CliIO): Promise<0 | 1 | 2> {
     const own: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(values)) if (!Object.hasOwn(GLOBAL_OPTIONS, k)) own[k] = v;
 
+    const hints = collectHints(own);
     const outcome = await withGitOperation(() => spec.run({ io, flags, values: own, positionals }));
     if (json) {
       io.stdout.write(`${JSON.stringify(outcome.json, null, 2)}\n`);
@@ -315,6 +317,9 @@ export async function runCli(tool: ToolCli, io: CliIO): Promise<0 | 1 | 2> {
       io.stdout.write(outcome.text.endsWith("\n") ? outcome.text : `${outcome.text}\n`);
     }
     for (const note of outcome.notes ?? []) io.stderr.write(`${tool.name}: warning: ${note}\n`);
+    // Hints are for a person at a terminal; scripts and agents pass flags on purpose.
+    if (!json && io.interactive)
+      for (const h of hints) io.stderr.write(`${tool.name}: hint: ${h}\n`);
     return outcome.exit;
   } catch (e) {
     return fail(e, false);
