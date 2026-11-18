@@ -1,5 +1,20 @@
 # @nikovirtala/issues
 
+## 0.7.0
+
+### Minor Changes
+
+- 6fd2156: `adr init` and `issues init` write `[policy] auto_commit = true` in the config they create, so in a log they set up every write from the CLI or MCP commits, and `--no-commit` only stages. The built-in default stays `false`: a config without the key, including every config written before this release, keeps staging. `init` itself still commits only with `--commit`, or when a config it finds sets `auto_commit`.
+
+### Patch Changes
+
+- 36438a9: A write run at a terminal with `--commit` in a log whose config sets `[policy] auto_commit = true` ends with `hint: --commit isn't needed here: [policy] auto_commit = true commits every write` on stderr. Scripts, agents and `--json` don't get it, because stdin or stdout isn't a terminal there, and a flag passed on purpose to commit whatever the config says shouldn't nag. In `@nikovirtala/ledger/cli`, `runCli` prints the hints `commitChoice` gives.
+- Updated dependencies [6fd2156]
+- Updated dependencies [028d466]
+- Updated dependencies [36438a9]
+  - @nikovirtala/adr@0.7.0
+  - @nikovirtala/ledger@0.16.0
+
 ## 0.6.1
 
 ### Patch Changes
