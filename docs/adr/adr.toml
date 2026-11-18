@@ -7,3 +7,7 @@ anchor_exclude = ["**/*.md", "**/*.test.ts", "**/test-support/**", "packages/led
 [log]
 # Every adr write keeps index.md fresh; verify (hooks and CI) checks it.
 index = "committed"
+
+[policy]
+# Every write commits; --no-commit only stages.
+auto_commit = true
