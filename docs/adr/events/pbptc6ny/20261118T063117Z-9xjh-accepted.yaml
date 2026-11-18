@@ -1,0 +1,15 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M7PNMFYV9MD1NSQZQE2Q9XJH
+subject: pbptc6ny
+type: accepted
+at: 2026-11-18T06:31:17Z
+actor:
+  kind: human
+  name: Niko Virtala
+  email: niko.virtala@hey.com
+  agent: null
+  on_behalf_of: null
+data:
+  body_sha256: 54fb8fb25feefdb8f3913776ad7569d5f7d8e70c6c8428a16e5de0ffd9b9eb30
