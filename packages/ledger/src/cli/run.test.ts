@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ConfigError, type JsonValue } from "../errors.js";
 import { currentGitOperation, type GitOperation } from "../git/operation.js";
+import { commitChoice, REDUNDANT_COMMIT_HINT } from "./commit.js";
 import type { CliIO } from "./output.js";
 import { type CommandSpec, type Outcome, runCli, type ToolCli } from "./run.js";
 
@@ -33,6 +34,15 @@ const commands: readonly CommandSpec[] = [
   }),
   command({ name: "write", options: { commit: { type: "boolean" } }, ref: "reject" }),
   command({
+    name: "autocommit",
+    options: { commit: { type: "boolean" } },
+    ref: "reject",
+    run: async ({ values }) => {
+      commitChoice(values, { autoCommit: true });
+      return { exit: 0, json: null, text: "written" };
+    },
+  }),
+  command({
     name: "fail",
     run: async () => ({ exit: 1, json: { ok: false }, text: "failed", notes: ["n1", "n2"] }),
   }),
@@ -53,7 +63,7 @@ const commands: readonly CommandSpec[] = [
 ];
 const TOOL: ToolCli = { name: "t", version: "1.2.3", summary: "A test tool.", commands };
 
-async function call(argv: readonly string[], tool: ToolCli = TOOL) {
+async function call(argv: readonly string[], tool: ToolCli = TOOL, interactive = false) {
   let stdout = "";
   let stderr = "";
   const io: CliIO = {
@@ -70,13 +80,25 @@ async function call(argv: readonly string[], tool: ToolCli = TOOL) {
         stderr += s;
       },
     },
-    interactive: false,
-    stdoutIsTTY: false,
+    interactive,
+    stdoutIsTTY: interactive,
   };
   const code = await runCli(tool, io);
   return { code, stdout, stderr };
 }
 const json = (s: string): unknown => JSON.parse(s);
+describe("runCli hints", () => {
+  it("tells a person at a terminal that --commit isn't needed with auto_commit", async () => {
+    const r = await call(["autocommit", "--commit"], TOOL, true);
+    expect(r.code).toBe(0);
+    expect(r.stderr).toBe(`t: hint: ${REDUNDANT_COMMIT_HINT}\n`);
+  });
+  it("says nothing to scripts, to --json, or when the flag does something", async () => {
+    expect((await call(["autocommit", "--commit"])).stderr).toBe("");
+    expect((await call(["autocommit", "--commit", "--json"], TOOL, true)).stderr).toBe("");
+    expect((await call(["autocommit"], TOOL, true)).stderr).toBe("");
+  });
+});
 
 describe("runCli tool check", () => {
   const cases: [what: string, commands: CommandSpec[], message: string][] = [
