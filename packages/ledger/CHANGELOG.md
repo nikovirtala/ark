@@ -1,5 +1,15 @@
 # @nikovirtala/ledger
 
+## 0.16.0
+
+### Minor Changes
+
+- 36438a9: A write run at a terminal with `--commit` in a log whose config sets `[policy] auto_commit = true` ends with `hint: --commit isn't needed here: [policy] auto_commit = true commits every write` on stderr. Scripts, agents and `--json` don't get it, because stdin or stdout isn't a terminal there, and a flag passed on purpose to commit whatever the config says shouldn't nag. In `@nikovirtala/ledger/cli`, `runCli` prints the hints `commitChoice` gives.
+
+### Patch Changes
+
+- 028d466: `init --setup` with a commit (`--commit` or `[policy] auto_commit`) no longer fails with `git commit failed (exit 128)` when a rerun has nothing to update: it writes nothing and commits nothing.
+
 ## 0.15.1
 
 ### Patch Changes
