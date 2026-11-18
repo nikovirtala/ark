@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M7R6F2B3DY2EDQGR7GRY5JAT
+subject: va08e4c3
+type: scoped
+at: 2026-11-18T20:44:39Z
+actor:
+  kind: agent
+  name: claude
+  email: null
+  agent: claude
+  on_behalf_of: niko.virtala@hey.com
+data:
+  set:
+    - .github/workflows/release.yml
+    - packages/ledger/src/surfaces/ark-setup.ts
