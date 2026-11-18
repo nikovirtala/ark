@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M7PNYWHZHP1QCF09W2S1M5ZB
+subject: a48jn9nd
+type: proposed
+at: 2026-11-18T06:36:57Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Commit writes by default in logs that init sets up
+  template: nygard
+  template_version: 1
