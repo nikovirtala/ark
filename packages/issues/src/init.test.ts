@@ -80,7 +80,12 @@ describe("initIssueLog with the agent setup (?59)", () => {
     // A rerun with nothing to update leaves the working tree unchanged (R3).
     await git(r, "add", "-A");
     await git(r, "-c", "user.email=a@b.c", "-c", "user.name=A", "commit", "-qm", "setup");
-    await initIssueLog(await open(r), { setup: setup(["claude", "kiro"]) });
+    // A commit was asked for, but nothing was written, so nothing is committed.
+    const again = await initIssueLog(await open(r), {
+      setup: setup(["claude", "kiro"]),
+      commit: true,
+    });
+    expect(again.commit).toBeNull();
     expect((await git(r, "status", "--porcelain")).trim()).toBe("");
   });
 
