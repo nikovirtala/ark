@@ -444,7 +444,9 @@ export async function initToolLog(
       }
     }
     let sha: string | null = null;
-    if (commit) {
+    const only = [...staged, ...setupStaged, ...tracked];
+    // A setup rerun with nothing to update writes nothing, so there is nothing to commit.
+    if (commit && only.length > 0) {
       const message =
         o.message ??
         renderCommitMessage(t.config.commitSubject, {
@@ -453,7 +455,7 @@ export async function initToolLog(
         }).message;
       sha = await commitWithRecovery(log.git, {
         message,
-        only: [...staged, ...setupStaged, ...tracked],
+        only,
         rerun: t.rerun,
         after: indexed ? t.indexAfter(root) : null,
       });
