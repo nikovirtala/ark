@@ -173,12 +173,16 @@ describe("initIssueLog", () => {
     expect((await git(r, "status", "--porcelain")).trim()).toBe("A  other.txt");
   });
 
-  it("parses the starter config as the defaults, but for the exclusive prefixes", () => {
+  it("parses the starter config as the defaults, but for the exclusive prefixes and auto_commit", () => {
     const parsed = parseIssuesConfig(
       parseToolConfig(starterConfig({ root: null, template: "task" })),
       "x",
     );
-    expect(parsed).toEqual({ ...DEFAULT_ISSUES_CONFIG, exclusive: ["priority", "type"] });
+    expect(parsed).toEqual({
+      ...DEFAULT_ISSUES_CONFIG,
+      exclusive: ["priority", "type"],
+      autoCommit: true,
+    });
   });
 
   it("writes the index key with a comment on its values, and the README shows the file", async () => {

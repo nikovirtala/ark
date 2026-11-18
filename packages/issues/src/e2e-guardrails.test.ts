@@ -67,9 +67,10 @@ describe("issues guardrails end to end", { timeout: 300_000 }, () => {
     const a = newIssue(r, "Split the orders service");
     const b = newIssue(r, "Extract the consumer");
     const c = newIssue(r, "Move the schema");
-    ok(runIssues(r, ["link", a, b]));
-    ok(runIssues(r, ["link", a, c, "--rel", "depends-on"]));
-    ok(runIssues(r, ["link", a, b, "--rel", "depends-on"]));
+    // init's config commits every write; these stay staged for the batch commit below.
+    ok(runIssues(r, ["link", a, b, "--no-commit"]));
+    ok(runIssues(r, ["link", a, c, "--rel", "depends-on", "--no-commit"]));
+    ok(runIssues(r, ["link", a, b, "--rel", "depends-on", "--no-commit"]));
     ok(runIssues(r, ["scope", a, "--set", ".gitignore", "--commit"]));
     expect(
       git(r, ["log", "-1", "--format=%s%n%(trailers:only,unfold)"]).trim().split("\n"),
@@ -110,7 +111,7 @@ describe("issues guardrails end to end", { timeout: 300_000 }, () => {
     const d = proposed.decision.id;
     const i = newIssue(r, "Build the event store");
     ok(runIssues(r, ["link", i, `adr:${d}`, "--rel", "implements", "--commit"]));
-    ok(runAdrCli(r, ["reject", d, "--reason", "Too early."]));
+    ok(runAdrCli(r, ["reject", d, "--reason", "Too early.", "--no-commit"]));
     const staged = runJson<{ findings: { rule: string; subject: string; message: string }[] }>(r, [
       "verify",
       "--staged",

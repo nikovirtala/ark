@@ -86,7 +86,8 @@ describe("adr phase 2b demo rows 1–10d", { timeout: 300_000 }, () => {
     git(r, 0, ["add", event]);
     expect(git(r, 1, ["commit", "-m", "docs: tamper"]).stderr).toContain("append-only/modified");
     git(r, 0, ["restore", "--staged", "--worktree", event]);
-    adr(r, 0, ["note", "ADR-0001", "Checked against the new hosting plan."]);
+    // init's config commits every write; stage this one so the plain commit below carries it.
+    adr(r, 0, ["note", "ADR-0001", "Checked against the new hosting plan.", "--no-commit"]);
     git(r, 0, ["commit", "-m", "docs(adr): add a note"]);
 
     // 2. The commit-msg hook added the trailers.

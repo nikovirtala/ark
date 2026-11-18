@@ -89,7 +89,7 @@ describe("issues' default commit subjects", { timeout: 180_000 }, () => {
     // Batches: a staged link swept into a scope commit.
     const c = newIssue(r, "Move the schema");
     const d = newIssue(r, "Drop the old table");
-    ok(r, ["link", c, d]);
+    ok(r, ["link", c, d, "--no-commit"]);
     ok(r, ["scope", c, "--set", "src/a.ts", "--commit"]);
     expect(subject(r)).toBe('docs(issues): link and scope ?3 "move the schema"');
   });

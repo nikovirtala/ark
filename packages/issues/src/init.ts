@@ -50,6 +50,8 @@ export function starterConfig(o: {
     "[policy]",
     "close_requires_human = false",
     "mcp_can_close = true",
+    "# Every write commits; --no-commit only stages.",
+    "auto_commit = true",
     "",
     "[commit]",
     '# {title} holds the title in quotes for new, and the issue\'s number (or id on a branch) with its title in quotes for every other write, as in: close ?42 "split the orders service".',

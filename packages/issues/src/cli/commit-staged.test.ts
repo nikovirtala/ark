@@ -38,7 +38,7 @@ function write(repo: TempRepo, args: readonly string[], env?: NodeJS.ProcessEnv)
   return r.json.written;
 }
 
-/** `issues new <title>` without `--commit`, with the task sections unless `extra` gives some. */
+/** `issues new <title> --no-commit`, with the task sections unless `extra` gives some. */
 function stageNew(
   repo: TempRepo,
   title: string,
@@ -46,7 +46,11 @@ function stageNew(
   env?: NodeJS.ProcessEnv,
 ): { id: string; written: string[]; body: string; opened: string } {
   const flags = extra.includes("--section") ? extra : [...TASK_FLAGS, ...extra];
-  const r = runJson<Write>(repo, ["new", title, ...flags], env === undefined ? {} : { env });
+  const r = runJson<Write>(
+    repo,
+    ["new", title, ...flags, "--no-commit"],
+    env === undefined ? {} : { env },
+  );
   if (r.status !== 0 || r.json.issue === null)
     throw new Error(`new failed: ${r.stdout}${r.stderr}`);
   const body = r.json.written.find((p) => p.includes("/items/")) ?? "";
@@ -74,7 +78,7 @@ describe("--commit with staged descriptions", () => {
       ["--section", "goal=x", "--section", "done=y"],
       env,
     );
-    const scoped = write(repo, ["scope", a.id, "--set", "src/**"], env);
+    const scoped = write(repo, ["scope", a.id, "--set", "src/**", "--no-commit"], env);
     await writeFile(join(repo.root, "other.txt"), "other\n");
     git(repo, "add", "other.txt");
     // A different issue's commit leaves A's staged files staged (a′).
