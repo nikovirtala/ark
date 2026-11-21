@@ -1,0 +1,18 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M7ZX4FQXNGKVWCPE6BCBXH8S
+subject: axap3xe0
+type: scoped
+at: 2026-11-21T20:35:31Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: niko.virtala@hey.com
+data:
+  set:
+    - packages/deployment/src/freeze.ts
+    - packages/deployment/src/machine.ts
+    - packages/deployment/src/orchestrate.ts
