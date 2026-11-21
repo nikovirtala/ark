@@ -10,6 +10,7 @@ Follow this path from the top. Each step builds on the one before it.
 2. [The adr tool](01-adr-v1.md) (explanation). How the decision kind models architecture decisions as frozen bodies plus an append-only event log.
 3. [The issues tool](02-issues-v1.md) (explanation). How the issue kind models work as living bodies plus an event log, and how it links to accepted decisions.
 4. [Agent setup](03-setup-v1.md) (explanation). How a repository wires the tools for coding agents: MCP servers, skills, hooks and permission rules.
+5. [The deployment member](04-deployment-v1.md) (explanation). How a project's pipeline deploys, checks, runs its one-off tasks and freezes itself on a failure, and what agents may do with it.
 
 ## Use the tools
 
