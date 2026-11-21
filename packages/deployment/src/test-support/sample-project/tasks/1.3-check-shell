@@ -1,0 +1,8 @@
+#!/bin/sh
+# A sample deployment task as a plain executable: the protocol is three flags.
+case "$1" in
+  --needs) echo '{"role":"sample-deployment-task-shell","description":"Checks the shell protocol (a sample)."}' ;;
+  --dry-run) echo "nothing to change"; echo '{"summary":"would check 1 thing"}' ;;
+  --run) echo '{"summary":"checked 1 thing"}' ;;
+  *) echo "usage: $0 --needs | --dry-run | --run" >&2; exit 2 ;;
+esac
