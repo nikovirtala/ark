@@ -31,6 +31,29 @@ export {
   type RunInput,
 } from "./ledger.js";
 export {
+  type Effect,
+  eventsFrom,
+  IllegalTransitionError,
+  type RunEvent,
+  RunMachine,
+  TERMINAL_PHASES,
+  TRANSITIONS,
+  type Transition,
+  transition,
+} from "./machine.js";
+export {
+  DEFAULT_HINTS,
+  type Orchestration,
+  orchestrate,
+  type RunContext,
+  type RunHints,
+  type RunProvenance,
+  type RunResult,
+  type StepResult,
+  type Steps,
+  type SynthResult,
+} from "./orchestrate.js";
+export {
   clip,
   FREEZE_SCHEMA,
   type FreezeRecord,
@@ -98,6 +121,7 @@ export {
   type Status,
   templateOutputKeys,
 } from "./smoke/verdict.js";
+export type { Target } from "./target.js";
 export {
   classifyTaskFile,
   type DiscoverOptions,
