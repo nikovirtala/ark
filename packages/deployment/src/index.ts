@@ -62,6 +62,43 @@ export {
   type Values,
 } from "./settings.js";
 export {
+  type Add,
+  type AwsRunner,
+  changedWithin,
+  describeStack,
+  isHealthyStackStatus,
+  isNotFound,
+  isReadOnlyCommand,
+  READ_ONLY_EXCEPTIONS,
+  type ReadOnlyAwsOptions,
+  readOnlyAws,
+  render,
+  type StackInfo,
+  taskOrder,
+} from "./smoke/helpers.js";
+export {
+  type CheckContext,
+  dryRunChecks,
+  type PlannedCall,
+  type PlannedCheck,
+  type RunChecksOptions,
+  renderPlan,
+  runChecks,
+  type SmokeCheck,
+  type SmokeMainOptions,
+  smokeMain,
+} from "./smoke/runner.js";
+export { runSmokeStage, type SmokeCommand, type SmokeStageDeps } from "./smoke/stage.js";
+export {
+  judge,
+  parseResults,
+  type Result,
+  type SmokeVerdict,
+  STATUSES,
+  type Status,
+  templateOutputKeys,
+} from "./smoke/verdict.js";
+export {
   classifyTaskFile,
   type DiscoverOptions,
   deletable,
