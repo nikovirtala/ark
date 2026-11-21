@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M7ZX4K5G5PZYT84NV2BRW2GA
+subject: ddgs911f
+type: scoped
+at: 2026-11-21T20:35:34Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: niko.virtala@hey.com
+data:
+  set:
+    - packages/deployment/src/tasks/**
