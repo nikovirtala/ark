@@ -6,6 +6,8 @@
     { "path": "packages/adr" },
     { "path": "packages/adr/tsconfig.test.json" },
     { "path": "packages/issues" },
-    { "path": "packages/issues/tsconfig.test.json" }
+    { "path": "packages/issues/tsconfig.test.json" },
+    { "path": "packages/deployment" },
+    { "path": "packages/deployment/tsconfig.test.json" }
   ]
 }

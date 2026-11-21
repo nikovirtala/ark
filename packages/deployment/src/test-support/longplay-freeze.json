@@ -1,0 +1,4 @@
+{
+  "source": "/longplay/pipeline/frozen (eu-west-1), read 2026-11-21",
+  "value": "{\"reason\":\"the smoke checks failed: FAIL 4.1 the consumer's role only updates items of the demand table: no read, put or delete (the run records' own grant has the other actions, on another table)\",\"commit\":\"66af55cfca0d114860fcd38e9530a4512e988d4d\",\"at\":\"2026-11-21T19:53:52.606Z\",\"logs\":\"https://eu-west-1.console.aws.amazon.com/codesuite/codepipeline/pipelines/longplay-platform-deploy/executions/de7f271e-988a-4786-9b78-d4c3f8e6598c/timeline?region=eu-west-1\",\"rolledBackTo\":\"9bb4f62677da076832417924196766b5006babdb\"}"
+}
