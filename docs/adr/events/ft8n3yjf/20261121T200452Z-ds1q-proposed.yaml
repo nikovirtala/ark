@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M7ZVCC7TRX9CM91PQ63JDS1Q
+subject: ft8n3yjf
+type: proposed
+at: 2026-11-21T20:04:52Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: niko.virtala@hey.com
+data:
+  title: Let agents read deployments, and leave deploying to people
+  template: nygard
+  template_version: 1
