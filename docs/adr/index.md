@@ -28,6 +28,12 @@
 | ADR-0023 | [Verify every commit builds; run tests at the branch tip](decisions/pbptc6ny-verify-every-commit-builds-run-tests-at-the-branch-tip.md) | accepted | 2026-11-18 |
 | ADR-0024 | [Commit writes by default in logs that init sets up](decisions/a48jn9nd-commit-writes-by-default-in-logs-that-init-sets-up.md) | accepted | 2026-11-18 |
 
+## Proposed
+
+| Decision | Title | Status | Since |
+| --- | --- | --- | --- |
+| 41bazcsw | [Extract the deployment pipeline into an ark member, deployment](decisions/41bazcsw-extract-the-deployment-pipeline-into-an-ark-member.md) | proposed | 2026-11-21 |
+
 ## Superseded and deprecated
 
 | Decision | Title | Status | Since |
