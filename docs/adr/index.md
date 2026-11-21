@@ -35,6 +35,7 @@
 | 41bazcsw | [Extract the deployment pipeline into an ark member, deployment](decisions/41bazcsw-extract-the-deployment-pipeline-into-an-ark-member.md) | proposed | 2026-11-21 |
 | axap3xe0 | [Freeze before rolling back, and never roll back a failed task](decisions/axap3xe0-freeze-before-rolling-back-and-never-roll-back-a-failed-task.md) | proposed | 2026-11-21 |
 | ddgs911f | [Run deployment tasks as executables that answer three flags](decisions/ddgs911f-run-deployment-tasks-as-executables-that-answer-three-flags.md) | proposed | 2026-11-21 |
+| ab58e4pn | [Record every deployment run as a GitHub deployment](decisions/ab58e4pn-record-every-deployment-run-as-a-github-deployment.md) | proposed | 2026-11-21 |
 
 ## Superseded and deprecated
 
