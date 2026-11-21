@@ -33,6 +33,7 @@
 | Decision | Title | Status | Since |
 | --- | --- | --- | --- |
 | 41bazcsw | [Extract the deployment pipeline into an ark member, deployment](decisions/41bazcsw-extract-the-deployment-pipeline-into-an-ark-member.md) | proposed | 2026-11-21 |
+| axap3xe0 | [Freeze before rolling back, and never roll back a failed task](decisions/axap3xe0-freeze-before-rolling-back-and-never-roll-back-a-failed-task.md) | proposed | 2026-11-21 |
 
 ## Superseded and deprecated
 
