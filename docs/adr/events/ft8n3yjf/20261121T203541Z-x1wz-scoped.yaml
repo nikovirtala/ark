@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M7ZX4T2WZHN3D0HAT6M0X1WZ
+subject: ft8n3yjf
+type: scoped
+at: 2026-11-21T20:35:41Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: niko.virtala@hey.com
+data:
+  set:
+    - packages/deployment/src/cli/**
+    - packages/deployment/src/status.ts
