@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7ZYNPPB13JGQ6JRVC2V8H95
+subject: acc99x0k
+type: closed
+at: 2026-11-21T21:02:23Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: niko.virtala@hey.com
+reason: packages/deployment builds, and its 166 unit, property and AWS Emulator tests pass (the emulator file runs with AWS_EMULATOR_BIN set). longplay's orchestrator, release, deploy, smoke and settings tests moved with the code, adapted to config, and fixtures read from longplay's ledger table and freeze flag read unchanged. The deploy CLI ran against the AWS Emulator showing status, a dry run of a TypeScript, a Python and a shell task, and a frozen pipeline refusing a deploy. docs/04-deployment-v1.md records the design and .changeset/deployment-first-prerelease.md releases 0.1.0.
+data:
+  resolution: done
