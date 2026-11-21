@@ -23,6 +23,15 @@ export {
   type SsmPort,
 } from "./freeze.js";
 export {
+  type CreateDeploymentInput,
+  type CreateStatusInput,
+  type DeploymentState,
+  type GitHubDeployment,
+  type GitHubDeploymentsApi,
+  type GitHubRestOptions,
+  githubRestApi,
+} from "./github.js";
+export {
   DEFAULT_TASK_KEY_PREFIX,
   type DocumentsPort,
   Ledger,
@@ -53,6 +62,15 @@ export {
   type Steps,
   type SynthResult,
 } from "./orchestrate.js";
+export {
+  deploymentStatus as githubDeploymentStatus,
+  GitHubProvenance,
+  type GitHubProvenanceOptions,
+  githubRepositoryUrl,
+  otelResourceAttributes,
+  type ProvenanceFacts,
+  provenanceAttributes,
+} from "./provenance.js";
 export {
   clip,
   FREEZE_SCHEMA,

@@ -1,8 +1,16 @@
 /**
- * `@nikovirtala/deployment/testing`: in-memory stand-ins for the freeze flag and the ledger, with the same methods as the real ones, so a project tests its tasks and its wiring
+ * `@nikovirtala/deployment/testing`: in-memory stand-ins for the freeze flag, the ledger and GitHub's
+ * deployments, with the same methods as the real ones, so a project tests its tasks and its wiring
  * without AWS or GitHub. The real ones are tested on the AWS Emulator and a fake GitHub server.
  */
 import type { Freeze, FreezeInput, FreezeState } from "../freeze.js";
+import type {
+  CreateDeploymentInput,
+  CreateStatusInput,
+  DeploymentState,
+  GitHubDeployment,
+  GitHubDeploymentsApi,
+} from "../github.js";
 import type { LedgerStore, RunInput } from "../ledger.js";
 import {
   FREEZE_SCHEMA,
@@ -87,5 +95,43 @@ export class MemoryLedger implements LedgerStore {
   }
   async recentRuns(limit = 5): Promise<RunRecord[]> {
     return [...this.runs].reverse().slice(0, limit);
+  }
+}
+
+/** GitHub's deployments in memory: what was created, every status, newest last. */
+export class MemoryGitHub implements GitHubDeploymentsApi {
+  deployments: Array<GitHubDeployment & { description: string; production: boolean }> = [];
+  statuses: Array<{ id: number } & CreateStatusInput> = [];
+  private next = 1;
+
+  async createDeployment(input: CreateDeploymentInput): Promise<{ id: number }> {
+    const id = this.next++;
+    this.deployments.push({
+      id,
+      sha: input.ref,
+      environment: input.environment,
+      description: input.description,
+      production: input.productionEnvironment,
+    });
+    return { id };
+  }
+  async createStatus(id: number, input: CreateStatusInput): Promise<void> {
+    if (!this.deployments.some((d) => d.id === id)) throw new Error(`GitHub: no deployment ${id}`);
+    this.statuses.push({ id, ...input });
+  }
+  async listDeployments(environment: string): Promise<GitHubDeployment[]> {
+    return this.deployments
+      .filter((d) => d.environment === environment)
+      .reverse()
+      .map(({ id, sha, environment: e }) => ({ id, sha, environment: e }));
+  }
+  async latestState(id: number): Promise<DeploymentState | undefined> {
+    return this.statuses.filter((s) => s.id === id).at(-1)?.state;
+  }
+  /** The newest state of every deployment, by id. */
+  states(): Record<number, DeploymentState | undefined> {
+    return Object.fromEntries(
+      this.deployments.map((d) => [d.id, this.statuses.filter((s) => s.id === d.id).at(-1)?.state]),
+    );
   }
 }
