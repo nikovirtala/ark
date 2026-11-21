@@ -5,6 +5,16 @@
  * See docs/04-deployment-v1.md in ark.
  */
 export {
+  Aws,
+  defaultExec,
+  type Env,
+  type Exec,
+  type ExecOptions,
+  type ExecResult,
+  tail,
+  withoutCredentials,
+} from "./aws.js";
+export {
   type Freeze,
   type FreezeInput,
   type FreezeState,
@@ -51,3 +61,36 @@ export {
   settingParameterName,
   type Values,
 } from "./settings.js";
+export {
+  classifyTaskFile,
+  type DiscoverOptions,
+  deletable,
+  discoverTasks,
+  MODULE_EXTENSIONS,
+  type TaskFile,
+  type TaskKind,
+} from "./tasks/discover.js";
+export { listTasks, type TaskListing, type TaskValidation, validateTask } from "./tasks/listing.js";
+export {
+  lastJsonLine,
+  needsSchema,
+  ProcessExecutor,
+  type ProcessExecutorOptions,
+  parseNeeds,
+  shimPath,
+  TASK_ENV,
+  type TaskContext,
+  type TaskEnvNames,
+  type TaskExecutor,
+  type TaskMode,
+  type TaskModule,
+  type TaskNeeds,
+  type TaskResult,
+} from "./tasks/protocol.js";
+export {
+  type RolePolicy,
+  type RunTasksDeps,
+  runTasks,
+  type TaskReport,
+  validateNeeds,
+} from "./tasks/runner.js";
