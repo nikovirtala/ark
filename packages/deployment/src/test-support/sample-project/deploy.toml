@@ -1,0 +1,48 @@
+# A sample project's deploy.toml, for the tests and the CLI demo against the AWS Emulator.
+[project]
+name = "sample"
+region = "us-east-1"
+environment = "production"
+repository = "nikovirtala/sample"
+
+[pipeline]
+name = "sample-deploy"
+
+[ledger]
+table = "sample-deployment-ledger"
+
+[freeze]
+parameter = "/sample/deployment/frozen"
+
+[settings]
+prefix = "/sample/deployment/settings/"
+
+[[settings.keys]]
+key = "SAMPLE_SECRET_ARN"
+context = "sampleSecretArn"
+required = "Without it the stack creates an empty secret, which is deleted on rollback."
+pattern = "^arn:aws:secretsmanager:"
+pattern_hint = "a Secrets Manager secret ARN"
+
+[[settings.keys]]
+key = "SAMPLE_DOMAIN"
+context = "sampleDomain"
+default = "sample.example.com"
+
+[roles]
+deploy = "sample-deployment-deploy"
+smoke = "sample-deployment-smoke"
+task_prefix = "sample-deployment-task-"
+
+[tasks]
+dir = "tasks"
+interpreters = { ".py" = ["python3"] }
+env = { commit = "LP_RELEASE_COMMIT", outputs = "LP_RELEASE_OUTPUTS" }
+
+[smoke]
+command = ["node", "smoke.ts"]
+
+[target]
+kind = "cdk"
+cdk = ["npx", "cdk"]
+stacks = ["SampleStack"]

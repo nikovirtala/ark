@@ -15,6 +15,17 @@ export {
   withoutCredentials,
 } from "./aws.js";
 export {
+  CONFIG_FILE,
+  ConfigError,
+  configSchema,
+  type DeploymentConfig,
+  loadConfig,
+  logsUrl,
+  type PreflightCheck,
+  parseConfig,
+  type RawConfig,
+} from "./config.js";
+export {
   type Freeze,
   type FreezeInput,
   type FreezeState,
@@ -139,6 +150,18 @@ export {
   type Status,
   templateOutputKeys,
 } from "./smoke/verdict.js";
+export {
+  deploymentStatus,
+  type EnvironmentInfo,
+  environments,
+  findRun,
+  PLAN_SCHEMA,
+  planRun,
+  type RunPlan,
+  STATUS_SCHEMA,
+  type StatusReport,
+  type StatusSources,
+} from "./status.js";
 export type { Target } from "./target.js";
 export {
   classifyTaskFile,
@@ -173,3 +196,15 @@ export {
   type TaskReport,
   validateNeeds,
 } from "./tasks/runner.js";
+export {
+  buildSteps,
+  type Clients,
+  executorFor,
+  makeClients,
+  preflightCheck,
+  provenanceFor,
+  rolePolicy,
+  runContext,
+  tasksOf,
+  type WiringOptions,
+} from "./wiring.js";

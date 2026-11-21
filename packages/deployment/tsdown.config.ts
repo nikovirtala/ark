@@ -5,6 +5,7 @@ export default defineConfig({
     index: "src/index.ts",
     cdk: "src/cdk/index.ts",
     testing: "src/testing/index.ts",
+    cli: "src/cli/main.ts",
     // Runs a TypeScript deployment task in its own process (src/tasks/protocol.ts finds it next to
     // the bundle that starts it).
     "task-shim": "src/tasks/task-shim.ts",
