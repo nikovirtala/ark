@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M7ZVBYJ3WAPQZQG9WB3RABVG
+subject: ddgs911f
+type: proposed
+at: 2026-11-21T20:04:38Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: niko.virtala@hey.com
+data:
+  title: Run deployment tasks as executables that answer three flags
+  template: nygard
+  template_version: 1
