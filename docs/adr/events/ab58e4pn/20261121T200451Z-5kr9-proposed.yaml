@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M7ZVCBD1EJ9GT0TAK21Y5KR9
+subject: ab58e4pn
+type: proposed
+at: 2026-11-21T20:04:51Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: niko.virtala@hey.com
+data:
+  title: Record every deployment run as a GitHub deployment
+  template: nygard
+  template_version: 1
