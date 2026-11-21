@@ -1,0 +1,15 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M7ZX53N8A5HW4AEZXYBKW25S
+subject: m1wr4sj5
+type: commented
+at: 2026-11-21T20:35:51Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: niko.virtala@hey.com
+data:
+  text: "The deployment member (packages/deployment, issue acc99x0k) is a fourth package to move with the others: it requires Node 24 today like ledger, adr and issues. It relies on Node's type stripping (unflagged since 22.18) to run TypeScript deployment tasks, so 22.18 is its floor on Node 22."
