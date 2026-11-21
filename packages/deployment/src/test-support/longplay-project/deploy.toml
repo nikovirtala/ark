@@ -1,0 +1,141 @@
+# longplay's pipeline as config: every name its infra/lib/pipeline/names.ts hard-codes, so its
+# ledger items, freeze value and release tasks stay as they are when it moves onto the package.
+[project]
+name = "longplay"
+region = "eu-west-1"
+environment = "production"
+repository = "nikovirtala/longplay"
+
+[pipeline]
+name = "longplay-platform-deploy"
+
+[hints]
+unfreeze = "scripts/pipeline.sh unfreeze"
+settings = "scripts/pipeline.sh settings"
+
+[ledger]
+table = "longplay-pipeline-ledger"
+task_key_prefix = "RELEASE#"
+
+[freeze]
+parameter = "/longplay/pipeline/frozen"
+
+[settings]
+prefix = "/longplay/pipeline/settings/"
+
+[[settings.keys]]
+key = "PLATFORM_ALARM_EMAIL"
+context = "platformAlarmEmail"
+required = "A platform deploy without it removes the alarm topic's email subscription."
+fallback = "ALARM_EMAIL"
+
+[[settings.keys]]
+key = "PLATFORM_HOSTED_ZONE_ID"
+context = "platformHostedZoneId"
+required = "A platform deploy without it removes the API's certificate, domain and DNS record."
+pattern = "^Z[A-Z0-9]{5,31}$"
+pattern_hint = "a hosted zone id like Z0123456789ABCDEFGHIJ, without /hostedzone/"
+
+[[settings.keys]]
+key = "PLATFORM_SITE_BUCKET_NAME"
+context = "platformSiteBucketName"
+required = "A platform deploy without it removes the nightly parity run, its schedule and its alarms."
+pattern = "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$"
+pattern_hint = "a bucket name (lowercase letters, digits, dots and hyphens)"
+
+[[settings.keys]]
+key = "PLATFORM_BUDGET_USD"
+context = "platformBudgetUsd"
+
+[[settings.keys]]
+key = "PLATFORM_TABLE_BUCKET_SUFFIX"
+context = "platformTableBucketSuffix"
+
+[[settings.keys]]
+key = "PLATFORM_HOSTED_ZONE_NAME"
+context = "platformHostedZoneName"
+
+[[settings.keys]]
+key = "PLATFORM_API_DOMAIN"
+context = "platformApiDomain"
+
+[[settings.keys]]
+key = "PLATFORM_COGNITO_DOMAIN_PREFIX"
+context = "platformCognitoDomainPrefix"
+
+[[settings.keys]]
+key = "PLATFORM_APPLE_SECRET_NAME"
+context = "platformAppleSecretName"
+
+[[settings.keys]]
+key = "PLATFORM_LASTFM_SECRET_NAME"
+context = "platformLastfmSecretName"
+
+[roles]
+deploy = "longplay-pipeline-deploy"
+smoke = "longplay-pipeline-smoke"
+record = "longplay-pipeline-record"
+task_prefix = "longplay-release-"
+
+[notify]
+topic = "longplay-platform-alarms"
+
+[tasks]
+dir = "release"
+interpreters = { ".py" = ["uv", "run", "--frozen", "--directory", "transform", "python"] }
+env = { commit = "LP_RELEASE_COMMIT", outputs = "LP_RELEASE_OUTPUTS" }
+outputs_stack = "LongplayPlatformStack"
+
+[smoke]
+command = ["node", "infra/scripts/verify-platform.ts"]
+markers = { "1.5" = "PolicyStoreId", "2.4" = "SettingsUrl", "2.5" = "PlaysQueueUrl", "2.6" = "ParityReportsBucketName", "4.1" = "DemandBusName" }
+
+[[smoke.before]]
+name = "record-test-run"
+task = "1.7"
+argv = ["node", "infra/scripts/record-test-run.ts"]
+role = "record"
+env = { RUNS_TABLE = "longplay-platform-runs" }
+
+[[smoke.after]]
+name = "simulate-approval-policy.ts --deployed"
+task = "1.4"
+argv = ["node", "infra/scripts/simulate-approval-policy.ts", "--deployed"]
+marker = "PolicyStoreId"
+
+[[smoke.after]]
+name = "simulate-demand-policy.ts --deployed"
+task = "4.1"
+argv = ["node", "infra/scripts/simulate-demand-policy.ts", "--deployed"]
+marker = "DemandBusName"
+
+[[preflight]]
+kind = "secret"
+setting = "PLATFORM_APPLE_SECRET_NAME"
+name = "longplay/platform/sign-in-with-apple"
+
+[[preflight]]
+kind = "secret"
+setting = "PLATFORM_LASTFM_SECRET_NAME"
+name = "longplay/platform/lastfm"
+
+[[preflight]]
+kind = "bucket"
+setting = "PLATFORM_SITE_BUCKET_NAME"
+
+[target]
+kind = "cdk"
+cdk = ["pnpm", "--filter", "longplay-infra", "exec", "cdk"]
+dir = "infra"
+app = "node bin/platform.ts"
+output = "cdk.out.platform"
+stacks = ["LongplayPlatformStack"]
+alarm_prefix = "longplay-platform-"
+rollback_triggers = [
+  "longplay-platform-plays-dead-letter",
+  "longplay-platform-plays-committer-failing",
+  "longplay-platform-poller-failing",
+  "longplay-platform-parity-failing",
+  "longplay-platform-plays-queue-age",
+]
+monitoring_minutes = 10
