@@ -9,6 +9,7 @@ ark is one repository, `nikovirtala/ark`, with one package per tool and a shared
 - `packages/ledger` (`@nikovirtala/ledger`): the shared core. It provides the machinery for git-backed, event-sourced records: git access, ids, the event envelope, folding, verification, sources, scope, templates, hooks, surfaces and a test harness. Published at 0.x and documented as internal until its API settles.
 - `packages/adr` (`@nikovirtala/adr`): the decision kind on top of ledger. A decision is a Markdown body plus an append-only event log; its body freezes once accepted.
 - `packages/issues` (`@nikovirtala/issues`): the issue kind on top of ledger. An issue keeps a living body plus an event log, and links its work to accepted decisions.
+- `packages/deployment` (`@nikovirtala/deployment`): a project's deployment pipeline run, not built on ledger: a state machine over injected steps (check, deploy, smoke, deployment tasks, rollback, freeze), with its state in the project's AWS account (a DynamoDB ledger and an SSM freeze flag) and its config in `deploy.toml`. The CDK target is the `/cdk` subpath. See [docs/04-deployment-v1.md](docs/04-deployment-v1.md).
 - `docs/`: the design docs (`00`-`03`) plus `adr/` and `issues/`, ark's own logs managed by its own tools.
 - `.github/workflows/`: CI and release pipelines.
 

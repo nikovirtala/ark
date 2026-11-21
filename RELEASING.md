@@ -32,6 +32,7 @@ The version PR is opened with `GITHUB_TOKEN`, so it doesn't start CI by itself. 
 4. **GitHub Actions.** Repository Settings → Actions → General: enable "Allow GitHub Actions to create and approve pull requests", so the release workflow can open the version PR.
 5. **Merging.** Settings → General → Pull Requests: allow only "Rebase and merge" (linear history, see [AGENTS.md](AGENTS.md)). Optionally protect `main` and require the CI `check` job.
 6. Placeholders for `@nikovirtala/adr` and `@nikovirtala/issues` were published on 2026-10-22 (version 0.0.0, deprecated), so step 1 is already done for them. When a package drops `"private": true`, do step 2 for it right before merging the first version PR that publishes it.
+7. `@nikovirtala/deployment` has no placeholder yet: do steps 1 and 2 for it (with its name in the placeholder `package.json`) before merging the first version PR that publishes it, 0.1.0.
 
 ## Troubleshooting
 
