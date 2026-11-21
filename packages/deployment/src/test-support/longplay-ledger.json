@@ -1,0 +1,252 @@
+{
+  "source": "longplay-pipeline-ledger (eu-west-1), every item, read 2026-11-21 with a read-only scan",
+  "items": [
+    {
+      "at": {
+        "S": "2026-11-21T12:45:25.225Z"
+      },
+      "commit": {
+        "S": "9bb4f62677da076832417924196766b5006babdb"
+      },
+      "execution": {
+        "S": "6882e129-5d64-4454-8ec8-4578192330ab"
+      },
+      "pk": {
+        "S": "DEPLOY"
+      },
+      "sk": {
+        "S": "LAST_GOOD"
+      }
+    },
+    {
+      "at": {
+        "S": "2026-11-20T23:42:45.992Z"
+      },
+      "commit": {
+        "S": "7e03afa42c1aa6ad822c8e8aa853c8f224db878c"
+      },
+      "execution": {
+        "S": "3df27816-9ee5-48f1-a3e3-e92685080638"
+      },
+      "outcome": {
+        "S": "rolled-back"
+      },
+      "pk": {
+        "S": "DEPLOY"
+      },
+      "sk": {
+        "S": "RUN#2026-11-20T23:42:45.992Z"
+      },
+      "summary": {
+        "S": "the smoke checks failed: FAIL 2.5 the newest plays-committer run succeeded within the last 20 minutes (20261120T233549381Z-c688e305 failed, 2 minutes ago, rows_in -, error InvalidInputException: Invalid Input Error: Required module 'pytz' failed to import, due to the following Python exception: ModuleNotFoundError: No module named 'pytz'). no last good commit is recorded, so there is nothing to roll back to (CloudFormation has already undone a failed update by itself)"
+      }
+    },
+    {
+      "at": {
+        "S": "2026-11-21T08:48:23.533Z"
+      },
+      "commit": {
+        "S": "4fddccae917e3adc4a41c9e473f398e08e0b7756"
+      },
+      "execution": {
+        "S": "9d87179b-a8bb-49ea-a9a7-42b9a3499ca4"
+      },
+      "outcome": {
+        "S": "rolled-back"
+      },
+      "pk": {
+        "S": "DEPLOY"
+      },
+      "sk": {
+        "S": "RUN#2026-11-21T08:48:23.533Z"
+      },
+      "summary": {
+        "S": "the deploy failed: cdk exited 1. no last good commit is recorded, so there is nothing to roll back to (CloudFormation has already undone a failed update by itself)"
+      }
+    },
+    {
+      "at": {
+        "S": "2026-11-21T11:24:33.571Z"
+      },
+      "commit": {
+        "S": "4fddccae917e3adc4a41c9e473f398e08e0b7756"
+      },
+      "execution": {
+        "S": "830a43cd-03ee-4fdc-bf36-c572726fca6b"
+      },
+      "outcome": {
+        "S": "release-failed"
+      },
+      "pk": {
+        "S": "DEPLOY"
+      },
+      "sk": {
+        "S": "RUN#2026-11-21T11:24:33.571Z"
+      },
+      "summary": {
+        "S": "release task 3.7-partition-scratch-check failed: run failed: exit 1: FAILED: staged.stg_plays: the first apply made 4 commit(s), expected 3 (the create, the partitioning and the insert)"
+      }
+    },
+    {
+      "at": {
+        "S": "2026-11-21T12:21:16.798Z"
+      },
+      "commit": {
+        "S": "f8f0cfdc4ee78ecb5132fc780e7d4920efe241ce"
+      },
+      "execution": {
+        "S": "deab8f2c-08e6-434a-ac6e-cb7fb5bde703"
+      },
+      "outcome": {
+        "S": "succeeded"
+      },
+      "pk": {
+        "S": "DEPLOY"
+      },
+      "sk": {
+        "S": "RUN#2026-11-21T12:21:16.798Z"
+      },
+      "summary": {
+        "S": "deployed, smoke passed, release tasks run: 3.7-partition-scratch-check"
+      }
+    },
+    {
+      "at": {
+        "S": "2026-11-21T12:45:25.242Z"
+      },
+      "commit": {
+        "S": "9bb4f62677da076832417924196766b5006babdb"
+      },
+      "execution": {
+        "S": "6882e129-5d64-4454-8ec8-4578192330ab"
+      },
+      "outcome": {
+        "S": "succeeded"
+      },
+      "pk": {
+        "S": "DEPLOY"
+      },
+      "sk": {
+        "S": "RUN#2026-11-21T12:45:25.242Z"
+      },
+      "summary": {
+        "S": "deployed, smoke passed, no release task was pending"
+      }
+    },
+    {
+      "at": {
+        "S": "2026-11-21T19:24:20.317Z"
+      },
+      "commit": {
+        "S": "66af55cfca0d114860fcd38e9530a4512e988d4d"
+      },
+      "execution": {
+        "S": "ebeefc3f-bb5c-4e45-8f72-182976a1bb3d"
+      },
+      "outcome": {
+        "S": "rolled-back"
+      },
+      "pk": {
+        "S": "DEPLOY"
+      },
+      "sk": {
+        "S": "RUN#2026-11-21T19:24:20.317Z"
+      },
+      "summary": {
+        "S": "the smoke checks failed: FAIL verify-platform printed nothing parseable (exit 1:   stdout: '', |   stderr: '\\n' + |     'aws: [ERROR]: An error occurred (AccessDeniedException) when calling the DescribeEventBus operation: User: arn:aws:sts::827333031966:assumed-role/longplay-pipeline-smoke/smoke-ebeefc3f-bb5c-4e45-8f72-182976a1bb3d is not authorized to perform: events:DescribeEventBus on resource: arn:aws:events:eu-west-1:827333031966:event-bus/longplay-platform because no identity-based policy allows the events:DescribeEventBus action\\n' | } |  | Node.js v26.13.1). rolled back: the last good commit 9bb4f62677da076832417924196766b5006babdb is deployed again"
+      }
+    },
+    {
+      "at": {
+        "S": "2026-11-21T20:07:29.357Z"
+      },
+      "commit": {
+        "S": "66af55cfca0d114860fcd38e9530a4512e988d4d"
+      },
+      "execution": {
+        "S": "de7f271e-988a-4786-9b78-d4c3f8e6598c"
+      },
+      "outcome": {
+        "S": "rolled-back"
+      },
+      "pk": {
+        "S": "DEPLOY"
+      },
+      "sk": {
+        "S": "RUN#2026-11-21T20:07:29.357Z"
+      },
+      "summary": {
+        "S": "the smoke checks failed: FAIL 4.1 the consumer's role only updates items of the demand table: no read, put or delete (the run records' own grant has the other actions, on another table). rolled back: the last good commit 9bb4f62677da076832417924196766b5006babdb is deployed again"
+      }
+    },
+    {
+      "at": {
+        "S": "2026-11-21T11:24:32.343Z"
+      },
+      "commit": {
+        "S": "4fddccae917e3adc4a41c9e473f398e08e0b7756"
+      },
+      "id": {
+        "S": "3.7-partition-scratch-check"
+      },
+      "outcome": {
+        "S": "failed"
+      },
+      "pk": {
+        "S": "RELEASE#3.7-partition-scratch-check"
+      },
+      "sk": {
+        "S": "ATTEMPT#2026-11-21T11:24:32.343Z"
+      },
+      "summary": {
+        "S": "run failed: exit 1: FAILED: staged.stg_plays: the first apply made 4 commit(s), expected 3 (the create, the partitioning and the insert)"
+      }
+    },
+    {
+      "at": {
+        "S": "2026-11-21T12:21:16.751Z"
+      },
+      "commit": {
+        "S": "f8f0cfdc4ee78ecb5132fc780e7d4920efe241ce"
+      },
+      "id": {
+        "S": "3.7-partition-scratch-check"
+      },
+      "outcome": {
+        "S": "succeeded"
+      },
+      "pk": {
+        "S": "RELEASE#3.7-partition-scratch-check"
+      },
+      "sk": {
+        "S": "ATTEMPT#2026-11-21T12:21:16.751Z"
+      },
+      "summary": {
+        "S": "scratch check PASS: the four user tables were created partitioned by user_id on S3 Tables, every file sits in a user_id=<sub>/ partition, the incremental run kept it so, and a correction replaced one member's partition in one commit (two snapshots) with the other member's files untouched, the corrected keys gone and no play counted twice; the scratch buckets are deleted"
+      }
+    },
+    {
+      "at": {
+        "S": "2026-11-21T12:21:16.751Z"
+      },
+      "commit": {
+        "S": "f8f0cfdc4ee78ecb5132fc780e7d4920efe241ce"
+      },
+      "id": {
+        "S": "3.7-partition-scratch-check"
+      },
+      "outcome": {
+        "S": "succeeded"
+      },
+      "pk": {
+        "S": "RELEASE#3.7-partition-scratch-check"
+      },
+      "sk": {
+        "S": "DONE"
+      },
+      "summary": {
+        "S": "scratch check PASS: the four user tables were created partitioned by user_id on S3 Tables, every file sits in a user_id=<sub>/ partition, the incremental run kept it so, and a correction replaced one member's partition in one commit (two snapshots) with the other member's files untouched, the corrected keys gone and no play counted twice; the scratch buckets are deleted"
+      }
+    }
+  ]
+}
