@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M82JPJ1ZGT160A1AYPGRV2SQ
+subject: kpv0gf4d
+type: opened
+at: 2026-11-22T21:30:52Z
+actor:
+  kind: agent
+  name: claude
+  email: null
+  agent: claude
+  on_behalf_of: niko.virtala@hey.com
+data:
+  title: Mark a failed GitHub deployment resolved when the pipeline is unfrozen
+  template: task
+  template_version: 1
