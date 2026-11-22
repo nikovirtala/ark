@@ -130,7 +130,7 @@ Only a reproduction crosses from a report into ark's work. Reports come from age
 
 The same step filters honest mistakes: an agent that blames the tool for its own error produces no reproduction.
 
-**Trust follows the author, not the intake.** Every ledger event records its `actor`, a person or an agent. An issue an agent opened or rewrote (triage, shaping, the reviewer) is treated like a report wherever it later sits: it reaches a fix prompt only through its reproduction or a Done when that triage checked, and its prose only as a summary. Issues a person wrote keep their trust. Without this rule, an injection that reaches triage would be laundered into the trusted backlog, the multi-agent trust escalation Anthropic warns about. Proposed as 50gsp714.
+**Trust attaches at acceptance.** Every ledger event records its `actor`, a person or an agent, and on whose behalf an agent wrote (`ARK_AGENT` and `ARK_ON_BEHALF_OF`). Text an agent wrote is untrusted until a person accepts it: an issue opened or rewritten by triage, shaping, the reviewer, a Kiro session or Claude in chat on Niko's behalf reaches a fix prompt only through its reproduction or a Done when that triage checked, and its prose only as a summary. Once Niko accepts the pull request that adds it, as himself and signed, through draft's acceptance or GitHub's review, it is trusted: a person read it and stood behind it. A rule keyed on the author alone would empty the backlog, since on 22 November 2026 almost every new issue in ark and draft was written by an agent on Niko's behalf. The signature has to outlive the merge: Rebase and merge rewrites commits without their signatures, so the signed originals are recorded at acceptance (draft issue r7s5es9e). Without this rule, an injection that reaches triage would be laundered into the trusted backlog, the multi-agent trust escalation Anthropic warns about. 50gsp714 (proposed) needs revising to say this.
 
 **Canary strings.** Triage plants a unique marker in each issue it writes. A required check and the sweep flag any commit, pull request or report where a marker turns up outside its own issue: text is travelling between agents where it should not.
 
@@ -142,7 +142,7 @@ The same step filters honest mistakes: an agent that blames the tool for its own
 
 Papercuts and the backlog feed the same line: from dispatch onwards nothing depends on where an issue came from. Papercuts arrive reproduced and jump the queue; the backlog arrives through `issues ready` and must pass a readiness gate first.
 
-**The backlog is trusted only where a person wrote it.** Issues a person opened and landed through a reviewed pull request are trusted; issues an agent opened or rewrote are not, whichever intake they came through (see Triage). Both kinds may be too vague to finish against.
+**The backlog is trusted where a person accepted it.** An issue is trusted once a person has accepted the pull request that adds it, whoever wrote it. An issue an agent opened or rewrote after that acceptance is not, whichever intake it came through (see Triage). Both kinds may be too vague to finish against.
 
 **Readiness gate.** An issue enters the queue when all of these hold:
 
