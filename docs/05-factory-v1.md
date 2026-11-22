@@ -209,6 +209,7 @@ A routine fix merges when deterministic required checks pass and an isolated rev
 - no new dependency, install script, or network or filesystem access (a lint rule on imports and calls);
 - no change to the `report` tool, the intake, triage, the reviewer or the checks themselves;
 - no canary string outside its own issue;
+- every test, file and command the pull request's Evidence names exists, and every test it names ran in this commit's CI;
 - `AGENTS.md` mechanics: Conventional Commits, linear history, no stacked pull requests.
 
 Every limit in the checks, the queue and the bake lives in `factory.toml` in ark's root. `factory.toml` is standing, not configuration: each value holds until a decision changes it, and carries what standing needs ([draft: Standing](https://github.com/nikovirtala/draft/blob/main/docs/model.md#standing)): the decision behind it, a tripwire that reopens it, its scope and its rung on the ladder. The file is an export of the accepted values, so changing one is a decision through acceptance, never a quiet edit, and always a frame change. Two fitness checks come with it: a value no check or guard reads is *unread*, and a check that never fires is *silent*, perfect or dead, worth asking which.
