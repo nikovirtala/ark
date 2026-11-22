@@ -375,11 +375,11 @@ One finding needs no change: Kiro learns only from the feedback of the user who 
 
 ## Pilot and decisions
 
-The factory is switched on one link at a time, observing before automating, so each step is measured before the next one trusts it.
+The factory is switched on one link at a time, observing before automating, so each step is measured before the next one trusts it. Shadow review is the exception: it decides nothing, so it runs from the start, beside step 1.
 
 1. **Observe.** Report tool, intake and sweep, with no automation. Measure hits per papercut and how much the sweep finds that self-reports miss.
 2. **Triage.** Reproduction, matching, issues from the bug template, and known-issue warnings. Niko still dispatches and merges.
-3. **Shadow review.** The reviewer App and `CODEOWNERS` on frame paths. The App reviews every pull request; Niko still merges and compares its verdicts with his own.
+3. **Shadow review**, from the start, beside step 1. The reviewer App and `CODEOWNERS` on frame paths. The App reviews every pull request; Niko still merges, and draft compares the App's verdict with his settlement of the same pull request.
 4. **Routine flow.** Dispatcher, queue and auto-merge for routine papercuts and the routine backlog lanes, once shadow review rarely disagrees with Niko.
 5. **Channels.** `next` and `latest`, promotion and the breaker, then the ADR that changes R4 and consumers switching to `@latest`.
 
