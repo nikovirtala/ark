@@ -1,6 +1,6 @@
 # Factory: Design Doc
 
-Nov 18, 2026 · drafted by Claude for @Niko Virtala
+Nov 18, 2026 · drafted by Claude for @Niko Virtala · revised Nov 23, 2026 after a review against draft's model and the deployment package
 
 ## Context
 
@@ -168,7 +168,7 @@ A limit on concurrent sessions caps the line; the backlog fills whatever papercu
 
 **Done.** An issue that ships code closes when its fix is on `latest`. Test-only and internal changes publish nothing (Changesets releases only changed packages), so they close at merge.
 
-**Today's backlog, sorted by title.** A first pass over the 28 ready issues on 18 November 2026; the links are to be checked, not assumed.
+**The backlog on 18 November 2026, sorted by title.** A finding from that day, kept as history: the issues have moved since, so the dispatcher sorts the live `issues ready` output, never this table.
 
 | Lane | Issues | About |
 | --- | --- | --- |
@@ -412,6 +412,13 @@ The factory is switched on one link at a time, observing before automating, so e
 | Local sessions | `report` queues locally; a session-end hook posts the queue to a new kiro-remote endpoint under Niko's OAuth | A local session's queue isn't posted |
 | Plan approval | kiro-remote approves only the saved recipe from `main`, matched by name and content hash; anything else goes to Niko | Kiro changes how a workflow asks for approval |
 | Workflow use | Workflows for code-changing work; single sessions for test-only and docs-only items | A workflow costs more than twice a single session per fixed issue |
+
+**Open decisions before the split into issues.** Four ADRs this doc relies on are still proposed:
+
+- va08e4c3, release through `next` and run other repositories' tools from `latest`;
+- 0j5y197e, ship event format changes read first, write later;
+- 4djbfgzc, stop the fold at an unknown event type, to be revised as in Event format compatibility;
+- 50gsp714, trust an issue's text by who wrote it, to be revised as in Triage (trust attaches at acceptance).
 
 **Still to verify in the pilot**
 
