@@ -70,7 +70,7 @@ flowchart TD
   promote --> sessions["New sessions start on latest<br/>the issue closes: the fix is in use"]
 ```
 
-Niko sits beside the chain, not in it: a frame label from triage or the queue, and the frame paths in `CODEOWNERS` are the only ways a change reaches him. The breaker watches the release end and can move `latest` back.
+Niko sits beside the chain, not in it: a frame label from triage or the queue, and the frame paths in `CODEOWNERS` are the only ways a change reaches him. It reaches him in draft, as an acceptance request with the reviewer's verdict as its evidence, rather than in GitHub's review screen: draft accepts as Niko, with his identity and signing key, shows what waits on him on its map, and records each settlement as a fact ([draft: Acceptance](https://github.com/nikovirtala/draft/blob/main/docs/model.md#acceptance)). The breaker watches the release end and can move `latest` back.
 
 ## The factory's state is data
 
@@ -82,9 +82,12 @@ Every link of the line is a kind in ark's ledger: states, an actor who can close
 | Dispatch | queued → running → pull request open, or abandoned | The dispatcher; the session | No pull request after 4 hours: abandoned, the issue back in the queue |
 | Review | requested → approved, or changes requested (rounds 1–3) → frame | The reviewer App | 3 rounds, or 2 hours without a verdict: frame, to Niko |
 | Release | published to `next` → baking → on `latest`, or rolled back | The promote job; the breaker | A bake that can't finish in 72 hours: held, to Niko |
+| Person's check | requested → passed or failed | Niko | 7 days: reminds him; the issue stays open |
 | Breaker | open → reset | Niko only | Daily: reminds Niko. It never resets itself, so it fails closed |
 
 Two rules follow. A measure is a fold over these kinds, not a counter kept beside them: hits per papercut, time to `latest`, reviewer agreement and frame-lane volume are queries. And a reader folds a kind's history instead of trusting the newest status written somewhere else. On 22 November 2026 a drill on kiro-remote's pipeline left its GitHub deployment at `failure` after the rollback and a later successful deploy, while the run ledger knew it was over.
+
+A step only a person can do (a check on Niko's Mac, a second Apple account, a secret only he has) is a kind too, with its steps written out in full, each with what he should see. An issue whose last Done when is such a check closes when the check passes.
 
 The numbers in the timeouts are starting values, kept in `factory.toml` with the rest.
 
@@ -375,7 +378,7 @@ The factory is switched on one link at a time, observing before automating, so e
 4. **Routine flow.** Dispatcher, queue and auto-merge for routine papercuts and the routine backlog lanes, once shadow review rarely disagrees with Niko.
 5. **Channels.** `next` and `latest`, promotion and the breaker, then the ADR that changes R4 and consumers switching to `@latest`.
 
-**Measures**, tracked from step 1:
+**Measures**, tracked from step 1, each a fold over the factory's kinds and draft's acceptance facts:
 
 | Measure | Why |
 | --- | --- |
