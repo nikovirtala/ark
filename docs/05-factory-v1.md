@@ -156,7 +156,7 @@ Papercuts and the backlog feed the same line: from dispatch onwards nothing depe
 
 **Shaping.** An issue that fails the gate goes to a shaping session, which proposes a sharper Done when, a scope, or a split into smaller issues. Sharpening flows; changing scope is gated behind `mcp can-decide` by the existing ADR "Gate agents deciding and rescoping behind MCP can-decide", so it reaches Niko.
 
-**Inside the frame by link.** An issue that `implements` an accepted ADR, or a design doc in `docs/`, is inside the frame: the decision is made, carrying it out is routine. An issue whose work *is* a decision, such as recording one, is a frame change. Features with neither link are frame by default.
+**Inside the frame by link.** An issue that `implements` an accepted ADR, or a design doc in `docs/`, is inside the frame: the decision is made, carrying it out is routine. An issue whose work *is* a decision, such as recording one, is a frame change. Features with neither link are frame by default. The link is also what the Done when pass reads: on 22 November 2026 a map pull request in draft met its prompt to the letter and missed the design's intent, because the prompt named fewer kinds than the design did.
 
 **Queue.**
 
@@ -186,7 +186,7 @@ A routine fix merges when deterministic required checks pass and an isolated rev
 
 **The reviewer** is a GitHub App with its own identity, so its approval counts as a separate review and an author session can never approve its own pull request. The Done when and drift passes run on the strongest Claude model, a tier above the author; the security pass runs on another vendor's model, so reviewer and author do not share blind spots. Models are set per pass in `factory.toml`. The reviewer is not hardened against prompt injection, so it is never the only gate on anything a check could decide. Any pass that finds a problem blocks:
 
-- **Done when:** the issue's Done when is met by what the code does, not only by passing tests;
+- **Done when:** the issue's Done when is met by what the code does, not only by passing tests, and in the spirit of the design section the issue implements, which the pass reads too;
 - **Drift:** does this pull request make any other doc, skill, server instruction or template wrong? This is the check for rot. It reads beyond the diff, but not blindly (see Drift, deterministic first);
 - **Security:** new attack surface the checks cannot see, such as a tool that now writes outside its log.
 
