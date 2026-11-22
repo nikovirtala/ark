@@ -1,6 +1,6 @@
 {
   "name": "@nikovirtala/deployment",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Deploy a project's environment from its pipeline: check, deploy with rollback triggers, smoke checks, one-off deployment tasks run once, and a freeze on failure. CLI and library.",
   "keywords": [
     "deployment",
