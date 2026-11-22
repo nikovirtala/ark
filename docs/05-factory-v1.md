@@ -206,7 +206,7 @@ A routine fix merges when deterministic required checks pass and an isolated rev
 - no canary string outside its own issue;
 - `AGENTS.md` mechanics: Conventional Commits, linear history, no stacked pull requests.
 
-Every limit in the checks, the queue and the bake lives in `factory.toml` in ark's root, so tuning them is a one-line change, and a frame change.
+Every limit in the checks, the queue and the bake lives in `factory.toml` in ark's root. `factory.toml` is standing, not configuration: each value holds until a decision changes it, and carries what standing needs ([draft: Standing](https://github.com/nikovirtala/draft/blob/main/docs/model.md#standing)): the decision behind it, a tripwire that reopens it, its scope and its rung on the ladder. The file is an export of the accepted values, so changing one is a decision through acceptance, never a quiet edit, and always a frame change. Two fitness checks come with it: a value no check or guard reads is *unread*, and a check that never fires is *silent*, perfect or dead, worth asking which.
 
 **Frame routing, deterministic first.** Paths decide before any model does. A `CODEOWNERS` entry names Niko for the frame paths, and branch protection requires a code owner's review, so the App's approval alone cannot merge them:
 
@@ -316,7 +316,7 @@ v1 is built for ark, but about two-thirds of it already works for any repository
 
 **Seams kept in v1.**
 
-1. **Policy lives in `factory.toml`, not in code:** the numbers, and also frame paths, lanes, recipe names, check commands and the delivery adapter.
+1. **Policy lives in `factory.toml`, as standing, not in code:** the numbers, and also frame paths, lanes, recipe names, check commands and the delivery adapter.
 2. **`report` and known-issue lines are a ledger capability** (`@nikovirtala/ledger/report`), so every ark tool gets them, any MCP server built on ledger can adopt them, and the intake routes reports by repository rather than assuming ark.
 3. **Delivery is an adapter with four operations.** npm is the first adapter:
 
@@ -385,23 +385,23 @@ The factory is switched on one link at a time, observing before automating, so e
 | Frame-lane volume per week | whether Niko's lane stays small enough to stay sharp |
 | Breaker trips and rollbacks | whether the gate catches what it should |
 
-**Decisions**, settled with Niko on 18 November 2026. Every number is a starting value in `factory.toml`; the measures say when to change it.
+**Decisions**, settled with Niko on 18 November 2026. Every number is a starting value in `factory.toml`. Each row carries a proposed tripwire (added on 23 November 2026): the condition that reopens it, read from the measures.
 
-| Question | Decision |
-| --- | --- |
-| Papercut size | At most 100 changed lines and 5 files outside tests, `repro/` and docs, in one package |
-| Concurrency and nits | 3 fix sessions at once; at most 5 open reviewer-filed issues per package, then the reviewer comments instead (assumed: not answered) |
-| Bake | 3 clean canary runs on `next`; after promotion, a watch over the first 20 real calls of the changed tools or 24 hours, whichever ends later |
-| Read to write release | 7 days between them (assumed: not answered) |
-| Friction | Eval tasks from transcripts, 5 trials before and after; fixed when errors and retries fall by half and success does not fall |
-| Dist-tags | Separate `promote.yml` with a dist-tag-only trusted publisher; `release.yml` keeps publish only |
-| npx cache | `npx -y --prefer-online …@latest`, plus a version self-check at server start (assumed: not answered) |
-| Unknown event types | Stop with a finding, as for an unknown envelope; recorded in a ledger ADR |
-| Intake | In kiro-remote, harvested from session transcripts; no credential in the sandbox, no new token issuer |
-| Reviewer models | Done when and drift on the strongest Claude model, a tier above the author; security on another vendor's model |
-| Local sessions | `report` queues locally; a session-end hook posts the queue to a new kiro-remote endpoint under Niko's OAuth |
-| Plan approval | kiro-remote approves only the saved recipe from `main`, matched by name and content hash; anything else goes to Niko |
-| Workflow use | Workflows for code-changing work; single sessions for test-only and docs-only items |
+| Question | Decision | Tripwire |
+| --- | --- | --- |
+| Papercut size | At most 100 changed lines and 5 files outside tests, `repro/` and docs, in one package | More than 2 pull requests a week reach Niko only because of size |
+| Concurrency and nits | 3 fix sessions at once; at most 5 open reviewer-filed issues per package, then the reviewer comments instead (assumed: not answered) | Parallel sessions conflict more than once a week, or reviewer-filed issues hit the cap twice in a week |
+| Bake | 3 clean canary runs on `next`; after promotion, a watch over the first 20 real calls of the changed tools or 24 hours, whichever ends later | A regression reaches `latest` after a full bake, or bakes routinely end on the 24 hours with no calls |
+| Read to write release | 7 days between them (assumed: not answered) | A rollback lands on a version that can't read the log |
+| Friction | Eval tasks from transcripts, 5 trials before and after; fixed when errors and retries fall by half and success does not fall | An eval passes while the sweep still counts the same error |
+| Dist-tags | Separate `promote.yml` with a dist-tag-only trusted publisher; `release.yml` keeps publish only | npm changes what a dist-tag-only trusted publisher may do |
+| npx cache | `npx -y --prefer-online …@latest`, plus a version self-check at server start (assumed: not answered) | A session runs an older version than `latest` after a promotion |
+| Unknown event types | Stop with a finding, as for an unknown envelope; recorded in a ledger ADR | An old reader stops on an event that only annotates |
+| Intake | In kiro-remote, harvested from session transcripts; no credential in the sandbox, no new token issuer | Reports are lost, or kiro-remote stops seeing a session's transcript |
+| Reviewer models | Done when and drift on the strongest Claude model, a tier above the author; security on another vendor's model | Reviewer agreement with Niko falls below its baseline |
+| Local sessions | `report` queues locally; a session-end hook posts the queue to a new kiro-remote endpoint under Niko's OAuth | A local session's queue isn't posted |
+| Plan approval | kiro-remote approves only the saved recipe from `main`, matched by name and content hash; anything else goes to Niko | Kiro changes how a workflow asks for approval |
+| Workflow use | Workflows for code-changing work; single sessions for test-only and docs-only items | A workflow costs more than twice a single session per fixed issue |
 
 **Still to verify in the pilot**
 
