@@ -184,8 +184,10 @@ A routine fix merges when deterministic required checks pass and an isolated rev
 **The reviewer** is a GitHub App with its own identity, so its approval counts as a separate review and an author session can never approve its own pull request. The Done when and drift passes run on the strongest Claude model, a tier above the author; the security pass runs on another vendor's model, so reviewer and author do not share blind spots. Models are set per pass in `factory.toml`. The reviewer is not hardened against prompt injection, so it is never the only gate on anything a check could decide. Any pass that finds a problem blocks:
 
 - **Done when:** the issue's Done when is met by what the code does, not only by passing tests;
-- **Drift:** does this pull request make any other doc, skill, server instruction or template wrong? This is the check for rot, and it reads beyond the diff;
+- **Drift:** does this pull request make any other doc, skill, server instruction or template wrong? This is the check for rot. It reads beyond the diff, but not blindly (see Drift, deterministic first);
 - **Security:** new attack surface the checks cannot see, such as a tool that now writes outside its log.
+
+**Drift, deterministic first.** Drift is the most valuable pass and the most exposed one: a model reading beyond the diff reads whatever the diff steered it to. So data chooses the candidates before a model judges them. AGENTS.md, the skills, the server instructions and the docs are imported as standing, each with a scope of globs ([draft: Importing an existing project](https://github.com/nikovirtala/draft/blob/main/docs/model.md#importing-an-existing-project)), the way `adr for <path>` already matches decisions to paths. A diff's paths select the standing whose scope they touch, and the pass judges only those and the docs that cite them. A drift finding is a fitness finding (*contradicted*, *stale*) recorded as a fact, and one that repeats climbs the ladder into a check. This makes the importer a prerequisite of the drift pass: until it has run, drift is read the old way, wider and weaker.
 
 "Request changes" goes back to the author session through the pull request link. After three rounds without approval, the pull request gets the frame label and waits for Niko, so a stuck loop cannot burn sessions quietly.
 
