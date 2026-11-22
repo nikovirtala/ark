@@ -199,7 +199,7 @@ A routine fix merges when deterministic required checks pass and an isolated rev
 - **Approval.** Workflow steps act with the session's own repository credentials, so a review step cannot count as a separate reviewer; the GitHub App still approves. Kiro's bundled pull request pattern does not merge either.
 - **Dispatch.** Workflows document no event, schedule or GitHub triggers, so kiro-remote still launches the session and names the recipe to run.
 
-**Recipe rules.** Recipes live in ark's `.kiro/workflows/` and are frame paths in `CODEOWNERS`: a recipe is the factory's process. The factory runs only saved recipes by name and never a plan Kiro generates for the task, so an injected issue cannot shape its own process. If Kiro asks to approve a plan, kiro-remote approves it only when the plan is the saved recipe from ark's `main`, matched by name and content hash; anything else is denied and goes to Niko. Workflows cost more tokens, so they run for code-changing work: papercut and friction fixes, ADR-linked work and anything touching `src`. Test-only and docs-only items run as a single session. The split is set per lane in `factory.toml`.
+**Recipe rules.** Recipes live in ark's `.kiro/workflows/` and are frame paths in `CODEOWNERS`: a recipe is the factory's process. A step's least privilege goes in its `tools` list: in a Kiro agent, `tools` decides which tools exist, and permission rules only decide what a listed tool may do, so a user-wide allow rule can't bring back a tool the list leaves out ([Kiro: custom agent configuration](https://kiro.dev/docs/custom-agents/configuration-reference/)). The factory runs only saved recipes by name and never a plan Kiro generates for the task, so an injected issue cannot shape its own process. If Kiro asks to approve a plan, kiro-remote approves it only when the plan is the saved recipe from ark's `main`, matched by name and content hash; anything else is denied and goes to Niko. Workflows cost more tokens, so they run for code-changing work: papercut and friction fixes, ADR-linked work and anything touching `src`. Test-only and docs-only items run as a single session. The split is set per lane in `factory.toml`.
 
 **Required checks.** These run in `check` with no model involved. A pull request that fails any of them is not routine and waits for Niko:
 
@@ -216,7 +216,7 @@ Every limit in the checks, the queue and the bake lives in `factory.toml` in ark
 **Frame routing, deterministic first.** Paths decide before any model does. A `CODEOWNERS` entry names Niko for the frame paths, and branch protection requires a code owner's review, so the App's approval alone cannot merge them:
 
 - `docs/adr/`, `AGENTS.md`, the design docs;
-- `.github/`, branch protection settings, `.kiro/workflows/`, `factory.toml`, the reviewer's rubric and the factory's own code;
+- `.github/`, branch protection settings, all of `.kiro/` and `.claude/` (Kiro loads a workspace's skills, steering and `mcp.json` into every session there, over ACP and in the cloud, not only its workflows), `factory.toml`, the reviewer's rubric and the factory's own code;
 - each kind's event schema and ledger's envelope (see Event format compatibility).
 
 For everything else the reviewer judges, and when unsure it adds the frame label. This keeps the existing ADR "Gate agents deciding and rescoping behind MCP can-decide": an agent may fix, but not decide.
