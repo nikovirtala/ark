@@ -72,6 +72,22 @@ flowchart TD
 
 Niko sits beside the chain, not in it: a frame label from triage or the queue, and the frame paths in `CODEOWNERS` are the only ways a change reaches him. The breaker watches the release end and can move `latest` back.
 
+## The factory's state is data
+
+Every link of the line is a kind in ark's ledger: states, an actor who can close it, and a timeout that says what happens when nobody does. The factory keeps no state of its own in kiro-remote, GitHub labels or `factory.toml`. The dispatcher, the breaker and any dashboard read the same log, and draft's map draws the whole line from it ([draft: The map](https://github.com/nikovirtala/draft/blob/main/docs/model.md#the-map)).
+
+| Kind | States | Closed by | Timeout |
+| --- | --- | --- | --- |
+| Report | received → reproduced or parked → matched or filed | Triage | Parked for 14 days: declined with its reason, recorded as a fact |
+| Dispatch | queued → running → pull request open, or abandoned | The dispatcher; the session | No pull request after 4 hours: abandoned, the issue back in the queue |
+| Review | requested → approved, or changes requested (rounds 1–3) → frame | The reviewer App | 3 rounds, or 2 hours without a verdict: frame, to Niko |
+| Release | published to `next` → baking → on `latest`, or rolled back | The promote job; the breaker | A bake that can't finish in 72 hours: held, to Niko |
+| Breaker | open → reset | Niko only | Daily: reminds Niko. It never resets itself, so it fails closed |
+
+Two rules follow. A measure is a fold over these kinds, not a counter kept beside them: hits per papercut, time to `latest`, reviewer agreement and frame-lane volume are queries. And a reader folds a kind's history instead of trusting the newest status written somewhere else. On 22 November 2026 a drill on kiro-remote's pipeline left its GitHub deployment at `failure` after the rollback and a later successful deploy, while the run ledger knew it was over.
+
+The numbers in the timeouts are starting values, kept in `factory.toml` with the rest.
+
 ## Detection and intake
 
 Papercuts reach ark through two channels into one inbox: agents report them as they happen, and a sweep finds the ones they worked around in silence.
