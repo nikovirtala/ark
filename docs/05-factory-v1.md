@@ -265,6 +265,8 @@ The pipe that spreads a fix in hours spreads a bad release just as fast, so one 
 
 **Reset.** Only Niko resets it, by closing the breaker issue with a reason. The factory does not reset itself.
 
+**One notion of frozen.** The breaker is the deployment package's freeze with a wider trigger: the same flag semantics (a run stops at it, it fails closed, `deploy unfreeze` refuses agents) and the same run ledger, so ark's line and every project's pipeline mean the same thing by frozen. Moving `latest` back is the npm target's rollback.
+
 **What rollback does not undo.** Moving a tag reverts the tool, not the events it wrote into consuming repositories' logs. Rollback is safe only when the previous version can read those events, which is what the next section guarantees.
 
 ## Event format compatibility
@@ -332,9 +334,11 @@ v1 is built for ark, but about two-thirds of it already works for any repository
 | Roll back | `promote.yml` moves `latest` back | Restoring the previous version |
 | Signals | Replays, canary runs, reports against the version, the watch window | Its own smoke tests, alarms and error rates |
 
+The deployment package already has the four operations for AWS with CDK: deploy, smoke checks as signals, rollback triggers with its rollback, and `deploy status`. The npm channels should become its second target rather than a second implementation, so ark, kiro-remote and longplay share one run record, one `status` and one breaker.
+
 4. **Rules sit where they apply.** The change to R4 is ark's ADR. "Trust follows the actor" and "unknown event types stop the fold" are ledger rules, so every adopter inherits them. Read first, write later applies to any stored format, whatever the adapter.
 
-**The second project is the test.** longplay comes next: the work plane is configuration, the feedback plane comes through its MCP server, and delivery needs its own adapter design, the original requirement 2: CloudFormation rollback triggers, a smoke-test identity that gets past Apple sign-in, and changes that cannot be rolled back routed through the frame lane. Extracting a `factory init` waits until that second use shows what was ark-specific.
+**The second project is the test.** longplay comes next: the work plane is configuration, the feedback plane comes through its MCP server, and its delivery adapter now exists: `@nikovirtala/deployment` 0.1.0, extracted from longplay's pipeline and running kiro-remote's since 22 November 2026 (check, deploy with rollback triggers, smoke checks, deployment tasks run once, and a freeze only a person clears). What is left of the original requirement 2 is a smoke-test identity that gets past Apple sign-in, and changes that cannot be rolled back routed through the frame lane. Extracting a `factory init` waits until that second use shows what was ark-specific.
 
 ## Prior art
 
