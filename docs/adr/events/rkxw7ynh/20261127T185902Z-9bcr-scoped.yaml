@@ -1,0 +1,18 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M8F604GE93P348WCVT2S9BCR
+subject: rkxw7ynh
+type: scoped
+at: 2026-11-27T18:59:02Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: niko.virtala@hey.com
+data:
+  set:
+    - packages/ledger/src/envelope/**
+    - packages/ledger/src/fold/**
+    - packages/ledger/src/verify/**
