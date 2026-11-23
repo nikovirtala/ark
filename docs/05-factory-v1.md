@@ -74,7 +74,7 @@ Niko sits beside the chain, not in it: a frame label from triage or the queue, a
 
 ## The factory's state is data
 
-Every link of the line is a kind in ark's ledger: states, an actor who can close it, and a timeout that says what happens when nobody does. The factory keeps no state of its own in kiro-remote, GitHub labels or `factory.toml`. The dispatcher, the breaker and any dashboard read the same log, and draft's map draws the whole line from it ([draft: The map](https://github.com/nikovirtala/draft/blob/main/docs/model.md#the-map)).
+Every link of the line is a kind in ark's ledger: states, an actor who can close it, and a timeout that says what happens when nobody does. The factory keeps no state of its own in kiro-remote, GitHub labels or `factory.toml`. kiro-remote already holds two kinds of operational state, pull request links and waits; where they belong is an open decision (see Open decisions before the split into issues). The dispatcher, the breaker and any dashboard read the same log, and draft's map draws the whole line from it ([draft: The map](https://github.com/nikovirtala/draft/blob/main/docs/model.md#the-map)).
 
 | Kind | States | Closed by | Timeout |
 | --- | --- | --- | --- |
@@ -418,12 +418,13 @@ The factory is switched on one link at a time, observing before automating, so e
 | Plan approval | kiro-remote approves only the saved recipe from `main`, matched by name and content hash; anything else goes to Niko | Kiro changes how a workflow asks for approval |
 | Workflow use | Workflows for code-changing work; single sessions for test-only and docs-only items | A workflow costs more than twice a single session per fixed issue |
 
-**Open decisions before the split into issues.** Four ADRs this doc relies on are still proposed:
+**Open decisions before the split into issues.** Four ADRs this doc relies on are still proposed, and one decision has no ADR yet:
 
 - va08e4c3, release through `next` and run other repositories' tools from `latest`;
 - 0j5y197e, ship event format changes read first, write later;
 - 4djbfgzc, stop the fold at an unknown event type, to be revised as in Event format compatibility;
-- 50gsp714, trust an issue's text by who wrote it, to be revised as in Triage (trust attaches at acceptance).
+- 50gsp714, trust an issue's text by who wrote it, to be revised as in Triage (trust attaches at acceptance);
+- where dispatch state lives. kiro-remote stores links and waits in its own table. Either they become ledger events that kiro-remote acts on, or kiro-remote stays their home and publishes each change as an event the folds and draft's map read. The second is recommended: the ledger is git, and a commit for every wait or dispatch would put operational churn into review history. The rule then becomes "no state that only one reader can see" rather than "no state outside the ledger".
 
 **Still to verify in the pilot**
 
