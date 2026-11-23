@@ -1,0 +1,15 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M84N56J6GFMDS65NF8ZTYMDT
+subject: 4djbfgzc
+type: withdrawn
+at: 2026-11-23T16:52:18Z
+actor:
+  kind: agent
+  name: claude
+  email: null
+  agent: claude
+  on_behalf_of: niko.virtala@hey.com
+reason: "Replaced by rkxw7ynh: stop at an unknown event that moves state, and keep and skip one that only annotates, as draft and kiro-remote's feed already do."
+data: {}

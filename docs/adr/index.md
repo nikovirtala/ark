@@ -34,7 +34,6 @@
 | Decision | Title | Status | Since |
 | --- | --- | --- | --- |
 | va08e4c3 | [Release through next and run other repositories' tools from latest](decisions/va08e4c3-release-through-next-and-run-other-repositories-tools-from.md) | proposed | 2026-11-18 |
-| 4djbfgzc | [Stop the fold at an unknown event type](decisions/4djbfgzc-stop-the-fold-at-an-unknown-event-type.md) | proposed | 2026-11-18 |
 | 0j5y197e | [Ship event format changes read first, write later](decisions/0j5y197e-ship-event-format-changes-read-first-write-later.md) | proposed | 2026-11-18 |
 | 50gsp714 | [Trust an issue's text by who wrote it](decisions/50gsp714-trust-an-issues-text-by-who-wrote-it.md) | proposed | 2026-11-18 |
 | 41bazcsw | [Extract the deployment pipeline into an ark member, deployment](decisions/41bazcsw-extract-the-deployment-pipeline-into-an-ark-member.md) | proposed | 2026-11-21 |
@@ -42,6 +41,7 @@
 | ddgs911f | [Run deployment tasks as executables that answer three flags](decisions/ddgs911f-run-deployment-tasks-as-executables-that-answer-three-flags.md) | proposed | 2026-11-21 |
 | ab58e4pn | [Record every deployment run as a GitHub deployment](decisions/ab58e4pn-record-every-deployment-run-as-a-github-deployment.md) | proposed | 2026-11-21 |
 | ft8n3yjf | [Let agents read deployments, and leave deploying to people](decisions/ft8n3yjf-let-agents-read-deployments-and-leave-deploying-to-people.md) | proposed | 2026-11-21 |
+| rkxw7ynh | [Stop the fold at an unknown event that moves state, and skip one that only annotates](decisions/rkxw7ynh-stop-the-fold-at-an-unknown-event-that-moves-state-and-skip.md) | proposed | 2026-11-23 |
 
 ## Superseded and deprecated
 
@@ -49,5 +49,11 @@
 | --- | --- | --- | --- |
 | ADR-0008 | [Use Conventional Commits for --commit messages and ark's history](decisions/q76pmwsw-use-conventional-commits-for-commit-messages-and-arks.md) | superseded by ADR-0022 | 2026-11-14 |
 | ADR-0009 | [Require Node 24 or newer for every ark package](decisions/5v1w33jg-require-node-24-or-newer-for-every-ark-package.md) | superseded by ADR-0018 | 2026-11-14 |
+
+## Rejected and withdrawn
+
+| Decision | Title | Status | Since |
+| --- | --- | --- | --- |
+| 4djbfgzc | [Stop the fold at an unknown event type](decisions/4djbfgzc-stop-the-fold-at-an-unknown-event-type.md) | withdrawn | 2026-11-23 |
 
 <!-- ledger-index/v1 numbers: gyspf3an=1 c6qyr1jz=2 9z41kzez=3 ew1emghd=4 28dj3jdc=5 fv88cd54=6 e2ye7ng3=7 q76pmwsw=8 5v1w33jg=9 btjpf9g1=10 rg1aka5e=11 28dd1x6r=12 htb7aax6=13 8gs2s4at=14 553365xh=15 dhpvv3yt=16 jgdhvxtq=17 xske65j7=18 wkq8vyps=19 yv3sfp9m=20 27h9h6y7=21 4yen2hj2=22 pbptc6ny=23 a48jn9nd=24 9t6n5jc6=25 -->
