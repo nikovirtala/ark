@@ -74,7 +74,7 @@ Niko sits beside the chain, not in it: a frame label from triage or the queue, a
 
 ## The factory's state is data
 
-Every link of the line is a kind in ark's ledger: states, an actor who can close it, and a timeout that says what happens when nobody does. The factory keeps no state of its own in kiro-remote, GitHub labels or `factory.toml`. kiro-remote already holds two kinds of operational state, pull request links and waits; where they belong is an open decision (see Open decisions before the split into issues). The dispatcher, the breaker and any dashboard read the same log, and draft's map draws the whole line from it ([draft: The map](https://github.com/nikovirtala/draft/blob/main/docs/model.md#the-map)).
+Every link of the line is a kind in ark's ledger: states, an actor who can close it, and a timeout that says what happens when nobody does. The factory keeps no state that only one reader can see (9t6n5jc6): nothing in GitHub labels or `factory.toml`, and kiro-remote keeps its operational state, pull request links and waits, only because it publishes every change to them, and every wake with its reason, on its change feed. The dispatcher, the breaker and any dashboard read the same log, and draft's map draws the whole line from it ([draft: The map](https://github.com/nikovirtala/draft/blob/main/docs/model.md#the-map)).
 
 | Kind | States | Closed by | Timeout |
 | --- | --- | --- | --- |
@@ -136,7 +136,7 @@ Only a reproduction crosses from a report into ark's work. Reports come from age
 
 The same step filters honest mistakes: an agent that blames the tool for its own error produces no reproduction.
 
-**Trust attaches at acceptance.** Every ledger event records its `actor`, a person or an agent, and on whose behalf an agent wrote (`ARK_AGENT` and `ARK_ON_BEHALF_OF`). Text an agent wrote is untrusted until a person accepts it: an issue opened or rewritten by triage, shaping, the reviewer, a Kiro session or Claude in chat on Niko's behalf reaches a fix prompt only through its reproduction or a Done when that triage checked, and its prose only as a summary. Once Niko accepts the pull request that adds it, as himself and signed, through draft's acceptance or GitHub's review, it is trusted: a person read it and stood behind it. A rule keyed on the author alone would empty the backlog, since on 22 November 2026 almost every new issue in ark and draft was written by an agent on Niko's behalf. The signature has to outlive the merge: Rebase and merge rewrites commits without their signatures, so the signed originals are recorded at acceptance (draft issue r7s5es9e). Without this rule, an injection that reaches triage would be laundered into the trusted backlog, the multi-agent trust escalation Anthropic warns about. 50gsp714 (proposed) needs revising to say this.
+**Trust attaches at acceptance.** Every ledger event records its `actor`, a person or an agent, and on whose behalf an agent wrote (`ARK_AGENT` and `ARK_ON_BEHALF_OF`). Text an agent wrote is untrusted until a person accepts it: an issue opened or rewritten by triage, shaping, the reviewer, a Kiro session or Claude in chat on Niko's behalf reaches a fix prompt only through its reproduction or a Done when that triage checked, and its prose only as a summary. Once Niko accepts the pull request that adds it, as himself and signed, through draft's acceptance or GitHub's review, it is trusted: a person read it and stood behind it. A rule keyed on the author alone would empty the backlog, since on 22 November 2026 almost every new issue in ark and draft was written by an agent on Niko's behalf. The signature has to outlive the merge: Rebase and merge rewrites commits without their signatures, so the signed originals are recorded at acceptance (draft issue r7s5es9e). Without this rule, an injection that reaches triage would be laundered into the trusted backlog, the multi-agent trust escalation Anthropic warns about. teyqf2j9 (proposed) says this, replacing 50gsp714.
 
 **Canary strings.** Triage plants a unique marker in each issue it writes. A required check and the sweep flag any commit, pull request or report where a marker turns up outside its own issue: text is travelling between agents where it should not.
 
@@ -292,7 +292,7 @@ Rolling N+2 back lands on N+1, which reads everything N+2 wrote. N+2 may not be 
 
 **Mixed versions are the normal case.** With `@latest`, two sessions in one repository can run different versions and write to the same log on different branches, which then merge. The compatibility check in promotion therefore runs Amazon's upgrade-downgrade sequence on a scratch log: the previous `latest` and the new version writing side by side, then the new version alone, then rolled back to the previous version alone. Every stage must fold and `verify` clean.
 
-**An unknown event that moves a state stops the fold.** Skipping it would mislead: a skipped `superseded` leaves a decision looking accepted. An unknown event that only annotates (a note, the mark of where an agent's turn began) is kept and skipped, as draft does with its own log (draft's accepted ADR jj76pjg2, "Treat the context log as a durable execution record"). The event says which it is: its envelope marks it as a transition or an annotation, so a reader that doesn't know the type can still tell, and an event with no mark is treated as a transition. The two-release rule means a reader meets either only after an unexpected rollback past N+1. 4djbfgzc (proposed) needs revising to say this, so ark and draft follow one rule.
+**An unknown event that moves a state stops the fold.** Skipping it would mislead: a skipped `superseded` leaves a decision looking accepted. An unknown event that only annotates (a note, the mark of where an agent's turn began) is kept and skipped, as draft does with its own log (draft's accepted ADR jj76pjg2, "Treat the context log as a durable execution record"). The event says which it is: its envelope marks it as a transition or an annotation, so a reader that doesn't know the type can still tell, and an event with no mark is treated as a transition. The two-release rule means a reader meets either only after an unexpected rollback past N+1. rkxw7ynh (proposed) says this, replacing 4djbfgzc, so ark, draft and kiro-remote's feed follow one rule.
 
 **Frame by path.** Each kind's event schema and ledger's envelope are frame paths in `CODEOWNERS`, so a format change always reaches Niko. The reviewer checks the two-release rule mechanically; Niko judges whether the change is the right one.
 
@@ -423,13 +423,12 @@ The factory is switched on one link at a time, observing before automating, so e
 | Plan approval | kiro-remote approves only the saved recipe from `main`, matched by name and content hash; anything else goes to Niko | Kiro changes how a workflow asks for approval |
 | Workflow use | Workflows for code-changing work; single sessions for test-only and docs-only items | A workflow costs more than twice a single session per fixed issue |
 
-**Open decisions before the split into issues.** Five ADRs this doc relies on are still proposed:
+**Open decisions before the split into issues.** Four ADRs this doc relies on are still proposed:
 
 - va08e4c3, release through `next` and run other repositories' tools from `latest`;
 - 0j5y197e, ship event format changes read first, write later;
-- 4djbfgzc, stop the fold at an unknown event type, to be revised as in Event format compatibility;
-- 50gsp714, trust an issue's text by who wrote it, to be revised as in Triage (trust attaches at acceptance);
-- 9t6n5jc6, publish every decision a system makes as events others can read: kiro-remote stays the home of links and waits and publishes each change, and each wake with its reason, as an event the folds and draft's map read. The rule is "no state that only one reader can see" rather than "no state outside the ledger"; a commit for every wait or dispatch would put operational churn into review history.
+- rkxw7ynh, stop the fold at an unknown event that moves state, and skip one that only annotates (replaces 4djbfgzc);
+- teyqf2j9, trust an issue's text once a person accepts the change that adds it (replaces 50gsp714).
 
 **Still to verify in the pilot**
 
