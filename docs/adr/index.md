@@ -41,6 +41,7 @@
 | ddgs911f | [Run deployment tasks as executables that answer three flags](decisions/ddgs911f-run-deployment-tasks-as-executables-that-answer-three-flags.md) | proposed | 2026-11-21 |
 | ab58e4pn | [Record every deployment run as a GitHub deployment](decisions/ab58e4pn-record-every-deployment-run-as-a-github-deployment.md) | proposed | 2026-11-21 |
 | ft8n3yjf | [Let agents read deployments, and leave deploying to people](decisions/ft8n3yjf-let-agents-read-deployments-and-leave-deploying-to-people.md) | proposed | 2026-11-21 |
+| 9t6n5jc6 | [Publish every decision a system makes as events others can read](decisions/9t6n5jc6-publish-every-decision-a-system-makes-as-events-others-can.md) | proposed | 2026-11-23 |
 
 ## Superseded and deprecated
 
