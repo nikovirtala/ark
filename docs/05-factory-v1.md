@@ -346,6 +346,8 @@ The deployment package already has the four operations for AWS with CDK: deploy,
 
 **The second project is the test.** longplay comes next: the work plane is configuration, the feedback plane comes through its MCP server, and its delivery adapter now exists: `@nikovirtala/deployment` 0.1.0, extracted from longplay's pipeline and running kiro-remote's since 22 November 2026 (check, deploy with rollback triggers, smoke checks, deployment tasks run once, and a freeze only a person clears). What is left of the original requirement 2 is a smoke-test identity that gets past Apple sign-in, and changes that cannot be rolled back routed through the frame lane. Extracting a `factory init` waits until that second use shows what was ark-specific.
 
+**A desktop app is a third shape.** draft ships as a packaged, signed Electron app (draft ?5, ?10), not as npm packages or a stack. Its release would be a build on a channel the app updates from, its bake the app in daily use, and its rollback the previous build. The delivery plane needs a target for it with the same run record and breaker; until then, draft's `main` is its release.
+
 ## Prior art
 
 The design leans on published practice from Anthropic and Amazon; Strands Labs is experimental and informs only optional ideas. Reviewed on 18 November 2026.
