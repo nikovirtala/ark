@@ -384,7 +384,7 @@ The factory is switched on one link at a time, observing before automating, so e
 
 1. **Observe.** Report tool, intake and sweep, with no automation. Measure hits per papercut and how much the sweep finds that self-reports miss.
 2. **Triage.** Reproduction, matching, issues from the bug template, and known-issue warnings. Niko still dispatches and merges.
-3. **Shadow review**, from the start, beside step 1. The reviewer App and `CODEOWNERS` on frame paths. The App reviews every pull request; Niko still merges, and draft compares the App's verdict with his settlement of the same pull request.
+3. **Shadow review**, from the start, beside step 1. The reviewer App and `CODEOWNERS` on frame paths. The App reviews every pull request; Niko still merges, and draft compares the App's verdict with his settlement of the same pull request. Until the App exists, Claude in chat reviews each Kiro pull request, and its findings are recorded as review facts, so the comparison has a baseline from the first day.
 4. **Routine flow.** Dispatcher, queue and auto-merge for routine papercuts and the routine backlog lanes, once shadow review rarely disagrees with Niko.
 5. **Channels.** `next` and `latest`, promotion and the breaker, then the ADR that changes R4 and consumers switching to `@latest`.
 
@@ -399,6 +399,9 @@ The factory is switched on one link at a time, observing before automating, so e
 | Reviewer agreement with Niko | whether shadow review can become routine flow |
 | Frame-lane volume per week | whether Niko's lane stays small enough to stay sharp |
 | Breaker trips and rollbacks | whether the gate catches what it should |
+| Wakes done by hand | sessions a person prompted because nothing woke them; the aim is none |
+| Items left for a person per pull request | work handed to a person that a test could have done |
+| Review findings per pull request, by pass | what review catches, and whether checks can take it over |
 
 **Decisions**, settled with Niko on 18 November 2026. Every number is a starting value in `factory.toml`. Each row carries a proposed tripwire (added on 23 November 2026): the condition that reopens it, read from the measures.
 
