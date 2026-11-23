@@ -83,11 +83,14 @@ Every link of the line is a kind in ark's ledger: states, an actor who can close
 | Review | requested → approved, or changes requested (rounds 1–3) → frame | The reviewer App | 3 rounds, or 2 hours without a verdict: frame, to Niko |
 | Release | published to `next` → baking → on `latest`, or rolled back | The promote job; the breaker | A bake that can't finish in 72 hours: held, to Niko |
 | Person's check | requested → passed or failed | Niko | 7 days: reminds him; the issue stays open |
+| Design | proposed → accepted, or changes asked | Niko | 7 days: reminds him; work that depends on it waits |
 | Breaker | open → reset | Niko only | Daily: reminds Niko. It never resets itself, so it fails closed |
 
 Two rules follow. A measure is a fold over these kinds, not a counter kept beside them: hits per papercut, time to `latest`, reviewer agreement and frame-lane volume are queries. And a reader folds a kind's history instead of trusting the newest status written somewhere else. On 22 November 2026 a drill on kiro-remote's pipeline left its GitHub deployment at `failure` after the rollback and a later successful deploy, while the run ledger knew it was over.
 
 A step only a person can do (a check on Niko's Mac, a second Apple account, a secret only he has) is a kind too, with its steps written out in full, each with what he should see. An issue whose last Done when is such a check closes when the check passes.
+
+A design is accepted from visual examples before code is written. Its tokens and previews are committed (draft's `docs/design-system`, 23 November 2026) and become standing: the single source the code is generated from or checked against, with a test that fails when a value drifts. Work that depends on a design waits for its acceptance, and the Done when pass compares a UI change's screenshots with the accepted previews.
 
 The numbers in the timeouts are starting values, kept in `factory.toml` with the rest.
 
@@ -186,7 +189,7 @@ A routine fix merges when deterministic required checks pass and an isolated rev
 
 **The reviewer** is a GitHub App with its own identity, so its approval counts as a separate review and an author session can never approve its own pull request. The Done when and drift passes run on the strongest Claude model, a tier above the author; the security pass runs on another vendor's model, so reviewer and author do not share blind spots. Models are set per pass in `factory.toml`. The reviewer is not hardened against prompt injection, so it is never the only gate on anything a check could decide. Any pass that finds a problem blocks:
 
-- **Done when:** the issue's Done when is met by what the code does, not only by passing tests, and in the spirit of the design section the issue implements, which the pass reads too;
+- **Done when:** the issue's Done when is met by what the code does, not only by passing tests, and in the spirit of the design section the issue implements, which the pass reads too; for a UI change, also against the accepted design's previews;
 - **Drift:** does this pull request make any other doc, skill, server instruction or template wrong? This is the check for rot. It reads beyond the diff, but not blindly (see Drift, deterministic first);
 - **Security:** new attack surface the checks cannot see, such as a tool that now writes outside its log.
 
