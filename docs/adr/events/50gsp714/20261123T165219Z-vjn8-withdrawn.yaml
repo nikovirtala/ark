@@ -1,0 +1,15 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M84N583J0TTW6VPX9YQ8VJN8
+subject: 50gsp714
+type: withdrawn
+at: 2026-11-23T16:52:19Z
+actor:
+  kind: agent
+  name: claude
+  email: null
+  agent: claude
+  on_behalf_of: niko.virtala@hey.com
+reason: "Replaced by teyqf2j9: trust attaches when a person accepts the change that adds the text, not by author alone, which would empty a backlog agents write on a person's behalf."
+data: {}
