@@ -27,6 +27,7 @@
 | ADR-0022 | [Quote titles as written in Conventional Commits subjects](decisions/4yen2hj2-quote-titles-as-written-in-conventional-commits-subjects.md) | accepted | 2026-11-14 |
 | ADR-0023 | [Verify every commit builds; run tests at the branch tip](decisions/pbptc6ny-verify-every-commit-builds-run-tests-at-the-branch-tip.md) | accepted | 2026-11-18 |
 | ADR-0024 | [Commit writes by default in logs that init sets up](decisions/a48jn9nd-commit-writes-by-default-in-logs-that-init-sets-up.md) | accepted | 2026-11-18 |
+| ADR-0025 | [Publish every decision a system makes as events others can read](decisions/9t6n5jc6-publish-every-decision-a-system-makes-as-events-others-can.md) | accepted | 2026-11-23 |
 
 ## Proposed
 
@@ -41,7 +42,6 @@
 | ddgs911f | [Run deployment tasks as executables that answer three flags](decisions/ddgs911f-run-deployment-tasks-as-executables-that-answer-three-flags.md) | proposed | 2026-11-21 |
 | ab58e4pn | [Record every deployment run as a GitHub deployment](decisions/ab58e4pn-record-every-deployment-run-as-a-github-deployment.md) | proposed | 2026-11-21 |
 | ft8n3yjf | [Let agents read deployments, and leave deploying to people](decisions/ft8n3yjf-let-agents-read-deployments-and-leave-deploying-to-people.md) | proposed | 2026-11-21 |
-| 9t6n5jc6 | [Publish every decision a system makes as events others can read](decisions/9t6n5jc6-publish-every-decision-a-system-makes-as-events-others-can.md) | proposed | 2026-11-23 |
 
 ## Superseded and deprecated
 
@@ -50,4 +50,4 @@
 | ADR-0008 | [Use Conventional Commits for --commit messages and ark's history](decisions/q76pmwsw-use-conventional-commits-for-commit-messages-and-arks.md) | superseded by ADR-0022 | 2026-11-14 |
 | ADR-0009 | [Require Node 24 or newer for every ark package](decisions/5v1w33jg-require-node-24-or-newer-for-every-ark-package.md) | superseded by ADR-0018 | 2026-11-14 |
 
-<!-- ledger-index/v1 numbers: gyspf3an=1 c6qyr1jz=2 9z41kzez=3 ew1emghd=4 28dj3jdc=5 fv88cd54=6 e2ye7ng3=7 q76pmwsw=8 5v1w33jg=9 btjpf9g1=10 rg1aka5e=11 28dd1x6r=12 htb7aax6=13 8gs2s4at=14 553365xh=15 dhpvv3yt=16 jgdhvxtq=17 xske65j7=18 wkq8vyps=19 yv3sfp9m=20 27h9h6y7=21 4yen2hj2=22 pbptc6ny=23 a48jn9nd=24 -->
+<!-- ledger-index/v1 numbers: gyspf3an=1 c6qyr1jz=2 9z41kzez=3 ew1emghd=4 28dj3jdc=5 fv88cd54=6 e2ye7ng3=7 q76pmwsw=8 5v1w33jg=9 btjpf9g1=10 rg1aka5e=11 28dd1x6r=12 htb7aax6=13 8gs2s4at=14 553365xh=15 dhpvv3yt=16 jgdhvxtq=17 xske65j7=18 wkq8vyps=19 yv3sfp9m=20 27h9h6y7=21 4yen2hj2=22 pbptc6ny=23 a48jn9nd=24 9t6n5jc6=25 -->
