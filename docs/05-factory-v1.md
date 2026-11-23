@@ -423,13 +423,13 @@ The factory is switched on one link at a time, observing before automating, so e
 | Plan approval | kiro-remote approves only the saved recipe from `main`, matched by name and content hash; anything else goes to Niko | Kiro changes how a workflow asks for approval |
 | Workflow use | Workflows for code-changing work; single sessions for test-only and docs-only items | A workflow costs more than twice a single session per fixed issue |
 
-**Open decisions before the split into issues.** Four ADRs this doc relies on are still proposed, and one decision has no ADR yet:
+**Open decisions before the split into issues.** Five ADRs this doc relies on are still proposed:
 
 - va08e4c3, release through `next` and run other repositories' tools from `latest`;
 - 0j5y197e, ship event format changes read first, write later;
 - 4djbfgzc, stop the fold at an unknown event type, to be revised as in Event format compatibility;
 - 50gsp714, trust an issue's text by who wrote it, to be revised as in Triage (trust attaches at acceptance);
-- where dispatch state lives. kiro-remote stores links and waits in its own table. Either they become ledger events that kiro-remote acts on, or kiro-remote stays their home and publishes each change as an event the folds and draft's map read. The second is recommended: the ledger is git, and a commit for every wait or dispatch would put operational churn into review history. The rule then becomes "no state that only one reader can see" rather than "no state outside the ledger".
+- 9t6n5jc6, publish every decision a system makes as events others can read: kiro-remote stays the home of links and waits and publishes each change, and each wake with its reason, as an event the folds and draft's map read. The rule is "no state that only one reader can see" rather than "no state outside the ledger"; a commit for every wait or dispatch would put operational churn into review history.
 
 **Still to verify in the pilot**
 

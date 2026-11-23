@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M84ERGH44EXBQ1XZD815QYT0
+subject: 9t6n5jc6
+type: proposed
+at: 2026-11-23T15:00:30Z
+actor:
+  kind: agent
+  name: claude
+  email: null
+  agent: claude
+  on_behalf_of: niko.virtala@hey.com
+data:
+  title: Publish every decision a system makes as events others can read
+  template: nygard
+  template_version: 1
