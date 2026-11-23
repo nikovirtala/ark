@@ -167,7 +167,7 @@ Papercuts and the backlog feed the same line: from dispatch onwards nothing depe
 2. Papercuts, by hits.
 3. The backlog, by priority label, then age.
 
-A limit on concurrent sessions caps the line; the backlog fills whatever papercuts leave free. The dispatcher never runs two sessions whose `scoped` globs overlap, which avoids most conflicts before kiro-remote has to report them.
+A limit on concurrent sessions caps the line; the backlog fills whatever papercuts leave free. The dispatcher groups issues that touch the same files into one session, and runs sessions in parallel when each owns its files: the prompt names the other sessions and what they own, a session rebases when `main` moves, and kiro-remote wakes it on a conflict. Work that needs another pull request first waits for it: kiro-remote wakes a session when a pull request it waits for merges, a wait registered at launch or by a `Kiro-Remote-Waits-For` line in the session's own pull request. On 23 November 2026 three draft sessions ran this way, on the window's layout, its colours and the map, and met only in one stylesheet.
 
 **Done.** An issue that ships code closes when its fix is on `latest`. Test-only and internal changes publish nothing (Changesets releases only changed packages), so they close at merge.
 
