@@ -86,13 +86,32 @@ Every link of the line is a kind in ark's ledger: states, an actor who can close
 | Design | proposed → accepted, or changes asked | Niko | 7 days: reminds him; work that depends on it waits |
 | Breaker | open → reset | Niko only | Daily: reminds Niko. It never resets itself, so it fails closed |
 
-Two rules follow. A measure is a fold over these kinds, not a counter kept beside them: hits per papercut, time to `latest`, reviewer agreement and frame-lane volume are queries. And a reader folds a kind's history instead of trusting the newest status written somewhere else. On 22 November 2026 a drill on kiro-remote's pipeline left its GitHub deployment at `failure` after the rollback and a later successful deploy, while the run ledger knew it was over.
+Two rules follow. A measure is a fold over these kinds, not a counter kept beside them: hits per papercut, time to `latest`, reviewer agreement and frame-lane volume are queries, walks over draft's graph of the line (see One graph of the line). And a reader folds a kind's history instead of trusting the newest status written somewhere else. On 22 November 2026 a drill on kiro-remote's pipeline left its GitHub deployment at `failure` after the rollback and a later successful deploy, while the run ledger knew it was over.
 
 A step only a person can do (a check on Niko's Mac, a second Apple account, a secret only he has) is a kind too, with its steps written out in full, each with what he should see. An issue whose last Done when is such a check closes when the check passes.
 
 A design is accepted from visual examples before code is written. Its tokens and previews are committed (draft's `docs/design-system`, 23 November 2026) and become standing: the single source the code is generated from or checked against, with a test that fails when a value drifts. Work that depends on a design waits for its acceptance, and the Done when pass compares a UI change's screenshots with the accepted previews.
 
 The numbers in the timeouts are starting values, kept in `factory.toml` with the rest.
+
+## One graph of the line
+
+**The person's questions about the line.** The measures below, and the questions a person asks about the line, are walks along causes across systems. What led to this rollback? Where did this papercut's fix wait on its way to `latest`? How many wakes were done by hand this week? Which decisions rest on an assumption that was contradicted this month? A papercut's chain runs from a report in kiro-remote's intake to an issue in ark's ledger, a dispatch, a session's pull request on GitHub, a review, a release on `next`, the promotion to `latest` and the next session's calls. No tool holds the chain; each publishes its part (9t6n5jc6).
+
+**No new system answers them.** The factory is not a product with its own runtime: its capabilities sit in the tools where they apply (see Generality). The tool that already reads every source of the line for the person, the ark ledgers, kiro-remote's change feed, pull requests, checks and deployments, is draft, and the person's lane is there. So draft keeps one graph of everything it reads, across the person's contexts, as an edges table in SQLite, and each measure is a named query over it (draft's tmgcgdj8). Anything that runs unattended (the dispatcher, the breaker, the promote gate) reads its own source and never this projection, as a reader folds a kind's history rather than trusting a copy.
+
+**Causes are recorded where things happen.** What the line lacks is not a store but causes. Every event in every published log names what caused it, as addresses of other events: ledger events gain an optional `causes` field in the envelope (6wh6egkw; an added field is already safe both ways, see Event format compatibility), kiro-remote's change feed already names a wake's cause and its pull request, a commit names the issue it closes by trailer, and a deployment names its commit. What a person or an agent does is a command with its actor, apart from the states it causes (draft's p6hx9jdv). No reader infers a cause from timing or similarity (draft's cqwg12zy): an event whose source records none says its cause is unknown, and the share of unknown causes is itself a measure of how well the line can explain itself.
+
+**Measures are walks.** Each measure in Pilot and decisions is a query over draft's graph, not a counter kept beside it. A few, with the walk that answers them:
+
+| Measure | The walk |
+| --- | --- |
+| Hits per papercut | Reports with a `matched` edge to one issue, counted per issue |
+| First hit to fix on `latest` | From an issue's first report forward along causes to the release that put its fix on `latest`: the time between, and the longest step on the path, which is where it waited |
+| Wakes done by hand | Session turns whose cause is a person's command rather than a kiro-remote wake |
+| Items left for a person per pull request | Person's checks caused by a merged pull request |
+| Open ends | Effects that led nowhere within their kind's timeout: a lost prompt, an abandoned dispatch, a check never answered |
+| Decisions resting on a contradiction | From a fact that contradicts an assumption, back along `rests-on` to the decisions that cite it |
 
 ## Detection and intake
 
@@ -404,6 +423,8 @@ The factory is switched on one link at a time, observing before automating, so e
 | Wakes done by hand | sessions a person prompted because nothing woke them; the aim is none |
 | Items left for a person per pull request | work handed to a person that a test could have done |
 | Review findings per pull request, by pass | what review catches, and whether checks can take it over |
+| Open ends | effects that led nowhere: lost prompts, abandoned dispatches, checks never answered |
+| Unknown causes | how much of the line can't yet explain itself; the aim is a falling share |
 
 **Decisions**, settled with Niko on 18 November 2026. Every number is a starting value in `factory.toml`. Each row carries a proposed tripwire (added on 23 November 2026): the condition that reopens it, read from the measures.
 
@@ -423,10 +444,11 @@ The factory is switched on one link at a time, observing before automating, so e
 | Plan approval | kiro-remote approves only the saved recipe from `main`, matched by name and content hash; anything else goes to Niko | Kiro changes how a workflow asks for approval |
 | Workflow use | Workflows for code-changing work; single sessions for test-only and docs-only items | A workflow costs more than twice a single session per fixed issue |
 
-**Open decisions before the split into issues.** Two ADRs this doc relies on are still proposed:
+**Open decisions before the split into issues.** Three ADRs this doc relies on are still proposed:
 
 - va08e4c3, release through `next` and run other repositories' tools from `latest`;
-- 0j5y197e, ship event format changes read first, write later.
+- 0j5y197e, ship event format changes read first, write later;
+- 6wh6egkw, record each ledger event's causes in its envelope.
 
 **Still to verify in the pilot**
 

@@ -1,0 +1,23 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M8F6F5Y6F3WFYTD5WD4X3DP8
+subject: 6wh6egkw
+type: scoped
+at: 2026-11-27T19:07:15Z
+actor:
+  kind: agent
+  name: kiro
+  email: null
+  agent: kiro
+  on_behalf_of: niko.virtala@hey.com
+data:
+  set:
+    - packages/adr/src/mcp/tools.ts
+    - packages/adr/src/write.ts
+    - packages/issues/src/mcp/write-tools.ts
+    - packages/issues/src/write.ts
+    - packages/ledger/src/envelope/**
+    - packages/ledger/src/log/write.ts
+    - packages/ledger/src/surfaces/apply-plan.ts
+    - packages/ledger/src/verify/**

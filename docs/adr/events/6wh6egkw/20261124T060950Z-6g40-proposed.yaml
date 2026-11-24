@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M862SH33AG9MFQXEGNQE6G40
+subject: 6wh6egkw
+type: proposed
+at: 2026-11-24T06:09:50Z
+actor:
+  kind: agent
+  name: claude
+  email: null
+  agent: claude
+  on_behalf_of: niko.virtala@hey.com
+data:
+  title: Record each ledger event's causes in its envelope
+  template: nygard
+  template_version: 1

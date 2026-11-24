@@ -42,6 +42,7 @@
 | ddgs911f | [Run deployment tasks as executables that answer three flags](decisions/ddgs911f-run-deployment-tasks-as-executables-that-answer-three-flags.md) | proposed | 2026-11-21 |
 | ab58e4pn | [Record every deployment run as a GitHub deployment](decisions/ab58e4pn-record-every-deployment-run-as-a-github-deployment.md) | proposed | 2026-11-21 |
 | ft8n3yjf | [Let agents read deployments, and leave deploying to people](decisions/ft8n3yjf-let-agents-read-deployments-and-leave-deploying-to-people.md) | proposed | 2026-11-21 |
+| 6wh6egkw | [Record each ledger event's causes in its envelope](decisions/6wh6egkw-record-each-ledger-events-causes-in-its-envelope.md) | proposed | 2026-11-24 |
 
 ## Superseded and deprecated
 
