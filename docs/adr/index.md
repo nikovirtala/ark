@@ -30,6 +30,7 @@
 | ADR-0025 | [Publish every decision a system makes as events others can read](decisions/9t6n5jc6-publish-every-decision-a-system-makes-as-events-others-can.md) | accepted | 2026-11-23 |
 | ADR-0026 | [Stop the fold at an unknown event that moves state, and skip one that only annotates](decisions/rkxw7ynh-stop-the-fold-at-an-unknown-event-that-moves-state-and-skip.md) | accepted | 2026-11-27 |
 | ADR-0027 | [Trust an issue's text once a person accepts the change that adds it](decisions/teyqf2j9-trust-an-issues-text-once-a-person-accepts-the-change-that.md) | accepted | 2026-11-27 |
+| ADR-0028 | [Record each ledger event's causes in its envelope](decisions/6wh6egkw-record-each-ledger-events-causes-in-its-envelope.md) | accepted | 2026-11-27 |
 
 ## Proposed
 
@@ -42,7 +43,6 @@
 | ddgs911f | [Run deployment tasks as executables that answer three flags](decisions/ddgs911f-run-deployment-tasks-as-executables-that-answer-three-flags.md) | proposed | 2026-11-21 |
 | ab58e4pn | [Record every deployment run as a GitHub deployment](decisions/ab58e4pn-record-every-deployment-run-as-a-github-deployment.md) | proposed | 2026-11-21 |
 | ft8n3yjf | [Let agents read deployments, and leave deploying to people](decisions/ft8n3yjf-let-agents-read-deployments-and-leave-deploying-to-people.md) | proposed | 2026-11-21 |
-| 6wh6egkw | [Record each ledger event's causes in its envelope](decisions/6wh6egkw-record-each-ledger-events-causes-in-its-envelope.md) | proposed | 2026-11-24 |
 
 ## Superseded and deprecated
 
@@ -58,4 +58,4 @@
 | 4djbfgzc | [Stop the fold at an unknown event type](decisions/4djbfgzc-stop-the-fold-at-an-unknown-event-type.md) | withdrawn | 2026-11-23 |
 | 50gsp714 | [Trust an issue's text by who wrote it](decisions/50gsp714-trust-an-issues-text-by-who-wrote-it.md) | withdrawn | 2026-11-23 |
 
-<!-- ledger-index/v1 numbers: gyspf3an=1 c6qyr1jz=2 9z41kzez=3 ew1emghd=4 28dj3jdc=5 fv88cd54=6 e2ye7ng3=7 q76pmwsw=8 5v1w33jg=9 btjpf9g1=10 rg1aka5e=11 28dd1x6r=12 htb7aax6=13 8gs2s4at=14 553365xh=15 dhpvv3yt=16 jgdhvxtq=17 xske65j7=18 wkq8vyps=19 yv3sfp9m=20 27h9h6y7=21 4yen2hj2=22 pbptc6ny=23 a48jn9nd=24 9t6n5jc6=25 rkxw7ynh=26 teyqf2j9=27 -->
+<!-- ledger-index/v1 numbers: gyspf3an=1 c6qyr1jz=2 9z41kzez=3 ew1emghd=4 28dj3jdc=5 fv88cd54=6 e2ye7ng3=7 q76pmwsw=8 5v1w33jg=9 btjpf9g1=10 rg1aka5e=11 28dd1x6r=12 htb7aax6=13 8gs2s4at=14 553365xh=15 dhpvv3yt=16 jgdhvxtq=17 xske65j7=18 wkq8vyps=19 yv3sfp9m=20 27h9h6y7=21 4yen2hj2=22 pbptc6ny=23 a48jn9nd=24 9t6n5jc6=25 rkxw7ynh=26 teyqf2j9=27 6wh6egkw=28 -->
