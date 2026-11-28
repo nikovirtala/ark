@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M8GN4478VNJRGYX6Q0EPTRM1
+subject: az32q93t
+type: closed
+at: 2026-11-28T08:42:36Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: niko.virtala@hey.com
+reason: adr and issues init --setup write <root>/events/** linguist-generated=true for their own log into .gitattributes, keeping other lines (setup.test.ts, adr init.test.ts). A rerun changes nothing, and a changed line is left alone with the --force note (setup.test.ts). --no-gitattributes skips the piece, and doctor reports it missing through pieceStates (init.test.ts, setup.test.ts). ark's .gitattributes and ark-setup.lock are what init writes; scripts/check-agent-setup.mjs (R9) covers .gitattributes and passes.
+data:
+  resolution: done
