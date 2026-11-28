@@ -37,7 +37,7 @@ All three are state held in prose or in someone's head. ark exists to make that 
 - A papercut hit in any repository reaches ark's issue log as a reproducible report, without a person relaying it.
 - A reproduced papercut is fixed, reviewed, released and picked up by new sessions with no human click, within one agent task (hours).
 - Ready backlog issues inside the frame are dispatched, fixed and closed with no human click, in the capacity papercuts leave free.
-- Running sessions learn that an issue is known, and its workaround, before they hit it again.
+- Running sessions learn that an issue is known, and which calls to avoid, before they hit it again.
 - Niko reviews frame changes only; routine fixes flow.
 - A bad release is detected and rolled back by itself, and the line freezes until Niko resets it.
 - An issue closes when its fix is in use, not when it merges.
@@ -74,7 +74,7 @@ Niko sits beside the chain, not in it: a frame label from triage or the queue, a
 
 ## The factory's state is data
 
-Every link of the line is a kind in ark's ledger: states, an actor who can close it, and a timeout that says what happens when nobody does. The factory keeps no state that only one reader can see (9t6n5jc6): nothing in GitHub labels or `factory.toml`, and kiro-remote keeps its operational state, pull request links and waits, only because it publishes every change to them, and every wake with its reason, on its change feed. The dispatcher, the breaker and any dashboard read the same log, and draft's map draws the whole line from it ([draft: The map](https://github.com/nikovirtala/draft/blob/main/docs/model.md#the-map)).
+Every link of the line is a kind in ark's ledger: states, an actor who can close it, and a timeout that says what happens when nobody does. The factory keeps no state that only one reader can see (9t6n5jc6): nothing only in GitHub labels or `factory.toml`, and kiro-remote keeps its operational state, pull request links and waits, only because it publishes every change to them, and every wake with its reason, on its change feed. The dispatcher, the breaker and any dashboard read the same log, and draft's map draws the whole line from it ([draft: The map](https://github.com/nikovirtala/draft/blob/main/docs/model.md#the-map)).
 
 | Kind | States | Closed by | Timeout |
 | --- | --- | --- | --- |
@@ -85,6 +85,10 @@ Every link of the line is a kind in ark's ledger: states, an actor who can close
 | Person's check | requested → passed or failed | Niko | 7 days: reminds him; the issue stays open |
 | Design | proposed → accepted, or changes asked | Niko | 7 days: reminds him; work that depends on it waits |
 | Breaker | open → reset | Niko only | Daily: reminds Niko. It never resets itself, so it fails closed |
+
+**The frame label is a projection.** The frame label this doc puts on issues and pull requests is written from a ledger fact (a Report or Review that reached frame, a frame path touched), so people see it where they work. No reader decides from the label; each reads the fact.
+
+**One source per question about a release.** Which version is on `latest` is a fact two places record: npm's dist-tag, which every consumer resolves, and the Release kind, which keeps its history. For what is live, the dist-tag is the source: the promote job and the breaker read it, and never the ledger. For what happened, the Release kind is: measures and draft's map read it. A reconciliation check compares the two after every promotion and rollback and once a day, and a mismatch blocks promotion until it is explained. This is the 22 November drill below, closed by rule rather than by care.
 
 Two rules follow. A measure is a fold over these kinds, not a counter kept beside them: hits per papercut, time to `latest`, reviewer agreement and frame-lane volume are queries, walks over draft's graph of the line (see One graph of the line). And a reader folds a kind's history instead of trusting the newest status written somewhere else. On 22 November 2026 a drill on kiro-remote's pipeline left its GitHub deployment at `failure` after the rollback and a later successful deploy, while the run ledger knew it was over.
 
@@ -102,6 +106,10 @@ The numbers in the timeouts are starting values, kept in `factory.toml` with the
 
 **Causes are recorded where things happen.** What the line lacks is not a store but causes. Every event in every published log names what caused it, as addresses of other events: ledger events gain an optional `causes` field in the envelope (6wh6egkw; an added field is already safe both ways, see Event format compatibility), kiro-remote's change feed already names a wake's cause and its pull request, a commit names the issue it closes by trailer, and a deployment names its commit. What a person or an agent does is a command with its actor, apart from the states it causes (draft's p6hx9jdv). No reader infers a cause from timing or similarity (draft's cqwg12zy): an event whose source records none says its cause is unknown, and the share of unknown causes is itself a measure of how well the line can explain itself.
 
+**Causes are claims.** A cause is what its writer was given and passed on; `verify` checks that an address is well-formed and that a ledger address exists, not that it names the real cause (noted on 6wh6egkw). A measure built on agent-written causes is only as good as those agents, which is one more reason no unattended reader decides from the graph.
+
+**Walks keep the trust boundary.** A walk from an issue back along causes reaches the report that started it, and that report's text is untrusted (see Triage and the trust boundary). Today only people and measures walk the graph. Any agent step that follows causes (Learn in step 6, a wider drift pass) carries addresses and reads through them under the same rule as triage: only a reproduction, or text a person accepted, reaches its prompt.
+
 **Measures are walks.** Each measure in Pilot and decisions is a query over draft's graph, not a counter kept beside it. A few, with the walk that answers them:
 
 | Measure | The walk |
@@ -117,7 +125,7 @@ The numbers in the timeouts are starting values, kept in `factory.toml` with the
 
 Papercuts reach ark through two channels into one inbox: agents report them as they happen, and a sweep finds the ones they worked around in silence.
 
-**The report tool.** Every ark MCP server gains, from ledger, a `report` tool. When to call it is written in the server's own instructions and the tool description, not in `AGENTS.md`, so the rule ships with the version and cannot rot on its own. A report is structured:
+**The report tool.** Every ark MCP server gains, from ledger, a `report` tool. When to call it is written in the server's own instructions and the tool description, not in `AGENTS.md`, so the rule ships with the version and cannot rot on its own. Those strings are prompts every consuming agent reads, so they live apart from code: each package keeps its server instructions, every tool and argument description and the known-issue line template in one prompts file, a frame path (see Frame routing). A report is structured:
 
 | Field | Content |
 | --- | --- |
@@ -135,9 +143,11 @@ Papercuts reach ark through two channels into one inbox: agents report them as t
 
 **The sweep.** After a session ends, a sweep reads its transcript through kiro-remote and files reports for what the agent did not report: ark tool errors, retried calls, and work done around a tool (editing ledger files by hand, say). The sweep has one permission, writing to the intake. Its findings also measure how much self-reporting misses.
 
-**Friction counts too.** Many papercuts are a tool that works as designed and still trips agents up: invalid arguments, retries, the wrong tool picked. These rarely reproduce as a bug. The sweep counts tool errors, retries and redundant calls per tool and version, and a rising rate opens a *friction* issue. Its fix (a clearer description, an actionable error, a changed argument) is proven by an eval task, not a reproduction: a scripted agent does the job, and its error rate must fall.
+**Friction counts too.** Many papercuts are a tool that works as designed and still trips agents up: invalid arguments, retries, the wrong tool picked. These rarely reproduce as a bug. The sweep counts tool errors, retries and redundant calls per tool and version, and a rising rate opens a *friction* issue. Its fix (a clearer description, an actionable error, a changed argument) is proven by an eval task, not a reproduction: a scripted agent does the job, and its error rate must fall. A fix that changes a description touches the prompts file, so it is a frame change until the pilot shows those strings can flow.
 
-**Known issues travel back.** Triage publishes a public known-issues list per package and version. Each MCP server reads it at start, with no credential, and adds a line to a matching tool response: "known issue ?42, workaround: …". Agents in every session, cloud or local, learn about a papercut before they hit it.
+**Known issues travel back.** Triage publishes a public known-issues list per package and version. Each MCP server reads it at start, with no credential, and adds a line to a matching tool response. Agents in every session, cloud or local, learn about a papercut before they hit it.
+
+The line is a template filled from fields, never free text: the issue id, the tool, the argument shape that triggers it, and its status ("fix pending", or the version that fixes it), headed by the id of the triage run that wrote it, for example `known issue ?42 (triage run …): issues_update with an empty labels list fails; fix pending`. Reproduction proves the bug exists, not that a workaround is benign, and a workaround triage wrote is agent text read from a report. So a free-text workaround reaches the line only from an issue a person accepted (see Trust attaches at acceptance); until then the line names only what to avoid. The template lives in the prompts file, so changing it is a frame change.
 
 ## Triage and the trust boundary
 
@@ -151,7 +161,7 @@ Only a reproduction crosses from a report into ark's work. Reports come from age
 2. **Match.** Compare the reproduction with open issues. A match adds a hit to that issue; when unsure, open a new issue, because merging two is cheap and a hidden bug keeps spreading.
 3. **Write the issue** from the bug template: Steps to reproduce, Expected, Actual, Done when ("the reproduction passes on `latest`"). The reproduction itself is data, not prose: the call, the version and the expected output, attached to the issue. The text is triage's own; the reporter's `note` is summarised, never pasted.
 4. **Classify** the issue as routine or frame (see Fix and review). Frame issues get a label and wait for Niko.
-5. **Warn** running sessions that use the tool, through kiro-remote's prompt to a running session: known issue, workaround, fix on its way.
+5. **Warn** running sessions that use the tool, through kiro-remote's prompt to a running session: the same templated line as in the tool responses, never free text.
 
 The same step filters honest mistakes: an agent that blames the tool for its own error produces no reproduction.
 
@@ -230,6 +240,7 @@ A routine fix merges when deterministic required checks pass and an isolated rev
 - the diff stays within the papercut limits: at most 100 changed lines and 5 files outside tests, `repro/` and docs, in one package (in ark's last 23 fix commits the median was 24 lines and 2 files, p75 50 lines and 4 files);
 - no new dependency, install script, or network or filesystem access (a lint rule on imports and calls);
 - no change to the `report` tool, the intake, triage, the reviewer or the checks themselves;
+- no `instructions` or `description` string outside a package's prompts file;
 - no canary string outside its own issue;
 - every test, file and command the pull request's Evidence names exists, and every test it names ran in this commit's CI;
 - every item the pull request leaves for a person says why no test can show it;
@@ -242,7 +253,10 @@ Every limit in the checks, the queue and the bake lives in `factory.toml` in ark
 
 - `docs/adr/`, `AGENTS.md`, the design docs;
 - `.github/`, branch protection settings, all of `.kiro/` and `.claude/` (Kiro loads a workspace's skills, steering and `mcp.json` into every session there, over ACP and in the cloud, not only its workflows), `factory.toml`, the reviewer's rubric and the factory's own code;
-- each kind's event schema and ledger's envelope (see Event format compatibility).
+- each kind's event schema and ledger's envelope (see Event format compatibility);
+- each package's prompts file (`packages/*/src/mcp/prompts.ts`): the server instructions, every tool and argument description and the known-issue line template, which every consuming agent reads as a prompt.
+
+A path only gates what lives in it, so a required check fails any `instructions` or `description` string written outside the prompts file. Result texts and error messages stay in code: they are mostly templates around data, and the reviewer and the drift pass read them, but no path gates them (see Seams and risks).
 
 For everything else the reviewer judges, and when unsure it adds the frame label. This keeps the existing ADR "Gate agents deciding and rescoping behind MCP can-decide": an agent may fix, but not decide.
 
@@ -322,7 +336,7 @@ S2 and S6 carry the most risk. They are two ends of one seam: S2 is how harm get
 | Seam | Where | What falls through | Defence | Left over |
 | --- | --- | --- | --- | --- |
 | S1 Silent workarounds | hit → report | Agents route around a tool and never report it | Report tool in the server's own instructions; transcript sweep; friction rates per tool | Workarounds that leave no error or retry |
-| **S2 Untrusted reports** | report → triage → backlog | Injected text steers a fix session or the reviewer, directly or via an agent-written issue | Only a reproduction crosses; trust follows the `actor`; no credential in the sandbox; canary strings; least privilege; required checks | An injection that also reproduces as a real bug |
+| **S2 Untrusted reports** | report → triage → backlog | Injected text steers a fix session or the reviewer, directly or via an agent-written issue | Only a reproduction crosses; trust follows the `actor`; no credential in the sandbox; templated known-issue lines; prompts files as frame paths; walks carry addresses; least privilege; required checks | An injection that also reproduces as a real bug; result texts and error messages, which no path gates |
 | S3 Dedupe errors | triage | A false match hides a new bug | Match on reproductions, not prose; open new when unsure | Two issues for one bug (cheap) |
 | S4 Frame classifier | review | A dramatic change is routed as routine | `CODEOWNERS` and required checks first; three review passes second; unsure goes to Niko | A dramatic change in a path nobody listed |
 | S5 Release identity | merge → publish | An agent publishes or moves tags | Publish only from `release.yml` with OIDC; agents have no npm credentials | A misconfigured trusted publisher; promote.yml can only move tags |
