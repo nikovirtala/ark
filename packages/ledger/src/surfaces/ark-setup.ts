@@ -34,7 +34,7 @@ export interface ArkPins {
  * §2; `adr:jgdhvxtq`). A release bumps these in one place (?61). They are the versions the setup
  * writes, so R9 holds against the committed fixture regardless of the workspace build's version.
  */
-export const ARK_PINS: ArkPins = { adr: "0.7.0", issues: "0.7.0" };
+export const ARK_PINS: ArkPins = { adr: "0.8.0", issues: "0.8.0" };
 
 /** The `ARK_AGENT` value each harness's MCP config carries. */
 const AGENT: Readonly<Record<Harness, string>> = { claude: "claude-code", kiro: "kiro" };

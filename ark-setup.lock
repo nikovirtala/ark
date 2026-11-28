@@ -1,15 +1,15 @@
 {
   "claude.hook.before-edit": {
-    "hash": "cca5bbf8c9c43db7456a188b03fe0a93f9f2922d251a78e94d691050b649076b"
+    "hash": "d52edfa2914a97c8fcd98ba05d7defb5a6d7655dfbe989ea15f055c24d7e333f"
   },
   "claude.hook.session-start": {
-    "hash": "b6fc7f151d24270fefce42d004a8a7798f1f0aeea2283f3b33013f817f433e33"
+    "hash": "9763957efd73f5d1c5384461a1871418b406bbc12a61897367b2fe55faa0bc91"
   },
   "claude.mcp.adr": {
-    "hash": "46222c0adcffc6ed579adb8ba7eae2edc839188ecda8b818a7a08832a63a0f44"
+    "hash": "609009f89b75914f7732fa601c32153ad60a17176648b2ad0285832a7824eb8d"
   },
   "claude.mcp.issues": {
-    "hash": "5d2385e2b0694da4dfa538c2e37a2573bb603d9a84bcd21d84ddce1cee521551"
+    "hash": "5d228be5ab1e3f6050fb40d8a049d976c848f9730b7461cdf7dfecddb08e4fb0"
   },
   "claude.settings": {
     "hash": "c18674f3ade342c72c2087db25e1863989e74d1f994de5049f71d685976bbb16"
@@ -21,7 +21,7 @@
     "hash": "968ae66a0c88d387eb9ebdd4752db654558f132999dd7e878d7ab8701ea57155"
   },
   "kiro.hook.before-edit": {
-    "hash": "9a4902f166c69b5bd4546694dedf8e231456092a6366612301d8998f62bb5d1e"
+    "hash": "991fcedc1431941b3ed950732106af562d982cc53779d90aabbaf0c479515b03"
   },
   "kiro.hook.before-edit.def": {
     "hash": "a3443d2c22a8bc94465aa45ba6fd03e64b59cf0a506a056c43b1fcde82177fb8"
@@ -33,16 +33,16 @@
     "hash": "08e5ed6b05ab38a2fc4342170439da81aa3238d2e6d8f40f96a3ccd11656b8cb"
   },
   "kiro.hook.session-start": {
-    "hash": "15e0bbae22a68b55136ae537df02a03dc769d79d96f79715b006142f793acf07"
+    "hash": "575481513ea1b71abfcb2b8c7a95414f37c9dc838d549b41ca527cae2911d77f"
   },
   "kiro.hook.session-start.def": {
     "hash": "fd28a72ec4e78124c729f6ea2100d55fdd30c8cce9aab8d9ff3043ea364d527b"
   },
   "kiro.mcp.adr": {
-    "hash": "baf4040d627775dd000aa2913e9fd576c6546804dc5c9ab980d99fec2f19144b"
+    "hash": "d2b7b11d72660dfa0383c433f99bab1561e002e81b0f20ab0f722f87397738e2"
   },
   "kiro.mcp.issues": {
-    "hash": "755604b085ec704c6d0d74da85185112f31157310d42632481f9b0c3b9c8a6de"
+    "hash": "cc06cb07b9a5199c34dcc8e893b893e21dddf7d627b73bffe7f5c6f203c21059"
   },
   "prepare": {
     "hash": "87eb4f45398e1fa30f9c459a5ac240f11e6959692bb5ee679767118949fdbf0c"
