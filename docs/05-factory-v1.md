@@ -70,7 +70,7 @@ flowchart TD
   promote --> sessions["New sessions start on latest<br/>the issue closes: the fix is in use"]
 ```
 
-Niko sits beside the chain, not in it: a frame label from triage or the queue, and the frame paths in `CODEOWNERS` are the only ways a change reaches him. It reaches him in draft, as an acceptance request with the reviewer's verdict as its evidence, rather than in GitHub's review screen: draft accepts as Niko, with his identity and signing key, shows what waits on him on its map, and records each settlement as a fact ([draft: Acceptance](https://github.com/nikovirtala/draft/blob/main/docs/model.md#acceptance)). The breaker watches the release end and can move `latest` back.
+Niko sits beside the chain, not in it: a frame label from triage or the queue, and the frame paths in `CODEOWNERS` are the only ways a change reaches him. It reaches him in draft, as an acceptance request that names the one decision, its options, whether it can be undone and the default the factory would take, with its evidence (what changed and why, what each check and pass found, what was not run), rather than in GitHub's review screen: draft accepts as Niko, with his identity and signing key, shows what waits on him on its map, and records each settlement as a fact ([draft: Acceptance](https://github.com/nikovirtala/draft/blob/main/docs/model.md#acceptance)). The breaker watches the release end and can move `latest` back. Every path that reaches him is listed in one place (see Paths to Niko).
 
 ## The factory's state is data
 
@@ -80,8 +80,8 @@ Every link of the line is a kind in ark's ledger: states, an actor who can close
 | --- | --- | --- | --- |
 | Report | received → reproduced or parked → matched or filed | Triage | Parked for 14 days: declined with its reason, recorded as a fact |
 | Dispatch | queued → running → pull request open, or abandoned | The dispatcher; the session | No pull request after 4 hours: abandoned, the issue back in the queue |
-| Review | requested → approved, or changes requested (rounds 1–3) → frame | The reviewer App | 3 rounds, or 2 hours without a verdict: frame, to Niko |
-| Release | published to `next` → baking → on `latest`, or rolled back | The promote job; the breaker | A bake that can't finish in 72 hours: held, to Niko |
+| Review | requested → approved, or changes requested (rounds 1–3) → frame | The reviewer App | 3 rounds: frame, to Niko. 2 hours without a verdict: re-requested once, then a health signal |
+| Release | published to `next` → baking → on `latest`, or rolled back | The promote job; the breaker | A bake that can't finish in 72 hours: held, a health signal |
 | Person's check | requested → passed or failed | Niko | 7 days: reminds him; the issue stays open |
 | Design | proposed → accepted, or changes asked | Niko | 7 days: reminds him; work that depends on it waits |
 | Breaker | open → reset | Niko only | Daily: reminds Niko. It never resets itself, so it fails closed |
@@ -97,6 +97,8 @@ A step only a person can do (a check on Niko's Mac, a second Apple account, a se
 A design is accepted from visual examples before code is written. Its tokens and previews are committed (draft's `docs/design-system`, 23 November 2026) and become standing: the single source the code is generated from or checked against, with a test that fails when a value drifts. Work that depends on a design waits for its acceptance, and the Done when pass compares a UI change's screenshots with the accepted previews.
 
 The numbers in the timeouts are starting values, kept in `factory.toml` with the rest.
+
+**Two lanes to a person.** A timeout that only says the factory is unwell (a reviewer with no verdict, a bake that can't finish, an abandoned dispatch, an open end, a release-state mismatch) is not a decision. It goes to a health lane: one view in draft of what is stuck and why, like the Kiro Factory Manual's janitor and report page, fixed as factory work. The decision lane carries only what needs a person's judgment. Frame-lane volume counts the decision lane alone, so plumbing can't make it look busy.
 
 ## One graph of the line
 
@@ -119,6 +121,7 @@ The numbers in the timeouts are starting values, kept in `factory.toml` with the
 | Wakes done by hand | Session turns whose cause is a person's command rather than a kiro-remote wake |
 | Items left for a person per pull request | Person's checks caused by a merged pull request |
 | Open ends | Effects that led nowhere within their kind's timeout: a lost prompt, an abandoned dispatch, a check never answered |
+| Escalations settled with the default | Acceptance requests whose settlement equals the default they carried, per path |
 | Decisions resting on a contradiction | From a fact that contradicts an assumption, back along `rests-on` to the decisions that cite it |
 
 ## Detection and intake
@@ -233,7 +236,9 @@ A routine fix merges when deterministic required checks pass and an isolated rev
 
 **Recipe rules.** Recipes live in ark's `.kiro/workflows/` and are frame paths in `CODEOWNERS`: a recipe is the factory's process. A step's least privilege goes in its `tools` list: in a Kiro agent, `tools` decides which tools exist, and permission rules only decide what a listed tool may do, so a user-wide allow rule can't bring back a tool the list leaves out ([Kiro: custom agent configuration](https://kiro.dev/docs/custom-agents/configuration-reference/)). The factory runs only saved recipes by name and never a plan Kiro generates for the task, so an injected issue cannot shape its own process. If Kiro asks to approve a plan, kiro-remote approves it only when the plan is the saved recipe from ark's `main`, matched by name and content hash; anything else is denied and goes to Niko. Workflows cost more tokens, so they run for code-changing work: papercut and friction fixes, ADR-linked work and anything touching `src`. Test-only and docs-only items run as a single session. The split is set per lane in `factory.toml`.
 
-**Required checks.** These run in `check` with no model involved. A pull request that fails any of them is not routine and waits for Niko:
+**Required checks.** These run in `check` with no model involved, in two classes. A failed *invariant* check means the change is not routine, and the pull request waits for Niko. A failed *author* check goes back to the author session through the pull request link, like a review finding, and counts as a round.
+
+Invariant checks:
 
 - the reproduction under `repro/` matches the issue's byte for byte, and no pull request changes or deletes a file there;
 - no test is deleted, skipped or weakened: the test count per package does not fall and no skip is added;
@@ -242,6 +247,9 @@ A routine fix merges when deterministic required checks pass and an isolated rev
 - no change to the `report` tool, the intake, triage, the reviewer or the checks themselves;
 - no `instructions` or `description` string outside a package's prompts file;
 - no canary string outside its own issue;
+
+Author checks:
+
 - every test, file and command the pull request's Evidence names exists, and every test it names ran in this commit's CI;
 - every item the pull request leaves for a person says why no test can show it;
 - every screenshot in the description links a commit and was taken on the pull request's head;
@@ -259,6 +267,27 @@ Every limit in the checks, the queue and the bake lives in `factory.toml` in ark
 A path only gates what lives in it, so a required check fails any `instructions` or `description` string written outside the prompts file. Result texts and error messages stay in code: they are mostly templates around data, and the reviewer and the drift pass read them, but no path gates them (see Seams and risks).
 
 For everything else the reviewer judges, and when unsure it adds the frame label. This keeps the existing ADR "Gate agents deciding and rescoping behind MCP can-decide": an agent may fix, but not decide.
+
+## Paths to Niko
+
+Every way the line stops for a person, in one table, in the spirit of the Kiro Factory Manual's per-prompt `### Escalate` contract. A step that is not listed here does not stop for him; adding a row is a frame change. Each decision-lane row arrives as an acceptance request with its default; the defaults are starting values in `factory.toml`.
+
+| Path | Lane | What it asks | Default the factory would take |
+| --- | --- | --- | --- |
+| Frame issue, from triage, the queue or a feature with no link | Decision | Is this work, and in which scope? | Leave it in the backlog |
+| Shaping that changes scope (`mcp can-decide`) | Decision | Accept the new Done when, scope or split | Keep the old scope |
+| Report parked without a reproduction | Decision | Is there a bug the reproduction missed? | Decline after 14 days |
+| Pull request touching a frame path (`CODEOWNERS`) | Decision | Accept the frame change | None: it waits |
+| Failed invariant check | Decision | Accept a change the checks call not routine | Close the pull request; the issue goes back to shaping |
+| Three review rounds without approval | Decision | Settle what author and reviewer can't | Abandon the pull request; the issue goes back to the queue |
+| Design proposed | Decision | Accept the visual examples | None: dependent work waits |
+| Plan approval that isn't the saved recipe | Decision | Allow this plan | Deny |
+| Skipping the bake; promoting a `ledger` release | Decision | Promote early or now | Finish the bake; wait until he is reachable |
+| Breaker open | Decision | Reset the line | Stay frozen |
+| Person's check | Task | Do the written steps and say what he saw | Remind after 7 days; the issue stays open |
+| Reviewer without a verdict, bake that can't finish, abandoned dispatch, open end, release-state mismatch | Health | Nothing to decide; something to fix | Retry or hold, as the kind's timeout says |
+
+An escalation he settles with the default is counted (see Measures): such paths are candidates to stop escalating, which is how "does the factory need a person for the right reason?" becomes a number.
 
 ## Release channels and promotion
 
