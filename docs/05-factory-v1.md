@@ -288,7 +288,7 @@ A fix is published to `next`, proven there, and only then moved to `latest`, the
 2. **Contract suite.** A scripted canary drives each tool's MCP server the way agents do (init, list, write, verify, `issues ready`) against a temporary repository, three times, and must pass every time: a flaky pass is a fail.
 3. **Friction evals**, once switched on (see Pilot and decisions). For a friction fix, each eval task built from the transcripts behind the issue runs five times against `next` and five against the old version. Fixed means tool errors and retries per task fall by at least half, and task success does not fall.
 4. **Compatibility.** Old and new versions write to one scratch log side by side, then the new version alone, then the old alone again; every stage must fold and `verify` clean (see Event format compatibility).
-5. **Bake.** Two users run `next`: the canary, and one ring of real use, kiro-remote's repository, whose MCP configs run ark's tools from `next` instead of `latest` (the ring is set in `factory.toml`). The intake already harvests its Kiro cloud sessions, so real work uses a release before every agent does. The bake comes in two parts. Before promotion: three clean canary runs, and no reproducible report from the ring against the new version. After promotion: a watch window over the first 20 real calls of the changed tools or 24 hours, whichever ends later, during which any new reproducible report against the new version moves `latest` back by itself.
+5. **Bake.** Two users run `next`: the canary, and one ring of real use, kiro-remote's repository, whose MCP configs run ark's tools from `next` instead of `latest` (the ring is set in `factory.toml`; proposed as wf97wpac). The intake already harvests its Kiro cloud sessions, so real work uses a release before every agent does. The bake comes in two parts. Before promotion: three clean canary runs, and no reproducible report from the ring against the new version. After promotion: a watch window over the first 20 real calls of the changed tools or 24 hours, whichever ends later, during which any new reproducible report against the new version moves `latest` back by itself.
 
 All green moves `latest` to the new versions, per package. A separate `promote.yml` does it, with its own npm trusted publisher configuration that may manage dist-tags (an opt-in OIDC permission since 30 September 2026) and may not publish, while `release.yml` keeps publish: the job that moves tags cannot publish, and the job that publishes cannot promote. Promotion is blocked while any breaker is open. A `ledger` release changes every tool at once, so it bakes longer and promotes only when Niko is reachable.
 
@@ -495,10 +495,11 @@ Deferred, each with the failure that brings it in: canary strings (agent text tu
 | Prompt strings (added 28 November 2026) | Server instructions, tool and argument descriptions and the known-issue template in one prompts file per package, a frame path, with a check against strings outside it | Shadow review shows prompts-file changes are as safe as routine ones, or an injection arrives through a result text or error message |
 | Workflow use | Workflows for code-changing work; single sessions for test-only and docs-only items | A workflow costs more than twice a single session per fixed issue |
 
-**Open decisions before the split into issues.** Two ADRs this doc relies on are still proposed:
+**Open decisions before the split into issues.** Three ADRs this doc relies on are still proposed:
 
 - va08e4c3, release through `next` and run other repositories' tools from `latest`;
-- 0j5y197e, ship event format changes read first, write later.
+- 0j5y197e, ship event format changes read first, write later;
+- wf97wpac, run one ring repository's ark tools from `next`.
 
 **Still to verify in the pilot**
 
