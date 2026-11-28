@@ -91,6 +91,38 @@ describe("adr init --setup (the agent setup plumbing)", () => {
     expect(await exists(r, ".kiro/hooks/session-start.sh")).toBe(false);
   });
 
+  it("marks the decision log's events generated in .gitattributes, keeping other lines (?86)", async () => {
+    const r = await cliRepo({ ".gitattributes": "*.png binary\n" });
+    expect(runAdr(r, ["init", "--setup", "--no-commit"]).status).toBe(0);
+    expect(await readFile(join(r.root, ".gitattributes"), "utf8")).toBe(
+      "*.png binary\ndocs/adr/events/** linguist-generated=true\n",
+    );
+    const lock = JSON.parse(await readFile(join(r.root, "ark-setup.lock"), "utf8")) as object;
+    expect(lock).toHaveProperty("gitattributes.adr");
+  });
+
+  it("writes .gitattributes with every harness opted out, and skips it with --no-gitattributes", async () => {
+    const none = await cliRepo();
+    const args = ["init", "--setup", "--harness", "claude", "--harness", "kiro", "--no-commit"];
+    expect(runAdr(none, args).status).toBe(0);
+    expect(await exists(none, ".gitattributes")).toBe(true);
+    expect(await exists(none, ".mcp.json")).toBe(false);
+    expect(await exists(none, "package.json")).toBe(false);
+
+    const skipped = await cliRepo();
+    expect(runAdr(skipped, ["init", "--setup", "--no-gitattributes", "--no-commit"]).status).toBe(
+      0,
+    );
+    expect(await exists(skipped, ".gitattributes")).toBe(false);
+    expect(await exists(skipped, ".mcp.json")).toBe(true);
+  });
+
+  it("refuses --no-gitattributes without --setup", async () => {
+    const r = await cliRepo();
+    const run = runAdr(r, ["init", "--no-gitattributes"]);
+    expect(run.stderr).toContain("--no-gitattributes needs --setup");
+  });
+
   it("refuses --no-mcp without --setup", async () => {
     const r = await cliRepo();
     const run = runAdr(r, ["init", "--no-mcp"]);

@@ -248,8 +248,20 @@ export function arkServers(o: {
 }
 
 /**
+ * The `.gitattributes` lines for one tool's own log: its events marked `linguist-generated`, so
+ * GitHub folds them in pull request diffs as it does generated code. The events are the tool's to
+ * write and verify; a reviewer reads the change through `index.md` and the commit messages. Each
+ * tool writes only its own log's line, so a repository that uses one tool gets one line.
+ */
+export function gitattributesLines(logs: readonly HookLog[], tool: string): string[] {
+  return logs
+    .filter((l) => l.tool === tool)
+    .map((l) => `${l.root}/events/** linguist-generated=true`);
+}
+
+/**
  * ark's {@link ToolSetup} for one tool: its own MCP server entry per harness, the shared pieces,
- * and the `prepare` script. The pins must be exact published versions, never `workspace:*` (R8).
+ * the `prepare` script and its `.gitattributes` lines. The pins must be exact published versions, never `workspace:*` (R8).
  */
 export function arkSetup(o: {
   readonly harnesses: readonly Harness[];
@@ -267,6 +279,7 @@ export function arkSetup(o: {
     servers: arkServers({ pkg: o.pkg, name: o.name, version: o.version }),
     shared: arkShared(o.logs),
     prepare: arkPrepare(o.pins),
+    gitattributes: { tool: o.name, lines: gitattributesLines(o.logs, o.name) },
     ...(o.skip === undefined ? {} : { skip: o.skip }),
     ...(o.force === undefined ? {} : { force: o.force }),
   };

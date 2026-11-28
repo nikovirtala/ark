@@ -77,6 +77,11 @@ export function initCommand(version: string): CommandSpec {
         help: "with --setup, write the harness hooks and prepare script (default: on)",
         negatedHelp: "with --setup, skip the harness hooks and prepare",
       },
+      gitattributes: {
+        type: "boolean",
+        help: "with --setup, mark the log's events generated in .gitattributes, so GitHub folds them in pull request diffs (default: on)",
+        negatedHelp: "with --setup, leave .gitattributes alone",
+      },
       harness: {
         type: "string",
         multiple: true,
@@ -100,10 +105,10 @@ export function initCommand(version: string): CommandSpec {
         throw new UsageError("--skill-dir needs --skill");
       const wantSetup = values.setup === true;
       if (!wantSetup) {
-        for (const f of ["mcp", "hooks", "harness", "force"]) {
+        for (const f of ["mcp", "hooks", "gitattributes", "harness", "force"]) {
           const v = values[f];
           if (v === false || (Array.isArray(v) && v.length > 0)) {
-            throw new UsageError(`--${f === "mcp" || f === "hooks" ? `no-${f}` : f} needs --setup`);
+            throw new UsageError(`--${v === false ? `no-${f}` : f} needs --setup`);
           }
         }
       }
@@ -125,6 +130,7 @@ export function initCommand(version: string): CommandSpec {
       const skip = new Set<string>();
       if (values.mcp === false) skip.add("mcp");
       if (values.hooks === false) skip.add("hooks");
+      if (values.gitattributes === false) skip.add("gitattributes");
       const setup = wantSetup
         ? arkSetup({
             harnesses,

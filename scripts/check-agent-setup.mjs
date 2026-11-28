@@ -33,6 +33,7 @@ const SETUP_FILES = [
   ".kiro/skills/issues/SKILL.md",
   "AGENTS.md",
   "package.json",
+  ".gitattributes",
   "ark-setup.lock",
 ];
 
