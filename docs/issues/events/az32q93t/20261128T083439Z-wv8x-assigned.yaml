@@ -1,0 +1,16 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M8GMNJVTPGANQYRXGNCNWV8X
+subject: az32q93t
+type: assigned
+at: 2026-11-28T08:34:39Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: niko.virtala@hey.com
+data:
+  set:
+    - niko.virtala@hey.com
