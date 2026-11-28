@@ -2,7 +2,7 @@
 # Kiro session-start hook (ADR-0017; docs/03-setup-v1.md "What a complete setup is").
 #
 # The design wants this logic inside the tools as `<tool> hooks agent …`. That subcommand does not
-# exist in the pinned published versions (adr 0.7.0 / issues 0.7.0), so this calls the commands they do have.
+# exist in the pinned published versions (adr 0.8.0 / issues 0.8.0), so this calls the commands they do have.
 # `hooks install` installs any missing git hooks in this clone (the `doctor --fix-clone`
 # part), then each tool lists what changed since the main ref, and `issues ready` lists pickable
 # work. One `npm exec` serves every call, so a cold cache downloads once. Keep the pins in step
@@ -30,7 +30,7 @@ main_ref() {
 }
 SINCE="$(main_ref)"
 
-npm exec --yes --package=@nikovirtala/adr@0.7.0 --package=@nikovirtala/issues@0.7.0 -- sh -c '
+npm exec --yes --package=@nikovirtala/adr@0.8.0 --package=@nikovirtala/issues@0.8.0 -- sh -c '
 adr hooks install >/dev/null 2>&1 || true
 issues hooks install >/dev/null 2>&1 || true
 if [ -n "$1" ]; then
