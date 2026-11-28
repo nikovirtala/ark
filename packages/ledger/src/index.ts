@@ -374,6 +374,7 @@ export {
 export {
   type ApplySetupOptions,
   applySetup,
+  type LinesOwnership,
   type MergeOwnership,
   type PieceOutcome,
   type PieceState,

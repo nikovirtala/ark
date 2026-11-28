@@ -14,6 +14,12 @@
   "claude.settings": {
     "hash": "c18674f3ade342c72c2087db25e1863989e74d1f994de5049f71d685976bbb16"
   },
+  "gitattributes.adr": {
+    "hash": "dcd6ff4b73d6b981071afee972d339e0fe7badc23364cd4182ecc43eebe5b580"
+  },
+  "gitattributes.issues": {
+    "hash": "968ae66a0c88d387eb9ebdd4752db654558f132999dd7e878d7ab8701ea57155"
+  },
   "kiro.hook.before-edit": {
     "hash": "9a4902f166c69b5bd4546694dedf8e231456092a6366612301d8998f62bb5d1e"
   },
