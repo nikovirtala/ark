@@ -27,6 +27,7 @@ ark records its own decisions and work with its own tools. These logs are the ru
 
 - [Decision log](adr/) (reference). ark's architecture decisions. List them with `node packages/adr/dist/cli.js list` from the repository root.
 - [Issue log](issues/) (reference). ark's open and closed work. List it with `node packages/issues/dist/cli.js list`.
+- [Design reviews](reviews/) (history). Dated reviews of the design docs, each pinned to the commit it reviewed and kept as the cause of the revision that followed. They are records, not guidance: the design doc says what holds now.
 
 ## Map the architecture
 

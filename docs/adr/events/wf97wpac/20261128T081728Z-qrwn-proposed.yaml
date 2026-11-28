@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M8GKP44E9MN0Y6S49PS5QRWN
+subject: wf97wpac
+type: proposed
+at: 2026-11-28T08:17:28Z
+actor:
+  kind: agent
+  name: claude
+  email: null
+  agent: claude
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  title: Run one ring repository's ark tools from next
+  template: nygard
+  template_version: 1

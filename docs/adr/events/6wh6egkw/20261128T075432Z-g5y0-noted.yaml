@@ -1,0 +1,15 @@
+envelope: ledger/v1
+kind: decision
+schema: decision/v1
+id: 01M8GJC3S7PM9N5K2MKX4BG5Y0
+subject: 6wh6egkw
+type: noted
+at: 2026-11-28T07:54:32Z
+actor:
+  kind: agent
+  name: claude
+  email: null
+  agent: claude
+  on_behalf_of: nikovirtala@users.noreply.github.com
+data:
+  text: "A recorded cause is the writer's claim, not a checked fact: verify checks that an address is well-formed and, for a ledger address, that it exists, not that it names the real cause. A measure built on agent-written causes is only as good as those agents, so no unattended reader (dispatcher, breaker, promote gate) decides from causes, and an agent step that follows causes carries addresses, never the text it finds there (docs/05-factory-v1.md, One graph of the line). Raised in the 27 November 2026 review (docs/reviews/2026-11-27-factory-v1.md)."
