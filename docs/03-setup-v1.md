@@ -57,6 +57,7 @@ ledger's shared init (`initToolLog`, from ?43), used by every ark tool, is exten
 | Before-edit hook | `.claude/settings.json` | Kiro agent hook | `.github/hooks/<tool>.json` (`preToolUse`) | `init` |
 | Permission rules | `.claude/settings.json` (`Edit(/…)` deny rules) | a `PreToolUse` hook on the `write` group that blocks | a `preToolUse` hook that denies the edit | `init` |
 | Git hooks | per clone | per clone | per clone | the session-start hook, and a `prepare` script where asked |
+| Folded events in pull request diffs | `.gitattributes` | `.gitattributes` | `.gitattributes` | `init`, whatever the harnesses |
 
 Harnesses share files. Copilot reads the same root `.mcp.json` as Claude Code, and the Copilot CLI also runs the hooks in `.claude/settings.json`. So the setup is written per file, not per harness: a file several selected harnesses read is written once, and a hook that two of them would both run is written where only one of them reads it. The cloud agent's MCP servers can't be set from a file, so `doctor` names the repository setting to add instead.
 
@@ -92,11 +93,13 @@ What it lacks is the rest of the setup table, more than one skill directory (`sk
 
 ### init: complete by default, safe to rerun
 
-`init` detects the harnesses a repository uses (their config directories, or flags) and writes every piece for each. Flags opt out of a piece (`--no-mcp`, `--no-hooks`, `--harness claude`), never in.
+`init` detects the harnesses a repository uses (their config directories, or flags) and writes every piece for each. Flags opt out of a piece (`--no-mcp`, `--no-hooks`, `--no-gitattributes`, `--harness claude`), never in.
 
 **Ownership.** `init` owns what it wrote, and only that. In a JSON config it owns the entries under its own server or hook names; in a markdown file, the lines it added; a skill file whole. It records a hash of what it wrote for each owned piece in `<git common dir>/ark/setup.json`, which is per clone, and also in a committed `ark-setup.lock` beside the configs, so every clone knows what the last `init` wrote.
 
 **Rerun.** For each piece: if it is missing, write it; if it matches what `init` last wrote, replace it with the new version (today's `kept` case, now updated instead of skipped); if someone changed it, leave it in `kept` and print a note naming the file and the command that would overwrite it (`init --force <piece>`). A rerun with nothing to do changes nothing.
+
+**`.gitattributes`** gets one line per tool marking its own log's events `linguist-generated` (`docs/issues/events/** linguist-generated=true`), so GitHub folds them in pull request diffs as it does generated code (?86). The tools write and verify the events, and a reviewer reads the change through `index.md` and the commit messages; `index.md` and adr's decision bodies stay unfolded. init owns its lines by their path pattern, so the repository's own attributes stay as they are, and a line someone changed (`-linguist-generated`, say) is left alone like any other changed piece. The line is for the forge, not an agent, so it is written even when no harness is chosen.
 
 **Git hooks** cannot be committed. `init` adds `"prepare": "<tool> hooks install --quiet"` to `package.json` in JavaScript repositories, so installing dependencies installs the hooks; in any repository, the session-start hook installs them if they are missing (below).
 

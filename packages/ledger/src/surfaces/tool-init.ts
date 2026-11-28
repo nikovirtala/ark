@@ -117,6 +117,12 @@ export interface ToolSetup {
   readonly shared: Readonly<Record<Harness, HarnessShared>>;
   /** The `scripts.prepare` value for `package.json`, or `null` to write none. */
   readonly prepare?: string | null;
+  /**
+   * This tool's `.gitattributes` lines (e.g. its events marked `linguist-generated`, so GitHub
+   * folds them in pull request diffs), owned line by line as the piece `gitattributes.<tool>`.
+   * Written whatever the harnesses, since it is for the forge, not an agent.
+   */
+  readonly gitattributes?: { readonly tool: string; readonly lines: readonly string[] };
   /** Opt out of a piece/harness: piece ids (e.g. `mcp`, `hooks`) or harness names, pre-expanded. */
   readonly skip?: ReadonlySet<string>;
   /** Overwrite a piece even when someone changed it, by piece id (`init --force <piece>`). */
@@ -150,11 +156,19 @@ export function setupPieces(setup: ToolSetup): SetupPiece[] {
       },
     });
   }
+  if (setup.gitattributes !== undefined && setup.gitattributes.lines.length > 0) {
+    pieces.push({
+      id: `gitattributes.${setup.gitattributes.tool}`,
+      file: ".gitattributes",
+      ownership: { kind: "lines", lines: setup.gitattributes.lines },
+    });
+  }
   return pieces;
 }
 
-/** The groups a piece id belongs to, for `--no-mcp` / `--no-hooks` opt-outs. */
+/** The groups a piece id belongs to, for `--no-mcp` / `--no-hooks` / `--no-gitattributes`. */
 function pieceGroups(id: string): readonly string[] {
+  if (id.startsWith("gitattributes.")) return ["gitattributes"];
   if (id.includes(".mcp.")) return ["mcp"];
   if (id.includes(".hook.") || id === "prepare") return ["hooks"];
   if (id.endsWith(".settings")) return ["hooks"];
@@ -369,10 +383,16 @@ export async function initToolLog(
       }
     }
     if (t.indexStep === "after-skill") await indexStep();
+    // With no harness, only the forge's pieces (.gitattributes) apply; the agent pieces need one.
+    const setupPieceList =
+      o.setup === undefined
+        ? []
+        : setupPieces(o.setup).filter(
+            (p) => o.setup?.harnesses.length !== 0 || p.id.startsWith("gitattributes."),
+          );
 
     const commit =
-      (files.length > 0 || agents !== null || (o.setup?.harnesses.length ?? 0) > 0) &&
-      commitRequested;
+      (files.length > 0 || agents !== null || setupPieceList.length > 0) && commitRequested;
     if (
       commit &&
       ((await log.git.identity()) === null || (await log.git.committerIdentity()) === null)
@@ -403,8 +423,8 @@ export async function initToolLog(
     // The agent setup: MCP config, harness hooks, permission rules and a prepare script, owned by
     // init and safe to rerun. Its written files are staged and committed with the rest.
     const setupStaged: string[] = [];
-    if (o.setup !== undefined && o.setup.harnesses.length > 0) {
-      const pieces = setupPieces(o.setup);
+    if (o.setup !== undefined && setupPieceList.length > 0) {
+      const pieces = setupPieceList;
       const skip = expandSkip(o.setup.skip, pieces);
       const r = await applySetup(log.git, pieces, {
         tool: t.tool,
