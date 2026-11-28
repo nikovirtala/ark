@@ -1,0 +1,17 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M8GMN9VKS7M3G5Z4S0ZR1WYJ
+subject: az32q93t
+type: opened
+at: 2026-11-28T08:34:30Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: niko.virtala@hey.com
+data:
+  title: fold the logs' event files in GitHub pull request diffs
+  template: feature
+  template_version: 1
