@@ -1,0 +1,20 @@
+envelope: ledger/v1
+kind: issue
+schema: issue/v1
+id: 01M8GMNGWX5HN2ZTM07GWTQVMV
+subject: az32q93t
+type: scoped
+at: 2026-11-28T08:34:37Z
+actor:
+  kind: agent
+  name: claude-code
+  email: null
+  agent: claude-code
+  on_behalf_of: niko.virtala@hey.com
+data:
+  set:
+    - .gitattributes
+    - packages/*/src/cli/init.ts
+    - packages/ledger/src/surfaces/ark-setup*.ts
+    - packages/ledger/src/surfaces/setup*.ts
+    - packages/ledger/src/surfaces/tool-init.ts
