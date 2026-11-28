@@ -1,6 +1,6 @@
 # Factory: Design Doc
 
-Nov 18, 2026 · drafted by Claude for @Niko Virtala · revised Nov 23, 2026 after a review against draft's model and the deployment package
+Nov 18, 2026 · drafted by Claude for @Niko Virtala · revised Nov 23, 2026 after a review against draft's model and the deployment package · revised Nov 28, 2026 after a review against Notion's and Kiro's factory guides ([record](reviews/2026-11-27-factory-v1.md))
 
 ## Context
 
@@ -395,7 +395,7 @@ The deployment package already has the four operations for AWS with CDK: deploy,
 
 ## Prior art
 
-The design leans on published practice from Anthropic and Amazon; Strands Labs is experimental and informs only optional ideas. Reviewed on 18 November 2026.
+The design leans on published practice from Anthropic and Amazon, and on the factory guides of Notion and Kiro; Strands Labs is experimental and informs only optional ideas. Reviewed on 18 November 2026; Notion and Kiro added on 28 November 2026.
 
 | Practice | Source | Where it lands here |
 | --- | --- | --- |
@@ -412,6 +412,11 @@ The design leans on published practice from Anthropic and Amazon; Strands Labs i
 | Two-phase deployment; days between phases; upgrade-downgrade testing with versions side by side | [Amazon: Ensuring rollback safety during deployments](https://builder.aws.com/content/3F04j2yRAAMBuPSPs50xwXZqg01/ensuring-rollback-safety-during-deployments) | Read first, write later; days between them; mixed-version check |
 | AI plans and builds; people make critical decisions; artifacts live in the repository | [AWS: AI-Driven Development Life Cycle](https://aws.amazon.com/blogs/devops/ai-driven-development-life-cycle) | Shaping and the frame lane; issues, ADRs and docs in ark |
 | Network access as a dial; open internet raises injection risk | [Kiro: Running Kiro in the cloud](https://kiro.dev/docs/guides/running-kiro-in-the-cloud/) | Fix sessions on "common dependencies" |
+| A factory is specific, shared and scrutinized; shadow runs before actions; start simple, watch it fail and fix the failures you see | [Notion: A New Shape for Work](https://www.notion.com/a-new-shape-for-work) | Shadow review first; defences by pilot step, the rest deferred until a failure calls for them |
+| Bad context is the first enemy and agents make its upkeep possible; prompts are versioned and tested against evals before rollout | [Notion: A New Shape for Work](https://www.notion.com/a-new-shape-for-work) | The drift pass; the reviewer eval set before a rubric or model change |
+| Human attention is the limit: settle choices an ordinary change can undo, escalate hard-to-undo ones, stop churning loops; each review comes with what changed, the alternatives and what was not run | [Kiro: Building a software factory around human attention](https://kiro.dev/blog/software-factory-human-attention/) | Paths to Niko; acceptance requests with options, whether they can be undone and a default; the health lane |
+| Autonomy earned per kind of change from evidence gathered in an edge build; a Learn step turns every correction into proposed skill changes | [Kiro: Building a software factory around human attention](https://kiro.dev/blog/software-factory-human-attention/) | The bet and its hedges: the ring on `next`, risk levels recorded, lanes opened one at a time; Learn in step 6 |
+| Access is the control and prompts only make a steered run less likely; each prompt lists where it stops for a person; risk levels recorded but not acted on; a janitor and a report page for factory health | [Kiro Factory Manual](https://github.com/kirodotdev-labs/sample-kiro-factory-manual) | Least privilege and frame paths before the reviewer; the Paths to Niko table; risk levels; the health lane |
 | Validate intent with executable post-conditions; small calibrated decision models | [Strands Labs](https://strandsagents.com/docs/labs/) | Checkable Done when; optional confidence-scored routing, kept out of the core |
 
 One finding needs no change: Kiro learns only from the feedback of the user who created the task ([Kiro: GitHub](https://kiro.dev/docs/web/github/)), so the reviewer App's comments cannot poison Kiro's memory.
@@ -423,6 +428,7 @@ One finding needs no change: Kiro learns only from the feedback of the user who 
 - **Agents report by writing ark issues directly.** No intake to run, but a longplay session cannot write to ark's log, and raw agent text would become issues, the S2 chain with no break in it.
 - **A per-pull request reviewer only, no drift check.** Simpler, but drift is global and is exactly what hand review caught.
 - **An LLM classifier for frame changes.** Rejected as the first line: a classifier can be talked into anything by the pull request it reads, and paths cannot. It stays as the second line.
+- **A person's review on `main` for every change, autonomy only in an edge build** (Kiro's choice). Safest, but it keeps Niko in the path of every routine fix, which is the limit the factory exists to remove. Rejected for routine lanes; its evidence-first idea stays as the ring, the risk history and the step 4 gate.
 - **Self-reporting only, no sweep.** Cheaper, but blind to S1 and gives no measure of how much is missed.
 
 ## Pilot and decisions
