@@ -278,7 +278,7 @@ A fix is published to `next`, proven there, and only then moved to `latest`, the
 
 **Two channels.** `release.yml` keeps publishing with Changesets and trusted publishing on merge to `main`, but with `--tag next`. npm's `latest` tag becomes the stable channel: it moves only on promotion. Using `latest` rather than a new `stable` tag means a plain `npm install` also gets the gated release.
 
-**Consumers pin the channel.** MCP configs written by `init --setup` run `npx -y --prefer-online @nikovirtala/<tool>@latest mcp` instead of an exact version. `--prefer-online` makes npx check the registry rather than trust its cache, which otherwise can keep serving an old version long after `latest` moved. Kiro cloud sessions start in fresh sandboxes, so each resolves the current `latest` at start, and a promoted fix reaches the next session with no pull request in the consuming repository. At start each server also compares its own version with `latest` and, when behind (a stale cache, or a Node older than the `engines` field, which makes npm quietly pick an older release), says so in its tool responses. This changes R4 of [03-setup](03-setup-v1.md) ("MCP configs MUST pin an exact version") and its security note, so it is proposed as its own decision, va08e4c3; the reviewer, the required checks and the promotion gate take over the job the exact pin did.
+**Consumers pin the channel.** MCP configs written by `init --setup` run `npx -y --prefer-online @nikovirtala/<tool>@latest mcp` instead of an exact version. `--prefer-online` makes npx check the registry rather than trust its cache, which otherwise can keep serving an old version long after `latest` moved. Kiro cloud sessions start in fresh sandboxes, so each resolves the current `latest` at start, and a promoted fix reaches the next session with no pull request in the consuming repository. At start each server also compares its own version with `latest` and, when behind (a stale cache, or a Node older than the `engines` field, which makes npm quietly pick an older release), says so in its tool responses. This changes R4 of [03-setup](03-setup-v1.md) ("MCP configs MUST pin an exact version") and its security note, so it is its own decision, va08e4c3 (accepted); the reviewer, the required checks and the promotion gate take over the job the exact pin did.
 
 **ark itself keeps its exact pins.** ark's own agents keep running the previous release, bumped by the `self-update` pull request (ADR "Run ark's own agent tooling from the previous release"). The factory therefore always runs on a release that has already been in use, and a bad `next` cannot take down the machine that would fix it.
 
@@ -328,7 +328,7 @@ Every version reads every older event, and a new format is read one release befo
 
 **What ledger already gives.** Unknown envelope fields and unknown `data` fields are preserved and ignored, and a reader that meets an unknown envelope version stops with a finding ([00-ark](00-ark-v1.md)). Adding a field is therefore already safe both ways.
 
-**Read first, write later.** Everything beyond an added field (a new event type, a new `schema` version, a changed meaning) ships in two releases (proposed as 0j5y197e):
+**Read first, write later.** Everything beyond an added field (a new event type, a new `schema` version, a changed meaning) ships in two releases (0j5y197e, accepted):
 
 1. Release N+1 learns to read the new form and still writes the old one.
 2. Release N+2, at least one promotion later, starts writing it.
@@ -495,10 +495,8 @@ Deferred, each with the failure that brings it in: canary strings (agent text tu
 | Prompt strings (added 28 November 2026) | Server instructions, tool and argument descriptions and the known-issue template in one prompts file per package, a frame path, with a check against strings outside it | Shadow review shows prompts-file changes are as safe as routine ones, or an injection arrives through a result text or error message |
 | Workflow use | Workflows for code-changing work; single sessions for test-only and docs-only items | A workflow costs more than twice a single session per fixed issue |
 
-**Open decisions before the split into issues.** Three ADRs this doc relies on are still proposed:
+**Open decisions before the split into issues.** One ADR this doc relies on is still proposed:
 
-- va08e4c3, release through `next` and run other repositories' tools from `latest`;
-- 0j5y197e, ship event format changes read first, write later;
 - wf97wpac, run one ring repository's ark tools from `next`.
 
 **Still to verify in the pilot**
