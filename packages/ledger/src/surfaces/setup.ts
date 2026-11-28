@@ -16,15 +16,16 @@ export const SETUP_LOCK = "ark-setup.lock";
  * lock keys on and what `--force <id>` names), the repo-relative {@link file} it lives in, and a
  * way to {@link render} the owned content from the file's current bytes (`null` when the file does
  * not exist). A `whole` piece owns the entire file; a `merge` piece owns named entries inside a
- * JSON object and leaves the rest alone, so two tools can share one file (e.g. `.mcp.json`).
+ * JSON object and leaves the rest alone, so two tools can share one file (e.g. `.mcp.json`); a
+ * `lines` piece owns named lines in a line-based file (e.g. `.gitattributes`) the same way.
  */
 export interface SetupPiece {
   /** The piece's stable name: the lock key and what `--force <id>` names. */
   readonly id: string;
   /** The repo-relative file the piece lives in. */
   readonly file: string;
-  /** Ownership: the whole file, or named entries merged into a JSON object. */
-  readonly ownership: WholeOwnership | MergeOwnership;
+  /** Ownership: the whole file, named entries merged into a JSON object, or named lines. */
+  readonly ownership: WholeOwnership | MergeOwnership | LinesOwnership;
 }
 
 /** The piece owns the entire file; its content is {@link WholeOwnership.text}. */
@@ -53,6 +54,17 @@ export interface MergeOwnership {
    * `scripts.prepare` entry lands at the front of `scripts` as the committed fixture has it.
    */
   readonly front?: readonly string[];
+}
+
+/**
+ * The piece owns `lines` in a line-based file such as `.gitattributes`, each named by its key: its
+ * first whitespace-separated token (the path pattern), or the whole line for a `#` comment. A line
+ * with an owned key is replaced where it stands; a missing one is appended. Every other line is
+ * left alone, so two tools, and the repository's own attributes, can share one file.
+ */
+export interface LinesOwnership {
+  readonly kind: "lines";
+  readonly lines: readonly string[];
 }
 
 /** The lock's record for one piece: the hash of what init last wrote for it. */
@@ -182,6 +194,80 @@ function mergedBytes(
   return { full: stringifyJson(obj), ownedHash: bodySha256(encoder.encode(stringifyJson(owned))) };
 }
 
+/** A line's key in a {@link LinesOwnership} file: its pattern, or the whole line for a comment. */
+function lineKey(line: string): string {
+  const t = line.trim();
+  return t.startsWith("#") ? t : (t.split(/\s+/)[0] ?? "");
+}
+
+/** `text`'s lines without the final newline's empty tail. */
+function splitLines(text: string): string[] {
+  if (text === "") return [];
+  const lines = text.split("\n");
+  if (lines[lines.length - 1] === "") lines.pop();
+  return lines;
+}
+
+/** The hash of a `lines` piece's owned view: its owned lines, in the piece's order. */
+function linesHash(lines: readonly string[]): string {
+  return bodySha256(encoder.encode(lines.map((l) => `${l}\n`).join("")));
+}
+
+/** The owned lines present in `current`, in the piece's order, or `null` when none is present. */
+function ownedLinesOf(
+  piece: SetupPiece & { readonly ownership: LinesOwnership },
+  current: Uint8Array | null,
+): string[] | null {
+  if (current === null) return null;
+  const have = splitLines(decoder.decode(current));
+  const owned = piece.ownership.lines.flatMap((line) => {
+    const found = have.find((h) => h.trim() !== "" && lineKey(h) === lineKey(line));
+    return found === undefined ? [] : [found];
+  });
+  return owned.length === 0 ? null : owned;
+}
+
+/**
+ * The bytes a `lines` piece would write given the file's `current` bytes: each owned line replaces
+ * the line with its key where it stands, and the missing ones are appended in order.
+ */
+function linesBytes(
+  piece: SetupPiece & { readonly ownership: LinesOwnership },
+  current: Uint8Array | null,
+): { readonly full: string; readonly ownedHash: string } {
+  const out = splitLines(current === null ? "" : decoder.decode(current));
+  for (const line of piece.ownership.lines) {
+    const at = out.findIndex((h) => h.trim() !== "" && lineKey(h) === lineKey(line));
+    if (at === -1) out.push(line);
+    else out[at] = line;
+  }
+  return {
+    full: out.map((l) => `${l}\n`).join(""),
+    ownedHash: linesHash(piece.ownership.lines),
+  };
+}
+
+/**
+ * What a partly-owned piece (`merge` or `lines`) would write, and the hash of what it owns now
+ * (`null` when none of it is present): the one view {@link applySetup} and {@link pieceStates}
+ * compare against the lock.
+ */
+function partial(
+  piece: SetupPiece,
+  current: Uint8Array | null,
+): { readonly full: string; readonly ownedHash: string; readonly currentOwned: string | null } {
+  if (piece.ownership.kind === "lines") {
+    const lines = piece as SetupPiece & { ownership: LinesOwnership };
+    const owned = ownedLinesOf(lines, current);
+    return {
+      ...linesBytes(lines, current),
+      currentOwned: owned === null ? null : linesHash(owned),
+    };
+  }
+  const merge = piece as SetupPiece & { ownership: MergeOwnership };
+  return { ...mergedBytes(merge, current), currentOwned: ownedHashOf(merge, current) };
+}
+
 /** The hash of what a `merge` piece currently owns in `current`, or `null` when none is present. */
 function ownedHashOf(
   piece: SetupPiece & { readonly ownership: MergeOwnership },
@@ -290,11 +376,8 @@ export async function applySetup(
         outcomes.push({ id: piece.id, file: piece.file, status: "changed" });
       }
     } else {
-      const merged = mergedBytes(piece as SetupPiece & { ownership: MergeOwnership }, currentBytes);
-      const currentOwned = ownedHashOf(
-        piece as SetupPiece & { ownership: MergeOwnership },
-        currentBytes,
-      );
+      const merged = partial(piece, currentBytes);
+      const currentOwned = merged.currentOwned;
       if (currentOwned === null) {
         planned.set(piece.file, merged.full);
         nextLock[piece.id] = { hash: merged.ownedHash };
@@ -450,6 +533,22 @@ export async function pieceStates(
         targetVersion: null,
         needsExecutable: piece.ownership.executable === true,
         executable: await isExecutable(git, piece.file),
+      });
+    } else if (piece.ownership.kind === "lines") {
+      const { ownedHash, currentOwned } = partial(piece, current);
+      states.push({
+        id: piece.id,
+        file: piece.file,
+        present: currentOwned !== null,
+        matchesTarget: currentOwned === ownedHash,
+        changed:
+          currentOwned !== null &&
+          currentOwned !== ownedHash &&
+          currentOwned !== lastHash(piece.id),
+        version: null,
+        targetVersion: null,
+        needsExecutable: false,
+        executable: false,
       });
     } else {
       const merge = piece as SetupPiece & { ownership: MergeOwnership };

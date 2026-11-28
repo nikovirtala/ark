@@ -238,3 +238,70 @@ describe("applySetup: executable pieces (?77)", () => {
     expect(staged).toMatch(/^100755 /);
   });
 });
+
+describe("applySetup: lines pieces", () => {
+  const attrs = (id: string, ...lines: string[]): SetupPiece => ({
+    id,
+    file: ".gitattributes",
+    ownership: { kind: "lines", lines },
+  });
+  const adr = attrs("gitattributes.adr", "docs/adr/events/** linguist-generated=true");
+  const issues = attrs("gitattributes.issues", "docs/issues/events/** linguist-generated=true");
+
+  it("creates the file with its lines, and two pieces sharing it compose", async () => {
+    const r = await repo();
+    const doc = await applySetup(r.git, [adr, issues], { tool: "widget" });
+    expect(doc.outcomes.map((o) => o.status)).toEqual(["wrote", "wrote"]);
+    expect(await read(r, ".gitattributes")).toBe(
+      "docs/adr/events/** linguist-generated=true\ndocs/issues/events/** linguist-generated=true\n",
+    );
+    const again = await applySetup(r.git, [adr, issues], { tool: "widget" });
+    expect(again.outcomes.map((o) => o.status)).toEqual(["kept", "kept"]);
+    expect(again.written).toEqual([]);
+  });
+
+  it("appends to a file it doesn't own and leaves every other line alone", async () => {
+    const r = await repo({ ".gitattributes": "*.png binary\n# vendored\nvendor/** -diff" });
+    await applySetup(r.git, [adr], { tool: "widget" });
+    expect(await read(r, ".gitattributes")).toBe(
+      "*.png binary\n# vendored\nvendor/** -diff\ndocs/adr/events/** linguist-generated=true\n",
+    );
+  });
+
+  it("updates its line where it stands when it still matches what init wrote", async () => {
+    const r = await repo();
+    await applySetup(r.git, [adr], { tool: "widget" });
+    await r.write(".gitattributes", `${await read(r, ".gitattributes")}*.png binary\n`);
+    const next = attrs("gitattributes.adr", "docs/adr/events/** linguist-generated=true -diff");
+    const doc = await applySetup(r.git, [next], { tool: "widget" });
+    expect(doc.outcomes[0]?.status).toBe("wrote");
+    expect(await read(r, ".gitattributes")).toBe(
+      "docs/adr/events/** linguist-generated=true -diff\n*.png binary\n",
+    );
+  });
+
+  it("leaves a line someone changed alone with the --force note, and --force replaces it", async () => {
+    const r = await repo({ ".gitattributes": "docs/adr/events/** -linguist-generated\n" });
+    await applySetup(r.git, [], { tool: "widget" });
+    const doc = await applySetup(r.git, [adr], { tool: "widget" });
+    expect(doc.outcomes[0]?.status).toBe("changed");
+    expect(doc.notes).toEqual([
+      ".gitattributes was changed since init wrote it, so it is left as it is; run widget init --force gitattributes.adr to overwrite it",
+    ]);
+    expect(await read(r, ".gitattributes")).toBe("docs/adr/events/** -linguist-generated\n");
+    const [state] = await pieceStates(r.git, [adr]);
+    expect(state).toMatchObject({ present: true, matchesTarget: false, changed: true });
+
+    await applySetup(r.git, [adr], { tool: "widget", force: new Set(["gitattributes.adr"]) });
+    expect(await read(r, ".gitattributes")).toBe("docs/adr/events/** linguist-generated=true\n");
+  });
+
+  it("reports a missing line in pieceStates", async () => {
+    const r = await repo({ ".gitattributes": "*.png binary\n" });
+    const [state] = await pieceStates(r.git, [adr]);
+    expect(state).toMatchObject({ present: false, matchesTarget: false, changed: false });
+    await applySetup(r.git, [adr], { tool: "widget" });
+    const [after] = await pieceStates(r.git, [adr]);
+    expect(after).toMatchObject({ present: true, matchesTarget: true, changed: false });
+  });
+});
