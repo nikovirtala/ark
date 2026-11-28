@@ -30,6 +30,8 @@ All three are state held in prose or in someone's head. ark exists to make that 
 
 **Why now.** Throughput is the current priority, and the limit was never the Kiro sessions. It was whatever passed one at a time through Niko or a chat session.
 
+**The bet.** The factory merges routine changes and promotes them to every agent with no person in the path. Kiro's factory deliberately keeps a person's review on `main` for everything and gives autonomy room to fail only in an internal edge build, and Notion's guide rules out factories with no human oversight. ark takes the bet because its customers are agents in Niko's own projects and his attention is the limit, and it hedges it three ways: a ring of real use on `next` before `latest` (see Release channels and promotion), a risk level recorded on every change before any rule acts on it (see Triage), and routine lanes that open one at a time against a minimum count of reviewed pull requests (see Pilot and decisions).
+
 ## Goals and non-goals
 
 **Goals**
@@ -85,12 +87,13 @@ Every link of the line is a kind in ark's ledger: states, an actor who can close
 | Person's check | requested → passed or failed | Niko | 7 days: reminds him; the issue stays open |
 | Design | proposed → accepted, or changes asked | Niko | 7 days: reminds him; work that depends on it waits |
 | Breaker | open → reset | Niko only | Daily: reminds Niko. It never resets itself, so it fails closed |
+| Learn (from step 6) | proposed → applied or declined | Niko | 7 days: reminds him; the factory runs on the old rules |
 
 **The frame label is a projection.** The frame label this doc puts on issues and pull requests is written from a ledger fact (a Report or Review that reached frame, a frame path touched), so people see it where they work. No reader decides from the label; each reads the fact.
 
 **One source per question about a release.** Which version is on `latest` is a fact two places record: npm's dist-tag, which every consumer resolves, and the Release kind, which keeps its history. For what is live, the dist-tag is the source: the promote job and the breaker read it, and never the ledger. For what happened, the Release kind is: measures and draft's map read it. A reconciliation check compares the two after every promotion and rollback and once a day, and a mismatch blocks promotion until it is explained. This is the 22 November drill below, closed by rule rather than by care.
 
-Two rules follow. A measure is a fold over these kinds, not a counter kept beside them: hits per papercut, time to `latest`, reviewer agreement and frame-lane volume are queries, walks over draft's graph of the line (see One graph of the line). And a reader folds a kind's history instead of trusting the newest status written somewhere else. On 22 November 2026 a drill on kiro-remote's pipeline left its GitHub deployment at `failure` after the rollback and a later successful deploy, while the run ledger knew it was over.
+Two rules follow. A measure is a fold over these kinds, not a counter kept beside them: hits per papercut, time to `latest`, reviewer agreement and decision-lane volume are queries, walks over draft's graph of the line (see One graph of the line). And a reader folds a kind's history instead of trusting the newest status written somewhere else. On 22 November 2026 a drill on kiro-remote's pipeline left its GitHub deployment at `failure` after the rollback and a later successful deploy, while the run ledger knew it was over.
 
 A step only a person can do (a check on Niko's Mac, a second Apple account, a secret only he has) is a kind too, with its steps written out in full, each with what he should see. An issue whose last Done when is such a check closes when the check passes.
 
@@ -98,7 +101,7 @@ A design is accepted from visual examples before code is written. Its tokens and
 
 The numbers in the timeouts are starting values, kept in `factory.toml` with the rest.
 
-**Two lanes to a person.** A timeout that only says the factory is unwell (a reviewer with no verdict, a bake that can't finish, an abandoned dispatch, an open end, a release-state mismatch) is not a decision. It goes to a health lane: one view in draft of what is stuck and why, like the Kiro Factory Manual's janitor and report page, fixed as factory work. The decision lane carries only what needs a person's judgment. Frame-lane volume counts the decision lane alone, so plumbing can't make it look busy.
+**Two lanes to a person.** A timeout that only says the factory is unwell (a reviewer with no verdict, a bake that can't finish, an abandoned dispatch, an open end, a release-state mismatch) is not a decision. It goes to a health lane: one view in draft of what is stuck and why, like the Kiro Factory Manual's janitor and report page, fixed as factory work. The decision lane carries only what needs a person's judgment. Decision-lane volume counts that lane alone, so plumbing can't make it look busy.
 
 ## One graph of the line
 
@@ -112,17 +115,7 @@ The numbers in the timeouts are starting values, kept in `factory.toml` with the
 
 **Walks keep the trust boundary.** A walk from an issue back along causes reaches the report that started it, and that report's text is untrusted (see Triage and the trust boundary). Today only people and measures walk the graph. Any agent step that follows causes (Learn in step 6, a wider drift pass) carries addresses and reads through them under the same rule as triage: only a reproduction, or text a person accepted, reaches its prompt.
 
-**Measures are walks.** Each measure in Pilot and decisions is a query over draft's graph, not a counter kept beside it. A few, with the walk that answers them:
-
-| Measure | The walk |
-| --- | --- |
-| Hits per papercut | Reports with a `matched` edge to one issue, counted per issue |
-| First hit to fix on `latest` | From an issue's first report forward along causes to the release that put its fix on `latest`: the time between, and the longest step on the path, which is where it waited |
-| Wakes done by hand | Session turns whose cause is a person's command rather than a kiro-remote wake |
-| Items left for a person per pull request | Person's checks caused by a merged pull request |
-| Open ends | Effects that led nowhere within their kind's timeout: a lost prompt, an abandoned dispatch, a check never answered |
-| Escalations settled with the default | Acceptance requests whose settlement equals the default they carried, per path |
-| Decisions resting on a contradiction | From a fact that contradicts an assumption, back along `rests-on` to the decisions that cite it |
+**Measures are walks.** Each measure in Pilot and decisions is a query over draft's graph, not a counter kept beside it; the Measures table there gives each one with the walk that answers it, so the measures are described once.
 
 ## Detection and intake
 
@@ -142,7 +135,7 @@ Papercuts reach ark through two channels into one inbox: agents report them as t
 
 **The intake harvests reports; the sandbox holds no credential.** The `report` tool makes no network call: it validates the report against its schema and returns. kiro-remote already follows each session's events and transcript, so the intake reads `report` calls from there, and the session that made a call is known without the sandbox proving anything. An agent working in longplay cannot write to ark's git-backed issue log, so this is what makes reporting cross-repo. The intake lives in kiro-remote, keeps a per-session limit, and kiro-remote's auth facade still mints no tokens.
 
-**Local sessions.** A session outside kiro-remote (Claude Code on Niko's Mac) leaves no transcript to harvest. There the `report` tool appends the report to a local queue file, and a session-end hook posts the queue to a new kiro-remote endpoint under Niko's own OAuth, from his machine and never from a sandbox.
+**Local sessions** (deferred, see Pilot and decisions). A session outside kiro-remote (Claude Code on Niko's Mac) leaves no transcript to harvest. There the `report` tool appends the report to a local queue file, and a session-end hook posts the queue to a new kiro-remote endpoint under Niko's own OAuth, from his machine and never from a sandbox.
 
 **The sweep.** After a session ends, a sweep reads its transcript through kiro-remote and files reports for what the agent did not report: ark tool errors, retried calls, and work done around a tool (editing ledger files by hand, say). The sweep has one permission, writing to the intake. Its findings also measure how much self-reporting misses.
 
@@ -163,14 +156,14 @@ Only a reproduction crosses from a report into ark's work. Reports come from age
 1. **Reproduce.** Call the tool with the report's `version` and `arguments` in a clean sandbox and confirm the output differs from `expected`. No reproduction means no automatic fix: the report is parked for Niko. Friction reports skip this step and go to the eval set instead.
 2. **Match.** Compare the reproduction with open issues. A match adds a hit to that issue; when unsure, open a new issue, because merging two is cheap and a hidden bug keeps spreading.
 3. **Write the issue** from the bug template: Steps to reproduce, Expected, Actual, Done when ("the reproduction passes on `latest`"). The reproduction itself is data, not prose: the call, the version and the expected output, attached to the issue. The text is triage's own; the reporter's `note` is summarised, never pasted.
-4. **Classify** the issue as routine or frame (see Fix and review). Frame issues get a label and wait for Niko.
+4. **Classify** the issue as routine or frame (see Fix and review). Frame issues get a label and wait for Niko. Triage also records a risk level, one of five from very low to very high, and review re-judges it on the change as built; a person's change to it is final. No rule acts on the level in v1, as in the Kiro Factory Manual: it builds the history that graduated autonomy per kind of change would need, a walk from each revert or breaker trip back to the level and kind of the change that caused it.
 5. **Warn** running sessions that use the tool, through kiro-remote's prompt to a running session: the same templated line as in the tool responses, never free text.
 
 The same step filters honest mistakes: an agent that blames the tool for its own error produces no reproduction.
 
 **Trust attaches at acceptance.** Every ledger event records its `actor`, a person or an agent, and on whose behalf an agent wrote (`ARK_AGENT` and `ARK_ON_BEHALF_OF`). Text an agent wrote is untrusted until a person accepts it: an issue opened or rewritten by triage, shaping, the reviewer, a Kiro session or Claude in chat on Niko's behalf reaches a fix prompt only through its reproduction or a Done when that triage checked, and its prose only as a summary. Once Niko accepts the pull request that adds it, as himself and signed, through draft's acceptance or GitHub's review, it is trusted: a person read it and stood behind it. A rule keyed on the author alone would empty the backlog, since on 22 November 2026 almost every new issue in ark and draft was written by an agent on Niko's behalf. The signature has to outlive the merge: Rebase and merge rewrites commits without their signatures, so the signed originals are recorded at acceptance (draft issue r7s5es9e). Without this rule, an injection that reaches triage would be laundered into the trusted backlog, the multi-agent trust escalation Anthropic warns about. teyqf2j9 (accepted) says this, replacing 50gsp714.
 
-**Canary strings.** Triage plants a unique marker in each issue it writes. A required check and the sweep flag any commit, pull request or report where a marker turns up outside its own issue: text is travelling between agents where it should not.
+**Canary strings** (deferred, see Pilot and decisions). Triage plants a unique marker in each issue it writes. A required check and the sweep flag any commit, pull request or report where a marker turns up outside its own issue: text is travelling between agents where it should not.
 
 **Least privilege.** The sweep writes to the intake only. Triage writes issues and sends warnings, and cannot touch code. The fix session gets a prompt built from the reproduction and the issue, never from a report, and runs with no credentials beyond its own pull request.
 
@@ -202,16 +195,6 @@ Papercuts and the backlog feed the same line: from dispatch onwards nothing depe
 A limit on concurrent sessions caps the line; the backlog fills whatever papercuts leave free. The dispatcher groups issues that touch the same files into one session, and runs sessions in parallel when each owns its files: the prompt names the other sessions and what they own, a session rebases when `main` moves, and kiro-remote wakes it on a conflict. Work that needs another pull request first waits for it: kiro-remote wakes a session when a pull request it waits for merges, a wait registered at launch or by a `Kiro-Remote-Waits-For` line in the session's own pull request. On 23 November 2026 three draft sessions ran this way, on the window's layout, its colours and the map, and met only in one stylesheet.
 
 **Done.** An issue that ships code closes when its fix is on `latest`. Test-only and internal changes publish nothing (Changesets releases only changed packages), so they close at merge.
-
-**The backlog on 18 November 2026, sorted by title.** A finding from that day, kept as history: the issues have moved since, so the dispatcher sorts the live `issues ready` output, never this table.
-
-| Lane | Issues | About |
-| --- | --- | --- |
-| Routine now: tests, refactors, small fixes | ?1, ?45, ?48–?57, ?66, ?67, ?68, ?71, ?72 | 17 |
-| Routine once linked to an accepted ADR or design | ?60, ?62, ?63, ?64 | 4 |
-| Features: shaping, then Niko | ?69, ?70, ?73, ?74, ?75 | 5 |
-| A decision to record: frame | ?83 | 1 |
-| Needs a person in a real session | ?82 | 1 |
 
 ## Fix and review
 
@@ -246,7 +229,7 @@ Invariant checks:
 - no new dependency, install script, or network or filesystem access (a lint rule on imports and calls);
 - no change to the `report` tool, the intake, triage, the reviewer or the checks themselves;
 - no `instructions` or `description` string outside a package's prompts file;
-- no canary string outside its own issue;
+- no canary string outside its own issue, once canary strings are switched on.
 
 Author checks:
 
@@ -303,9 +286,9 @@ A fix is published to `next`, proven there, and only then moved to `latest`, the
 
 1. **Replay.** Every reproduction from issues this release closes now passes; every reproduction ever recorded still passes. The reproductions are a regression corpus that should sit at 100%.
 2. **Contract suite.** A scripted canary drives each tool's MCP server the way agents do (init, list, write, verify, `issues ready`) against a temporary repository, three times, and must pass every time: a flaky pass is a fail.
-3. **Friction evals.** For a friction fix, each eval task built from the transcripts behind the issue runs five times against `next` and five against the old version. Fixed means tool errors and retries per task fall by at least half, and task success does not fall.
+3. **Friction evals**, once switched on (see Pilot and decisions). For a friction fix, each eval task built from the transcripts behind the issue runs five times against `next` and five against the old version. Fixed means tool errors and retries per task fall by at least half, and task success does not fall.
 4. **Compatibility.** Old and new versions write to one scratch log side by side, then the new version alone, then the old alone again; every stage must fold and `verify` clean (see Event format compatibility).
-5. **Bake.** Only the canary uses `next`, so the bake comes in two parts. Before promotion: three clean canary runs. After promotion: a watch window over the first 20 real calls of the changed tools or 24 hours, whichever ends later, during which any new reproducible report against the new version moves `latest` back by itself.
+5. **Bake.** Two users run `next`: the canary, and one ring of real use, kiro-remote's repository, whose MCP configs run ark's tools from `next` instead of `latest` (the ring is set in `factory.toml`). The intake already harvests its Kiro cloud sessions, so real work uses a release before every agent does. The bake comes in two parts. Before promotion: three clean canary runs, and no reproducible report from the ring against the new version. After promotion: a watch window over the first 20 real calls of the changed tools or 24 hours, whichever ends later, during which any new reproducible report against the new version moves `latest` back by itself.
 
 All green moves `latest` to the new versions, per package. A separate `promote.yml` does it, with its own npm trusted publisher configuration that may manage dist-tags (an opt-in OIDC permission since 30 September 2026) and may not publish, while `release.yml` keeps publish: the job that moves tags cannot publish, and the job that publishes cannot promote. Promotion is blocked while any breaker is open. A `ledger` release changes every tool at once, so it bakes longer and promotes only when Niko is reachable.
 
@@ -320,7 +303,7 @@ The pipe that spreads a fix in hours spreads a bad release just as fast, so one 
 - a failed replay, contract or compatibility check on `next` (the release never reaches `latest`);
 - any new reproducible report against a version promoted within its bake window;
 - the sweep finding the same tool failing in two sessions on the new version;
-- the reviewer approving three pull requests that Niko later reverts (the reviewer itself has drifted).
+- from step 4, once the App's approval merges: the reviewer approving three pull requests that Niko later reverts (the reviewer itself has drifted).
 
 **What it does.**
 
@@ -370,12 +353,12 @@ S2 and S6 carry the most risk. They are two ends of one seam: S2 is how harm get
 | S4 Frame classifier | review | A dramatic change is routed as routine | `CODEOWNERS` and required checks first; three review passes second; unsure goes to Niko | A dramatic change in a path nobody listed |
 | S5 Release identity | merge → publish | An agent publishes or moves tags | Publish only from `release.yml` with OIDC; agents have no npm credentials | A misconfigured trusted publisher; promote.yml can only move tags |
 | **S6 Promotion gate** | `next` → `latest` | A bad fix reaches every agent at once | Replay, three contract runs, friction evals, mixed-version check, bake in use; blocked while a breaker is open; breaker | Harm none of the checks look for |
-| S7 Running sessions | `latest` → sessions | Sessions keep the old version until restart | Known-issue lines in tool responses; warnings through kiro-remote | Local sessions until their session-end hook runs |
+| S7 Running sessions | `latest` → sessions | Sessions keep the old version until restart | Known-issue lines in tool responses; warnings through kiro-remote | Local sessions until they restart, while the session-end hook is deferred |
 
 **Other risks**
 
 - **The reviewer drifts with the author.** Authors learn to satisfy the reviewer rather than the issue. Defences: a different model, passes anchored on the reproduction or the Done when, protected tests, and Niko's reverts counting against the reviewer (a breaker signal).
-- **Niko's lane rots into rubber-stamping.** People approve most prompts they are shown, and fatigue grows with each one. Frame-lane volume per week is a factory measure: when it grows, the frame rules or the checks are too coarse, and the fix is in them, not in more of Niko's attention.
+- **Niko's lane rots into rubber-stamping.** People approve most prompts they are shown, and fatigue grows with each one. Decision-lane volume per week is a factory measure: when it grows, the frame rules or the checks are too coarse, and the fix is in them, not in more of Niko's attention.
 - **The factory feeds itself.** Review follow-ups already make up much of the backlog (?48, ?50–?53). An automatic reviewer can file nits faster than they are fixed, so reviewer-filed issues are capped: a set number open at once, batched per package.
 - **The factory changes itself.** Its own code, rubric, checks and protection are frame paths, and it runs on ark's previous release.
 
@@ -448,26 +431,42 @@ The factory is switched on one link at a time, observing before automating, so e
 
 1. **Observe.** Report tool, intake and sweep, with no automation. Measure hits per papercut and how much the sweep finds that self-reports miss.
 2. **Triage.** Reproduction, matching, issues from the bug template, and known-issue warnings. Niko still dispatches and merges.
-3. **Shadow review**, from the start, beside step 1. The reviewer App and `CODEOWNERS` on frame paths. The App reviews every pull request; Niko still merges, and draft compares the App's verdict with his settlement of the same pull request. Until the App exists, Claude in chat reviews each Kiro pull request, and its findings are recorded as review facts, so the comparison has a baseline from the first day.
-4. **Routine flow.** Dispatcher, queue and auto-merge for routine papercuts and the routine backlog lanes, once shadow review rarely disagrees with Niko.
-5. **Channels.** `next` and `latest`, promotion and the breaker, then the ADR that changes R4 and consumers switching to `@latest`.
+3. **Shadow review**, from the start, beside step 1. The reviewer App and `CODEOWNERS` on frame paths. The App reviews every pull request; Niko still merges, and draft compares the App's verdict with his settlement of the same pull request. Until the App exists, Claude in chat reviews each Kiro pull request, and its findings are recorded as review facts, so the comparison has a baseline from the first day. Each reviewed pull request with its settlement also becomes a case in a reviewer eval set: a change to the rubric, a pass's prompt or its model is run against the set before it is used, the way replay tests the product.
+4. **Routine flow.** Dispatcher, queue and auto-merge, opened one lane at a time (routine papercuts, then the routine backlog lanes), each once shadow review meets the step 4 gate in Decisions.
+5. **Channels.** `next`, the ring and `latest`, promotion and the breaker, then the ADR that changes R4 and consumers switching to `@latest`.
+6. **Learn.** A Learn kind whose input is a walk from a correction (a revert, an edit in the frame lane, a disagreement with the reviewer) back along causes to the review, recipe and standing that let it through, and whose output is a frame-labelled pull request to the rubric, a recipe or a prompts file that a person reads before it applies. It reads through causes under the trust boundary (see One graph of the line), and the reviewer eval set tests what it proposes. Kiro's Learn step and Notion's Improve step are the same loop.
 
-**Measures**, tracked from step 1, each a fold over the factory's kinds and draft's acceptance facts:
+**Defences by step.** A defence switches on with the step that first needs it; one tied to no observed failure waits until a failure calls for it, because nobody predicts well how a factory fails.
 
-| Measure | Why |
+| Step | Switches on |
 | --- | --- |
-| Hits per papercut | the outbreak number; the aim is one |
-| First hit to fix on `latest` | containment time against the length of one agent task |
-| Sweep findings not self-reported | how much self-reporting misses |
-| Tool error and retry rate per tool | friction, and whether friction fixes work |
-| Reviewer agreement with Niko | whether shadow review can become routine flow |
-| Frame-lane volume per week | whether Niko's lane stays small enough to stay sharp |
-| Breaker trips and rollbacks | whether the gate catches what it should |
-| Wakes done by hand | sessions a person prompted because nothing woke them; the aim is none |
-| Items left for a person per pull request | work handed to a person that a test could have done |
-| Review findings per pull request, by pass | what review catches, and whether checks can take it over |
-| Open ends | effects that led nowhere: lost prompts, abandoned dispatches, checks never answered |
-| Unknown causes | how much of the line can't yet explain itself; the aim is a falling share |
+| 1 Observe | `report`, the intake, the sweep, prompts files as frame paths |
+| 2 Triage | Reproduction as the only crossing, templated known-issue lines and warnings, risk levels recorded, triage's least privilege |
+| 3 Shadow review | The reviewer App and its passes, `CODEOWNERS`, required checks, the reviewer eval set |
+| 4 Routine flow | Auto-merge per lane, the reviewer-drift breaker trigger |
+| 5 Channels | `next`, the ring, the promotion gate without friction evals, the breaker, rollback, the release-state reconciliation |
+| 6 Learn | The Learn kind |
+
+Deferred, each with the failure that brings it in: canary strings (agent text turns up where it should not), friction evals (a friction issue is opened), the local-session hook (a papercut from a local session goes unreported).
+
+**Measures**, tracked from step 1, each a walk over draft's graph of the line (see One graph of the line) and draft's acceptance facts, never a counter kept beside them:
+
+| Measure | Why | The walk |
+| --- | --- | --- |
+| Hits per papercut | the outbreak number; the aim is one | Reports with a `matched` edge to one issue, counted per issue |
+| First hit to fix on `latest` | containment time against the length of one agent task | From an issue's first report forward along causes to the release that put its fix on `latest`: the time between, and the longest step on the path, which is where it waited |
+| Sweep findings not self-reported | how much self-reporting misses | Reports the sweep filed with no self-report from the same session matched to the same issue |
+| Tool error and retry rate per tool | friction, and whether friction fixes work | The sweep's counts per tool and version |
+| Reviewer agreement with Niko | whether shadow review can open a lane (see the step 4 gate) | Each Review verdict against his settlement of the same pull request, per lane, with unsafe disagreements apart |
+| Decision-lane volume per week | whether Niko's lane stays small enough to stay sharp | Acceptance requests per path in Paths to Niko; the health lane is counted apart |
+| Escalations settled with the default | which paths to Niko could stop escalating | Acceptance requests whose settlement equals the default they carried, per path |
+| Breaker trips and rollbacks | whether the gate catches what it should | Breaker events, each walked back to the change that tripped it |
+| Wakes done by hand | sessions a person prompted because nothing woke them; the aim is none | Session turns whose cause is a person's command rather than a kiro-remote wake |
+| Items left for a person per pull request | work handed to a person that a test could have done | Person's checks caused by a merged pull request |
+| Review findings per pull request, by pass | what review catches, and whether checks can take it over | Review findings, by pass, per pull request |
+| Open ends | effects that led nowhere: lost prompts, abandoned dispatches, checks never answered | Effects with nothing caused by them within their kind's timeout |
+| Decisions resting on a contradiction | which decisions to reopen | From a fact that contradicts an assumption, back along `rests-on` to the decisions that cite it |
+| Unknown causes | how much of the line can't yet explain itself; the aim is a falling share | Events whose source recorded no cause, as a share of all |
 
 **Decisions**, settled with Niko on 18 November 2026. Every number is a starting value in `factory.toml`. Each row carries a proposed tripwire (added on 23 November 2026): the condition that reopens it, read from the measures.
 
@@ -475,7 +474,7 @@ The factory is switched on one link at a time, observing before automating, so e
 | --- | --- | --- |
 | Papercut size | At most 100 changed lines and 5 files outside tests, `repro/` and docs, in one package | More than 2 pull requests a week reach Niko only because of size |
 | Concurrency and nits | 3 fix sessions at once; at most 5 open reviewer-filed issues per package, then the reviewer comments instead (assumed: not answered) | Parallel sessions conflict more than once a week, or reviewer-filed issues hit the cap twice in a week |
-| Bake | 3 clean canary runs on `next`; after promotion, a watch over the first 20 real calls of the changed tools or 24 hours, whichever ends later | A regression reaches `latest` after a full bake, or bakes routinely end on the 24 hours with no calls |
+| Bake | 3 clean canary runs on `next` and no reproducible report from the ring (kiro-remote's repository on `next`); after promotion, a watch over the first 20 real calls of the changed tools or 24 hours, whichever ends later | A regression reaches `latest` after a full bake, or bakes routinely end on the 24 hours with no calls |
 | Read to write release | 7 days between them (assumed: not answered) | A rollback lands on a version that can't read the log |
 | Friction | Eval tasks from transcripts, 5 trials before and after; fixed when errors and retries fall by half and success does not fall | An eval passes while the sweep still counts the same error |
 | Dist-tags | Separate `promote.yml` with a dist-tag-only trusted publisher; `release.yml` keeps publish only | npm changes what a dist-tag-only trusted publisher may do |
@@ -483,15 +482,17 @@ The factory is switched on one link at a time, observing before automating, so e
 | Unknown event types | Stop with a finding at an unknown event that moves a state; keep and skip one that only annotates, as its envelope says (revised 23 November 2026 to agree with draft); recorded in a ledger ADR | An old reader stops on an event that only annotates |
 | Intake | In kiro-remote, harvested from session transcripts; no credential in the sandbox, no new token issuer | Reports are lost, or kiro-remote stops seeing a session's transcript |
 | Reviewer models | Done when and drift on the strongest Claude model, a tier above the author; security on another vendor's model | Reviewer agreement with Niko falls below its baseline |
-| Local sessions | `report` queues locally; a session-end hook posts the queue to a new kiro-remote endpoint under Niko's OAuth | A local session's queue isn't posted |
+| Local sessions | Deferred. When switched on: `report` queues locally; a session-end hook posts the queue to a new kiro-remote endpoint under Niko's OAuth | A papercut from a local session goes unreported, which switches it on; once on, a local session's queue isn't posted |
 | Plan approval | kiro-remote approves only the saved recipe from `main`, matched by name and content hash; anything else goes to Niko | Kiro changes how a workflow asks for approval |
+| Step 4 gate (added 28 November 2026) | A lane opens when shadow review has covered at least 30 pull requests over at least 14 days, with at least 10 in that lane, agreement with Niko of at least 90%, and no unsafe disagreement (the App approved, he rejected, reverted or added the frame label) in the last 20 | Any unsafe disagreement after the lane opens sends it back to shadow review |
+| Known-issue lines (added 28 November 2026) | Templated from fields; a free-text workaround only from an issue a person accepted | A templated line misleads an agent into a worse call |
+| Prompt strings (added 28 November 2026) | Server instructions, tool and argument descriptions and the known-issue template in one prompts file per package, a frame path, with a check against strings outside it | Shadow review shows prompts-file changes are as safe as routine ones, or an injection arrives through a result text or error message |
 | Workflow use | Workflows for code-changing work; single sessions for test-only and docs-only items | A workflow costs more than twice a single session per fixed issue |
 
-**Open decisions before the split into issues.** Three ADRs this doc relies on are still proposed:
+**Open decisions before the split into issues.** Two ADRs this doc relies on are still proposed:
 
 - va08e4c3, release through `next` and run other repositories' tools from `latest`;
-- 0j5y197e, ship event format changes read first, write later;
-- 6wh6egkw, record each ledger event's causes in its envelope.
+- 0j5y197e, ship event format changes read first, write later.
 
 **Still to verify in the pilot**
 
